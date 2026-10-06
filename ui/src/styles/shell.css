@@ -1,0 +1,236 @@
+/* Library shell (DESIGN.md §3), transcribed from the markup in design/renders/LibraryEmpty.dc.html.
+   Shadows and colours come only from tokens.css; hover, press and focus rules there apply by class
+   (.btn, .primary, .ghost, .icon-btn, .search). Rules here stay single-class so those state rules win. */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Header: 60 px, ground colour, neo-bar shadow, wraps below ~900 px. */
+.app-header {
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 0 24px;
+  background: var(--surface);
+  box-shadow: var(--neo-bar);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 160px;
+}
+
+.wordmark-ring {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.wordmark-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.wordmark-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.header-search {
+  flex: 1 1 320px;
+  display: flex;
+  justify-content: center;
+}
+
+.search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 11px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 14px 0 42px;
+  border-radius: 16px;
+  border: none;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+/* DESIGN.md §5.3: disabled (empty library) at 70% opacity; the placeholder explains why. */
+.search:disabled {
+  opacity: 0.7;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+  justify-content: flex-end;
+}
+
+.new-recording {
+  height: 40px;
+  padding: 0 18px 0 14px;
+  border-radius: 16px;
+  background: var(--accent-grad);
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #ffffff;
+}
+
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.header-icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 16px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+/* Content area. */
+.library-main {
+  flex: 1;
+  box-sizing: border-box;
+}
+
+.library-main--centred {
+  padding: 64px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Footer: 36 px, groove on top, 12 px text-3. */
+.app-footer {
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 0 24px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-3);
+  flex-wrap: wrap;
+}
+
+.footer-engine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.status-dot--ok {
+  background: var(--ok);
+}
+
+/* Not reported yet, or no engine installed: a quiet dot, not a status colour. */
+.status-dot--neutral {
+  background: var(--text-3);
+}
+
+.footer-storage--low {
+  color: var(--accent-text);
+}
+
+/* Keyboard press (pressFeedback.ts) mirrors the :active rules in tokens.css. */
+.primary.is-pressed {
+  box-shadow: var(--neo-accent-in) !important;
+  transform: translateY(1px) scale(0.985);
+}
+
+.ghost.is-pressed,
+.icon-btn.is-pressed {
+  box-shadow: var(--neo-in) !important;
+  transform: translateY(1px) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary.is-pressed,
+  .ghost.is-pressed,
+  .icon-btn.is-pressed {
+    transform: none;
+  }
+}
+
+/* Shown only if the host fails to answer the first calls. */
+.load-error {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.load-error-text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-2);
+}
+
+.load-error-retry {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-2);
+}

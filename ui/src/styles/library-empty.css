@@ -1,0 +1,136 @@
+/* First-run Library (DESIGN.md §6), transcribed from design/renders/LibraryEmpty.dc.html. */
+
+.empty-column {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  text-align: center;
+}
+
+.empty-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.empty-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 3px solid var(--line-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: var(--surface);
+}
+
+.empty-ring-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.empty-lead {
+  margin: 0;
+  max-width: 480px;
+  font-size: 16px;
+  color: var(--text-2);
+}
+
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.start-recording {
+  height: 48px;
+  padding: 0 24px 0 18px;
+  border-radius: 20px;
+  background: var(--accent-grad);
+  font-weight: 700;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
+}
+
+.rec-dot-lg {
+  width: 12px;
+  height: 12px;
+}
+
+.import-media {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-2);
+}
+
+.feature-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+}
+
+.feature-card {
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--neo-card);
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.feature-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: inherit;
+}
+
+.feature-body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}

@@ -1,0 +1,153 @@
+/* Memento design tokens and shared component rules — extracted from the design renders. */
+/* Apply class "app" to the root; add "dark" for the dark theme (or map to prefers-color-scheme). */
+
+.app{
+  --bg:#EFEDE8;
+  --surface:#EFEDE8;
+  --surface-2:#E4E1DA;
+  --line:rgba(29,28,26,.07);
+  --line-strong:#C9C5BC;
+  --text:#1D1C1A;
+  --text-2:#5E5B55;
+  --text-3:#7D7971;
+  --accent:#C2410C;
+  --accent-soft:#FBE9E0;
+  --accent-text:#9A3412;
+  --ok:#2F6B4F;
+  --ok-soft:#E3EFE8;
+  --focus:#2563EB;
+  --danger:#B42318;
+  --danger-soft:#F6E0DD;
+  --neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);
+  --neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);
+  --neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);
+  --neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);
+  --neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);
+  --neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);
+  --neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);
+  --neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);
+  --neo-bar:0 8px 18px rgba(29,28,26,.08);
+  --accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);
+  --danger-grad:linear-gradient(145deg,#C43024,#9E1C12);
+  --knob:linear-gradient(145deg,#FFFFFF,#E4E1DA);
+  --sp1:#3B6FB6;
+  --sp2:#2E8B7A;
+  --sp3:#7A5AB8;
+  --sp4:#A3741A}
+.app.dark{
+  --bg:#1F1E1B;
+  --surface:#1F1E1B;
+  --surface-2:#1A1917;
+  --line:rgba(255,255,255,.06);
+  --line-strong:#434039;
+  --text:#EDEAE4;
+  --text-2:#A8A49C;
+  --text-3:#86827A;
+  --accent:#F08A5C;
+  --accent-soft:#3A2218;
+  --accent-text:#F4A37E;
+  --ok:#7FC7A3;
+  --ok-soft:#1E2F27;
+  --focus:#60A5FA;
+  --danger:#F28B82;
+  --danger-soft:#3A1F1C;
+  --neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);
+  --neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);
+  --neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);
+  --neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);
+  --neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);
+  --neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);
+  --neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);
+  --neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);
+  --neo-bar:0 8px 18px rgba(0,0,0,.5);
+  --accent-grad:linear-gradient(145deg,#F79A70,#E07848);
+  --danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);
+  --knob:linear-gradient(145deg,#34322E,#242320);
+  --sp1:#7FA7E0;
+  --sp2:#6FC4B2;
+  --sp3:#B39BE6;
+  --sp4:#D4A94A}
+
+/* Base element rules shared by every screen (the neumorphism block below layers on top) */
+.app{font-family:Manrope,'Segoe UI Variable',system-ui,sans-serif;font-size:15px;line-height:1.45;background:var(--bg);color:var(--text)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover,.app a.row,.app a.row:hover,.app a.card,.app a.card:hover,.app a.icon-btn,.app a.icon-btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.chip,.row,.card,.icon-btn,.nav,.seg,.tog,.modhead,.pal{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.chip:focus-visible,.row:focus-visible,.card:focus-visible,.icon-btn:focus-visible,.nav:focus-visible,.seg:focus-visible,.tog:focus-visible,.modhead:focus-visible,.pal:focus-visible,.search:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.pill.active{background:var(--accent-soft);color:var(--accent-text)}
+.pill.queued{border:1px dashed var(--line-strong);color:var(--text-3)}
+.pill.failed{border:1px solid var(--danger);color:var(--danger)}
+.seg{height:30px;padding:0 12px;border:none;background:transparent;font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.tog{width:40px;height:22px;border-radius:999px;border:none;position:relative;padding:0;flex:none}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%}
+.tog.on span{left:21px}
+.nav{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 12px;border-radius:14px;border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-2);text-align:left;box-sizing:border-box}
+.chk{accent-color:var(--text);width:16px;height:16px;margin:0}
+.search::placeholder,.field::placeholder,.input::placeholder{color:var(--text-3)}
+.row+.row,.comp+.comp{border-top:1px solid var(--line)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.tog span{transition:none}.btn,.chip,.icon-btn,.seg,.card,.row{transition:none}.primary:active,.ghost:active,.icon-btn:active,.chip:active,.row:active{transform:none}}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}

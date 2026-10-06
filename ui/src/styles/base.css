@@ -1,0 +1,23 @@
+/* Document-level rules. tokens.css (a verbatim copy of design/tokens.css) styles .app, which is the <html> element. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* The tokens style controls by class; reset what browsers add to real <button>/<ul> elements. */
+button.btn,
+button.icon-btn {
+  margin: 0;
+  border: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+button:disabled {
+  cursor: default;
+}
