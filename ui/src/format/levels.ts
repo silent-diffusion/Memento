@@ -1,6 +1,6 @@
 // Level meters and track lanes on the Recording session (DESIGN.md §5.10, §5.11). recording.levels
-// reports linear RMS and peak in 0..1 up to 30 times a second; people read loudness in decibels, so
-// both the meter and the lane bars use a -60..0 dBFS scale.
+// reports linear RMS and peak in 0..1 up to 30 times a second. The meter shows loudness on a
+// -60..0 dBFS scale, as people read levels; the lanes draw amplitude, as waveforms do.
 
 const FLOOR_DB = -60;
 
@@ -22,9 +22,13 @@ export function meterPercent(rms: number): number {
 export const LANE_BAR_MIN_PX = 4;
 export const LANE_BAR_MAX_PX = 26;
 
-export function laneBarHeight(peak: number): number {
-  const l = loudness(peak);
-  return Math.round(LANE_BAR_MIN_PX + l * l * (LANE_BAR_MAX_PX - LANE_BAR_MIN_PX));
+/**
+ * Lane bars draw amplitude like a waveform rather than loudness like the meter: the square root of
+ * the linear level, so speech shows its rise and fall instead of sitting near the top.
+ */
+export function laneBarHeight(level: number): number {
+  const l = Number.isFinite(level) ? Math.sqrt(Math.min(1, Math.max(0, level))) : 0;
+  return Math.round(LANE_BAR_MIN_PX + l * (LANE_BAR_MAX_PX - LANE_BAR_MIN_PX));
 }
 
 /**
