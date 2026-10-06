@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <!-- Single source of truth for the product version (SemVer). build/pack.ps1 reads it too. -->
+    <Version>0.1.0</Version>
+    <Product>Memento</Product>
+    <Company>silent-diffusion</Company>
+    <Authors>silent-diffusion</Authors>
+    <Copyright>Copyright (c) silent-diffusion contributors</Copyright>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CI)' != ''">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>
