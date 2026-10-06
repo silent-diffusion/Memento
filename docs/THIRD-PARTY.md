@@ -20,6 +20,9 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | Velopack | MIT | Installer and update hooks in the app |
 | NAudio.Core, NAudio.Wasapi (2.4.0) | MIT | Device and audio-session enumeration, Media Foundation encode/decode (FLAC, MP3, AAC), WDL resampler |
 | System.Drawing.Common | MIT | Application icons for the per-app audio source list (`Icon.ExtractAssociatedIcon` → PNG) |
+| Microsoft.Data.Sqlite | MIT | Library index (`library.db`) |
+| SQLitePCLRaw.bundle_e_sqlite3, SQLitePCLRaw.core, SQLitePCLRaw.provider.e_sqlite3 (Microsoft.Data.Sqlite dependencies) | Apache-2.0 | SQLite bindings and the bundled native `e_sqlite3` library |
+| SQLite (inside `e_sqlite3`, with FTS5) | Public domain | Database engine and full-text search for the library index |
 
 Build, test and packaging tools (not shipped in the installer):
 

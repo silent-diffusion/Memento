@@ -224,11 +224,21 @@ public sealed class BridgeRouterTests
     }
 
     [Fact]
-    public void TheProductionRegistrationExposesEveryM0Method()
+    public void TheProductionRegistrationExposesEveryM0AndM1Method()
     {
         using var host = new BridgeTestHost();
 
-        string[] expected = ["app.openExternal", "app.version", "library.list", "settings.get", "settings.set", "ui.ready"];
+        // Every method in docs/BRIDGE.md, M0 and M1.
+        string[] expected =
+        [
+            "annotations.addChapter", "annotations.addHighlight", "annotations.addTopic", "annotations.removeChapter",
+            "annotations.removeHighlight", "annotations.removeTopic", "annotations.updateChapter", "annotations.updateHighlight",
+            "app.openExternal", "app.version", "dialog.pickFolder", "library.list", "library.processing",
+            "project.delete", "project.deleteEstimate", "project.get", "project.rename", "project.updateDetails",
+            "recording.current", "recording.markHighlight", "recording.pause", "recording.resume", "recording.setSource",
+            "recording.start", "recording.stop", "recovery.acknowledge", "recovery.list", "settings.get", "settings.set",
+            "sources.list", "status.get", "ui.ready",
+        ];
 
         Assert.Equal(expected, host.Router.MethodNames.Order(StringComparer.Ordinal));
     }
