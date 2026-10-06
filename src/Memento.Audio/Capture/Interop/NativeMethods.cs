@@ -14,6 +14,9 @@ internal static partial class NativeMethods
         out CoreAudio.IActivateAudioInterfaceAsyncOperation activationOperation);
 #pragma warning restore SYSLIB1054
 
+    [LibraryImport("ole32.dll")]
+    public static partial int CoCreateInstance(in Guid clsid, IntPtr outer, int clsContext, in Guid iid, out IntPtr instance);
+
     [LibraryImport("avrt.dll", EntryPoint = "AvSetMmThreadCharacteristicsW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     public static partial IntPtr AvSetMmThreadCharacteristics(string taskName, ref uint taskIndex);
 

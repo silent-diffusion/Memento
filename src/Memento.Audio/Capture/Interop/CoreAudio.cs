@@ -39,10 +39,31 @@ internal static class CoreAudio
     public static readonly Guid IidAudioCaptureClient = new("C8ADBD64-E71E-48a0-A4DE-185C395CD317");
     public static readonly Guid IidAudioSessionControl = new("F4B1A599-7266-4319-A8CA-E70ACB11E8CD");
 
-    [ComImport]
-    [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-    public class MMDeviceEnumeratorCoClass
+    public static readonly Guid ClsidMMDeviceEnumerator = new("BCDE0395-E52F-467C-8E3D-C4579291692E");
+    public static readonly Guid IidMMDeviceEnumerator = new("A95664D2-9614-4F35-A746-DE8DB63617E6");
+
+    /// <summary>
+    /// Creates the device enumerator through a private RCW. The enumerator is a per-process singleton, so a typed
+    /// <c>[ComImport]</c> coclass would share its cached RCW with NAudio's own coclass and break NAudio's casts.
+    /// </summary>
+    public static IMMDeviceEnumerator CreateDeviceEnumerator()
     {
+        var clsid = ClsidMMDeviceEnumerator;
+        var iid = IidMMDeviceEnumerator;
+        var hr = NativeMethods.CoCreateInstance(in clsid, IntPtr.Zero, ClsctxAll, in iid, out var pointer);
+        if (hr < 0)
+        {
+            throw new CoreAudioCallException("CoCreateInstance(MMDeviceEnumerator)", hr);
+        }
+
+        try
+        {
+            return (IMMDeviceEnumerator)Marshal.GetUniqueObjectForIUnknown(pointer);
+        }
+        finally
+        {
+            Marshal.Release(pointer);
+        }
     }
 
     [ComImport]

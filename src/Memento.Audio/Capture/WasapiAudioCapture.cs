@@ -371,7 +371,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
     {
         var isLoopback = Source.Kind == AudioSourceKind.System;
         var what = isLoopback ? "output device" : "microphone";
-        var enumerator = (CoreAudio.IMMDeviceEnumerator)new CoreAudio.MMDeviceEnumeratorCoClass();
+        var enumerator = CoreAudio.CreateDeviceEnumerator();
         CoreAudio.IMMDevice? device = null;
         try
         {
