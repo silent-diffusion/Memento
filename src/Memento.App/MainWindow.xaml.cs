@@ -26,8 +26,14 @@ internal sealed partial class MainWindow : Window
     private static readonly Color LightGround = Color.FromRgb(0xEF, 0xED, 0xE8);
     private static readonly Color DarkGround = Color.FromRgb(0x1F, 0x1E, 0x1B);
 
-    /// <summary>How the page may use library.memento (see <see cref="MapLibrary"/>).</summary>
-    private const CoreWebView2HostResourceAccessKind LibraryAccessKind = CoreWebView2HostResourceAccessKind.DenyCors;
+    /// <summary>
+    /// How the page may use library.memento. Not DenyCors: under DenyCors WebView2 answers every <c>fetch</c> from
+    /// app.memento with an empty Access-Control-Allow-Origin (before WebResourceRequested could step in), so the page
+    /// could play the mix but never read peaks.json. Allow is safe here because no other origin can exist in this
+    /// WebView: top-level and frame navigations are limited to app.memento, new windows are refused, and the page CSP
+    /// allows no frames. Range requests (seeking) work either way.
+    /// </summary>
+    private const CoreWebView2HostResourceAccessKind LibraryAccessKind = CoreWebView2HostResourceAccessKind.Allow;
 
 #if DEBUG
     private const bool IsDebugBuild = true;
@@ -160,6 +166,7 @@ internal sealed partial class MainWindow : Window
             WebViewBridge.VirtualHost, uiFolder, CoreWebView2HostResourceAccessKind.DenyCors);
         MapLibrary(core);
         core.NavigationStarting += OnNavigationStarting;
+        core.FrameNavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
         core.NavigationCompleted += OnNavigationCompleted;
         core.ProcessFailed += OnProcessFailed;
