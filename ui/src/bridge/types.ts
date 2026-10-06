@@ -101,6 +101,8 @@ export interface RecordingSummary {
   /** Any stage active or queued. */
   isProcessing: boolean;
   state: RecordingLifecycle;
+  /** Size of the project folder on disk, kept in the index. */
+  sizeBytes: number;
 }
 
 export type AudioSourceKind = 'microphone' | 'system' | 'application';

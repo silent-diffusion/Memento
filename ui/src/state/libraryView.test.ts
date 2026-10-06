@@ -22,6 +22,7 @@ const rec = (id: string, createdAt: Date, extra: Partial<RecordingSummary> = {})
   people: [],
   isProcessing: false,
   state: 'ready',
+  sizeBytes: 0,
   ...extra,
 });
 
