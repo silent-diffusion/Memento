@@ -16,7 +16,10 @@
 #>
 [CmdletBinding()]
 param(
-  [switch] $SkipUiBuild
+  # ui/dist is already built (CI builds and tests the UI in earlier steps).
+  [switch] $SkipUiBuild,
+  # Keep build/out as it is: release.yml downloads the previous release there first so vpk can build a delta.
+  [switch] $KeepOutput
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,8 +102,8 @@ Invoke-Native 'dotnet' @(
   '-p:PublishProfile=win-x64',
   '-o', $publishDir)
 
-if (Test-Path $outputDir) { Remove-Item -Recurse -Force $outputDir }
-New-Item -ItemType Directory -Path $outputDir | Out-Null
+if ((Test-Path $outputDir) -and -not $KeepOutput) { Remove-Item -Recurse -Force $outputDir }
+New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $notesFile = Join-Path $repoRoot "artifacts/release-notes-$version.md"
 Write-VersionNotes $version $notesFile
 

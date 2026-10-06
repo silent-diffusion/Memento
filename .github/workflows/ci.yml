@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  build:
+    name: Build, test and pack
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Lint UI
+        working-directory: ui
+        run: npm run lint
+
+      - name: Test UI
+        working-directory: ui
+        run: npm test
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      - name: Restore
+        run: dotnet restore Memento.sln
+
+      - name: Build
+        run: dotnet build Memento.sln -c Release --no-restore /warnaserror
+
+      - name: Test
+        run: dotnet test Memento.sln -c Release --no-build --logger trx --results-directory TestResults
+
+      - name: Upload UI build
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-dist
+          path: ui/dist
+          if-no-files-found: error
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: warn
+
+      - name: Pack installer
+        shell: pwsh
+        run: ./build/pack.ps1 -SkipUiBuild
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer
+          path: build/out
+          if-no-files-found: error

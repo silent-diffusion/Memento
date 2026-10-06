@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  release:
+    name: Build, test, pack and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Check the tag matches Directory.Build.props
+        id: version
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content Directory.Build.props -Raw
+          $version = $props.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match <Version>$version</Version> in Directory.Build.props."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Lint UI
+        working-directory: ui
+        run: npm run lint
+
+      - name: Test UI
+        working-directory: ui
+        run: npm test
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      - name: Restore
+        run: dotnet restore Memento.sln
+
+      - name: Build
+        run: dotnet build Memento.sln -c Release --no-restore /warnaserror
+
+      - name: Test
+        run: dotnet test Memento.sln -c Release --no-build --logger trx --results-directory TestResults
+
+      - name: Restore vpk
+        run: dotnet tool restore
+
+      # The previous release lets vpk build a delta package. There is none before the first release.
+      - name: Download previous release
+        continue-on-error: true
+        run: >-
+          dotnet vpk download github
+          --repoUrl ${{ github.server_url }}/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --outputDir build/out
+
+      - name: Pack installer
+        shell: pwsh
+        run: ./build/pack.ps1 -SkipUiBuild -KeepOutput
+
+      # Creates or updates the GitHub release with Setup.exe, the portable zip and the update feed.
+      # The release text is the version's section of build/RELEASE-NOTES.md, embedded by pack.ps1.
+      - name: Publish GitHub release
+        run: >-
+          dotnet vpk upload github
+          --repoUrl ${{ github.server_url }}/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --outputDir build/out
+          --tag ${{ github.ref_name }}
+          --releaseName "Memento ${{ steps.version.outputs.version }}"
+          --publish
+          --merge
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer
+          path: build/out
+          if-no-files-found: error
