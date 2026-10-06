@@ -18,6 +18,7 @@ public sealed class TrackWriter : IDisposable
     private long _lastFlush;
     private long? _firstFrameQpc;
     private long _lastFrameEndQpc = long.MinValue;
+    private long? _padFrom;
     private bool _disposed;
 
     public TrackWriter(TrackWriterOptions options)
@@ -125,6 +126,21 @@ public sealed class TrackWriter : IDisposable
         lock (_sync)
         {
             _gate.SetEnd(qpc);
+        }
+    }
+
+    /// <summary>
+    /// Before the first frame, write silence back to <paramref name="qpc"/> (pauses still excluded), so the track
+    /// starts exactly at the session start instead of after the device's start-up latency.
+    /// </summary>
+    public void PadStartFrom(long qpc)
+    {
+        lock (_sync)
+        {
+            if (_firstFrameQpc is null)
+            {
+                _padFrom = qpc;
+            }
         }
     }
 
@@ -263,6 +279,18 @@ public sealed class TrackWriter : IDisposable
         }
 
         var rate = InputFormat.SampleRate;
+        if (_padFrom is { } pad && _firstFrameQpc is null)
+        {
+            _padFrom = null;
+            var padFrames = QpcClock.TicksToFramesRounded(qpc - pad, rate);
+            for (long done = 0; done < padFrames;)
+            {
+                var n = (int)Math.Min(rate, padFrames - done);
+                Offer(pad + QpcClock.FramesToTicks(done, rate), n, []);
+                done += n;
+            }
+        }
+
         _lastFrameEndQpc = Math.Max(_lastFrameEndQpc, qpc + QpcClock.FramesToTicks(frames, rate));
         _gate.Split(qpc, frames, rate, _ranges);
         foreach (var range in _ranges)
