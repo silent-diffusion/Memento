@@ -1,6 +1,7 @@
 import { effect } from '@preact/signals';
 import type { BridgeClient } from '../bridge/client';
-import { loadInitialData, type AppStore } from './store';
+import { loadInitialData } from './data';
+import type { AppStore } from './store';
 
 /** How long ui.ready waits for the first footer status before going ahead without it. */
 export const FOOTER_WAIT_MS = 2000;
