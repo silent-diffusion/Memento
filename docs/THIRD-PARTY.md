@@ -18,6 +18,8 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | Serilog.Sinks.File | Apache-2.0 | Rolling log files |
 | Serilog.Sinks.Console | Apache-2.0 | Console log output in Debug builds |
 | Velopack | MIT | Installer and update hooks in the app |
+| NAudio.Core, NAudio.Wasapi (2.4.0) | MIT | Device and audio-session enumeration, Media Foundation encode/decode (FLAC, MP3, AAC), WDL resampler |
+| System.Drawing.Common | MIT | Application icons for the per-app audio source list (`Icon.ExtractAssociatedIcon` → PNG) |
 
 Build, test and packaging tools (not shipped in the installer):
 
