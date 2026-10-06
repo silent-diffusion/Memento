@@ -39,3 +39,6 @@ Desktop.ini
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Claude Code worktrees
+.claude/worktrees/

@@ -14,12 +14,15 @@ interface StageStatus { stage: StageName; state: StageState; percent: number | n
 
 interface RecordingSummary {                // one Library row / card
   id: string; title: string; type: RecordingType;
-  createdAt: string; durationMs: number; participantCount: number; hasVideo: boolean;
+  createdAt: string; durationMs: number;
+  participantCount: number;                 // people listed for the recording; 0 = a solo recording ("Just me"), 1 = "1 speaker"
+  hasVideo: boolean;
   stages: StageStatus[];                    // [] means "Audio only"
   // M1:
   people: string[];                         // participant names + renamed speakers, for search and the meta line
   isProcessing: boolean;                    // any stage active or queued
   state: 'recording' | 'finalizing' | 'ready' | 'recovered' | 'failed';
+  sizeBytes: number;                        // size of the project folder on disk (kept in the index)
 }
 
 interface AudioSource {                     // M1
@@ -70,12 +73,12 @@ The host maps a second virtual host, `https://library.memento/`, to the library 
 | `app.openExternal` | `{ url }` | `{ opened }` | M0. https: or ms-settings: only |
 | `ui.ready` | `{}` | `{}` | M0 |
 | `settings.get` | `{}` | `SettingsSnapshot` | M0; M1 extends the snapshot (below) |
-| `settings.set` | `Partial<SettingsSnapshot>` (nulls keep) | `SettingsSnapshot` | M0; M1 adds fields |
+| `settings.set` | `Partial<SettingsSnapshot>` (nulls keep) | `SettingsSnapshot` | M0; M1 adds fields. Top-level fields merge; the `recording` block is **replaced whole** when present (the UI always sends the full block). |
 | `library.list` | `{ query?: string, type?: RecordingType \| 'all', sort?: 'newest' \| 'oldest' \| 'longest' \| 'title' }` | `{ recordings: RecordingSummary[], totalDurationMs, totalCount }` | M1 adds params. `query` searches titles, people and (M2) transcripts. Result reflects the filter. |
 | `library.processing` | `{}` | `{ current: { recordingId, title, meta: RecordingSummary, stages: StageStatus[] } \| null, othersCount }` | M1. The processing card. |
 | `project.get` | `{ recordingId }` | `Project` | M1 |
 | `project.updateDetails` | `{ recordingId, details: Partial<RecordingDetails> }` | `Project` | M1. Works during recording too. |
-| `project.deleteEstimate` | `{ recordingId }` | `{ title, sizeBytes, items: string[] }` | M1. Feeds the delete confirmation copy. |
+| `project.deleteEstimate` | `{ recordingId }` | `{ title, sizeBytes, items: string[] }` | M1. Feeds the delete confirmation copy. `items` are lower-case noun phrases the UI joins into one sentence, e.g. `["the recording", "its 3 tracks", "its transcript", "its 2 documents"]`. |
 | `project.delete` | `{ recordingId }` | `{}` | M1. Refused with `project.recording` while that recording is active. |
 | `project.rename` | `{ recordingId, title }` | `Project` | M1 |
 | `annotations.addChapter` / `updateChapter` / `removeChapter` | `{ recordingId, chapter: Partial<Chapter> }` / `{ recordingId, chapterId }` | `{ chapters }` | M1 |
@@ -99,7 +102,7 @@ The host maps a second virtual host, `https://library.memento/`, to the library 
 |---|---|---|
 | `theme.changed` | `{ isDark }` | M0 |
 | `status.footer` | `{ engine: { ready, device }, storage: { freeBytes, lowSpace }, /* M1: */ recording: { active: boolean, lastCheckpointAt: string \| null, lostSource: string \| null }, processingPaused: string \| null /* reason */ }` | M0, extended in M1 |
-| `recording.state` | `RecordingStatePayload = { sessionId, recordingId, state: 'recording' \| 'paused' \| 'finalizing' \| 'ready' \| 'stopped', startedAt, elapsedMs, tracks: Track[], lastCheckpointAt, highlightsCount }` | M1, on every change and at least every second while recording |
+| `recording.state` | `RecordingStatePayload = { sessionId, recordingId, state: 'recording' \| 'paused' \| 'finalizing' \| 'ready' \| 'stopped', startedAt, elapsedMs /* recorded time, excluding paused time */, tracks: Track[], lastCheckpointAt, highlightsCount }` | M1, on every change and at least every second while recording |
 | `recording.levels` | `{ sessionId, levels: { sourceId: string, rms: number /* 0..1 */, peak: number }[] }` | M1, ≤ 30 per second |
 | `recording.sourceLost` | `{ sessionId, sourceId, name, atMs, remaining: string[] }` | M1 |
 | `recording.stoppedByHost` | `{ sessionId, recordingId, reason: 'diskFull' \| 'deviceLost' \| 'error', atMs, message }` | M1 |
