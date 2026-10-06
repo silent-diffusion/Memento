@@ -9,6 +9,9 @@ internal sealed class SyntheticCaptureFactory : IAudioCaptureFactory
 
     public HashSet<string> Unavailable { get; } = [];
 
+    /// <summary>Stamp packets this far ahead of real time, as endpoint loopback does (presentation time).</summary>
+    public Dictionary<string, TimeSpan> TimestampLead { get; } = [];
+
     public List<SyntheticCapture> Opened { get; } = [];
 
     public Func<long, float> Signal { get; init; } = frame => (float)(0.5 * Math.Sin(2 * Math.PI * 440 * frame / 48_000));
@@ -21,7 +24,7 @@ internal sealed class SyntheticCaptureFactory : IAudioCaptureFactory
             throw new AudioSourceUnavailableException(source, $"Synthetic source {source} is unplugged.");
         }
 
-        var capture = new SyntheticCapture(source, Signal, LoseAfter.TryGetValue(source.ToString(), out var lose) ? lose : null);
+        var capture = new SyntheticCapture(source, Signal, LoseAfter.TryGetValue(source.ToString(), out var lose) ? lose : null, timestampLead: TimestampLead.TryGetValue(source.ToString(), out var lead) ? lead : null);
         lock (Opened)
         {
             Opened.Add(capture);

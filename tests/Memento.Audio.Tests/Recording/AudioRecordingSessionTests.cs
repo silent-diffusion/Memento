@@ -54,6 +54,26 @@ public sealed class AudioRecordingSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task LoopbackStylePacketsStampedAheadAreStillCutAtTheStopAndPauseInstants()
+    {
+        // Endpoint loopback stamps packets with presentation time, ~10–20 ms ahead of their arrival.
+        _factory.TimestampLead[App] = TimeSpan.FromMilliseconds(15);
+        await using var session = await Start(Mic, App);
+        await Task.Delay(400);
+        session.Pause();
+        await Task.Delay(200);
+        session.Resume();
+        await Task.Delay(400);
+        var result = await session.StopAsync();
+
+        var mic = result.Tracks.Single(t => t.SourceId == Mic);
+        var app = result.Tracks.Single(t => t.SourceId == App);
+        Assert.InRange((app.Duration - result.Duration).Duration().TotalMilliseconds, 0, 1);
+        Assert.InRange((mic.Duration - result.Duration).Duration().TotalMilliseconds, 0, 15);
+        Assert.InRange((Assert.Single(mic.Gaps).At - Assert.Single(app.Gaps).At).Duration().TotalMilliseconds, 0, 0.05); // within a frame
+    }
+
+    [Fact]
     public async Task CheckpointsAreRaisedOnTheIntervalWithDrift()
     {
         var checkpoints = new List<SessionCheckpoint>();

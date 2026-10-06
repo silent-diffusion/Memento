@@ -46,57 +46,112 @@ internal sealed class TrackRun(AudioSourceId id, string name, string fileStem, I
 
     public bool IsActive => EndReason is null && !Ending;
 
-    /// <summary>Moves packets from the capture channel into the writer and meters until the channel completes.</summary>
+    /// <summary>
+    /// Moves packets from the capture channel into the writer and meters until the channel completes.
+    /// <para>
+    /// A packet is written only once the clock has passed its last frame. Loopback stamps packets with their
+    /// presentation time, 10–20 ms <em>ahead</em> of when they arrive; written on arrival, frames after a pause or
+    /// stop instant would already be on disk before the session asks to cut there. Holding them until they are due
+    /// lets the time gate cut every track at the same instant. Capture endpoints are always due on arrival.
+    /// </para>
+    /// </summary>
     public async Task PumpAsync(Action<TrackRun, IOException> onWriteFailed)
     {
-        var format = Capture.Format;
-        await foreach (var packet in Capture.Packets.ReadAllAsync().ConfigureAwait(false))
+        var reader = Capture.Packets;
+        var held = new Queue<CapturePacket>();
+        Task<bool>? waiting = null;
+        while (true)
         {
-            try
+            while (held.Count > 0 && IsDue(held.Peek()))
             {
-                if (WriteFailure is not null)
-                {
-                    continue; // Keep draining so the capture thread never fills up; nothing more is written.
-                }
-
-                if (packet.DroppedFramesBefore > 0)
-                {
-                    var dropped = packet.DroppedFramesBefore;
-                    var start = packet.QpcPosition - QpcClock.FramesToTicks(dropped, format.SampleRate);
-                    for (long done = 0; done < dropped;)
-                    {
-                        var n = (int)Math.Min(format.SampleRate, dropped - done);
-                        Writer.WriteSilence(n, start + QpcClock.FramesToTicks(done, format.SampleRate));
-                        done += n;
-                    }
-
-                    Meter.AddSilence((int)Math.Min(int.MaxValue, dropped), format.Channels);
-                }
-
-                if (packet.IsSilent)
-                {
-                    Writer.WriteSilence(packet.Frames, packet.QpcPosition);
-                    Meter.AddSilence(packet.Frames, format.Channels);
-                }
-                else
-                {
-                    Writer.Write(packet.Data, packet.QpcPosition);
-                    Meter.Add(packet.Data, format);
-                }
-
-                Drift.Add(packet.QpcPosition, packet.Frames, packet.HasReliableTimestamp);
-                Writer.FlushIfDue();
+                Write(held.Dequeue(), onWriteFailed);
             }
-            catch (IOException ex)
+
+            waiting ??= reader.WaitToReadAsync().AsTask();
+            if (held.Count > 0 && !waiting.IsCompleted)
             {
-                WriteFailure = ex;
-                WriteFailedAtQpc = packet.QpcPosition;
-                onWriteFailed(this, ex);
+                var dueIn = TimeSpan.FromTicks(Math.Clamp(EndQpc(held.Peek()) - QpcClock.Now, QpcClock.TicksPerMillisecond, 50 * QpcClock.TicksPerMillisecond));
+                await Task.WhenAny(waiting, Task.Delay(dueIn)).ConfigureAwait(false);
             }
-            finally
+            else
             {
-                packet.Release();
+                await waiting.ConfigureAwait(false);
             }
+
+            if (waiting.IsCompleted)
+            {
+                var more = await waiting.ConfigureAwait(false);
+                waiting = null;
+                if (!more)
+                {
+                    break;
+                }
+
+                while (reader.TryRead(out var packet))
+                {
+                    held.Enqueue(packet);
+                }
+            }
+        }
+
+        // The channel is complete: everything left goes through the time gate, which drops what is past the end.
+        while (held.Count > 0)
+        {
+            Write(held.Dequeue(), onWriteFailed);
+        }
+    }
+
+    private bool IsDue(CapturePacket packet) => !packet.HasReliableTimestamp || EndQpc(packet) <= QpcClock.Now;
+
+    private long EndQpc(CapturePacket packet) => packet.QpcPosition + QpcClock.FramesToTicks(packet.Frames, Capture.Format.SampleRate);
+
+    private void Write(CapturePacket packet, Action<TrackRun, IOException> onWriteFailed)
+    {
+        var format = Capture.Format;
+        try
+        {
+            if (WriteFailure is not null)
+            {
+                return; // Keep draining so the capture thread never fills up; nothing more is written.
+            }
+
+            if (packet.DroppedFramesBefore > 0)
+            {
+                var dropped = packet.DroppedFramesBefore;
+                var start = packet.QpcPosition - QpcClock.FramesToTicks(dropped, format.SampleRate);
+                for (long done = 0; done < dropped;)
+                {
+                    var n = (int)Math.Min(format.SampleRate, dropped - done);
+                    Writer.WriteSilence(n, start + QpcClock.FramesToTicks(done, format.SampleRate));
+                    done += n;
+                }
+
+                Meter.AddSilence((int)Math.Min(int.MaxValue, dropped), format.Channels);
+            }
+
+            if (packet.IsSilent)
+            {
+                Writer.WriteSilence(packet.Frames, packet.QpcPosition);
+                Meter.AddSilence(packet.Frames, format.Channels);
+            }
+            else
+            {
+                Writer.Write(packet.Data, packet.QpcPosition);
+                Meter.Add(packet.Data, format);
+            }
+
+            Drift.Add(packet.QpcPosition, packet.Frames, packet.HasReliableTimestamp);
+            Writer.FlushIfDue();
+        }
+        catch (IOException ex)
+        {
+            WriteFailure = ex;
+            WriteFailedAtQpc = packet.QpcPosition;
+            onWriteFailed(this, ex);
+        }
+        finally
+        {
+            packet.Release();
         }
     }
 

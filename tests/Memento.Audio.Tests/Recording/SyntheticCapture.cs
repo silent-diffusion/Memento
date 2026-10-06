@@ -16,16 +16,18 @@ internal sealed class SyntheticCapture : IAudioCapture
     private readonly Func<long, float> _signal;
     private readonly TimeSpan _latency;
     private readonly TimeSpan? _loseAfter;
+    private readonly long _lead;
     private volatile bool _stop;
     private long _startedAt;
     private long _frames;
     private long _packets;
 
-    public SyntheticCapture(AudioSourceId source, Func<long, float> signal, TimeSpan? loseAfter = null, TimeSpan? latency = null)
+    public SyntheticCapture(AudioSourceId source, Func<long, float> signal, TimeSpan? loseAfter = null, TimeSpan? latency = null, TimeSpan? timestampLead = null)
     {
         Source = source;
         _signal = signal;
         _loseAfter = loseAfter;
+        _lead = timestampLead?.Ticks ?? 0;
         _latency = latency ?? TimeSpan.FromMilliseconds(50);
         _thread = new Thread(Run) { IsBackground = true, Name = "synthetic capture" };
         _thread.Start();
@@ -104,7 +106,7 @@ internal sealed class SyntheticCapture : IAudioCapture
                     }
 
                     var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan());
-                    var p = CapturePacket.FromData(bytes, packet, origin + QpcClock.FramesToTicks(frame, 48_000));
+                    var p = CapturePacket.FromData(bytes, packet, origin + QpcClock.FramesToTicks(frame, 48_000) + _lead);
                     if (!_channel.Writer.TryWrite(p))
                     {
                         p.Release();
