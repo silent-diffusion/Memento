@@ -17,8 +17,11 @@
   padding: 0 24px;
   background: var(--surface);
   box-shadow: var(--neo-bar);
-  position: relative;
-  z-index: 1;
+  /* The header and footer stay in view while the content scrolls, so the dialog scrim (which starts
+     below the header) and the toast stack (which sits above the footer) always line up with them. */
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 24px;
@@ -135,10 +138,11 @@
   color: var(--text-2);
 }
 
-/* Content area. */
+/* Content area: page padding 40 / 48 / 56 (DESIGN.md §2.3). */
 .library-main {
   flex: 1;
   box-sizing: border-box;
+  padding: 40px 48px 56px;
 }
 
 .library-main--centred {
@@ -161,6 +165,10 @@
   font-size: 12px;
   color: var(--text-3);
   flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--bg);
 }
 
 .footer-engine {
@@ -173,6 +181,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
+  flex: none;
 }
 
 .status-dot--ok {
@@ -184,26 +193,77 @@
   background: var(--text-3);
 }
 
+/* DESIGN.md §17 footer variants: accent = paused or warning, danger = a source lost. */
+.status-dot--accent {
+  background: var(--accent);
+}
+
+.status-dot--danger {
+  background: var(--danger);
+}
+
+.footer-strong {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .footer-storage--low {
   color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* Spoke transitions (DESIGN.md §2.4): a quick cross-fade in, dropped under reduced motion. */
+.screen {
+  animation: screen-in 160ms ease-out;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Keyboard press (pressFeedback.ts) mirrors the :active rules in tokens.css. */
-.primary.is-pressed {
+.primary.is-pressed,
+.p.is-pressed,
+.d.is-pressed {
   box-shadow: var(--neo-accent-in) !important;
   transform: translateY(1px) scale(0.985);
 }
 
 .ghost.is-pressed,
-.icon-btn.is-pressed {
+.icon-btn.is-pressed,
+.g.is-pressed,
+.chip.is-pressed,
+.seg.is-pressed,
+.nav.is-pressed,
+.card.is-pressed {
   box-shadow: var(--neo-in) !important;
   transform: translateY(1px) scale(0.985);
 }
 
+.row.is-pressed {
+  box-shadow: var(--neo-in) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .screen {
+    animation: none;
+  }
+
   .primary.is-pressed,
+  .p.is-pressed,
+  .d.is-pressed,
   .ghost.is-pressed,
-  .icon-btn.is-pressed {
+  .icon-btn.is-pressed,
+  .g.is-pressed,
+  .chip.is-pressed,
+  .seg.is-pressed,
+  .nav.is-pressed,
+  .card.is-pressed {
     transform: none;
   }
 }
