@@ -4,9 +4,9 @@ using Memento.Audio.Capture;
 namespace Memento.Audio.Tests.Capture;
 
 /// <summary>Short real-device checks. Microphone samples are only counted and metered, never written.</summary>
-[Trait("Category", "Hardware")]
 public sealed class WasapiAudioCaptureHardwareTests
 {
+    [Trait("Category", "Hardware")]
     [HardwareFact(needsMicrophone: true)]
     public async Task MicrophoneDeliversTimestampedPacketsAtTheMixFormat()
     {
@@ -20,6 +20,7 @@ public sealed class WasapiAudioCaptureHardwareTests
         Assert.Null(capture.Loss);
     }
 
+    [Trait("Category", "Hardware")]
     [HardwareFact(needsRender: true)]
     public async Task SystemLoopbackKeepsTheTrackOnTheClockEvenInSilence()
     {
@@ -31,6 +32,7 @@ public sealed class WasapiAudioCaptureHardwareTests
         Assert.True(result.MonotonicTimestamps);
     }
 
+    [Trait("Category", "Hardware")]
     [HardwareFact(needsRender: true)]
     public async Task ProcessLoopbackOfThisProcessTreeStreamsFloat48kStereo()
     {
