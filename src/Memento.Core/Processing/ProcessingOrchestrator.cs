@@ -133,6 +133,9 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         if (!_worker.IsCompleted)
         {
             _shutdown.Cancel();
+
+            // Interrupting a stage only removes its partial files; give it a moment before the services go away.
+            _worker.Wait(TimeSpan.FromSeconds(5));
         }
     }
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Memento.Core.Bridge;
 using Memento.Core.Host;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Recording;
 using Memento.Core.Recording.Simulation;
@@ -23,7 +24,8 @@ internal sealed class BridgeTestHost : IDisposable
     private readonly TempDirectory _directory;
     private readonly bool _ownsDirectory;
 
-    public BridgeTestHost(SimulatedEngineOptions? engine = null, TempDirectory? directory = null)
+    /// <param name="configure">Extra registrations after the production ones (the last registration wins).</param>
+    public BridgeTestHost(SimulatedEngineOptions? engine = null, TempDirectory? directory = null, Action<IServiceCollection>? configure = null)
     {
         // A folder passed in belongs to the test (several hosts can share it, as successive app runs).
         _ownsDirectory = directory is null;
@@ -52,6 +54,7 @@ internal sealed class BridgeTestHost : IDisposable
         collection.AddMementoLibrary();
         // Manual time produces audio in bursts, so give the ring buffers room for the longest test (200 s).
         collection.AddSimulatedAudio(engine ?? new SimulatedEngineOptions { Speed = 0, BufferBlocks = 20_000 });
+        configure?.Invoke(collection);
         _services = collection.BuildServiceProvider();
     }
 
@@ -86,6 +89,8 @@ internal sealed class BridgeTestHost : IDisposable
     public RecordingCoordinator Recordings => _services.GetRequiredService<RecordingCoordinator>();
 
     public RecoveryService Recovery => _services.GetRequiredService<RecoveryService>();
+
+    public ProcessingOrchestrator Processing => _services.GetRequiredService<ProcessingOrchestrator>();
 
     public SimulatedRecordingEngine Engine => _services.GetRequiredService<SimulatedRecordingEngine>();
 
@@ -125,6 +130,7 @@ internal sealed class BridgeTestHost : IDisposable
     public void Dispose()
     {
         Recordings.ShutdownAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Processing.StopAsync().GetAwaiter().GetResult();
         _services.Dispose();
         if (_ownsDirectory)
         {

@@ -150,6 +150,50 @@ public sealed class RecoveryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EveryPartOfATrackThatRolledOverIsRepairedAndCounted()
+    {
+        using var host = new BridgeTestHost(directory: _directory);
+        var manifest = await host.Store.CreateAsync(new ProjectCreateRequest("Long", "meeting", Start, ProjectStates.Recording), CancellationToken.None);
+        var folder = host.Store.GetProjectFolder(manifest.Id);
+        var format = PcmFormat.Pcm16(48_000, 1);
+        WavTestFiles.Write(Path.Combine(folder, "tracks", "mic.wav"), format, 48_000, (_, _) => 0.1f);
+        var part2 = Path.Combine(folder, "tracks", "mic.part2.wav");
+        WavTestFiles.Write(part2, format, 24_000, (_, _) => 0.2f);
+
+        // The crash happened while part 2 was being written: its header still says it is empty.
+        var info = WavInfo.Read(part2);
+        using (var file = new FileStream(part2, FileMode.Open, FileAccess.Write))
+        {
+            file.Position = 4;
+            file.Write(BitConverter.GetBytes(36));
+            file.Position = info.DataOffset - 4;
+            file.Write(BitConverter.GetBytes(0));
+        }
+
+        Assert.Equal(0, WavInfo.Read(part2).DeclaredDataBytes);
+        await host.Store.WriteRecordingStateAsync(
+            new RecordingStateDocument
+            {
+                SessionId = "s",
+                RecordingId = manifest.Id,
+                StartedAt = Start,
+                LastCheckpointAt = Start.AddSeconds(1),
+                State = "recording",
+                CheckpointSeconds = 30,
+                Tracks = [new RecordingStateTrack("mic", Mic, "microphone", "Mic", "tracks/mic.wav", 48_000, 1, 16, "pcm", 0, 96_000, null, null)],
+            },
+            CancellationToken.None);
+
+        await host.Recovery.RunAsync(CancellationToken.None);
+
+        var recovered = await host.Store.LoadAsync(manifest.Id, CancellationToken.None);
+        Assert.Equal(1500, recovered.Recovery!.RecoveredDurationMs);
+        Assert.Equal(1, recovered.Recovery.TracksIntact);
+        Assert.Equal(24_000 * 2, WavInfo.Read(part2).DeclaredDataBytes);
+        Assert.True(File.Exists(part2));
+    }
+
+    [Fact]
     public async Task APreviouslyFailedFinalizeIsRetriedQuietly()
     {
         using var host = new BridgeTestHost(directory: _directory);
