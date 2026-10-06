@@ -1,0 +1,67 @@
+# Engine notes — findings from the October 2026 technical spikes
+
+Measured on the reference machine: Windows 11 (26200), .NET 8.0.425, AMD Ryzen 7 5800HS (8C/16T), 40 GB RAM, NVIDIA RTX 3060 Laptop 6 GB (driver only, no CUDA toolkit), AMD integrated GPU. Every number below comes from a runnable console project; the conclusions are what ARCHITECTURE.md now requires. Builders should treat the gotchas as rules.
+
+## A. Media Foundation encoding (NAudio 2.4.0)
+
+- NAudio 3.x targets .NET 9 only; **2.4.0** is the version for .NET 8.
+- Windows 11 ships `Microsoft FLAC Audio Encoder MFT`. FLAC round trip is **bit-exact** at 16 and 24 bit. 60 s encodes in ~0.35 s.
+- `MediaFoundationEncoder.GetOutputMediaTypes(FLAC)` fails and a hand-built FLAC media type is rejected by `AddStream`. **Working recipe:** activate the FLAC MFT, `SetInputType(PCM)`, take `GetOutputAvailableType(0)`, build the encoder from that type. Input must be 8/16/24-bit integer PCM, 1–8 channels, 44.1–192 kHz; float32 is rejected (convert to int24 first).
+- **The MF FLAC sink is not crash-safe.** It buffers the entire encode in `%TEMP%\MFP*.TMP` and writes the output file only on finalize; a killed process leaves a 0-byte file. Needs free space in `%TEMP%` equal to the output. Therefore: encode only from finished WAV tracks, check `%TEMP%` space first, keep the WAV on failure.
+- MP3 (96–320 kbit/s) and AAC (16–320 kbit/s) work; decoded durations are +37 ms (MP3) and +11 ms (AAC) from priming/padding, so lossy files are never timeline-exact. Transcripts are produced from the lossless track.
+- Streaming input into the encoder works (a blocking `IWaveProvider`), but is irrelevant given the above.
+- Fallback if ever needed: libFLAC (BSD-3) via P/Invoke. No managed FLAC encoder with an acceptable license exists.
+
+## B. Streaming WAV with checkpoints
+
+- Header written with zero sizes; `Checkpoint()` = `Flush(true)` → patch RIFF/data sizes → `Flush(true)`; `Repair()` sets the data size from the file length rounded down to whole frames.
+- Process killed 5 s after a checkpoint: **14.949 s of 15 s recovered**; the 51 ms lost was exactly the unflushed 64 KiB `FileStream` buffer. Data up to the last checkpoint also survives power loss. Flush the managed buffer once per second to cap the loss.
+- Classic RIFF stops at **4 GiB**: 3 h 06 min of float32 stereo 48 kHz, 4 h 08 min of int24, 6 h 12 min of int16. Decision: write int24 and roll over to `.partN.wav` at 3.5 GiB.
+
+## C. WASAPI capture
+
+- All endpoints here report WAVE_FORMAT_EXTENSIBLE float32 48 kHz stereo. Start-up latency to the first packet: 137–350 ms, different per stream.
+- **Endpoint loopback (`WasapiLoopbackCapture`) delivers zero bytes while nothing is playing.** It cannot serve as a clock; insert clock-timed silence.
+- NAudio does not expose QPC/device-position timestamps per packet; our own capture loop (`ProcessLoopback.cs` generalises to `IMMDevice::Activate`) does. Use it for every source.
+- **Per-process loopback works** via hand-written interop: `ActivateAudioInterfaceAsync("VAD\\Process_Loopback", …)` with `AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK`, then `Initialize(SHARED, LOOPBACK | EVENTCALLBACK | AUTOCONVERTPCM | SRC_DEFAULT_QUALITY, 20 ms, 0, float32 48k stereo)`. Isolation is ~78 dB. `GetMixFormat`, `GetDevicePeriod`, `GetStreamLatency` return `E_NOTIMPL`: the caller picks the format. It streams zeros continuously when the target is silent (usable as a clock). `INCLUDE_TARGET_PROCESS_TREE` covers browsers and Electron child processes. The completion handler runs on an MTA thread and must be agile; never block the UI thread on it. The activation follows the target's output device automatically.
+- Listing apps with audio: `AudioSessionManager` sessions per render endpoint; dedupe by PID; hide the system-sounds session (pid 0); `DisplayName`/`IconPath` are usually empty, so fall back to `FileVersionInfo.FileDescription` and `Icon.ExtractAssociatedIcon`; use `QueryFullProcessImageName` for processes whose modules cannot be enumerated; subscribe to `OnSessionCreated`.
+- No drift measurable over 60 s (bound ~300 ppm); long-run drift must be measured per checkpoint from frames vs clock.
+
+## D. Whisper.net 1.9.1
+
+| Runtime | small | medium | large-v3-turbo |
+|---|---|---|---|
+| Vulkan (RTX 3060) | RTF 0.034 | RTF 0.069 | **RTF 0.038**, +2.1 GB VRAM, 1.2 GB RAM |
+| CUDA (with 532 MB of extra cuBLAS DLLs) | 0.037 | 0.078 | 0.045 |
+| CPU (8 threads) | 0.19–0.26 | 0.62 | **1.03** |
+| Vulkan on the integrated AMD GPU | 0.109 | | |
+
+- WER on a 5-minute public-domain reading: small 5.7%, medium 4.2–4.6%, turbo 3.4–3.5%.
+- **Vulkan beats CUDA** here. The CUDA NuGet lacks `cublas64_13.dll`; when CUDA is the only or last runtime and fails to load, whisper.cpp **aborts the process (0xC0000409), uncatchable**. Decision: ship Vulkan + CPU only, run transcription in a worker process.
+- Vulkan enumerates two devices (0 = NVIDIA, 1 = AMD iGPU, 3× slower); pick the discrete GPU explicitly. The first Vulkan run after install takes ~2.4× longer (shader cache).
+- Word data: `SegmentData.Tokens[]` with per-token `Probability`, `Start`/`End` (10 ms units with `WithTokenTimestamps()`). Tokens are sub-words; a word starts at a token whose text begins with a space; filter special tokens. Word confidence = min of its tokens; threshold ~0.5 marks 1–3% of words.
+- **Do not enable DTW timestamps**: in 1.9.1 they silently truncate the transcript to the first segment.
+- large-v3-turbo without a prompt returns lowercase unpunctuated text; a short punctuated prompt fixes it. Both medium and prompted turbo **dropped 15 s of real speech** once. Add VAD/energy coverage checks and flag gaps.
+- `dotnet publish -r win-x64` still copies linux/arm/x86 runtime folders (453 MB); strip them in MSBuild. Every runtime DLL imports MSVCP140/VCRUNTIME140/VCRUNTIME140_1 (CPU also VCOMP140): ship them app-locally. Whisper.net pulls System.Text.Json 10 transitively.
+- Model files (SHA-256): large-v3-turbo 1fc70f77…bc69 (1.62 GB), medium 6c14d5ad…6208 (1.53 GB), small 1be3a9b2…a987 (488 MB), from huggingface.co/ggerganov/whisper.cpp.
+
+## E. sherpa-onnx 1.13.8 diarization
+
+- `OfflineSpeakerDiarization.Process(float[] 16 kHz mono)` → segments `{Start, End, Speaker, Confidence}` (confidence needs `Clustering.ComputeConfidence = 1`).
+- `pyannote segmentation-3.0` (MIT, 6 MB; int8 1.5 MB untested) + **`nemo_en_titanet_small`** (CC-BY-4.0, 40 MB): RTF 0.10 on CPU (4 threads), 400–465 MB RAM. With clustering threshold **0.8** it found exactly 2 speakers in a two-reader file (confusion 0.2%) and 1 in a one-reader file. Threshold 0.5 over-splits (extra clusters are still pure). WeSpeaker resnet34-LM collapsed two speakers into one; the 3D-Speaker model is zh-cn trained. Expected-speaker-count setting maps to `NumClusters`.
+- Native footprint 22.4 MB (`onnxruntime.dll` + `sherpa-onnx-c-api.dll`), statically linked CRT. The DLL is named plain `onnxruntime.dll`; avoid adding another ONNX Runtime package.
+- `SpeakerEmbeddingExtractor` is available for cross-track and enrolled-voice matching later.
+
+## F. Windows.Media.Ocr
+
+- From the `net8.0-windows10.0.19041.0` TFM, no package. `OcrEngine.TryCreateFromUserProfileLanguages()`; only installed Windows OCR languages are available (en-US here); installing more needs Windows Settings (elevated).
+- Clean 28 px text: 9/11 lines exact, CER 1.6%. Photo-like (rotated 3.5°, noise, blur): 10/11, CER 1.3%, skew reported in `TextAngle`. 12 px text: CER 8%. Upscale small images first. "Q&A" was dropped every time.
+- `OcrWord.BoundingRect` exists; `OcrLine` has no rectangle (union the words). No confidence at any level, so results are always shown for review; Tesseract is the engine that offers per-word confidence.
+
+## Packages verified
+
+| Package | Version | License |
+|---|---|---|
+| NAudio | 2.4.0 | MIT |
+| Whisper.net, Whisper.net.Runtime, Whisper.net.Runtime.Vulkan | 1.9.1 | MIT |
+| org.k2fsa.sherpa.onnx (+ runtime.win-x64) | 1.13.8 | Apache-2.0 |
