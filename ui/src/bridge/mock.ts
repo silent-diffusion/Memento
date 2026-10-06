@@ -1,6 +1,8 @@
 import type { BridgeLogger, BridgeTransport } from './client';
-import { estimateSizeBytes, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
+import { formatSize } from '../format/storage';
+import { estimateSizeBytes, isoWithOffset, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
 import { advanceStages, processingOf, queryLibrary } from './mockLibrary';
+import { mockMediaUrls } from './mockMedia';
 import { createMockSession, MockHostError } from './mockSession';
 import type {
   BridgeEventEnvelope,
@@ -13,6 +15,7 @@ import type {
   MethodParams,
   MethodResult,
   Project,
+  RecordingSummary,
   RecoveredRecording,
   SettingsSnapshot,
   ThemePreference,
@@ -89,7 +92,9 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       projects.set(project.summary.id, project);
     }
   }
-  const summaries = () => [...projects.values()].map((p) => p.summary);
+  // A project exists from the moment recording starts (BRIDGE.md: project.updateDetails works during
+  // recording); the preview lists it in the Library once it has finalized.
+  const summaries = () => [...projects.values()].map((p) => p.summary).filter((r) => r.state !== 'recording' && r.state !== 'finalizing');
 
   const recovered: RecoveredRecording[] = [];
   const recoverySample = projects.get('20261002-153000-sam11');
@@ -138,19 +143,32 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     return project;
   };
 
-  const toProject = (project: MockProject): Project => ({
+  // Media exists once finalize has written the mix and peaks (the stored stage is done).
+  const mediaOf = (project: MockProject) => {
+    const { summary } = project;
+    const storing = summary.stages.some((st) => st.stage === 'stored' && st.state !== 'done');
+    if (summary.state === 'recording' || summary.state === 'finalizing' || storing) {
+      return null;
+    }
+    return mockMediaUrls(summary.id, summary.durationMs);
+  };
+
+  const toProject = (project: MockProject): Project => {
+    const media = mediaOf(project);
+    return {
     summary: project.summary,
     details: project.details,
-    tracks: mockTracks(project.summary.id, project.trackSources, project.summary.durationMs),
-    mixUrl: null,
-    peaksUrl: null,
+    tracks: project.tracks ?? mockTracks(project.summary.id, project.trackSources, project.summary.durationMs),
+    mixUrl: media?.mixUrl ?? null,
+    peaksUrl: media?.peaksUrl ?? null,
     chapters: project.chapters,
     highlights: project.highlights,
     topics: project.topics,
     history: project.history,
     integrity: { algorithm: 'sha256', computedAt: null },
     sizeBytes: estimateSizeBytes(project.summary, project.trackSources.length),
-  });
+    };
+  };
 
   let idCounter = 0;
   const nextId = (prefix: string): string => `${prefix}-${(++idCounter).toString(36)}`;
@@ -177,19 +195,20 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       footer = { ...footer, recording };
       emitFooter();
     },
-    onFinalized: (result) => {
-      const summary = {
+    onStarted: (result) => {
+      const summary: RecordingSummary = {
         id: result.recordingId,
         title: result.title,
         type: result.type,
         createdAt: result.startedAt,
-        durationMs: result.durationMs,
+        durationMs: 0,
         participantCount: 0,
         hasVideo: false,
-        stages: [{ stage: 'stored' as const, state: 'active' as const, percent: 0, label: 'Saving tracks' }],
+        stages: [],
         people: [],
-        isProcessing: true,
-        state: 'ready' as const,
+        isProcessing: false,
+        state: 'recording',
+        sizeBytes: 0,
       };
       projects.set(summary.id, {
         summary,
@@ -206,32 +225,75 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           agenda: { source: null, parsedLocally: true, items: [] },
         },
         trackSources: result.tracks.map((t) => t.sourceKind),
+        tracks: result.tracks,
         chapters: [],
         highlights: [],
         topics: [],
-        history: [
-          {
-            at: result.startedAt,
-            stage: 'recorded',
-            event: 'completed',
-            summary: `Recorded ${result.tracks.length} ${result.tracks.length === 1 ? 'track' : 'tracks'}`,
-            detail: result.tracks.map((t) => t.name).join(', '),
-          },
-        ],
+        history: [],
       });
-      changed(summary.id);
+    },
+    onHighlight: (recordingId, highlight) => {
+      const project = projects.get(recordingId);
+      if (project !== undefined) {
+        project.highlights = [...project.highlights, highlight].sort((a, b) => a.atMs - b.atMs);
+      }
+    },
+    onFinalizing: (recordingId, durationMs) => {
+      const project = projects.get(recordingId);
+      if (project !== undefined) {
+        project.summary = { ...project.summary, state: 'finalizing', durationMs };
+      }
+    },
+    onFinalized: (result) => {
+      const project = projects.get(result.recordingId);
+      if (project === undefined) {
+        return;
+      }
+      const trackCount = result.tracks.length;
+      project.tracks = result.tracks.map((t) => ({ ...t, file: t.file.replace(/\.wav$/, '.flac') }));
+      project.trackSources = result.tracks.map((t) => t.sourceKind);
+      project.summary = {
+        ...project.summary,
+        durationMs: result.durationMs,
+        stages: [{ stage: 'stored', state: 'active', percent: 0, label: 'Saving tracks' }],
+        isProcessing: true,
+        state: 'ready',
+      };
+      project.summary.sizeBytes = estimateSizeBytes(project.summary, trackCount);
+      project.history = [
+        {
+          at: result.startedAt,
+          stage: 'recorded',
+          event: 'completed',
+          summary: `Recorded ${trackCount} ${trackCount === 1 ? 'track' : 'tracks'}`,
+          detail: result.tracks.map((t) => t.name).join(', '),
+        },
+      ];
+      changed(project.summary.id);
       // Storing (FLAC + mix + peaks) finishes over a few seconds.
       const timer = setInterval(() => {
-        const project = projects.get(summary.id);
-        if (project === undefined) {
+        const current = projects.get(result.recordingId);
+        if (current === undefined) {
           clearInterval(timer);
           return;
         }
-        const stages = advanceStages(project.summary.stages, 25, 'this PC').map((st) =>
+        const stages = advanceStages(current.summary.stages, 25, 'this PC').map((st) =>
           st.state === 'active' ? { ...st, label: `Saving tracks · ${st.percent ?? 0}%` } : st,
         );
-        setStages(project, stages);
-        if (!project.summary.isProcessing) {
+        if (stages.every((st) => st.state === 'done')) {
+          current.history = [
+            ...current.history,
+            {
+              at: isoWithOffset(new Date(now())),
+              stage: 'stored',
+              event: 'completed',
+              summary: 'Stored as lossless FLAC',
+              detail: `${trackCount} ${trackCount === 1 ? 'track' : 'tracks'} · ${formatSize(current.summary.sizeBytes)} on this PC`,
+            },
+          ];
+        }
+        setStages(current, stages);
+        if (!current.summary.isProcessing) {
           clearInterval(timer);
         }
       }, 1000);

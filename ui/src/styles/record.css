@@ -1,0 +1,588 @@
+/* Recording session (DESIGN.md §8), transcribed from design/renders/Record.dc.html. Shadows and
+   colours come from tokens.css only; its hover, press and focus rules apply by class (.btn, .ghost,
+   .primary, .icon-btn, .tog, .field, .pill). */
+
+/* Header: the borderless title input and the type chip (DESIGN.md §3 spoke header). */
+.spoke-title-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.rec-title-input {
+  flex: 0 1 360px;
+  min-width: 120px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Shadowless until hovered or focused (DESIGN.md §5.3). */
+.rec-title-input:hover {
+  box-shadow: var(--neo-in-xs);
+}
+
+.chip-select {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-select .select-chevron {
+  color: inherit;
+}
+
+.spoke-title-edit .popover {
+  left: 0;
+  right: auto;
+}
+
+.spoke-ghost {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.spoke-ghost[aria-pressed='true'] {
+  box-shadow: var(--neo-in-xs);
+  color: var(--text);
+}
+
+/* Body: three cards in a wrapping row, 24 px gaps, padding 32 / 48 / 40. */
+.rec-main {
+  flex: 1;
+  padding: 32px 48px 40px;
+  box-sizing: border-box;
+}
+
+.rec-columns {
+  width: 100%;
+  max-width: 1344px;
+  margin: 0 auto;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.rec-card {
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--neo-card);
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rec-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rec-divider {
+  height: 1px;
+  background: var(--line);
+  flex: none;
+}
+
+.rec-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.rec-note--error {
+  color: var(--danger);
+}
+
+/* Sources card (left, 280-320 px). */
+.rec-sources {
+  flex: 1 1 280px;
+  max-width: 320px;
+  gap: 16px;
+}
+
+.rec-add {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.rec-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.src {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.src.off {
+  opacity: 0.55;
+}
+
+.src-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.src-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.src-name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.src-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.src-sub--lost {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.src .tog:disabled {
+  cursor: default;
+}
+
+/* Level meter (DESIGN.md §5.10): 6 px track, ok fill at the current level, indented 52 px. */
+.src-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin-left: 52px;
+}
+
+.src-meter-fill {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ok);
+  transition: width 60ms linear;
+}
+
+.rec-foot-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Centre column: the stage, then Tracks and Highlights. */
+.rec-centre {
+  flex: 3 1 480px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.rec-stage {
+  padding: 32px 32px 28px;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.rec-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.rec-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.rec-status--stopped {
+  color: var(--danger);
+}
+
+.rec-status--stopped .rec-status-dot {
+  background: var(--danger);
+}
+
+.rec-timer {
+  font-size: 64px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-timer--ready {
+  color: var(--text-3);
+}
+
+.rec-subline {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.rec-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.rec-controls:empty {
+  display: none;
+}
+
+.rec-round {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.rec-stop {
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--accent-grad);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rec-mark {
+  height: 56px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rec-start,
+.rec-open {
+  height: 56px;
+  padding: 0 28px 0 22px;
+  border-radius: 999px;
+  background: var(--accent-grad);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rec-open {
+  padding: 0 28px;
+}
+
+.rec-start:disabled,
+.rec-stop:disabled,
+.rec-round:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.rec-start-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.rec-start-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-3);
+  max-width: 420px;
+}
+
+.rec-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+  max-width: 480px;
+}
+
+/* Tracks card (DESIGN.md §5.11): 120 px names, 36 px sunk lanes, the mono ruler. */
+.rec-tracks,
+.rec-highlights {
+  padding: 20px 24px;
+}
+
+.rec-tracks-time {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.rec-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rec-lane-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.rec-lane-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-lane {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.bar {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--text-3);
+}
+
+/* Nothing recorded in this span (before the source started, while it was off or lost). */
+.bar.rec-bar--gap {
+  opacity: 0.35;
+}
+
+.rec-ruler {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-3);
+  padding: 0 8px;
+}
+
+/* Highlights card: mono time + note input. */
+.rec-highlights {
+  gap: 12px;
+}
+
+.rec-mark-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rec-mark-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rec-mark-at {
+  font-size: 13px;
+  color: var(--text-2);
+  width: 72px;
+  flex: none;
+}
+
+.rec-mark-note {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+/* Right column (300-360 px): Live transcript and Agenda. */
+.rec-side {
+  flex: 1 1 300px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.rec-side-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.rec-agenda {
+  gap: 12px;
+}
+
+.rec-agenda-source {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.rec-agenda-add {
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.rec-agenda-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+
+/* Each item is a real button: click toggles covered. */
+.rec-agenda-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 12px);
+  min-height: 30px;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.rec-agenda-item:hover {
+  box-shadow: var(--neo-in-xs);
+}
+
+.rec-agenda-item:active {
+  box-shadow: var(--neo-in);
+}
+
+.rec-agenda-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rec-agenda-ring {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  box-sizing: border-box;
+  flex: none;
+}
+
+.rec-agenda-item--current {
+  font-weight: 600;
+}
+
+.rec-agenda-item--current .rec-agenda-ring {
+  border-color: var(--accent);
+}
+
+.rec-agenda-item--covered {
+  color: var(--text-3);
+}
+
+.rec-agenda-item--covered .rec-agenda-text {
+  text-decoration: line-through;
+}
+
+.rec-agenda-check {
+  color: var(--ok);
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-status-dot.pulse {
+    animation: none;
+  }
+
+  .src-meter-fill {
+    transition: none;
+  }
+}

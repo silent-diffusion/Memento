@@ -35,6 +35,12 @@ export interface SessionEnvironment {
   /** Elapsed time at which one source is lost (the `?lost=1` flag), or null. */
   lostAfterMs: number | null;
   onFooterChange(recording: { active: boolean; lastCheckpointAt: string | null; lostSource: string | null }): void;
+  /** The session opened its project folder: the project exists (state 'recording') from now on. */
+  onStarted(result: { recordingId: string; title: string; type: string; startedAt: string; tracks: Track[] }): void;
+  /** A highlight was marked; it belongs to the project straight away. */
+  onHighlight(recordingId: string, highlight: Highlight): void;
+  /** Stop was pressed: the project is finalizing. */
+  onFinalizing(recordingId: string, durationMs: number): void;
   /** The session finished finalizing: add it to the library. */
   onFinalized(result: { recordingId: string; title: string; type: string; startedAt: string; durationMs: number; tracks: Track[] }): void;
 }
@@ -270,6 +276,13 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       session.tracks = chosen.map(newTrack);
       session.stateTimer = setInterval(tickState, STATE_INTERVAL_MS);
       session.levelTimer = setInterval(tickLevels, LEVEL_INTERVAL_MS);
+      env.onStarted({
+        recordingId: session.recordingId,
+        title: session.title,
+        type: session.type,
+        startedAt: session.startedAt,
+        tracks: session.tracks.map((t) => ({ ...t })),
+      });
       emitState();
       emitFooter();
       return { sessionId: session.sessionId, recordingId: session.recordingId, startedAt: session.startedAt };
@@ -310,6 +323,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
         segmentId: null,
       };
       active.highlights.push(highlight);
+      env.onHighlight(active.recordingId, highlight);
       emitState();
       return highlight;
     },
@@ -339,6 +353,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       active.resumedAt = null;
       active.state = 'finalizing';
       stopTimers();
+      env.onFinalizing(active.recordingId, active.accumulatedMs);
       emitState();
       emitFooter();
       const finished = active;

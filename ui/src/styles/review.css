@@ -1,0 +1,734 @@
+/* Review and transcript (DESIGN.md §9), transcribed from design/renders/Review.dc.html. Three panes
+   fill the window below the header (no footer); below 1024 px they stack: outline, then player and
+   transcript, then details. */
+
+.spoke-primary {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: var(--accent-grad);
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.spoke-more {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.menu-item--noted {
+  height: auto;
+  min-height: 34px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.menu-item[aria-disabled='true'] {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.menu-item[aria-disabled='true']:hover {
+  box-shadow: none;
+}
+
+.menu-item-note {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.review-panes {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+/* Left pane: Outline (260 px, 24 x 16 padding, right groove). */
+.review-outline {
+  flex: 0 0 260px;
+  min-width: 220px;
+  border-right: 1px solid var(--line);
+  padding: 24px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.outline-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.outline-group--pad {
+  padding: 0 10px;
+  gap: 10px;
+}
+
+.outline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  min-height: 24px;
+}
+
+.outline-add {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.outline-empty {
+  margin: 0;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Chapter and outline rows (DESIGN.md §5.13). */
+.chap {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.chap:focus-visible,
+.person-rename:focus-visible,
+.scrubber:focus-visible,
+.outline-add:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.chap-at {
+  font-size: 11px;
+  color: var(--text-3);
+  flex: none;
+  width: 44px;
+}
+
+.chap-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.chap-note {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.chap-note--empty {
+  color: var(--text-3);
+}
+
+.chap--new {
+  align-items: center;
+  cursor: default;
+  box-shadow: var(--neo-in-xs);
+}
+
+.inline-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  min-height: 24px;
+}
+
+.person-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.person-name {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-share {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.person-rename {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+/* Centre pane: player strip, then the transcript area. */
+.review-centre {
+  flex: 1 1 560px;
+  min-width: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.player {
+  padding: 20px 32px 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 60px;
+  z-index: 5;
+  background: var(--surface);
+}
+
+.wave {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.wave-bar {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--line-strong);
+}
+
+/* Played portion in text (DESIGN.md §5.11). */
+.wave-bar.played {
+  background: var(--text);
+}
+
+.wave--empty {
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+  justify-content: center;
+  cursor: default;
+}
+
+.wave-empty-text {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* The scrubber: the real control under the bars. */
+.scrubber {
+  position: relative;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 8px;
+  touch-action: none;
+}
+
+.scrubber-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in-xs);
+  overflow: hidden;
+}
+
+.scrubber-fill {
+  height: 4px;
+  background: var(--text);
+}
+
+.scrubber-knob {
+  position: absolute;
+  top: 2px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 1px 2px 4px rgba(29, 28, 26, 0.28);
+  pointer-events: none;
+}
+
+.app.dark .scrubber-knob {
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.player-skip {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 14px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.player-play {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--neo-sm);
+}
+
+.player-play:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+.player-play:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.player-time {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-total {
+  color: var(--text-3);
+}
+
+.speed-menu .sort-btn {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.speed-menu .select-chevron {
+  display: none;
+}
+
+.speed-menu .popover {
+  left: 0;
+  right: auto;
+  min-width: 120px;
+}
+
+.player-spacer {
+  flex: 1;
+}
+
+.player-search {
+  position: relative;
+  width: 260px;
+}
+
+.player-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.player-search-field {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 36px;
+  font-size: 13px;
+}
+
+.player-search-field:disabled {
+  opacity: 0.7;
+}
+
+/* Transcript area: the not-yet-transcribed state. */
+.transcript {
+  padding: 20px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 920px;
+}
+
+.transcript-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 10px;
+}
+
+.tx-empty {
+  margin: 8px 16px;
+  padding: 28px 28px 30px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 620px;
+}
+
+.tx-empty-tile {
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.tx-empty-title {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.tx-empty-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+/* Right pane: Details | Documents | History (320 px, left groove). */
+.review-details {
+  flex: 0 0 320px;
+  min-width: 260px;
+  border-left: 1px solid var(--line);
+  padding: 20px 20px 32px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.review-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+}
+
+.review-tabs .seg {
+  flex: 1;
+  height: 32px;
+}
+
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  row-gap: 10px;
+  column-gap: 12px;
+  font-size: 13px;
+}
+
+.facts dt {
+  color: var(--text-3);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.fact-strong {
+  font-weight: 600;
+}
+
+.fact-mono {
+  font-weight: 500;
+}
+
+.fact-sub {
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.fact-empty {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.detail-caption {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agenda-read {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.agenda-read li {
+  display: flex;
+  gap: 8px;
+}
+
+.agenda-read-n {
+  color: var(--text-3);
+}
+
+.edit-details {
+  height: 36px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* Documents tab. */
+.docs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.docs-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+}
+
+.docs-empty-tile {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+
+.docs-empty-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.docs-empty-text {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.docs-create {
+  height: 36px;
+  border-radius: 14px;
+  background: var(--accent-grad);
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.docs-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* History: the dotted timeline. */
+.history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.history-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 6px 4px;
+}
+
+.history-dot--ok {
+  background: var(--ok);
+}
+
+.history-dot--info {
+  background: var(--text-3);
+}
+
+.history-dot--failed {
+  background: var(--accent);
+}
+
+.history-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.history-title {
+  font-weight: 600;
+}
+
+.history-detail {
+  color: var(--text-2);
+}
+
+.history-retry {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+/* Small windows (DESIGN.md §9, §18): the panes stack. */
+@media (max-width: 1023px) {
+  .review-panes {
+    flex-direction: column;
+  }
+
+  .review-outline,
+  .review-details {
+    flex: none;
+    min-width: 0;
+    border: none;
+  }
+
+  .review-outline {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .review-details {
+    border-top: 1px solid var(--line);
+  }
+
+  .review-centre {
+    flex: none;
+  }
+
+  .player {
+    position: static;
+  }
+}

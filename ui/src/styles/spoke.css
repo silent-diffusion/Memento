@@ -1,4 +1,4 @@
-/* Spoke header (DESIGN.md §3) and the interim Record and Review screens. */
+/* Spoke header (DESIGN.md §3) and the plain card a spoke shows while it opens or when it cannot. */
 
 .spoke-header {
   padding: 0 16px 0 12px;
@@ -74,65 +74,8 @@
   gap: 10px;
 }
 
-.placeholder-card--centred {
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-}
-
-.placeholder-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
 .placeholder-text {
   margin: 0;
   font-size: 14px;
   color: var(--text-2);
-}
-
-.placeholder-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--accent-text);
-}
-
-.placeholder-timer {
-  font-size: 64px;
-  font-weight: 500;
-  line-height: 1.1;
-  color: var(--text);
-}
-
-.placeholder-timer--ready {
-  color: var(--text-3);
-}
-
-.placeholder-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.placeholder-start {
-  height: 48px;
-  padding: 0 24px 0 20px;
-  border-radius: 20px;
-  background: var(--accent-grad);
-  font-size: 15px;
-  font-weight: 700;
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.placeholder-note {
-  margin: 0;
-  max-width: 440px;
-  font-size: 13px;
-  color: var(--text-3);
 }

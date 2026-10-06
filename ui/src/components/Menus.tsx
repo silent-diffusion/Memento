@@ -93,7 +93,7 @@ interface SelectMenuProps<T extends string> {
   /** Visible button text; defaults to the chosen option's label. */
   buttonText?: string;
   /** `sort` (36 px, text-2) or `field` (34 px settings value, text). */
-  variant?: 'sort' | 'field';
+  variant?: 'sort' | 'field' | 'chip';
   disabled?: boolean;
 }
 
@@ -121,7 +121,7 @@ export function SelectMenu<T extends string>({
     <div class="menu-root" ref={pop.rootRef}>
       <button
         ref={pop.buttonRef}
-        class={variant === 'sort' ? 'btn ghost sort-btn' : 'btn ghost select-btn'}
+        class={variant === 'sort' ? 'btn ghost sort-btn' : variant === 'chip' ? 'btn ghost chip-select' : 'btn ghost select-btn'}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={pop.open}
@@ -193,6 +193,9 @@ export function SelectMenu<T extends string>({
 export interface MenuAction {
   label: string;
   run: () => void;
+  /** Listed but not offered yet; `note` says why ("Available in a later version"). */
+  disabled?: boolean;
+  note?: string;
 }
 
 interface ActionMenuProps {
@@ -246,17 +249,22 @@ export function ActionMenu({ label, triggerClass, children, actions }: ActionMen
           {actions.map((action) => (
             <button
               key={action.label}
-              class="item menu-item"
+              class={action.note === undefined ? 'item menu-item' : 'item menu-item menu-item--noted'}
               type="button"
               role="menuitem"
               tabIndex={-1}
+              aria-disabled={action.disabled === true ? true : undefined}
               onClick={(event) => {
                 event.stopPropagation();
+                if (action.disabled === true) {
+                  return;
+                }
                 pop.close(true);
                 action.run();
               }}
             >
-              {action.label}
+              <span class="menu-item-label">{action.label}</span>
+              {action.note === undefined ? null : <span class="menu-item-note">{action.note}</span>}
             </button>
           ))}
         </div>

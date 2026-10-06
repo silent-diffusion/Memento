@@ -36,6 +36,15 @@ export function formatTimecode(ms: number): string {
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
+/** The Tracks card ruler: `00:00`, `03:11`, and `1:02:14` once past an hour. */
+export function formatRuler(ms: number): string {
+  const total = wholeSeconds(ms);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const hours = Math.floor(total / 3600);
+  const rest = `${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+  return hours > 0 ? `${hours}:${rest}` : rest;
+}
+
 /** A short span in words: `20 seconds`, `1 second`, `2 minutes`. */
 export function formatSpan(ms: number): string {
   const seconds = wholeSeconds(ms);

@@ -74,9 +74,12 @@ export function formatRoute(route: Route): string {
   }
 }
 
-/** A key that changes when the screen changes (drives the spoke cross-fade). */
+/**
+ * A key that changes when the screen changes (drives the spoke cross-fade). Settings sections and
+ * the Record screen before and after Start (which adds the session id) stay one screen.
+ */
 export function screenKey(route: Route): string {
-  return route.name === 'settings' ? 'settings' : formatRoute(route);
+  return route.name === 'settings' || route.name === 'record' ? route.name : formatRoute(route);
 }
 
 /** The bits of `window` the router touches; tests pass a fake. */

@@ -6,6 +6,8 @@ import type { ProjectDeleteEstimate, RecordingType } from '../bridge/types';
 export type DialogRequest =
   | { kind: 'delete'; recordingId: string; estimate: ProjectDeleteEstimate }
   | { kind: 'rename'; recordingId: string; title: string }
-  | { kind: 'changeType'; recordingId: string; title: string; type: RecordingType };
+  | { kind: 'changeType'; recordingId: string; title: string; type: RecordingType }
+  /** A real control whose feature arrives later (Export, Create document in M1): says so plainly. */
+  | { kind: 'notice'; title: string; body: string };
 
 export type DialogKind = DialogRequest['kind'];

@@ -225,6 +225,23 @@ function ChangeTypeDialog({ request, close }: { request: Extract<DialogRequest, 
   );
 }
 
+function NoticeDialog({ request, close }: { request: Extract<DialogRequest, { kind: 'notice' }>; close: () => void }): JSX.Element {
+  return (
+    <Dialog
+      titleId="notice-title"
+      title={request.title}
+      onEscape={close}
+      actions={
+        <button class="btn p" type="button" data-autofocus onClick={close}>
+          OK
+        </button>
+      }
+    >
+      <p class="dialog-body">{request.body}</p>
+    </Dialog>
+  );
+}
+
 function RecoveryDialog({ item }: { item: RecoveredRecording }): JSX.Element {
   const services = useServices();
   const copy = recoveryCopy(item);
@@ -281,6 +298,8 @@ export function DialogHost(): JSX.Element | null {
         return <RenameDialog key={request.recordingId} request={request} close={close} />;
       case 'changeType':
         return <ChangeTypeDialog key={request.recordingId} request={request} close={close} />;
+      case 'notice':
+        return <NoticeDialog key={request.title} request={request} close={close} />;
     }
   }
   const recovered = store.recoveryQueue.value[0];

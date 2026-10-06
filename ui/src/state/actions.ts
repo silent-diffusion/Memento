@@ -55,6 +55,11 @@ export async function confirmDelete(services: AppServices, recordingId: string):
   if (store.libraryView.value.selectedId === recordingId) {
     store.libraryView.value = { ...store.libraryView.value, selectedId: null };
   }
+  // Deleted from its own Review: there is nothing left to show, so go back to the Library.
+  const route = store.route.value;
+  if (route.name === 'review' && route.recordingId === recordingId) {
+    services.router.navigate({ name: 'library' });
+  }
   reloadLibrary(services);
   return null;
 }
