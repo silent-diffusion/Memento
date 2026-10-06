@@ -1,7 +1,9 @@
-import type { EngineStatus, StorageStatus } from '../bridge/types';
+import type { EngineStatus, FooterStatusPayload, StorageStatus } from '../bridge/types';
+import { formatTimecode } from './duration';
 import { formatFreeSpace } from './storage';
 
-export type DotTone = 'ok' | 'neutral';
+/** DESIGN.md §17 footer variants: ok = normal, accent = paused or warning, danger = a source lost. */
+export type DotTone = 'ok' | 'neutral' | 'accent' | 'danger';
 
 export interface FooterLine {
   text: string;
@@ -9,13 +11,15 @@ export interface FooterLine {
 
 export interface EngineLine extends FooterLine {
   tone: DotTone;
+  /** Shown before `text` in the dot's colour and bold (the lost-source variant). */
+  strong?: string;
 }
 
 export interface StorageLine extends FooterLine {
   low: boolean;
 }
 
-/** Left side of the status footer. `null` means the host has not reported yet. */
+/** Left side of the status footer from the engine alone. `null` means the host has not reported yet. */
 export function engineLine(engine: EngineStatus | null): EngineLine {
   if (engine === null) {
     return { text: 'Checking transcription engine', tone: 'neutral' };
@@ -43,4 +47,38 @@ export function storageLine(storage: StorageStatus | null): StorageLine {
     return { text: `Low disk space · ${free} free`, low: true };
   }
   return { text: `Everything is stored on this PC · ${free} free`, low: false };
+}
+
+/**
+ * Left side with every variant: a lost source outranks paused processing, which outranks the
+ * engine state. `lostAtMs` comes from the matching recording.sourceLost event when there was one.
+ */
+export function statusLine(status: FooterStatusPayload | null, lostAtMs: number | null = null): EngineLine {
+  if (status === null) {
+    return engineLine(null);
+  }
+  const lost = status.recording.lostSource;
+  if (status.recording.active && lost !== null) {
+    return {
+      tone: 'danger',
+      strong: lostAtMs === null ? `${lost} lost` : `${lost} lost at ${formatTimecode(lostAtMs)}`,
+      text: ' · other tracks recording',
+    };
+  }
+  if (status.processingPaused !== null) {
+    return { tone: 'accent', text: `Transcription paused · ${status.processingPaused}` };
+  }
+  return engineLine(status.engine);
+}
+
+/** Right side with the recording variant: while recording, say it is saving; storage warnings still win. */
+export function footerStorageLine(status: FooterStatusPayload | null): StorageLine {
+  const storage = storageLine(status?.storage ?? null);
+  if (status === null || storage.low || !status.recording.active) {
+    return storage;
+  }
+  return {
+    text: status.storage.freeBytes === null ? 'Saving continuously' : `Saving continuously · ${formatFreeSpace(status.storage.freeBytes)} free`,
+    low: false,
+  };
 }

@@ -11,7 +11,14 @@ body {
 
 /* The tokens style controls by class; reset what browsers add to real <button>/<ul> elements. */
 button.btn,
-button.icon-btn {
+button.icon-btn,
+button.chip,
+button.row,
+button.card,
+button.nav,
+button.seg,
+button.tog,
+button.item {
   margin: 0;
   border: none;
   -webkit-appearance: none;
@@ -19,5 +26,20 @@ button.icon-btn {
 }
 
 button:disabled {
+  cursor: default;
+}
+
+/* Focus ring for the controls tokens.css does not list (menu items, checkboxes and radios). */
+.item:focus-visible,
+.chk:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.chk {
+  cursor: pointer;
+}
+
+.chk:disabled {
   cursor: default;
 }

@@ -1,0 +1,266 @@
+// Popover menus: a select-style ghost button with a listbox (sort, settings values) and an actions
+// menu (the row ⋯). Keyboard: Enter, Space or ArrowDown opens; arrows move; Enter picks; Esc closes
+// and returns focus to the button; Tab closes.
+import type { ComponentChildren, JSX } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { CheckIcon, ChevronDownIcon } from './icons';
+import { moveFocus } from './keyboard';
+
+function usePopover(): {
+  open: boolean;
+  show: (focus: 'selected' | 'first') => void;
+  close: (returnFocus: boolean) => void;
+  rootRef: { current: HTMLDivElement | null };
+  buttonRef: { current: HTMLButtonElement | null };
+  popRef: { current: HTMLElement | null };
+} {
+  const [open, setOpen] = useState(false);
+  const [focusOn, setFocusOn] = useState<'selected' | 'first'>('selected');
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const popRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    const pop = popRef.current;
+    const target =
+      (focusOn === 'selected' ? pop?.querySelector<HTMLElement>('[aria-selected="true"]') : null) ??
+      pop?.querySelector<HTMLElement>('[role="option"],[role="menuitem"]');
+    target?.focus();
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.target instanceof Node && rootRef.current?.contains(event.target) !== true) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [open, focusOn]);
+
+  return {
+    open,
+    show: (focus) => {
+      setFocusOn(focus);
+      setOpen(true);
+    },
+    close: (returnFocus) => {
+      setOpen(false);
+      if (returnFocus) {
+        buttonRef.current?.focus();
+      }
+    },
+    rootRef,
+    buttonRef,
+    popRef,
+  };
+}
+
+function popKeyDown(
+  event: KeyboardEvent,
+  pop: HTMLElement | null,
+  selector: string,
+  close: (returnFocus: boolean) => void,
+): void {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    close(true);
+    return;
+  }
+  if (event.key === 'Tab') {
+    close(false);
+    return;
+  }
+  if (pop !== null) {
+    moveFocus(event, pop, selector, 'vertical');
+  }
+}
+
+export interface SelectOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+interface SelectMenuProps<T extends string> {
+  /** Accessible name of the choice ("Sort", "Recording type"). */
+  label: string;
+  value: T;
+  options: readonly SelectOption<T>[];
+  onChange: (value: T) => void;
+  /** Visible button text; defaults to the chosen option's label. */
+  buttonText?: string;
+  /** `sort` (36 px, text-2) or `field` (34 px settings value, text). */
+  variant?: 'sort' | 'field';
+  disabled?: boolean;
+}
+
+export function SelectMenu<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  buttonText,
+  variant = 'field',
+  disabled = false,
+}: SelectMenuProps<T>): JSX.Element {
+  const pop = usePopover();
+  const text = buttonText ?? options.find((o) => o.value === value)?.label ?? value;
+  const listId = useRef(`listbox-${Math.random().toString(36).slice(2, 9)}`).current;
+
+  const pick = (option: T): void => {
+    pop.close(true);
+    if (option !== value) {
+      onChange(option);
+    }
+  };
+
+  return (
+    <div class="menu-root" ref={pop.rootRef}>
+      <button
+        ref={pop.buttonRef}
+        class={variant === 'sort' ? 'btn ghost sort-btn' : 'btn ghost select-btn'}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={pop.open}
+        aria-controls={pop.open ? listId : undefined}
+        aria-label={`${label}: ${text}`}
+        disabled={disabled}
+        onClick={() => {
+          if (pop.open) {
+            pop.close(false);
+          } else {
+            pop.show('selected');
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            pop.show('selected');
+          }
+        }}
+      >
+        <span class="select-text">{text}</span>
+        <ChevronDownIcon size={14} class="select-chevron" />
+      </button>
+      {pop.open ? (
+        <ul
+          id={listId}
+          ref={(el) => {
+            pop.popRef.current = el;
+          }}
+          class="popover"
+          role="listbox"
+          aria-label={label}
+          onKeyDown={(event) => {
+            popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close);
+          }}
+        >
+          {options.map((option) => {
+            const selected = option.value === value;
+            return (
+              <li
+                key={option.value}
+                class="item menu-item"
+                role="option"
+                aria-selected={selected}
+                tabIndex={-1}
+                onClick={() => {
+                  pick(option.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    pick(option.value);
+                  }
+                }}
+              >
+                <span class="menu-check" aria-hidden="true">
+                  {selected ? <CheckIcon size={12} /> : null}
+                </span>
+                {option.label}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+export interface MenuAction {
+  label: string;
+  run: () => void;
+}
+
+interface ActionMenuProps {
+  /** Accessible name of the trigger ("More actions for Q3 planning sync"). */
+  label: string;
+  triggerClass: string;
+  children: ComponentChildren;
+  actions: readonly MenuAction[];
+}
+
+export function ActionMenu({ label, triggerClass, children, actions }: ActionMenuProps): JSX.Element {
+  const pop = usePopover();
+  return (
+    <div class={pop.open ? 'menu-root menu-root--open' : 'menu-root'} ref={pop.rootRef}>
+      <button
+        ref={pop.buttonRef}
+        class={triggerClass}
+        type="button"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={pop.open}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (pop.open) {
+            pop.close(false);
+          } else {
+            pop.show('first');
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            pop.show('first');
+          }
+        }}
+      >
+        {children}
+      </button>
+      {pop.open ? (
+        <div
+          ref={(el) => {
+            pop.popRef.current = el;
+          }}
+          class="popover popover--menu"
+          role="menu"
+          aria-label={label}
+          onKeyDown={(event) => {
+            popKeyDown(event, pop.popRef.current, '[role="menuitem"]', pop.close);
+          }}
+        >
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              class="item menu-item"
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={(event) => {
+                event.stopPropagation();
+                pop.close(true);
+                action.run();
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}

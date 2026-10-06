@@ -1,0 +1,463 @@
+/* Global surfaces (DESIGN.md §5.19, §17), transcribed from renders/ErrorStates.dc.html: toasts,
+   banner, dialogs, the side sheet, and popover menus. */
+
+/* Compact dialog and toast buttons (.g ghost, .p primary, .d destructive). tokens.css adds the
+   neumorphic fill, radius and shadows with !important; these are the render's base sizes. */
+.g,
+.p,
+.d {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.g {
+  padding: 0 12px;
+  background: transparent;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.p,
+.d {
+  padding: 0 14px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.p:disabled,
+.d:disabled,
+.g:disabled {
+  opacity: 0.6;
+}
+
+/* Popover menus (sort, settings selects, row ⋯). */
+.menu-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.select-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.select-btn:disabled {
+  opacity: 0.55;
+}
+
+.select-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.select-chevron {
+  color: var(--text-3);
+  flex: none;
+}
+
+.sort-btn .select-chevron {
+  color: inherit;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 180px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  box-sizing: border-box;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--neo-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px 0 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.popover--menu .menu-item {
+  padding-left: 12px;
+}
+
+.menu-item[aria-selected='true'] {
+  color: var(--text);
+}
+
+.menu-check {
+  width: 14px;
+  display: inline-flex;
+  justify-content: center;
+  flex: none;
+}
+
+/* Toasts: bottom-right above the footer, the first at the bottom and later ones stacking upward. */
+.toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 52px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  width: 380px;
+  max-width: calc(100vw - 48px);
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--neo-card);
+  padding: 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  animation: toast-in 160ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 6px;
+  flex: none;
+}
+
+.toast-dot--danger {
+  background: var(--danger);
+}
+
+.toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.toast-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.toast-body {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.toast-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.toast-quiet {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 0 6px;
+}
+
+/* Banner: content-column width, accent-soft, stays until resolved. */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.banner-icon {
+  flex: none;
+}
+
+.banner-text {
+  flex: 1;
+  font-size: 14px;
+}
+
+.banner-lead {
+  font-weight: 700;
+}
+
+.banner-action {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--accent-text) !important;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-text);
+  flex: none;
+}
+
+/* Scrim: covers everything below the 60 px header. */
+.scrim {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  background: rgba(29, 28, 26, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  animation: screen-in 140ms ease-out;
+}
+
+.app.dark .scrim {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.scrim--sheet {
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+}
+
+.dialog {
+  max-height: calc(100vh - 108px);
+  overflow: auto;
+  background: var(--surface);
+  border-radius: 28px;
+  box-shadow: var(--neo-card);
+  padding: 22px 24px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  outline: none;
+}
+
+.dialog-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.45;
+}
+
+.dialog-body {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.dialog-strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dialog-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.field {
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: none;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.field-note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.type-choices {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  min-height: 28px;
+}
+
+.choice--custom {
+  grid-column: 1 / -1;
+}
+
+.choice-field {
+  flex: 1;
+  height: 34px;
+  font-size: 13px;
+}
+
+/* Side sheet: 480 px, anchored right below the header. */
+.sheet {
+  width: min(480px, 100vw);
+  height: 100%;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  outline: none;
+  animation: sheet-in 180ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px 24px;
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sheet-close {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 14px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.sheet-body {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 24px 24px;
+}
+
+.sheet-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .scrim,
+  .sheet {
+    animation: none;
+  }
+}

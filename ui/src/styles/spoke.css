@@ -1,0 +1,138 @@
+/* Spoke header (DESIGN.md §3) and the interim Record and Review screens. */
+
+.spoke-header {
+  padding: 0 16px 0 12px;
+  gap: 16px;
+}
+
+.back-btn {
+  height: 36px;
+  padding: 0 12px 0 8px;
+  border-radius: 14px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.spoke-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+  flex: none;
+}
+
+.spoke-title-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.spoke-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spoke-meta {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.spoke-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spoke-main {
+  flex: 1;
+  padding: 40px 48px 56px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.placeholder-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--neo-card);
+  padding: 28px 32px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.placeholder-card--centred {
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.placeholder-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.placeholder-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.placeholder-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-text);
+}
+
+.placeholder-timer {
+  font-size: 64px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.placeholder-timer--ready {
+  color: var(--text-3);
+}
+
+.placeholder-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.placeholder-start {
+  height: 48px;
+  padding: 0 24px 0 20px;
+  border-radius: 20px;
+  background: var(--accent-grad);
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.placeholder-note {
+  margin: 0;
+  max-width: 440px;
+  font-size: 13px;
+  color: var(--text-3);
+}

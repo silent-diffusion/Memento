@@ -245,18 +245,27 @@ describe('transports', () => {
 
   it('falls back to logged mock data in a plain browser', async () => {
     const logger = quietLogger();
-    const client = createBridgeClient({ logger });
+    const client = createBridgeClient({ logger, mock: { live: false } });
     const footer = vi.fn();
     client.on('status.footer', footer);
 
     const library = await client.call('library.list');
 
     expect(client.isHosted).toBe(false);
-    expect(library).toEqual({ recordings: [], totalDurationMs: 0 });
+    expect(library.totalCount).toBe(library.recordings.length);
+    expect(library.totalCount).toBeGreaterThan(10);
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('window.chrome.webview is absent'));
-    expect(footer).toHaveBeenCalledWith({
-      engine: { ready: false, device: null },
-      storage: { freeBytes: null, lowSpace: false },
-    });
+    expect(footer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recording: { active: false, lastCheckpointAt: null, lostSource: null },
+        processingPaused: null,
+      }),
+    );
+  });
+
+  it('answers the empty library when asked to', async () => {
+    const client = createBridgeClient({ logger: quietLogger(), mock: { library: 'empty', live: false } });
+
+    await expect(client.call('library.list')).resolves.toEqual({ recordings: [], totalDurationMs: 0, totalCount: 0 });
   });
 });
