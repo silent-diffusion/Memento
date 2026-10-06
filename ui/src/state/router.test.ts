@@ -60,6 +60,10 @@ describe('route parsing', () => {
     expect(screenKey({ name: 'settings', section: 'general' })).toBe(screenKey({ name: 'settings', section: 'storage' }));
     expect(screenKey({ name: 'review', recordingId: 'a' })).not.toBe(screenKey({ name: 'review', recordingId: 'b' }));
   });
+
+  it('keeps the Record screen mounted when Start adds the session id', () => {
+    expect(screenKey({ name: 'record', sessionId: null })).toBe(screenKey({ name: 'record', sessionId: 'session-1' }));
+  });
 });
 
 describe('router state restore', () => {
