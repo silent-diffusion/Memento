@@ -172,15 +172,18 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
         lock (_sync)
         {
             EnsureRunning();
-            var now = QpcClock.Now;
-            if (!_timeline.Pause(now))
+            if (_timeline.IsPaused)
             {
                 return;
             }
 
-            foreach (var run in _runs.Where(r => r.IsActive))
+            var active = _runs.Where(r => r.IsActive).ToList();
+            var now = HoldAt(active);
+            _timeline.Pause(now);
+            foreach (var run in active)
             {
                 run.Writer.Pause(now);
+                run.ReleaseHold();
             }
 
             _state = AudioSessionState.Paused;
@@ -193,21 +196,37 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
         lock (_sync)
         {
             EnsureRunning();
-            var now = QpcClock.Now;
-            var gap = _timeline.Resume(now);
-            if (gap is null)
+            if (!_timeline.IsPaused)
             {
                 return null;
             }
 
-            foreach (var run in _runs.Where(r => r.IsActive))
+            var active = _runs.Where(r => r.IsActive).ToList();
+            var now = HoldAt(active);
+            var gap = _timeline.Resume(now)!.Value;
+            foreach (var run in active)
             {
                 run.Writer.Resume(now);
+                run.ReleaseHold();
             }
 
             _state = AudioSessionState.Recording;
-            return new SessionGap(gap.Value.At, gap.Value.Duration);
+            return new SessionGap(gap.At, gap.Duration);
         }
+    }
+
+    /// <summary>
+    /// Freezes the pumps of <paramref name="runs"/> at "now" and returns the instant to apply, which is never
+    /// earlier than the hold: no packet ending after the instant reaches a writer before the writer knows it.
+    /// </summary>
+    private static long HoldAt(IReadOnlyList<TrackRun> runs)
+    {
+        foreach (var run in runs)
+        {
+            run.Hold(QpcClock.Now);
+        }
+
+        return QpcClock.Now;
     }
 
     /// <summary>Starts or ends one track (BRIDGE.md <c>recording.setSource</c>). Returns that track's status.</summary>
@@ -260,11 +279,12 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
                 }
             }
 
-            var end = QpcClock.Now;
+            var end = HoldAt([existing]);
             existing.Ending = true;
             existing.PendingEndReason = TrackEndReason.Disabled;
             existing.PendingEndQpc = end;
             existing.Writer.End(end);
+            existing.ReleaseHold();
             await DrainAsync([existing], end).ConfigureAwait(false);
             await existing.Capture.StopAsync().ConfigureAwait(false);
             await existing.Completion.ConfigureAwait(false);
@@ -438,16 +458,17 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
             long stop;
             lock (_sync)
             {
-                stop = QpcClock.Now;
+                active = [.. _runs.Where(r => r.IsActive)];
+                stop = HoldAt(active);
                 _stopQpc = stop;
                 _state = AudioSessionState.Stopping;
-                active = [.. _runs.Where(r => r.IsActive)];
                 foreach (var run in active)
                 {
                     run.Ending = true;
                     run.PendingEndReason = TrackEndReason.SessionStopped;
                     run.PendingEndQpc = stop;
                     run.Writer.End(stop);
+                    run.ReleaseHold();
                 }
             }
 

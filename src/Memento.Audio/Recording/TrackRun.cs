@@ -28,6 +28,8 @@ internal sealed class TrackRun(AudioSourceId id, string name, string fileStem, I
     /// <summary>Set by the session before it stops or disables this track (so a late loss is not reported).</summary>
     public volatile bool Ending;
 
+    private long _hold = long.MaxValue;
+
     public TrackEndReason? PendingEndReason { get; set; }
 
     public long? PendingEndQpc { get; set; }
@@ -101,7 +103,22 @@ internal sealed class TrackRun(AudioSourceId id, string name, string fileStem, I
         }
     }
 
-    private bool IsDue(CapturePacket packet) => !packet.HasReliableTimestamp || EndQpc(packet) <= QpcClock.Now;
+    /// <summary>
+    /// Holds back every packet ending after <paramref name="qpc"/> until <see cref="ReleaseHold"/>. The session sets
+    /// this before it computes a pause/resume/stop instant and applies it to the writers, so no packet past that
+    /// instant can slip into a writer in between (a writer lock can be busy with a flush or checkpoint).
+    /// </summary>
+    public void Hold(long qpc) => Volatile.Write(ref _hold, qpc);
+
+    public void ReleaseHold() => Volatile.Write(ref _hold, long.MaxValue);
+
+    private bool IsDue(CapturePacket packet)
+    {
+        // Read the clock before the hold: if no hold is visible yet, the session's instant comes after this reading.
+        var now = QpcClock.Now;
+        var hold = Volatile.Read(ref _hold);
+        return EndQpc(packet) <= Math.Min(now, hold);
+    }
 
     private long EndQpc(CapturePacket packet) => packet.QpcPosition + QpcClock.FramesToTicks(packet.Frames, Capture.Format.SampleRate);
 

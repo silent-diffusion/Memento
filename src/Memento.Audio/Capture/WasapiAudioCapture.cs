@@ -39,6 +39,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
     private int _pendingLoss = NoLoss;
     private long _startedAtQpc;
     private long _pendingDropped;
+    private long _lastEndQpc;
     private CaptureLostEventArgs? _loss;
     private int _disposed;
 
@@ -300,9 +301,15 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
 
             var flags = (CapturePacketFlags)(wasapiFlags & 0x7);
             var qpc = (long)qpcPosition;
+            var reliable = (wasapiFlags & CoreAudio.BufferFlagsTimestampError) == 0 && qpc > 0;
+            if (filler is null && !reliable)
+            {
+                // No trustworthy time: place it right after the previous packet so the time gate stays sane.
+                qpc = _lastEndQpc > 0 ? _lastEndQpc : QpcClock.Now;
+            }
+
             if (filler is not null)
             {
-                var reliable = (wasapiFlags & CoreAudio.BufferFlagsTimestampError) == 0 && qpc > 0;
                 var adjust = filler.OnPacket(qpc, frames, reliable);
                 if (adjust.SilenceFrames > 0)
                 {
@@ -343,6 +350,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
             }
 
             Emit(buffer, bytes, frames, qpc, devicePosition, flags);
+            _lastEndQpc = qpc + QpcClock.FramesToTicks(frames, format.SampleRate);
         }
     }
 
