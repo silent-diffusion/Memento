@@ -8,8 +8,12 @@ interface LibraryHeaderProps {
   /** True while the library is empty (or not yet loaded): search has nothing to search. */
   searchDisabled: boolean;
   searchPlaceholder: string;
+  query: string;
+  onSearch: (query: string) => void;
   onNewRecording: () => void;
   onOpenSettings: () => void;
+  /** While a recording is running, the primary button returns to it. */
+  recordingActive?: boolean;
 }
 
 /** The 60 px Library header (DESIGN.md §3): wordmark, search, New recording, Settings. */
@@ -36,13 +40,17 @@ export function LibraryHeader(props: LibraryHeaderProps): JSX.Element {
             spellcheck={false}
             disabled={props.searchDisabled}
             placeholder={props.searchPlaceholder}
+            value={props.query}
+            onInput={(event) => {
+              props.onSearch(event.currentTarget.value);
+            }}
           />
         </div>
       </div>
       <div class="header-actions">
         <button class="btn primary new-recording" type="button" onClick={props.onNewRecording}>
           <span class="rec-dot" aria-hidden="true" />
-          New recording
+          {props.recordingActive === true ? 'Back to recording' : 'New recording'}
         </button>
         <button class="icon-btn header-icon-btn" type="button" aria-label="Settings" onClick={props.onOpenSettings}>
           <SettingsIcon size={20} />

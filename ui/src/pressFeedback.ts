@@ -2,7 +2,7 @@
 // Chromium only applies :active for Space on buttons, so the focused control gets `is-pressed`
 // while Enter or Space is held. The styles live next to the :active rules in shell.css.
 
-const PRESSABLE = 'button.btn, button.icon-btn';
+const PRESSABLE = 'button.btn, button.icon-btn, button.chip, button.seg, button.nav, button.row, button.card';
 const PRESSED_CLASS = 'is-pressed';
 
 function pressableTarget(event: Event): HTMLElement | null {
