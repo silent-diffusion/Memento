@@ -127,6 +127,14 @@ export function RecordScreen(): JSX.Element {
     }
   }, [session, ownSessionId, bridge, saver]);
 
+  // Start replaces its own button: keep keyboard users in place on Pause rather than at the top.
+  const live = phase === 'recording' || phase === 'paused';
+  useEffect(() => {
+    if (live && (document.activeElement === document.body || document.activeElement === null)) {
+      document.querySelector<HTMLElement>('.rec-round')?.focus({ preventScroll: true });
+    }
+  }, [live]);
+
   // Finalize finished: open Review for this recording.
   useEffect(() => {
     if (own?.state === 'ready' && routed.current !== own.recordingId) {
@@ -170,7 +178,6 @@ export function RecordScreen(): JSX.Element {
     }
   }, [settings, own, details, saver]);
 
-  const live = phase === 'recording' || phase === 'paused';
   const liveTracks = own?.tracks.filter((t) => t.endedEarlyAtMs === null) ?? [];
   const liveSourceIds = new Set(liveTracks.map((t) => t.sourceId));
   const levelBySource = new Map((store.levels.value?.sessionId === own?.sessionId ? store.levels.value?.levels : undefined)?.map((l) => [l.sourceId, l.rms]) ?? []);

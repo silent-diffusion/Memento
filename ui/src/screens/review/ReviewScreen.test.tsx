@@ -165,7 +165,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await click(button('Highlight'));
     await until(() => container.textContent.includes('Highlights · 4'));
 
-    await click(button('+ Add', container.querySelector('.outline-group--pad') ?? container));
+    await click(button('Add a topic'));
     const topic = container.querySelector<HTMLInputElement>('.outline-group--pad input');
     if (topic === null) {
       throw new Error('no topic input');

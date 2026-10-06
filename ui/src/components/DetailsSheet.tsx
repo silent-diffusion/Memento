@@ -170,6 +170,7 @@ export function TagEditor({ tags, onChange, noun = 'tag' }: { tags: string[]; on
         <button
           class="btn add-pill"
           type="button"
+          aria-label={`Add a ${noun}`}
           onClick={() => {
             setAdding(true);
           }}
