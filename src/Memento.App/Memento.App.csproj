@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Memento.App</RootNamespace>
+    <AssemblyName>Memento</AssemblyName>
+    <AssemblyTitle>Memento</AssemblyTitle>
+    <StartupObject>Memento.App.Program</StartupObject>
+    <ApplicationIcon>..\..\build\icons\memento.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- LibraryImport source generation (SingleInstanceGuard) emits unsafe marshalling code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\build\icons\memento.ico" Link="memento.ico" />
+  </ItemGroup>
+
+  <!--
+    The interface is the Vite build in ui/dist. It is copied to <output>/ui and served to WebView2
+    through the https://app.memento/ virtual host. Build it first: cd ui && npm ci && npm run build
+  -->
+  <PropertyGroup>
+    <MementoUiDist>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'ui', 'dist'))</MementoUiDist>
+  </PropertyGroup>
+
+  <Target Name="MementoIncludeUi" BeforeTargets="AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(MementoUiDist)index.html')"
+           Code="MEMENTO001"
+           Text="The interface has not been built: '$(MementoUiDist)index.html' is missing. Run 'npm ci' and then 'npm run build' in the ui folder, then build Memento.App again." />
+    <!-- Vite names assets by content hash; start from an empty output ui folder so old bundles never linger. -->
+    <RemoveDir Directories="$(OutDir)ui" />
+    <ItemGroup>
+      <_MementoUiFile Include="$(MementoUiDist)**\*" />
+      <Content Include="@(_MementoUiFile)"
+               Link="ui\%(_MementoUiFile.RecursiveDir)%(_MementoUiFile.Filename)%(_MementoUiFile.Extension)"
+               CopyToOutputDirectory="PreserveNewest"
+               CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
+</Project>
