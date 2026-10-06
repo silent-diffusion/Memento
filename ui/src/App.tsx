@@ -1,58 +1,57 @@
 import type { JSX } from 'preact';
+import { useMemo } from 'preact/hooks';
 import type { BridgeClient } from './bridge/client';
-import { EmptyLibrary } from './components/EmptyLibrary';
-import { LibraryHeader, SEARCH_PLACEHOLDER, SEARCH_PLACEHOLDER_EMPTY } from './components/LibraryHeader';
-import { StatusFooter } from './components/StatusFooter';
-import { loadInitialData, type AppStore } from './state/store';
+import { DialogHost } from './components/DialogHost';
+import { ToastStack } from './components/Toasts';
+import { RecordPlaceholder } from './screens/RecordPlaceholder';
+import { ReviewPlaceholder } from './screens/ReviewPlaceholder';
+import { LibraryScreen } from './screens/library/LibraryScreen';
+import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { AppContext, createMemoryRouter, type AppServices } from './state/context';
+import { screenKey, type Route, type Router } from './state/router';
+import type { AppStore } from './state/store';
 
 interface AppProps {
   bridge: BridgeClient;
   store: AppStore;
+  /** location.hash router in the app; tests leave it out and get an in-memory one. */
+  router?: Router;
+  now?: () => Date;
 }
 
-// Recording, import and Settings arrive in M1 and M3; the controls are real but only log for now.
-function notYetAvailable(action: string): () => void {
-  return () => {
-    console.info(`[library] ${action} is not available in this version yet.`);
-  };
+/**
+ * One screen per route (hub and spoke, DESIGN.md §1). The Record and Review entries are interim and
+ * are replaced by the designed screens; each screen renders its own header and footer.
+ */
+function Screen({ route }: { route: Route }): JSX.Element {
+  switch (route.name) {
+    case 'library':
+      return <LibraryScreen />;
+    case 'record':
+      return <RecordPlaceholder />;
+    case 'review':
+      return <ReviewPlaceholder recordingId={route.recordingId} />;
+    case 'settings':
+      return <SettingsScreen section={route.section} />;
+  }
 }
 
-/** The Library hub: header, content, status footer (DESIGN.md §3). */
-export function App({ bridge, store }: AppProps): JSX.Element {
-  const library = store.library.value;
-  const loadError = store.loadError.value;
-  const isEmpty = library !== null && library.recordings.length === 0;
-
+/** The shell: the current screen, then the global surfaces (toasts, dialogs) above it. */
+export function App({ bridge, store, router, now }: AppProps): JSX.Element {
+  const services = useMemo<AppServices>(
+    () => ({ bridge, store, router: router ?? createMemoryRouter(store), now: now ?? (() => new Date()) }),
+    [bridge, store, router, now],
+  );
+  const route = store.route.value;
+  const modalOpen = store.overlays.value > 0;
   return (
-    <div class="shell">
-      <LibraryHeader
-        searchDisabled={library === null || isEmpty}
-        searchPlaceholder={isEmpty ? SEARCH_PLACEHOLDER_EMPTY : SEARCH_PLACEHOLDER}
-        onNewRecording={notYetAvailable('New recording')}
-        onOpenSettings={notYetAvailable('Settings')}
-      />
-      <main class="library-main library-main--centred">
-        {loadError !== null ? (
-          <div class="load-error" role="alert">
-            <p class="load-error-text">The library could not be shown. {loadError}</p>
-            <button
-              class="btn ghost load-error-retry"
-              type="button"
-              onClick={() => {
-                void loadInitialData(bridge, store);
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        ) : isEmpty ? (
-          <EmptyLibrary
-            onStartRecording={notYetAvailable('Start your first recording')}
-            onImport={notYetAvailable('Import audio or video')}
-          />
-        ) : null}
-      </main>
-      <StatusFooter status={store.footer.value} />
-    </div>
+    <AppContext.Provider value={services}>
+      {/* Keyed by screen so a spoke change remounts and plays the cross-fade (styles/shell.css). */}
+      <div class="shell screen" key={screenKey(route)} inert={modalOpen}>
+        <Screen route={route} />
+      </div>
+      <ToastStack queue={store.toasts} />
+      <DialogHost />
+    </AppContext.Provider>
   );
 }

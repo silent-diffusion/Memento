@@ -3,13 +3,24 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import type { BridgeClient } from './bridge/client';
+import type { FooterStatusPayload } from './bridge/types';
 import { createStore, type AppStore } from './state/store';
 
 const bridge: BridgeClient = {
   isHosted: false,
-  call: vi.fn(),
+  call: vi.fn(() => new Promise<never>(() => undefined)),
   on: vi.fn(() => () => undefined),
 };
+
+const EMPTY = { recordings: [], totalDurationMs: 0, totalCount: 0 };
+
+const footerPayload = (overrides: Partial<FooterStatusPayload> = {}): FooterStatusPayload => ({
+  engine: { ready: false, device: null },
+  storage: { freeBytes: 212 * 1024 ** 3, lowSpace: false },
+  recording: { active: false, lastCheckpointAt: null, lostSource: null },
+  processingPaused: null,
+  ...overrides,
+});
 
 describe('Library shell, first run', () => {
   let container: HTMLDivElement;
@@ -43,7 +54,7 @@ describe('Library shell, first run', () => {
   };
 
   it('shows the empty state copy and real, named buttons once the library is known to be empty', () => {
-    store.library.value = { recordings: [], totalDurationMs: 0 };
+    store.library.value = EMPTY;
     mount();
 
     expect(container.querySelector('h1')?.textContent).toBe('Your library is empty');
@@ -62,7 +73,7 @@ describe('Library shell, first run', () => {
   });
 
   it('disables search with the explanatory placeholder and keeps its label', () => {
-    store.library.value = { recordings: [], totalDurationMs: 0 };
+    store.library.value = EMPTY;
     mount();
 
     const search = container.querySelector<HTMLInputElement>('input[type="search"]');
@@ -79,25 +90,61 @@ describe('Library shell, first run', () => {
     expect(footer()).not.toMatch(/\d/);
 
     void act(() => {
-      store.footer.value = {
-        engine: { ready: false, device: null },
-        storage: { freeBytes: 212 * 1024 ** 3, lowSpace: false },
-      };
+      store.footer.value = footerPayload();
     });
 
     expect(footer()).toContain('Local transcription is not set up yet');
     expect(footer()).toContain('Everything is stored on this PC · 212 GB free');
   });
 
-  it('logs instead of failing when a not-yet-built action is clicked', () => {
-    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
-    store.library.value = { recordings: [], totalDurationMs: 0 };
+  it('shows the footer warning variants', () => {
+    mount();
+    const footer = (): HTMLElement | null => container.querySelector('footer');
+
+    void act(() => {
+      store.footer.value = footerPayload({ processingPaused: 'PC is busy', storage: { freeBytes: 4 * 1024 ** 3, lowSpace: true } });
+    });
+    expect(footer()?.querySelector('.status-dot--accent')).not.toBeNull();
+    expect(footer()?.textContent).toContain('Transcription paused · PC is busy');
+    expect(footer()?.querySelector('.footer-storage--low')?.textContent).toBe('Low disk space · 4 GB free');
+
+    void act(() => {
+      store.footer.value = footerPayload({ recording: { active: true, lastCheckpointAt: null, lostSource: 'Zoom' } });
+    });
+    expect(footer()?.querySelector('.status-dot--danger')).not.toBeNull();
+    expect(footer()?.textContent).toContain('Zoom lost · other tracks recording');
+    expect(footer()?.textContent).toContain('Saving continuously');
+  });
+
+  it('opens the Record and Settings spokes from the header and comes back', () => {
+    store.library.value = EMPTY;
     mount();
 
-    button('New recording').click();
-    button('Settings').click();
+    void act(() => {
+      button('New recording').click();
+    });
+    expect(store.route.value).toEqual({ name: 'record', sessionId: null });
+    expect(container.textContent).toContain('Ready to record');
 
-    expect(info).toHaveBeenCalledTimes(2);
+    void act(() => {
+      button('Library').click();
+    });
+    expect(store.route.value).toEqual({ name: 'library' });
+
+    void act(() => {
+      button('Settings').click();
+    });
+    expect(store.route.value).toEqual({ name: 'settings', section: 'general' });
+    expect([...container.querySelectorAll('nav .nav')].map((n) => n.textContent)).toEqual([
+      'General',
+      'Recording',
+      'Transcription',
+      'Speakers',
+      'AI and privacy',
+      'Documents',
+      'Export',
+      'Storage and history',
+    ]);
   });
 
   it('names the failure and offers a retry when the host cannot answer', () => {
