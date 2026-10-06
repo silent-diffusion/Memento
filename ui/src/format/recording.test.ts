@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RecordingSummary, StageStatus } from '../bridge/types';
-import { metaLine, peopleWording, stageFill, stagePills, stageStatusText, summaryLine, typeName } from './recording';
+import { CARD_STAGE_NAMES, metaLine, peopleWording, stageFill, stagePills, stageStatusText, summaryLine, typeName } from './recording';
 
 const stage = (s: StageStatus['stage'], state: StageStatus['state'], percent: number | null = null, label: string | null = null): StageStatus => ({
   stage: s,
@@ -94,9 +94,42 @@ describe('status pills', () => {
   it('shows storing progress while a new recording finalizes', () => {
     expect(stagePills([stage('stored', 'active', 40)])).toEqual([{ kind: 'active', label: 'Storing 40%' }]);
   });
+
+  it('hides a finished Smaller files stage like Stored', () => {
+    expect(stagePills([stage('stored', 'done'), stage('optimize', 'done')])).toEqual([]);
+    expect(stagePills([stage('transcript', 'done'), stage('optimize', 'done')])).toEqual([{ kind: 'done', label: 'Transcript' }]);
+  });
+
+  it('names the optimize stage while it is queued, running or failed', () => {
+    expect(stagePills([stage('optimize', 'queued')])).toEqual([{ kind: 'queued', label: 'Smaller files' }]);
+    expect(stagePills([stage('optimize', 'active', 30)])).toEqual([{ kind: 'active', label: 'Making smaller 30%' }]);
+    expect(stagePills([stage('optimize', 'active')])).toEqual([{ kind: 'active', label: 'Making smaller' }]);
+    expect(stagePills([stage('stored', 'done'), stage('optimize', 'failed')])).toEqual([
+      { kind: 'failed', label: 'Smaller files failed · Retry' },
+      { kind: 'done', label: 'Stored' },
+    ]);
+  });
+
+  it('keeps finished Stored and Smaller files beside another failed stage', () => {
+    expect(stagePills([stage('stored', 'done'), stage('transcript', 'failed'), stage('optimize', 'done')])).toEqual([
+      { kind: 'failed', label: 'Transcript failed · Retry' },
+      { kind: 'done', label: 'Stored' },
+      { kind: 'done', label: 'Smaller files' },
+    ]);
+  });
 });
 
 describe('processing card columns', () => {
+  it('names every stage column', () => {
+    expect(CARD_STAGE_NAMES).toEqual({
+      stored: 'Stored',
+      transcript: 'Transcribing',
+      speakers: 'Speakers',
+      minutes: 'Minutes',
+      optimize: 'Smaller files',
+    });
+  });
+
   it('prefers the host label and falls back to plain words', () => {
     expect(stageStatusText(stage('transcript', 'active', 64, '64% · local GPU'))).toBe('64% · local GPU');
     expect(stageStatusText(stage('transcript', 'active', 64))).toBe('64%');

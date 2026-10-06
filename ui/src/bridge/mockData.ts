@@ -1,6 +1,7 @@
 // Sample library for the browser preview (npm run dev). Every name is invented. Dates are relative to
 // "now" so the Today / Yesterday / Earlier this week / month buckets are always populated.
 import { calendarDaysBetween } from '../format/when';
+import { visibleStages } from './mockLibrary';
 import type {
   AudioSource,
   AudioSourceKind,
@@ -41,7 +42,10 @@ export const SAMPLE_SOURCES: readonly AudioSource[] = [
 
 /** A sample recording plus what project.get needs beyond the summary. */
 export interface MockProject {
+  /** The row; its `stages` follow the host's rule (visibleStages). */
   summary: RecordingSummary;
+  /** Every stage of the pipeline, finished stored and optimize included (library.processing, processing.progress). */
+  stages: StageStatus[];
   details: RecordingDetails;
   trackSources: AudioSourceKind[];
   /** The real tracks of a recording made in the preview; sample recordings derive theirs. */
@@ -320,6 +324,7 @@ export function mockTracks(recordingId: string, kinds: readonly AudioSourceKind[
     channels: kind === 'microphone' ? 1 : 2,
     durationMs,
     sha256: null,
+    startOffsetMs: 0,
     endedEarlyAtMs: null,
   }));
 }
@@ -385,6 +390,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
     transcript: { done: 'Transcribed locally', failed: 'Transcription failed', active: 'Transcribing locally', detail: 'Local engine · GPU · English' },
     speakers: { done: 'Speakers identified', failed: 'Speaker identification failed', active: 'Identifying speakers', detail: 'Local engine · CPU' },
     minutes: { done: 'Minutes generated', failed: 'Minutes failed', active: 'Generating minutes', detail: 'Sent the transcript, agenda and participants' },
+    optimize: { done: 'Saved smaller files', failed: 'Making smaller files failed', active: 'Making smaller files', detail: 'AAC 128 kbps' },
   };
   seed.stages.forEach((stage, index) => {
     if (stage.state === 'queued') {
@@ -394,7 +400,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
     history.push({
       at: at(seed.durationMs + 30_000 * (index + 1)),
       stage: stage.stage,
-      event: stage.state === 'done' ? 'completed' : stage.state === 'failed' ? 'failed' : 'progress',
+      event: stage.state === 'done' ? 'completed' : stage.state === 'failed' ? 'failed' : 'started',
       summary: stage.state === 'done' ? words.done : stage.state === 'failed' ? words.failed : words.active,
       detail:
         stage.state === 'failed'
@@ -427,7 +433,7 @@ export function sampleProjects(now: Date): MockProject[] {
       durationMs: seed.durationMs,
       participantCount: seed.people.length,
       hasVideo: seed.hasVideo ?? false,
-      stages: seed.stages,
+      stages: visibleStages(seed.stages),
       people: seed.people,
       isProcessing: seed.stages.some((st) => st.state === 'active' || st.state === 'queued'),
       state: seed.state ?? 'ready',
@@ -461,6 +467,7 @@ export function sampleProjects(now: Date): MockProject[] {
     };
     return {
       summary,
+      stages: [...seed.stages],
       details,
       trackSources: seed.tracks,
       ...sampleAnnotations(seed),

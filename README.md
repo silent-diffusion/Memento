@@ -18,9 +18,17 @@ The installer is not yet code-signed, so Windows SmartScreen may show a warning 
 
 ## What it does
 
-- **Record** from microphones, everything the PC plays, or one application at a time, with each source saved as its own track, continuously checkpointed to disk.
+Version 0.2.0 records, stores and plays back:
+
+- **Record** from microphones, everything the PC plays, or one application at a time, with each source saved as its own synchronized track and checkpointed to disk every 30 seconds. Pause, mark highlights with notes, and turn sources on or off mid-recording.
+- **Never lose a recording**: a crash or power cut is repaired at the next start, and the recovery dialog says what was saved and what may be missing.
+- **Store** every recording as lossless FLAC with a mix, a waveform and SHA-256 hashes, or choose smaller AAC/MP3 files that Memento converts and verifies after saving.
+- **Review** with a player, waveform, seeking, chapters, highlights, details and a full processing history.
+- **Find** recordings in the Library by title and people, filter by type, and delete them with a clear confirmation.
+
+Coming in later versions (see the [roadmap](docs/ROADMAP.md)):
+
 - **Transcribe** on your PC with word-level timestamps and confidence marks, and identify who said what.
-- **Review** with a player, waveform, editable transcript, chapters, highlights and notes. Low-confidence words and uncertain speakers are marked so you know where to look.
 - **Import an agenda** from Word, PDF, Excel, CSV, Markdown, text or a photo, parsed locally.
 - **Create documents** (minutes, summaries, action items and more) with a visual builder, where every statement links back to the moment in the recording. Requires an AI provider you enable and a key you supply.
 - **Export** exactly the parts you want: audio, tracks, transcript, documents, details, with an integrity manifest.

@@ -23,6 +23,8 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
 
     public const string ApplicationDetail = "Only this app";
 
+    private const string WebView2ProcessName = "msedgewebview2";
+
     public IReadOnlyList<AudioSourceInfo> List(AudioSourceListOptions? options = null)
     {
         options ??= AudioSourceListOptions.Default;
@@ -149,7 +151,7 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
                     }
 
                     var pid = (int)session.GetProcessID;
-                    if (pid == 0 || (options.ExcludeOwnProcess && pid == Environment.ProcessId))
+                    if (pid == 0 || (options.ExcludeOwnProcess && IsOwnProcess(pid)))
                     {
                         continue;
                     }
@@ -179,6 +181,23 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
         }
 
         return apps;
+    }
+
+    /// <summary>
+    /// Memento itself, or one of the WebView2 processes it runs (Review plays audio from one). Other programs Memento
+    /// happened to start, such as a browser opened from a link, are still offered.
+    /// </summary>
+    internal static bool IsOwnProcess(int pid)
+    {
+        if (pid == Environment.ProcessId)
+        {
+            return true;
+        }
+
+        var image = ProcessInfoNative.QueryImagePath(pid);
+        return image is not null
+            && string.Equals(Path.GetFileNameWithoutExtension(image), WebView2ProcessName, StringComparison.OrdinalIgnoreCase)
+            && ProcessInfoNative.IsInTreeOf(pid, Environment.ProcessId);
     }
 
     private static AudioSourceInfo? DescribeProcess(int pid, string? displayName, AudioSourceListOptions options)

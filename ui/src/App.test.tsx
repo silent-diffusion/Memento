@@ -102,10 +102,10 @@ describe('Library shell, first run', () => {
     const footer = (): HTMLElement | null => container.querySelector('footer');
 
     void act(() => {
-      store.footer.value = footerPayload({ processingPaused: 'PC is busy', storage: { freeBytes: 4 * 1024 ** 3, lowSpace: true } });
+      store.footer.value = footerPayload({ processingPaused: 'Low disk space', storage: { freeBytes: 4 * 1024 ** 3, lowSpace: true } });
     });
     expect(footer()?.querySelector('.status-dot--accent')).not.toBeNull();
-    expect(footer()?.textContent).toContain('Transcription paused · PC is busy');
+    expect(footer()?.textContent).toContain('Transcription paused · Low disk space');
     expect(footer()?.querySelector('.footer-storage--low')?.textContent).toBe('Low disk space · 4 GB free');
 
     void act(() => {

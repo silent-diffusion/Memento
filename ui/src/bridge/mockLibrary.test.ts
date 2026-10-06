@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { advanceStages, processingOf, queryLibrary } from './mockLibrary';
+import { advanceStages, processingOf, queryLibrary, visibleStages } from './mockLibrary';
 import { sampleProjects } from './mockData';
-import type { RecordingSummary } from './types';
+import type { RecordingSummary, StageStatus } from './types';
 
 const now = new Date(2026, 9, 6, 15, 0);
 const library = (): RecordingSummary[] => sampleProjects(now).map((p) => p.summary);
@@ -52,12 +52,34 @@ describe('mock library.list', () => {
 
 describe('mock processing', () => {
   it('reports the most recent processing recording and how many others are', () => {
-    const recordings = library();
-    expect(processingOf(recordings)).toMatchObject({ current: { title: 'Q3 planning sync' }, othersCount: 0 });
+    const projects = sampleProjects(now);
+    expect(processingOf(projects)).toMatchObject({ current: { title: 'Q3 planning sync' }, othersCount: 0 });
 
-    const more = recordings.map((r) => (r.title === 'Sprint retrospective' ? { ...r, isProcessing: true } : r));
+    const more = projects.map((p) => (p.summary.title === 'Sprint retrospective' ? { ...p, summary: { ...p.summary, isProcessing: true } } : p));
     expect(processingOf(more).othersCount).toBe(1);
-    expect(processingOf(recordings.map((r) => ({ ...r, isProcessing: false })))).toEqual({ current: null, othersCount: 0 });
+    expect(processingOf(projects.map((p) => ({ ...p, summary: { ...p.summary, isProcessing: false } })))).toEqual({ current: null, othersCount: 0 });
+  });
+
+  it('gives the card every stage while the row leaves finished stored out', () => {
+    const current = processingOf(sampleProjects(now)).current;
+    expect(current?.stages.map((st) => st.stage)).toEqual(['stored', 'transcript', 'speakers', 'minutes']);
+    expect(current?.meta.stages.map((st) => st.stage)).toEqual(['transcript', 'speakers', 'minutes']);
+  });
+
+  it('applies the host rule for row stages', () => {
+    const st = (stage: StageStatus['stage'], state: StageStatus['state']): StageStatus => ({ stage, state, percent: null, label: null });
+    expect(visibleStages([st('stored', 'done'), st('optimize', 'done')])).toEqual([]);
+    expect(visibleStages([st('stored', 'done'), st('transcript', 'done'), st('optimize', 'active')])).toEqual([
+      st('transcript', 'done'),
+      st('optimize', 'active'),
+    ]);
+    expect(visibleStages([st('stored', 'failed'), st('optimize', 'queued')])).toEqual([st('stored', 'failed'), st('optimize', 'queued')]);
+  });
+
+  it('keeps finished stored stages out of every sample row', () => {
+    for (const recording of library()) {
+      expect(recording.stages.some((st) => (st.stage === 'stored' || st.stage === 'optimize') && st.state === 'done')).toBe(false);
+    }
   });
 
   it('advances the active stage, then starts the next queued one', () => {

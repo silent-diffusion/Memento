@@ -6,7 +6,6 @@ using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Library;
 using Memento.Core.Projects;
-using Memento.Core.Settings;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Recording;
@@ -22,7 +21,6 @@ public sealed partial class ProjectFinalizationService(
     IProjectStore store,
     ProjectCatalog catalog,
     ITrackFinalizer finalizer,
-    ISettingsStore settings,
     BridgeEventPublisher publisher,
     TimeProvider time,
     ILogger<ProjectFinalizationService> logger)
@@ -44,9 +42,11 @@ public sealed partial class ProjectFinalizationService(
 
         var folder = store.GetProjectFolder(recordingId);
         var inputs = manifest.Tracks
-            .Select(t => new FinalizeTrackInput(t.Id, t.CaptureFile ?? t.File, t.StartOffsetMs))
+            .Select(t => new FinalizeTrackInput(t.Id, t.CaptureFile ?? t.File, t.StartOffsetMs, t.EndedEarlyAtMs))
             .ToList();
-        var storage = StorageFormat.From(settings.Current.Recording.Storage);
+
+        // Always lossless here; a smaller format from Settings is the optimize stage's job, after every other stage.
+        var storage = StorageFormat.Lossless;
         var stopwatch = Stopwatch.StartNew();
         FinalizedAudio audio;
         try
@@ -67,6 +67,11 @@ public sealed partial class ProjectFinalizationService(
         }
 
         integrity[audio.Mix.File] = audio.Mix.Sha256;
+        foreach (var (file, sha256) in audio.ExtraHashes)
+        {
+            integrity[file] = sha256;
+        }
+
         var saved = await catalog.UpdateAsync(
             recordingId,
             m => m with
@@ -111,6 +116,13 @@ public sealed partial class ProjectFinalizationService(
                 $"Stored {HumanFormat.Count(audio.Tracks.Count, "track", "tracks")} · {HumanFormat.Bytes(size)}",
                 detail),
             cancellationToken);
+        foreach (var warning in audio.Warnings)
+        {
+            await AppendQuietlyAsync(
+                recordingId,
+                new HistoryEntry(audio.ComputedAt, StageNames.Stored, "info", warning.Summary, warning.Detail),
+                cancellationToken);
+        }
 
         store.DeleteRecordingState(recordingId);
         DeleteReplacedCaptures(folder, audio.ObsoleteCaptureFiles);

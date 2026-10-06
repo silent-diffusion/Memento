@@ -48,14 +48,18 @@ public static class ProjectMapper
             sizeBytes);
 
     /// <summary>
-    /// Row and card pills: a finished <c>stored</c> stage is left out, so a recording with no other processing
-    /// shows "Audio only" (DESIGN.md §4) instead of a "Stored" pill. Active or failed <c>stored</c> is shown.
+    /// Row and card pills: a finished <c>stored</c> or <c>optimize</c> stage is left out, so a recording with no
+    /// other processing shows "Audio only" (DESIGN.md §4) instead of a "Stored" or "Smaller files" pill. Those stages
+    /// are listed while active or queued and when they failed. <c>library.processing</c> keeps every stage.
     /// </summary>
     public static IReadOnlyList<StageStatus> VisibleStages(IReadOnlyList<StageStatus> stages)
     {
         ArgumentNullException.ThrowIfNull(stages);
-        return stages.Where(s => !(s.Stage == StageNames.Stored && s.State == StageStates.Done)).ToList();
+        return stages.Where(s => !(IsHousekeeping(s.Stage) && s.State == StageStates.Done)).ToList();
     }
+
+    /// <summary>Stages that only store the audio (as opposed to adding a transcript or a document).</summary>
+    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Optimize;
 
     public static bool IsProcessing(IReadOnlyList<StageStatus> stages) => stages.Any(s => StageStates.IsRunning(s.State));
 

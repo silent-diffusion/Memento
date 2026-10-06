@@ -49,15 +49,33 @@ export function queryLibrary(recordings: readonly RecordingSummary[], params: Li
   };
 }
 
-/** The most recent recording that is still processing, and how many others are. */
-export function processingOf(recordings: readonly RecordingSummary[]): LibraryProcessingResult {
-  const processing = recordings.filter((r) => r.isProcessing).sort(byNewest);
+/**
+ * RecordingSummary.stages from the full pipeline, as the host's ProjectMapper.VisibleStages does it:
+ * a finished `stored` or `optimize` stage is left out, so a recording with nothing else run reads
+ * "Audio only". Running, queued and failed stages stay.
+ */
+export function visibleStages(stages: readonly StageStatus[]): StageStatus[] {
+  return stages.filter((st) => !((st.stage === 'stored' || st.stage === 'optimize') && st.state === 'done'));
+}
+
+/** A recording as the preview host keeps it: the Library row and every stage of its pipeline. */
+export interface MockPipeline {
+  summary: RecordingSummary;
+  stages: StageStatus[];
+}
+
+/**
+ * The most recent recording that is still processing, and how many others are. The card's `stages`
+ * are the whole pipeline; `meta` is the row, which leaves finished stored and optimize stages out.
+ */
+export function processingOf(recordings: readonly MockPipeline[]): LibraryProcessingResult {
+  const processing = recordings.filter((r) => r.summary.isProcessing).sort((a, b) => byNewest(a.summary, b.summary));
   const [current] = processing;
   if (current === undefined) {
     return { current: null, othersCount: 0 };
   }
   return {
-    current: { recordingId: current.id, title: current.title, meta: current, stages: current.stages },
+    current: { recordingId: current.summary.id, title: current.summary.title, meta: current.summary, stages: current.stages },
     othersCount: processing.length - 1,
   };
 }

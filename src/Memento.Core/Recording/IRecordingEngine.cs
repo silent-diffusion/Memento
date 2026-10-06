@@ -10,6 +10,12 @@ public interface IRecordingEngine
     string Name { get; }
 
     /// <summary>
+    /// How often writers hand their buffered audio to Windows between checkpoints, or <c>null</c> if only checkpoints
+    /// do. Written to <c>recording.state.json</c> for recovery's "may be missing" estimate.
+    /// </summary>
+    TimeSpan? FlushInterval => null;
+
+    /// <summary>
     /// Opens every source in <paramref name="plan"/> and starts writing one WAV per source under
     /// <c>&lt;project&gt;/tracks/</c>. Either all sources start or none do.
     /// </summary>

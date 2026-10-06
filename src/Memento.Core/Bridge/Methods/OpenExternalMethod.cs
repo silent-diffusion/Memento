@@ -11,8 +11,8 @@ namespace Memento.Core.Bridge.Methods;
 /// </summary>
 public sealed class OpenExternalMethod(IExternalLauncher launcher) : BridgeMethod<OpenExternalParams, OpenExternalResult>
 {
-    public const string UnsupportedTargetCode = "app.openExternal.unsupportedTarget";
-    public const string LaunchFailedCode = "app.openExternal.failed";
+    public const string UnsupportedTargetCode = DomainErrorCodes.AppOpenExternalUnsupportedTarget;
+    public const string LaunchFailedCode = DomainErrorCodes.AppOpenExternalFailed;
 
     private const int MaxUrlLength = 2048;
 

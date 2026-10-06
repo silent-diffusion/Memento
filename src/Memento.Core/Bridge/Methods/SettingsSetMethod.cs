@@ -10,8 +10,8 @@ namespace Memento.Core.Bridge.Methods;
 /// </summary>
 public sealed class SettingsSetMethod(ISettingsStore store) : BridgeMethod<SettingsSetParams, SettingsSnapshot>
 {
-    public const string InvalidValueCode = "settings.invalidValue";
-    public const string LibraryMoveUnavailableCode = "settings.libraryMoveUnavailable";
+    public const string InvalidValueCode = DomainErrorCodes.SettingsInvalidValue;
+    public const string LibraryMoveUnavailableCode = DomainErrorCodes.SettingsLibraryMoveUnavailable;
 
     public override string Name => BridgeMethodNames.SettingsSet;
 

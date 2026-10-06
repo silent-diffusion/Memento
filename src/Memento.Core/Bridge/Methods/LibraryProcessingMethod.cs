@@ -4,7 +4,7 @@ using Memento.Core.Library;
 
 namespace Memento.Core.Bridge.Methods;
 
-/// <summary><c>library.processing</c>: the processing card. Only the <c>stored</c> stage exists in M1.</summary>
+/// <summary><c>library.processing</c>: the processing card. Its <c>stages</c> list every stage, finished <c>stored</c> and <c>optimize</c> included; <c>meta</c> is the Library row.</summary>
 public sealed class LibraryProcessingMethod(ILibraryIndex index) : BridgeMethod<EmptyParams, LibraryProcessingResult>
 {
     public override string Name => BridgeMethodNames.LibraryProcessing;

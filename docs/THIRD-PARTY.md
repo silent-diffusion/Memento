@@ -29,6 +29,7 @@ Build, test and packaging tools (not shipped in the installer):
 | Component | License | Used for |
 |---|---|---|
 | vpk (Velopack CLI, `dotnet-tools.json`) | MIT | Packing `Setup.exe` and the update feed |
+| Microsoft.CodeAnalysis.NetAnalyzers (10.0, pinned in `Directory.Packages.props`) | MIT | The same code-analysis rules on every SDK, local and CI |
 | xunit, xunit.runner.visualstudio | Apache-2.0 | .NET unit tests |
 | Microsoft.NET.Test.Sdk, Microsoft.Extensions.DependencyInjection | MIT | .NET test host; DI container in tests |
 | TypeScript | Apache-2.0 | UI type checking |

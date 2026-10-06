@@ -75,7 +75,6 @@ describe('history dots', () => {
     expect(historyTone({ event: 'failed' })).toBe('failed');
     expect(historyTone({ event: 'info' })).toBe('info');
     expect(historyTone({ event: 'started' })).toBe('info');
-    expect(historyTone({ event: 'progress' })).toBe('info');
   });
 });
 

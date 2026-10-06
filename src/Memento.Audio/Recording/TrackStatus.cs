@@ -12,6 +12,9 @@ namespace Memento.Audio.Recording;
 /// <param name="StartOffset">Timeline position of the track's first frame (0 unless added mid-session).</param>
 /// <param name="EndedEarlyAt">Timeline time the track ended before the session, or null.</param>
 /// <param name="EndReason">Why it ended, or null while active.</param>
+/// <param name="BitsPerSample">Stored bit depth (24 for float captures, 16 for 16-bit ones).</param>
+/// <param name="Frames">Frames written so far.</param>
+/// <param name="HasAudio">The first frame has been written, so <paramref name="StartOffset"/> is final.</param>
 public sealed record TrackStatus(
     string SourceId,
     AudioSourceKind Kind,
@@ -23,7 +26,10 @@ public sealed record TrackStatus(
     TimeSpan Duration,
     TimeSpan StartOffset,
     TimeSpan? EndedEarlyAt,
-    TrackEndReason? EndReason)
+    TrackEndReason? EndReason,
+    int BitsPerSample = 24,
+    long Frames = 0,
+    bool HasAudio = true)
 {
     public bool IsActive => EndReason is null;
 }

@@ -176,9 +176,12 @@ internal sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Serves the library folder at <c>https://library.memento/</c> so the page can stream the mix and read peaks.
-    /// Media and fetches from there are sub-resources of the app page, not navigations, so
-    /// <see cref="OnNavigationStarting"/> still allows only <c>app.memento</c>. Remapped when the library moves.
+    /// Serves the library's <c>projects</c> folder (<see cref="LibraryUrls.MappedFolder"/>) at
+    /// <c>https://library.memento/</c> so the page can stream the mix and read peaks. Only the project folders are
+    /// reachable: <c>library.db</c> sits in the library root, above the mapped folder, and the browser resolves
+    /// <c>..</c> segments before the path reaches the folder. Media and fetches from there are sub-resources of the
+    /// app page, not navigations, so <see cref="OnNavigationStarting"/> still allows only <c>app.memento</c>.
+    /// Remapped when the library moves.
     /// </summary>
     private void MapLibrary(CoreWebView2? core)
     {
@@ -187,21 +190,21 @@ internal sealed partial class MainWindow : Window
             return;
         }
 
-        var root = _library.Root;
-        if (string.Equals(root, _mappedLibrary, StringComparison.OrdinalIgnoreCase))
+        var folder = LibraryUrls.MappedFolder(_library.Root);
+        if (string.Equals(folder, _mappedLibrary, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(folder);
         if (_mappedLibrary is not null)
         {
             core.ClearVirtualHostNameToFolderMapping(LibraryUrls.VirtualHost);
         }
 
-        core.SetVirtualHostNameToFolderMapping(LibraryUrls.VirtualHost, root, LibraryAccessKind);
-        _mappedLibrary = root;
-        LogLibraryMapped(root);
+        core.SetVirtualHostNameToFolderMapping(LibraryUrls.VirtualHost, folder, LibraryAccessKind);
+        _mappedLibrary = folder;
+        LogLibraryMapped(folder);
     }
 
     private static void ConfigureSettings(CoreWebView2Settings settings)
@@ -314,8 +317,8 @@ internal sealed partial class MainWindow : Window
         Application.Current.Shutdown(exitCode);
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Library folder {Root} served at https://library.memento/")]
-    private partial void LogLibraryMapped(string root);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Project folders in {Folder} served at https://library.memento/")]
+    private partial void LogLibraryMapped(string folder);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Interface files are missing from {Folder}")]
     private partial void LogUiMissing(string folder);

@@ -6,6 +6,7 @@ using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Host;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Settings;
 using Memento.Core.Status;
@@ -31,6 +32,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     private readonly IProjectStore _store;
     private readonly ProjectCatalog _catalog;
     private readonly ProjectFinalizationService _finalization;
+    private readonly ProcessingOrchestrator _processing;
     private readonly ISettingsStore _settings;
     private readonly ILibraryLocation _library;
     private readonly IFreeSpaceProbe _freeSpace;
@@ -50,6 +52,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         IProjectStore store,
         ProjectCatalog catalog,
         ProjectFinalizationService finalization,
+        ProcessingOrchestrator processing,
         ISettingsStore settings,
         ILibraryLocation library,
         IFreeSpaceProbe freeSpace,
@@ -65,6 +68,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         _store = store;
         _catalog = catalog;
         _finalization = finalization;
+        _processing = processing;
         _settings = settings;
         _library = library;
         _freeSpace = freeSpace;
@@ -425,7 +429,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             DomainErrorCodes.RecordingDiskFull,
             $"The library drive has only {HumanFormat.Bytes(free ?? 0)} free, so the recording did not start. Nothing was recorded. Free up space and try again.");
 
-    private async Task<List<AudioSource>> ResolveSourcesAsync(IReadOnlyList<string> sourceIds, CancellationToken cancellationToken)
+    private async Task<List<AudioSource>> ResolveSourcesAsync(List<string> sourceIds,CancellationToken cancellationToken)
     {
         var available = await _sources.ListAsync(cancellationToken);
         var resolved = new List<AudioSource>(sourceIds.Count);
@@ -666,10 +670,30 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         var finalizing = new Finalizing(payload);
         _finalizing[active.RecordingId] = finalizing;
         finalizing.Task = Task.Run(() => FinalizeInBackgroundAsync(active, finalizing), CancellationToken.None);
-        LogStopped(active.RecordingId, result.ElapsedMs, reason?.ToString() ?? "user");
+        if (reason is { } byHost)
+        {
+            LogStoppedByHost(active.RecordingId, result.ElapsedMs, byHost);
+        }
+        else
+        {
+            LogStopped(active.RecordingId, result.ElapsedMs);
+        }
 
         // Not awaited here: this can run on the session's own event thread, which disposing waits for.
         _ = Task.Run(() => active.Session.DisposeAsync().AsTask(), CancellationToken.None);
+    }
+
+    /// <summary>The stored recording is safe; later stages are best effort and must not turn it into a failure.</summary>
+    private async Task QueueProcessingAsync(string recordingId)
+    {
+        try
+        {
+            await _processing.EnqueueAfterStoredAsync(recordingId, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException)
+        {
+            LogQueueFailed(ex, recordingId);
+        }
     }
 
     private async Task FinalizeInBackgroundAsync(ActiveRecording active, Finalizing finalizing)
@@ -683,6 +707,10 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 State = state,
                 Tracks = manifest.Tracks.Select(ProjectMapper.ToTrack).ToList(),
             });
+            if (manifest.State != ProjectStates.Failed)
+            {
+                await QueueProcessingAsync(active.RecordingId);
+            }
         }
 #pragma warning disable CA1031 // Background work: log and keep the files; recovery retries at the next launch.
         catch (Exception ex)
@@ -801,6 +829,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     LastCheckpointAt = lastCheckpointAt,
                     ElapsedMsAtCheckpoint = tracks.Count == 0 ? 0 : tracks.Max(t => t.StartOffsetMs + t.Format.BytesToMilliseconds(t.CheckpointedBytes)),
                     CheckpointSeconds = (int)active.CheckpointInterval.TotalSeconds,
+                    FlushIntervalMs = _engine.FlushInterval is { } flush ? (int)flush.TotalMilliseconds : null,
                     Tracks = tracks.Select(SessionTrackMapper.ToState).ToList(),
                     Pauses = active.Session.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList(),
                 },
@@ -834,8 +863,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} started (session {SessionId}, {Tracks} tracks, engine {Engine})")]
     private partial void LogStarted(string recordingId, string sessionId, int tracks, string engine);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by {By}; finalizing")]
-    private partial void LogStopped(string recordingId, long elapsedMs, string by);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by the user; finalizing")]
+    private partial void LogStopped(string recordingId, long elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by the host ({Reason}); finalizing")]
+    private partial void LogStoppedByHost(string recordingId, long elapsedMs, HostStopReason reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId} stopped by the host ({Reason}) at {AtMs} ms: {Detail}")]
     private partial void LogHostStopped(string recordingId, string reason, long atMs, string detail);
@@ -860,6 +892,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Finalizing recording {RecordingId} failed; its files are kept for the next launch")]
     private partial void LogFinalizeFailed(Exception exception, string recordingId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId} is stored, but its later processing stages could not be queued")]
+    private partial void LogQueueFailed(Exception exception, string recordingId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The empty project {RecordingId} of a recording that did not start could not be removed")]
     private partial void LogDiscardFailed(Exception exception, string recordingId);
