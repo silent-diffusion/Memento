@@ -45,13 +45,13 @@ internal static class Checks
         await Task.Delay(TimeSpan.FromSeconds(seconds));
         var result = await session.StopAsync();
         wall.Stop();
-        Console.WriteLine($"stopped: timeline {result.Duration.TotalSeconds:0.000} s, wall clock start→stop {wall.Elapsed.TotalSeconds:0.000} s, level events {levelEvents} ({levelEvents / result.Duration.TotalSeconds:0.0}/s)");
+        Console.WriteLine($"stopped: timeline {result.Duration.TotalSeconds:0.000} s, wall clock start to stop {wall.Elapsed.TotalSeconds:0.000} s, level events {levelEvents} ({levelEvents / result.Duration.TotalSeconds:0.0}/s)");
         foreach (var t in result.Tracks)
         {
             var bytes = t.Parts.Sum(p => new FileInfo(p).Length);
             var clockDiffMs = (t.Duration - result.Duration).TotalMilliseconds;
             Console.WriteLine($"  {t.FileStem,-16} {t.Kind,-11} capture [{t.CaptureFormat}] → stored [{t.StorageFormat}]");
-            Console.WriteLine($"  {string.Empty,-16} frames {t.Frames:N0} = {t.Duration.TotalSeconds:0.000} s vs timeline {result.Duration.TotalSeconds:0.000} s ({clockDiffMs:+0.0;-0.0} ms), start offset {t.StartOffset.TotalMilliseconds:0} ms, drift {Ppm(t.DriftPpm)}");
+            Console.WriteLine($"  {string.Empty,-16} frames {t.Frames:N0} = {t.Duration.TotalSeconds:0.000} s vs timeline {result.Duration.TotalSeconds:0.000} s ({Math.Round(clockDiffMs, 1) + 0.0:0.0} ms), start offset {t.StartOffset.TotalMilliseconds:0} ms, drift {Ppm(t.DriftPpm)}");
             Console.WriteLine($"  {string.Empty,-16} WAV {bytes:N0} B in {t.Parts.Count} part(s); packets {t.Statistics.Packets:N0}, silent {t.Statistics.SilentPackets:N0}, synthesized {t.Statistics.SynthesizedFrames:N0} frames, trimmed {t.Statistics.TrimmedFrames:N0}, overrun {t.Statistics.OverrunFrames:N0}, discontinuities {t.Statistics.Discontinuities}, timestamp errors {t.Statistics.TimestampErrors}, peak level {peaks.GetValueOrDefault(t.SourceId):0.000}");
         }
 
