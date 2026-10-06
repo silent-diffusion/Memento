@@ -6,6 +6,8 @@ using Memento.App.Theming;
 using Memento.Core;
 using Memento.Core.Bridge;
 using Memento.Core.Host;
+using Memento.Core.Recording;
+using Memento.Core.Recording.Simulation;
 using Memento.Core.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -44,7 +46,7 @@ internal static class Program
                 "Memento {Version} starting on {Os}{Mode}",
                 AppInfo.ReadProductVersion(),
                 Environment.OSVersion.VersionString,
-                options.IsScreenshotRun ? " (screenshot run)" : string.Empty);
+                options.IsScreenshotRun ? " (screenshot run)" : options.SimulateAudio is not null ? " (simulated audio)" : string.Empty);
 
             if (AppContext.BaseDirectory.StartsWith(AppPaths.DataRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
@@ -80,6 +82,16 @@ internal static class Program
         Log.Debug("Settings loaded");
         host.StartAsync().GetAwaiter().GetResult();
         Log.Debug("Host started");
+
+        if (options.SimulateAudio is null)
+        {
+            Log.Warning("Real audio capture is not available in this build; recordings use the simulated engine");
+        }
+
+        // Before any window: open the index and recover interrupted recordings, so the first screen is complete.
+        host.Services.GetRequiredService<LibraryStartup>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var recordings = host.Services.GetRequiredService<RecordingCoordinator>();
+        CrashHandler.BeforeExit = () => recordings.FlushForCrash(TimeSpan.FromSeconds(2));
 
         var application = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         CrashHandler.InstallDispatcherHandler(application);
@@ -118,7 +130,14 @@ internal static class Program
         builder.Services.AddSingleton<WindowsThemeWatcher>();
         builder.Services.AddSingleton<ThemeService>();
         builder.Services.AddSingleton<IThemeState>(services => services.GetRequiredService<ThemeService>());
+        builder.Services.AddSingleton<IFolderPicker, WpfFolderPicker>();
         builder.Services.AddMementoBridge();
+        builder.Services.AddMementoLibrary();
+
+        // Memento.Audio replaces this registration with the WASAPI engine; until then every build records simulated audio.
+        builder.Services.AddSimulatedAudio(options.SimulateAudio ?? new SimulatedEngineOptions());
+        builder.Services.AddSingleton<LibraryStartup>();
+        builder.Services.AddHostedService<RecordingLifetime>();
         builder.Services.AddHostedService<FooterStatusLoop>();
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();

@@ -21,6 +21,9 @@ internal static class CrashHandler
 
     private static int _handled;
 
+    /// <summary>Runs first when a crash is handled: flushes recording checkpoints (ARCHITECTURE.md §9.6). Must not throw.</summary>
+    public static Action? BeforeExit { get; set; }
+
     /// <summary>Hooks the process-wide handlers. Call once, as early as possible.</summary>
     public static void InstallProcessHandlers()
     {
@@ -61,6 +64,7 @@ internal static class CrashHandler
         try
         {
             Log.Fatal(exception, "Unhandled exception from {Source}; Memento is closing", source);
+            BeforeExit?.Invoke();
             var path = WriteReport(exception, source);
             Log.Information("Crash report written to {Path}", path);
         }

@@ -5,6 +5,8 @@ using Memento.App.Bridge;
 using Memento.App.Hosting;
 using Memento.App.Theming;
 using Memento.Core;
+using Memento.Core.Library;
+using Memento.Core.Settings;
 using Memento.Core.Status;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
@@ -24,6 +26,9 @@ internal sealed partial class MainWindow : Window
     private static readonly Color LightGround = Color.FromRgb(0xEF, 0xED, 0xE8);
     private static readonly Color DarkGround = Color.FromRgb(0x1F, 0x1E, 0x1B);
 
+    /// <summary>How the page may use library.memento (see <see cref="MapLibrary"/>).</summary>
+    private const CoreWebView2HostResourceAccessKind LibraryAccessKind = CoreWebView2HostResourceAccessKind.DenyCors;
+
 #if DEBUG
     private const bool IsDebugBuild = true;
 #else
@@ -35,7 +40,9 @@ internal sealed partial class MainWindow : Window
     private readonly FooterStatusService _footer;
     private readonly UiLifecycle _lifecycle;
     private readonly CommandLineOptions _options;
+    private readonly ILibraryLocation _library;
     private readonly ILogger<MainWindow> _logger;
+    private string? _mappedLibrary;
 
     public MainWindow(
         ThemeService theme,
@@ -43,6 +50,8 @@ internal sealed partial class MainWindow : Window
         FooterStatusService footer,
         UiLifecycle lifecycle,
         CommandLineOptions options,
+        ILibraryLocation library,
+        ISettingsStore settings,
         ILogger<MainWindow> logger)
     {
         _theme = theme;
@@ -50,7 +59,15 @@ internal sealed partial class MainWindow : Window
         _footer = footer;
         _lifecycle = lifecycle;
         _options = options;
+        _library = library;
         _logger = logger;
+        settings.Changed += (_, e) =>
+        {
+            if (!string.Equals(e.Previous.EffectiveLibraryPath, e.Current.EffectiveLibraryPath, StringComparison.OrdinalIgnoreCase))
+            {
+                Dispatcher.BeginInvoke(() => MapLibrary(WebView.CoreWebView2));
+            }
+        };
 
         InitializeComponent();
         ApplyTheme(theme.IsDark);
@@ -141,6 +158,7 @@ internal sealed partial class MainWindow : Window
             : CoreWebView2PreferredColorScheme.Light;
         core.SetVirtualHostNameToFolderMapping(
             WebViewBridge.VirtualHost, uiFolder, CoreWebView2HostResourceAccessKind.DenyCors);
+        MapLibrary(core);
         core.NavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
         core.NavigationCompleted += OnNavigationCompleted;
@@ -148,6 +166,35 @@ internal sealed partial class MainWindow : Window
         _bridge.Attach(core, Dispatcher);
         core.Navigate(WebViewBridge.Origin + "index.html");
         return true;
+    }
+
+    /// <summary>
+    /// Serves the library folder at <c>https://library.memento/</c> so the page can stream the mix and read peaks.
+    /// Media and fetches from there are sub-resources of the app page, not navigations, so
+    /// <see cref="OnNavigationStarting"/> still allows only <c>app.memento</c>. Remapped when the library moves.
+    /// </summary>
+    private void MapLibrary(CoreWebView2? core)
+    {
+        if (core is null)
+        {
+            return;
+        }
+
+        var root = _library.Root;
+        if (string.Equals(root, _mappedLibrary, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(root);
+        if (_mappedLibrary is not null)
+        {
+            core.ClearVirtualHostNameToFolderMapping(LibraryUrls.VirtualHost);
+        }
+
+        core.SetVirtualHostNameToFolderMapping(LibraryUrls.VirtualHost, root, LibraryAccessKind);
+        _mappedLibrary = root;
+        LogLibraryMapped(root);
     }
 
     private static void ConfigureSettings(CoreWebView2Settings settings)
@@ -259,6 +306,9 @@ internal sealed partial class MainWindow : Window
 
         Application.Current.Shutdown(exitCode);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Library folder {Root} served at https://library.memento/")]
+    private partial void LogLibraryMapped(string root);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Interface files are missing from {Folder}")]
     private partial void LogUiMissing(string folder);
