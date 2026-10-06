@@ -10,6 +10,7 @@ Measured on the reference machine: Windows 11 (26200), .NET 8.0.425, AMD Ryzen 7
 - **The MF FLAC sink is not crash-safe.** It buffers the entire encode in `%TEMP%\MFP*.TMP` and writes the output file only on finalize; a killed process leaves a 0-byte file. Needs free space in `%TEMP%` equal to the output. Therefore: encode only from finished WAV tracks, check `%TEMP%` space first, keep the WAV on failure.
 - MP3 (96–320 kbit/s) and AAC (16–320 kbit/s) work; decoded durations are +37 ms (MP3) and +11 ms (AAC) from priming/padding, so lossy files are never timeline-exact. Transcripts are produced from the lossless track.
 - Streaming input into the encoder works (a blocking `IWaveProvider`), but is irrelevant given the above.
+- The correct `MFAudioFormat_FLAC` GUID is `0000F1AC-0000-0010-8000-00AA00389B71`. The spike used `F1AC0000-…`, which is probably why looking the output type up by subtype failed; the implementation in `Memento.Audio` uses the correct GUID together with the MFT recipe.
 - Fallback if ever needed: libFLAC (BSD-3) via P/Invoke. No managed FLAC encoder with an acceptable license exists.
 
 ## B. Streaming WAV with checkpoints
@@ -25,7 +26,10 @@ Measured on the reference machine: Windows 11 (26200), .NET 8.0.425, AMD Ryzen 7
 - NAudio does not expose QPC/device-position timestamps per packet; our own capture loop (`ProcessLoopback.cs` generalises to `IMMDevice::Activate`) does. Use it for every source.
 - **Per-process loopback works** via hand-written interop: `ActivateAudioInterfaceAsync("VAD\\Process_Loopback", …)` with `AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK`, then `Initialize(SHARED, LOOPBACK | EVENTCALLBACK | AUTOCONVERTPCM | SRC_DEFAULT_QUALITY, 20 ms, 0, float32 48k stereo)`. Isolation is ~78 dB. `GetMixFormat`, `GetDevicePeriod`, `GetStreamLatency` return `E_NOTIMPL`: the caller picks the format. It streams zeros continuously when the target is silent (usable as a clock). `INCLUDE_TARGET_PROCESS_TREE` covers browsers and Electron child processes. The completion handler runs on an MTA thread and must be agile; never block the UI thread on it. The activation follows the target's output device automatically.
 - Listing apps with audio: `AudioSessionManager` sessions per render endpoint; dedupe by PID; hide the system-sounds session (pid 0); `DisplayName`/`IconPath` are usually empty, so fall back to `FileVersionInfo.FileDescription` and `Icon.ExtractAssociatedIcon`; use `QueryFullProcessImageName` for processes whose modules cannot be enumerated; subscribe to `OnSessionCreated`.
-- No drift measurable over 60 s (bound ~300 ppm); long-run drift must be measured per checkpoint from frames vs clock.
+- No drift measurable over 60 s (bound ~300 ppm); long-run drift must be measured per checkpoint from frames vs clock. The implemented capture loop later measured −0.9 ppm (mic), −3.7 ppm (system) and 0.0 ppm (app) over 60 s with zero overruns.
+- Endpoint loopback stamps packets with their **presentation** time, 10–20 ms ahead of arrival. Written as they arrive, loopback tracks overshoot a stop by ~15 ms. The implementation holds packets until they are due and holds all pumps while applying a pause, resume or stop instant, so every track is cut at the same timeline position.
+- The device enumerator is one shared COM object per process; creating it through a typed `[ComImport]` coclass breaks NAudio's own casts. The capture loop uses a private wrapper.
+- With int24 tracks the 64 KiB `FileStream` buffer drains about every 230 ms, so a process kill loses 10–230 ms; the kill test lost 12–14 ms per track.
 
 ## D. Whisper.net 1.9.1
 

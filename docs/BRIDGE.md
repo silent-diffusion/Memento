@@ -34,7 +34,7 @@ interface AudioSource {                     // M1
   processId: number | null;                 // application sources only
 }
 
-interface Track { id: string; sourceId: string; sourceKind: AudioSource['kind']; name: string; file: string; /* relative to the project folder */ sampleRate: number; channels: number; durationMs: number; sha256: string | null; endedEarlyAtMs: number | null; }
+interface Track { id: string; sourceId: string; sourceKind: AudioSource['kind']; name: string; file: string; /* relative to the project folder */ sampleRate: number; channels: number; durationMs: number; sha256: string | null; startOffsetMs: number; /* 0 for tracks that started with the session; the timeline position where a track added mid-session begins */ endedEarlyAtMs: number | null; }
 
 interface Agenda { source: string | null; /* "agenda.docx" */ parsedLocally: boolean; items: AgendaItem[]; }
 interface AgendaItem { id: string; text: string; covered: boolean; uncertain: boolean; uncertainReason: string | null; }
