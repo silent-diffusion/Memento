@@ -1,16 +1,20 @@
 /// <reference types="vitest/config" />
 import { defineConfig, type Plugin } from 'vite';
 
-// The built page only ever loads its own files from https://app.memento/ and talks to the host
-// through window.chrome.webview, so the production policy allows nothing else. The dev server is
-// left alone because Vite injects inline styles and a websocket for hot reload.
+// The built page loads its own files from https://app.memento/, talks to the host through
+// window.chrome.webview, and reads recordings from the library virtual host (BRIDGE.md): the mix
+// through <audio> and peaks.json through fetch. blob: covers the browser-preview host's generated
+// media. Nothing else is allowed. The dev server is left alone because Vite injects inline styles
+// and a websocket for hot reload.
+const LIBRARY_HOST = 'https://library.memento';
 const contentSecurityPolicy = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self'",
   "font-src 'self'",
   "img-src 'self' data:",
-  "connect-src 'self'",
+  `media-src ${LIBRARY_HOST} blob:`,
+  `connect-src 'self' ${LIBRARY_HOST} blob:`,
   "base-uri 'none'",
   "form-action 'none'",
 ].join('; ');
