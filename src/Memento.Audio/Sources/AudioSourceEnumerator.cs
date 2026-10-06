@@ -149,7 +149,8 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
                     }
 
                     var pid = (int)session.GetProcessID;
-                    if (pid == 0 || (options.ExcludeOwnProcess && pid == Environment.ProcessId))
+                    // Our own process tree includes the WebView2 processes that play Review's audio.
+                    if (pid == 0 || (options.ExcludeOwnProcess && ProcessInfoNative.IsInTreeOf(pid, Environment.ProcessId)))
                     {
                         continue;
                     }
