@@ -1,4 +1,4 @@
-import { createMockTransport } from './mock';
+import { createMockTransport, mockOptionsFromQuery, type MockOptions } from './mock';
 import type {
   BridgeError,
   BridgeRequest,
@@ -55,6 +55,8 @@ export interface BridgeClientOptions {
   /** How long a call may wait for its answer. */
   timeoutMs?: number;
   logger?: BridgeLogger;
+  /** Browser-preview host behaviour; defaults to the flags in the page URL (see mock.ts). */
+  mock?: MockOptions;
 }
 
 export const DEFAULT_TIMEOUT_MS = 10_000;
@@ -111,8 +113,10 @@ export function createBridgeClient(options: BridgeClientOptions = {}): BridgeCli
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const webview = typeof window === 'undefined' ? undefined : window.chrome?.webview;
   const isHosted = options.transport === undefined ? webview !== undefined : true;
+  const mockOptions =
+    options.mock ?? (typeof window === 'undefined' ? {} : mockOptionsFromQuery(window.location.search));
   const transport =
-    options.transport ?? (webview !== undefined ? webViewTransport(webview) : createMockTransport(logger));
+    options.transport ?? (webview !== undefined ? webViewTransport(webview) : createMockTransport(logger, mockOptions));
 
   const pending = new Map<number, Pending>();
   const handlers = new Map<EventName, Set<AnyHandler>>();
