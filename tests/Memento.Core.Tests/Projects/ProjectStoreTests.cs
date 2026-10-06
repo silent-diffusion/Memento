@@ -259,6 +259,34 @@ public sealed class ProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadersNeverBlockWriters()
+    {
+        // Regression: project.get reading history.jsonl while finalize appended to it failed the finalize.
+        var created = await CreateAsync();
+        var folder = Store.GetProjectFolder(created.Id);
+        await Store.AppendHistoryAsync(created.Id, new HistoryEntry(Start, "recorded", "started", "Recording started", null), CancellationToken.None);
+
+        var readTask = Task.Run(async () =>
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                await Store.ReadHistoryAsync(created.Id, CancellationToken.None);
+                await Store.LoadAsync(created.Id, CancellationToken.None);
+            }
+        });
+        for (var i = 0; i < 50; i++)
+        {
+            await Store.AppendHistoryAsync(created.Id, new HistoryEntry(Start, "edited", "info", $"Edit {i}", null), CancellationToken.None);
+            await Store.UpdateAsync(created.Id, m => m with { DurationMs = i }, CancellationToken.None);
+        }
+
+        await readTask;
+        Assert.Equal(51, (await Store.ReadHistoryAsync(created.Id, CancellationToken.None)).Count);
+        Assert.Equal(49, (await Store.LoadAsync(created.Id, CancellationToken.None)).DurationMs);
+        Assert.True(File.Exists(Path.Combine(folder, "project.json")));
+    }
+
+    [Fact]
     public async Task AnnotationsRoundTrip()
     {
         var created = await CreateAsync();

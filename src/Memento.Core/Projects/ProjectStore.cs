@@ -120,7 +120,7 @@ public sealed partial class ProjectStore : IProjectStore
 
         try
         {
-            var text = await File.ReadAllTextAsync(path, Encoding.UTF8, cancellationToken);
+            var text = await AtomicJsonFile.ReadSharedTextAsync(path, cancellationToken);
             if (JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) is not JsonObject node)
             {
                 throw new JsonException("project.json is not a JSON object.");
@@ -267,7 +267,8 @@ public sealed partial class ProjectStore : IProjectStore
 
         var entries = new List<HistoryEntry>();
         var lineNumber = 0;
-        await foreach (var line in File.ReadLinesAsync(path, Encoding.UTF8, cancellationToken))
+        var text = await AtomicJsonFile.ReadSharedTextAsync(path, cancellationToken);
+        foreach (var line in text.Split('\n'))
         {
             lineNumber++;
             if (string.IsNullOrWhiteSpace(line))

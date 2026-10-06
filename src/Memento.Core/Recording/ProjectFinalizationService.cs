@@ -37,7 +37,7 @@ public sealed partial class ProjectFinalizationService(
             m => m with { State = ProjectStates.Finalizing, Stages = WithStored(m.Stages, StageStates.Active, 0, "Saving tracks") },
             cancellationToken);
         publisher.PublishProcessingProgress(new ProcessingProgressPayload(recordingId, manifest.Stages));
-        await store.AppendHistoryAsync(
+        await AppendQuietlyAsync(
             recordingId,
             new HistoryEntry(time.GetLocalNow(), StageNames.Stored, "started", "Saving tracks", null),
             cancellationToken);
@@ -102,7 +102,7 @@ public sealed partial class ProjectFinalizationService(
                 "SHA-256 computed for every file",
                 string.Create(CultureInfo.InvariantCulture, $"took {stopwatch.Elapsed.TotalSeconds:0.0} s"),
             }.Concat(audio.Notes));
-        await store.AppendHistoryAsync(
+        await AppendQuietlyAsync(
             recordingId,
             new HistoryEntry(
                 audio.ComputedAt,
@@ -118,6 +118,19 @@ public sealed partial class ProjectFinalizationService(
         await catalog.TouchedAsync(recordingId, cancellationToken);
         LogStored(recordingId, audio.Tracks.Count, size, stopwatch.ElapsedMilliseconds);
         return saved;
+    }
+
+    /// <summary>History is a log; failing to append one line must not fail saving the audio.</summary>
+    private async Task AppendQuietlyAsync(string recordingId, HistoryEntry entry, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await store.AppendHistoryAsync(recordingId, entry, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogHistoryFailed(ex, recordingId);
+        }
     }
 
     internal static IReadOnlyList<StageStatus> WithStored(IReadOnlyList<StageStatus> stages, string state, int? percent, string label)
@@ -143,7 +156,7 @@ public sealed partial class ProjectFinalizationService(
                 Stages = WithStored(m.Stages, StageStates.Failed, null, diskFull ? "Saving failed · drive full" : "Saving failed"),
             },
             cancellationToken);
-        await store.AppendHistoryAsync(
+        await AppendQuietlyAsync(
             recordingId,
             new HistoryEntry(time.GetLocalNow(), StageNames.Stored, "failed", "Saving the tracks failed", reason),
             cancellationToken);
@@ -173,6 +186,9 @@ public sealed partial class ProjectFinalizationService(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Storing recording {RecordingId} failed (disk full: {DiskFull}); the capture files are kept")]
     private partial void LogFailed(Exception exception, string recordingId, bool diskFull);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A history line for recording {RecordingId} could not be written")]
+    private partial void LogHistoryFailed(Exception exception, string recordingId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Replaced capture file {File} could not be deleted")]
     private partial void LogCaptureNotDeleted(Exception exception, string file);

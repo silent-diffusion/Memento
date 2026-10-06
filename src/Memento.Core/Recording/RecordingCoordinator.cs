@@ -688,6 +688,19 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 #pragma warning restore CA1031
         {
             LogFinalizeFailed(ex, active.RecordingId);
+            try
+            {
+                // Say so in the Library; the files and recording.state.json stay, and the next launch retries.
+                await _catalog.UpdateAsync(
+                    active.RecordingId,
+                    m => m with { State = ProjectStates.Failed, Stages = ProjectFinalizationService.WithStored(m.Stages, StageStates.Failed, null, "Saving failed") },
+                    CancellationToken.None);
+            }
+            catch (Exception inner) when (inner is IOException or UnauthorizedAccessException or ProjectNotFoundException)
+            {
+                LogFinalizeFailed(inner, active.RecordingId);
+            }
+
             _publisher.PublishRecordingState(finalizing.Payload with { State = "stopped" });
         }
         finally
