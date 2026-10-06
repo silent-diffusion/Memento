@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Memento.App.Bridge;
+using Memento.Audio.Adapters;
 using Memento.App.Hosting;
 using Memento.App.Theming;
 using Memento.Core;
@@ -83,10 +84,7 @@ internal static class Program
         host.StartAsync().GetAwaiter().GetResult();
         Log.Debug("Host started");
 
-        if (options.SimulateAudio is null)
-        {
-            Log.Warning("Real audio capture is not available in this build; recordings use the simulated engine");
-        }
+        Log.Information("Recording engine: {Engine}", host.Services.GetRequiredService<IRecordingEngine>().Name);
 
         // Before any window: open the index and recover interrupted recordings, so the first screen is complete.
         host.Services.GetRequiredService<LibraryStartup>().RunAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -134,8 +132,15 @@ internal static class Program
         builder.Services.AddMementoBridge();
         builder.Services.AddMementoLibrary();
 
-        // Memento.Audio replaces this registration with the WASAPI engine; until then every build records simulated audio.
+        // The simulated engine stays registered for --simulate-audio; otherwise the WASAPI engine and sources replace it
+        // (the last registration wins). Either way recordings are stored as verified FLAC through Media Foundation.
         builder.Services.AddSimulatedAudio(options.SimulateAudio ?? new SimulatedEngineOptions());
+        if (options.SimulateAudio is null)
+        {
+            builder.Services.AddWasapiAudio();
+        }
+
+        builder.Services.AddMediaFoundationStorage();
         builder.Services.AddSingleton<LibraryStartup>();
         builder.Services.AddHostedService<RecordingLifetime>();
         builder.Services.AddHostedService<FooterStatusLoop>();

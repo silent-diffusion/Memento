@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+    <ProjectReference Include="..\Memento.Audio\Memento.Audio.csproj" />
   </ItemGroup>
 
   <ItemGroup>
