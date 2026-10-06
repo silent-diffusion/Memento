@@ -3,9 +3,9 @@ import { useMemo } from 'preact/hooks';
 import type { BridgeClient } from './bridge/client';
 import { DialogHost } from './components/DialogHost';
 import { ToastStack } from './components/Toasts';
-import { RecordPlaceholder } from './screens/RecordPlaceholder';
-import { ReviewPlaceholder } from './screens/ReviewPlaceholder';
 import { LibraryScreen } from './screens/library/LibraryScreen';
+import { RecordScreen } from './screens/record/RecordScreen';
+import { ReviewScreen } from './screens/review/ReviewScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { AppContext, createMemoryRouter, type AppServices } from './state/context';
 import { screenKey, type Route, type Router } from './state/router';
@@ -20,17 +20,16 @@ interface AppProps {
 }
 
 /**
- * One screen per route (hub and spoke, DESIGN.md §1). The Record and Review entries are interim and
- * are replaced by the designed screens; each screen renders its own header and footer.
+ * One screen per route (hub and spoke, DESIGN.md §1). Each screen renders its own header and footer.
  */
 function Screen({ route }: { route: Route }): JSX.Element {
   switch (route.name) {
     case 'library':
       return <LibraryScreen />;
     case 'record':
-      return <RecordPlaceholder />;
+      return <RecordScreen />;
     case 'review':
-      return <ReviewPlaceholder recordingId={route.recordingId} />;
+      return <ReviewScreen recordingId={route.recordingId} />;
     case 'settings':
       return <SettingsScreen section={route.section} />;
   }
