@@ -1,5 +1,5 @@
 // Duration formats from DESIGN.md §2.2: rows read h:mm:ss at an hour or more, otherwise m:ss;
-// totals read "8 h 38 min".
+// totals read "8 h 38 min"; the recording timer and source-loss times read 00:41:12.
 
 function wholeSeconds(ms: number): number {
   return Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0;
@@ -27,4 +27,21 @@ export function formatTotalDuration(ms: number): string {
     return `${minutes} min`;
   }
   return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+}
+
+/** A position in a recording as the timer shows it: `00:41:12`, `01:02:14`. */
+export function formatTimecode(ms: number): string {
+  const total = wholeSeconds(ms);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+
+/** A short span in words: `20 seconds`, `1 second`, `2 minutes`. */
+export function formatSpan(ms: number): string {
+  const seconds = wholeSeconds(ms);
+  if (seconds < 60) {
+    return seconds === 1 ? '1 second' : `${seconds} seconds`;
+  }
+  const minutes = Math.round(seconds / 60);
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
 }

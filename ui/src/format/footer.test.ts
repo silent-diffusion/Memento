@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { engineLine, storageLine } from './footer';
+import type { FooterStatusPayload } from '../bridge/types';
+import { engineLine, footerStorageLine, statusLine, storageLine } from './footer';
 import { formatFreeSpace } from './storage';
 
 const GIB = 1024 ** 3;
@@ -48,5 +49,40 @@ describe('footer lines', () => {
 
   it('never shows a number the host could not measure', () => {
     expect(storageLine({ freeBytes: null, lowSpace: false }).text).toBe('Everything is stored on this PC');
+  });
+});
+
+describe('footer variants (DESIGN.md §17)', () => {
+  const status = (overrides: Partial<FooterStatusPayload> = {}): FooterStatusPayload => ({
+    engine: { ready: true, device: 'GPU' },
+    storage: { freeBytes: 212 * GIB, lowSpace: false },
+    recording: { active: false, lastCheckpointAt: null, lostSource: null },
+    processingPaused: null,
+    ...overrides,
+  });
+
+  it('is the engine line with an ok dot normally', () => {
+    expect(statusLine(status())).toEqual({ text: 'Local transcription ready · GPU', tone: 'ok' });
+    expect(statusLine(null)).toEqual({ text: 'Checking transcription engine', tone: 'neutral' });
+    expect(footerStorageLine(status())).toEqual({ text: 'Everything is stored on this PC · 212 GB free', low: false });
+  });
+
+  it('turns accent when processing is paused', () => {
+    expect(statusLine(status({ processingPaused: 'PC is busy' }))).toEqual({ text: 'Transcription paused · PC is busy', tone: 'accent' });
+  });
+
+  it('turns danger and names the lost source while recording', () => {
+    const lost = status({ recording: { active: true, lastCheckpointAt: null, lostSource: 'Zoom' } });
+    expect(statusLine(lost)).toEqual({ tone: 'danger', strong: 'Zoom lost', text: ' · other tracks recording' });
+    expect(statusLine(lost, (41 * 60 + 12) * 1000).strong).toBe('Zoom lost at 00:41:12');
+    expect(footerStorageLine(lost)).toEqual({ text: 'Saving continuously · 212 GB free', low: false });
+  });
+
+  it('keeps the storage warning while recording', () => {
+    const low = status({
+      storage: { freeBytes: 4 * GIB, lowSpace: true },
+      recording: { active: true, lastCheckpointAt: null, lostSource: null },
+    });
+    expect(footerStorageLine(low)).toEqual({ text: 'Low disk space · 4 GB free', low: true });
   });
 });
