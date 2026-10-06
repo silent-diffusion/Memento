@@ -199,7 +199,10 @@ internal sealed class TrackRun(AudioSourceId id, string name, string fileStem, I
             Writer.Duration,
             first is { } f ? timeline.ToTimeline(f) : TimeSpan.Zero,
             EndReason is null or TrackEndReason.SessionStopped || EndedAtQpc is null ? null : timeline.ToTimeline(EndedAtQpc.Value),
-            EndReason);
+            EndReason,
+            Writer.StorageFormat.BitsPerSample,
+            Writer.FramesWritten,
+            first is not null);
     }
 
     public TrackResult BuildResult(SessionTimeline timeline)
