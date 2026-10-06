@@ -36,6 +36,7 @@ function log(step, detail = '') {
 }
 
 async function shot(name) {
+  await sleep(500); // Let screen transitions finish.
   shotIndex += 1;
   const file = join(out, `${String(shotIndex).padStart(2, '0')}-${name}.png`);
   await page.screenshot(file);
