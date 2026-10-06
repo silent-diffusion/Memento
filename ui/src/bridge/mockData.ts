@@ -44,6 +44,8 @@ export interface MockProject {
   summary: RecordingSummary;
   details: RecordingDetails;
   trackSources: AudioSourceKind[];
+  /** The real tracks of a recording made in the preview; sample recordings derive theirs. */
+  tracks?: Track[];
   chapters: Chapter[];
   highlights: Highlight[];
   topics: Topic[];
@@ -70,6 +72,11 @@ interface Seed {
   platform?: string;
   purpose?: string;
   tags?: string[];
+  /** Hand-written annotations as [h, m, s, text]; otherwise a generic set is derived. */
+  chapters?: [number, number, number, string][];
+  highlights?: [number, number, number, string][];
+  topics?: string[];
+  agenda?: { source: string; items: string[]; covered?: number };
 }
 
 const SEEDS: readonly Seed[] = [
@@ -88,8 +95,13 @@ const SEEDS: readonly Seed[] = [
     ],
     tracks: ['microphone', 'system', 'application'],
     platform: 'Zoom',
-    purpose: 'Agree the third-quarter priorities and owners.',
+    purpose: 'Lock the launch date and agree Q3 budget asks.',
     tags: ['planning', 'q3'],
+    agenda: {
+      source: 'agenda.docx',
+      items: ['Q2 recap', 'Hiring plan', 'Launch date', 'Budget asks', 'Open questions'],
+      covered: 2,
+    },
   },
   {
     id: '20261006-141500-pnint',
@@ -115,7 +127,27 @@ const SEEDS: readonly Seed[] = [
     stages: [done('stored'), done('transcript'), done('speakers'), done('minutes')],
     tracks: ['microphone', 'system', 'application'],
     platform: 'Zoom',
-    tags: ['design'],
+    purpose: 'Agree the library layout before build starts.',
+    tags: ['design', 'memento'],
+    chapters: [
+      [0, 0, 0, 'Opening and goals'],
+      [0, 6, 30, 'Walkthrough of mockups'],
+      [0, 18, 10, 'Row density and status pills'],
+      [0, 34, 0, 'Dark theme scope'],
+      [0, 52, 40, 'Empty state'],
+      [1, 1, 20, 'Owners and next steps'],
+    ],
+    highlights: [
+      [0, 18, 42, 'Row height agreed at 68 px'],
+      [0, 41, 10, 'Dark theme ships with v1'],
+      [1, 2, 5, 'Sam owns the empty state'],
+    ],
+    topics: ['Library layout', 'Status pills', 'Dark theme', 'Empty state', 'Next steps'],
+    agenda: {
+      source: 'agenda.docx',
+      items: ['Review mockups', 'Row density and status pills', 'Dark theme scope', 'Owners and next steps'],
+      covered: 4,
+    },
   },
   {
     id: '20261005-091200-readme',
@@ -300,6 +332,19 @@ export function estimateSizeBytes(summary: RecordingSummary, trackCount: number)
 
 function sampleAnnotations(seed: Seed): Pick<MockProject, 'chapters' | 'highlights' | 'topics'> {
   const length = seed.durationMs;
+  if (seed.chapters !== undefined || seed.highlights !== undefined) {
+    return {
+      chapters: (seed.chapters ?? []).map(([h, m, sec, title], i) => ({ id: `${seed.id}-c${i + 1}`, atMs: s(h, m, sec), title, origin: 'user' })),
+      highlights: (seed.highlights ?? []).map(([h, m, sec, note], i) => ({
+        id: `${seed.id}-h${i + 1}`,
+        atMs: s(h, m, sec),
+        note,
+        origin: 'user',
+        segmentId: null,
+      })),
+      topics: (seed.topics ?? []).map((label, i) => ({ id: `${seed.id}-p${i}`, label, origin: 'local' })),
+    };
+  }
   const chapters: Chapter[] =
     length > s(0, 20, 0)
       ? [
@@ -321,7 +366,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
     {
       at: at(0),
       stage: 'recorded',
-      event: 'started',
+      event: 'completed',
       summary: `Recorded ${seed.tracks.length} ${seed.tracks.length === 1 ? 'track' : 'tracks'}`,
       detail: seed.tracks.map((k) => TRACK_NAMES[k]).join(', '),
     },
@@ -335,13 +380,37 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
       detail: 'The last 20 seconds may be missing.',
     });
   }
-  for (const stage of seed.stages) {
+  const wording: Record<StageStatus['stage'], { done: string; failed: string; active: string; detail: string }> = {
+    stored: { done: 'Stored', failed: 'Storing failed', active: 'Storing', detail: 'Lossless FLAC tracks on this PC' },
+    transcript: { done: 'Transcribed locally', failed: 'Transcription failed', active: 'Transcribing locally', detail: 'Local engine · GPU · English' },
+    speakers: { done: 'Speakers identified', failed: 'Speaker identification failed', active: 'Identifying speakers', detail: 'Local engine · CPU' },
+    minutes: { done: 'Minutes generated', failed: 'Minutes failed', active: 'Generating minutes', detail: 'Sent the transcript, agenda and participants' },
+  };
+  seed.stages.forEach((stage, index) => {
+    if (stage.state === 'queued') {
+      return;
+    }
+    const words = wording[stage.stage];
+    history.push({
+      at: at(seed.durationMs + 30_000 * (index + 1)),
+      stage: stage.stage,
+      event: stage.state === 'done' ? 'completed' : stage.state === 'failed' ? 'failed' : 'progress',
+      summary: stage.state === 'done' ? words.done : stage.state === 'failed' ? words.failed : words.active,
+      detail:
+        stage.state === 'failed'
+          ? 'The GPU ran out of memory at 64%. The recording is safe and the partial transcript was kept.'
+          : stage.state === 'active'
+            ? (stage.label ?? words.detail)
+            : words.detail,
+    });
+  });
+  if (seed.stages.length === 0) {
     history.push({
       at: at(seed.durationMs + 30_000),
-      stage: stage.stage,
-      event: stage.state === 'done' ? 'completed' : stage.state === 'failed' ? 'failed' : 'started',
-      summary: stage.stage === 'stored' ? 'Stored as lossless FLAC' : `${stage.stage} ${stage.state}`,
-      detail: stage.stage === 'stored' ? null : 'Local engine · GPU',
+      stage: 'stored',
+      event: 'completed',
+      summary: 'Stored',
+      detail: 'Lossless FLAC tracks on this PC',
     });
   }
   return history;
@@ -362,7 +431,9 @@ export function sampleProjects(now: Date): MockProject[] {
       people: seed.people,
       isProcessing: seed.stages.some((st) => st.state === 'active' || st.state === 'queued'),
       state: seed.state ?? 'ready',
+      sizeBytes: 0,
     };
+    summary.sizeBytes = estimateSizeBytes(summary, seed.tracks.length);
     const details: RecordingDetails = {
       title: seed.title,
       type: seed.type,
@@ -373,7 +444,20 @@ export function sampleProjects(now: Date): MockProject[] {
       location: '',
       notes: '',
       tags: seed.tags ?? [],
-      agenda: { source: null, parsedLocally: true, items: [] },
+      agenda:
+        seed.agenda === undefined
+          ? { source: null, parsedLocally: true, items: [] }
+          : {
+              source: seed.agenda.source,
+              parsedLocally: true,
+              items: seed.agenda.items.map((text, i) => ({
+                id: `${seed.id}-a${i + 1}`,
+                text,
+                covered: i < (seed.agenda?.covered ?? 0),
+                uncertain: false,
+                uncertainReason: null,
+              })),
+            },
     };
     return {
       summary,
