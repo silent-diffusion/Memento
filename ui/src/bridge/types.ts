@@ -204,9 +204,9 @@ export interface Project {
   summary: RecordingSummary;
   details: RecordingDetails;
   tracks: Track[];
-  /** https://library.memento/projects/<id>/mix.flac once finalized. The UI never builds these URLs. */
+  /** https://library.memento/<id>/mix.flac once finalized. The UI never builds these URLs. */
   mixUrl: string | null;
-  /** https://library.memento/projects/<id>/peaks.json. */
+  /** https://library.memento/<id>/peaks.json. */
   peaksUrl: string | null;
   chapters: Chapter[];
   highlights: Highlight[];

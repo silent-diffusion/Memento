@@ -54,8 +54,8 @@ interface Project {                         // M1: everything Review needs for o
   summary: RecordingSummary;
   details: RecordingDetails;
   tracks: Track[];
-  mixUrl: string | null;                    // https://library.memento/projects/<id>/mix.flac once finalized
-  peaksUrl: string | null;                  // https://library.memento/projects/<id>/peaks.json
+  mixUrl: string | null;                    // https://library.memento/<id>/mix.flac once finalized
+  peaksUrl: string | null;                  // https://library.memento/<id>/peaks.json
   chapters: Chapter[]; highlights: Highlight[]; topics: Topic[];
   history: HistoryEntry[];
   integrity: { algorithm: 'sha256'; computedAt: string | null };
@@ -63,7 +63,7 @@ interface Project {                         // M1: everything Review needs for o
 }
 ```
 
-The host maps a second virtual host, `https://library.memento/`, to the library folder with `CoreWebView2HostResourceAccessKind.Allow` (not DenyCors: the page lives on `https://app.memento/`, and DenyCors would block its cross-origin `fetch` of `peaks.json` while `<audio>` would still work). Navigation stays restricted to `app.memento`, so only our page can read it. The UI never constructs those URLs itself; it uses the ones the host returns.
+The host maps a second virtual host, `https://library.memento/`, to the library's `projects` folder (`<library>/projects`, from `LibraryUrls.MappedFolder`), so a URL is `https://library.memento/<id>/<file inside the project folder>`. The library root itself is not served: `library.db` and anything else beside `projects` cannot be reached from the page, and because the browser resolves `.` and `..` segments (also `%2e%2e`) before the path reaches the folder, no URL can climb out of `projects`. The host never hands out a URL with a `.` or `..` segment; ids and file names are escaped segment by segment. The mapping uses `CoreWebView2HostResourceAccessKind.Allow` (not DenyCors: the page lives on `https://app.memento/`, and DenyCors would block its cross-origin `fetch` of `peaks.json` while `<audio>` would still work). Navigation stays restricted to `app.memento`, so only our page can read it. When the library folder changes, the host clears the mapping and maps the new `projects` folder. The UI never constructs those URLs itself; it uses the ones the host returns.
 
 `peaks.json` (written by `Memento.Audio.Mixing.PeakBuilder`): `{ "schemaVersion": 1, "windowMs": 50, "peaks": [[rms, peak], …] }` with both values linear in 0..1 over all channels of the mix, one pair per window; the duration is `peaks.length × windowMs`. The UI draws `peak` as the outer waveform.
 

@@ -157,8 +157,8 @@ public sealed class RecordingPipelineTests : IDisposable
 
         var project = await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }));
 
-        Assert.Equal($"https://library.memento/projects/{recordingId}/mix.wav", project.GetProperty("mixUrl").GetString());
-        Assert.Equal($"https://library.memento/projects/{recordingId}/peaks.json", project.GetProperty("peaksUrl").GetString());
+        Assert.Equal($"https://library.memento/{recordingId}/mix.wav", project.GetProperty("mixUrl").GetString());
+        Assert.Equal($"https://library.memento/{recordingId}/peaks.json", project.GetProperty("peaksUrl").GetString());
         Assert.Equal("tracks/mic.wav", project.GetProperty("tracks")[0].GetProperty("file").GetString());
         Assert.Equal(4, project.GetProperty("history").GetArrayLength());
         Assert.True(project.GetProperty("sizeBytes").GetInt64() > 96_000);
