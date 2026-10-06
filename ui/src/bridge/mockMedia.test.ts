@@ -18,9 +18,9 @@ describe('preview media', () => {
 
   it('draws peaks from the same loudness as the audio, deterministically', () => {
     const a = mockPeaks('rec', 60_000, 500);
-    expect(a).toMatchObject({ schemaVersion: 1, bucketMs: 500, durationMs: 60_000 });
+    expect(a).toMatchObject({ schemaVersion: 1, windowMs: 500 });
     expect(a.peaks).toHaveLength(120);
-    expect(a.peaks.every((p) => p >= 0 && p <= 1)).toBe(true);
+    expect(a.peaks.every(([rms, peak]) => rms >= 0 && rms <= peak && peak <= 1)).toBe(true);
     expect(mockPeaks('rec', 60_000, 500)).toEqual(a);
     expect(loudnessPerSecond('rec', 60_000)).toHaveLength(60);
   });

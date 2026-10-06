@@ -51,9 +51,10 @@ describe('scrubber keys', () => {
 });
 
 describe('waveform from peaks.json', () => {
-  it('reads the proposed schema and a bare array', () => {
-    expect(parsePeaks({ schemaVersion: 1, bucketMs: 100, durationMs: 300, peaks: [0.1, 0.5, 2] })).toEqual([0.1, 0.5, 1]);
+  it('reads the audio layer schema ([rms, peak] pairs), a bare array of numbers, and pairs', () => {
+    expect(parsePeaks({ schemaVersion: 1, windowMs: 50, peaks: [[0.05, 0.1], [0.3, 0.5], [0.9, 2]] })).toEqual([0.1, 0.5, 1]);
     expect(parsePeaks([0.2, -0.4])).toEqual([0.2, 0.4]);
+    expect(parsePeaks([[0.1, 0.2], [0.3, 'x']])).toEqual([0.2, 0]);
     expect(parsePeaks({ peaks: [] })).toBeNull();
     expect(parsePeaks('nope')).toBeNull();
     expect(parsePeaks(null)).toBeNull();

@@ -63,7 +63,11 @@ interface Project {                         // M1: everything Review needs for o
 }
 ```
 
-The host maps a second virtual host, `https://library.memento/`, to the library folder (DenyCors) so the page can stream media and peaks with plain `<audio>` and `fetch`. The UI never constructs those URLs itself; it uses the ones the host returns.
+The host maps a second virtual host, `https://library.memento/`, to the library folder with `CoreWebView2HostResourceAccessKind.Allow` (not DenyCors: the page lives on `https://app.memento/`, and DenyCors would block its cross-origin `fetch` of `peaks.json` while `<audio>` would still work). Navigation stays restricted to `app.memento`, so only our page can read it. The UI never constructs those URLs itself; it uses the ones the host returns.
+
+`peaks.json` (written by `Memento.Audio.Mixing.PeakBuilder`): `{ "schemaVersion": 1, "windowMs": 50, "peaks": [[rms, peak], …] }` with both values linear in 0..1 over all channels of the mix, one pair per window; the duration is `peaks.length × windowMs`. The UI draws `peak` as the outer waveform.
+
+A project exists from `recording.start` onwards: `project.get`, `project.updateDetails` and `annotations.*` work during recording (highlight notes and pre-start details are saved then). `library.list` returns projects in every state except `recording`; a `finalizing` project appears with its `stored` stage active, which is what the processing card shows.
 
 ## Methods
 

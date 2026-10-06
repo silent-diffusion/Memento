@@ -7,12 +7,11 @@ import { seedFromId } from '../format/waveform';
 const SAMPLE_RATE = 8000;
 const BYTES_PER_SAMPLE = 1;
 
-/** The peaks.json the UI reads (proposed for BRIDGE.md): one 0..1 peak per bucket of the mix. */
+/** The peaks.json the audio layer writes (BRIDGE.md): one `[rms, peak]` pair, both 0..1, per window of the mix. */
 export interface PeaksFile {
   schemaVersion: 1;
-  bucketMs: number;
-  durationMs: number;
-  peaks: number[];
+  windowMs: number;
+  peaks: [number, number][];
 }
 
 /** One loudness value (0..1) per second, speech-like: mostly moderate with pauses and a few peaks. */
@@ -37,16 +36,17 @@ function syllable(tSeconds: number): number {
   return 0.45 + 0.55 * Math.abs(Math.sin(2 * Math.PI * 3.7 * tSeconds));
 }
 
-export function mockPeaks(id: string, durationMs: number, bucketMs = Math.max(100, Math.ceil(durationMs / 1200))): PeaksFile {
+export function mockPeaks(id: string, durationMs: number, windowMs = Math.max(50, Math.ceil(durationMs / 1200))): PeaksFile {
   const loudness = loudnessPerSecond(id, durationMs);
-  const count = Math.max(1, Math.ceil(durationMs / bucketMs));
-  const peaks: number[] = [];
+  const count = Math.max(1, Math.ceil(durationMs / windowMs));
+  const peaks: [number, number][] = [];
   for (let i = 0; i < count; i++) {
-    const t = (i * bucketMs) / 1000;
+    const t = (i * windowMs) / 1000;
     const second = Math.min(loudness.length - 1, Math.floor(t));
-    peaks.push(Number(((loudness[second] ?? 0) * syllable(t)).toFixed(3)));
+    const peak = Number(((loudness[second] ?? 0) * syllable(t)).toFixed(3));
+    peaks.push([Number((peak * 0.6).toFixed(3)), peak]);
   }
-  return { schemaVersion: 1, bucketMs, durationMs, peaks };
+  return { schemaVersion: 1, windowMs, peaks };
 }
 
 /** A complete RIFF/WAVE file: 8-bit unsigned PCM, mono. */

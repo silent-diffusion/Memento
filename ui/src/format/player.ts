@@ -53,7 +53,11 @@ export function scrubKeyTarget(key: string, shift: boolean, currentMs: number, d
   return Math.max(0, Math.min(Math.max(0, durationMs), target));
 }
 
-/** Peaks from peaks.json: `{ peaks: number[] }` (proposed schema) or a bare array; null if unreadable. */
+/**
+ * Peaks from peaks.json as the audio layer writes it (BRIDGE.md): `{ schemaVersion: 1, windowMs: 50, peaks: [[rms, peak], ...] }`
+ * with both values linear in 0..1 per window. The outer waveform uses the peak value. A bare array of
+ * numbers or pairs is accepted too. Returns null if unreadable or empty.
+ */
 export function parsePeaks(json: unknown): number[] | null {
   const raw = Array.isArray(json)
     ? (json as unknown[])
@@ -63,8 +67,8 @@ export function parsePeaks(json: unknown): number[] | null {
   if (raw === null || raw.length === 0) {
     return null;
   }
-  const peaks = raw.map((v) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.abs(v)) : 0));
-  return peaks;
+  const clamp = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.abs(v)) : 0);
+  return raw.map((entry) => (Array.isArray(entry) ? clamp(entry[entry.length - 1]) : clamp(entry)));
 }
 
 /** `count` bars, each the loudest peak in its share of the recording. */
