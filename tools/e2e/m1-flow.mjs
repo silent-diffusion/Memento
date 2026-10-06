@@ -259,6 +259,9 @@ try {
 
   // 13. Third recording; kill the app after a checkpoint.
   await newRecording('E2E check three crash'); // The remembered selection: the three sources of the first recording.
+  await page.click({ name: 'Add a source: look again for microphones and apps' });
+  await sleep(1500);
+  check(!(await page.text('[aria-label="Sources"]')).includes('WebView2'), 'after Review played audio, Memento\'s WebView2 is still not offered');
   await page.click({ name: 'Start recording' });
   await hasText('RECORDING');
   await waitElapsed(40);
