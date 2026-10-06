@@ -13,7 +13,7 @@ Each milestone ends in an installable build from CI. A milestone is done when ev
 
 Acceptance: `Setup.exe` from CI installs on a clean machine without admin rights and opens to the empty Library in the Windows theme.
 
-## M1 — Recording and Library (0.2.0)
+## M1 — Recording and Library — Done (0.2.0)
 
 - Source enumeration (microphones, system loopback, per-application loopback), levels, toggles.
 - Recording session screen (ready, recording, paused), timer, Mark highlight, footer status, Details and agenda sheet (details fields; agenda import comes in M3).
@@ -24,6 +24,8 @@ Acceptance: `Setup.exe` from CI installs on a clean machine without admin rights
 - Storage format options in Settings › Recording.
 
 Acceptance: a 4-hour, three-track recording completes with bounded memory; killing the process mid-recording loses at most one checkpoint interval and recovers on launch; levels and timer never stall.
+
+Delivered with two decisions: finalize always stores lossless FLAC, and a smaller AAC/MP3 choice is applied afterwards by a separate `optimize` stage that verifies the new files before removing the FLAC ones. Deferred: "Keep only the mix" is stored in Settings but not applied (separate tracks are always kept); the 4-hour real-device run moves to the M5 soak tests (M1 has a 30-minute three-track soak and the killed-process recovery check); "Import audio or video" on the empty Library arrives with M3.
 
 ## M2 — Transcription and speakers (0.3.0)
 
