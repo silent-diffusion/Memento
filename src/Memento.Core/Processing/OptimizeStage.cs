@@ -167,7 +167,6 @@ public sealed partial class OptimizeStage(
                     $"{format}: {string.Join(", ", written.Select(c => c.File))}",
                     "each file decoded and checked before the FLAC it replaces was removed",
                     "SHA-256 computed for every file",
-                    "transcripts still come from the lossless audio captured before conversion",
                     string.Create(CultureInfo.InvariantCulture, $"took {stopwatch.Elapsed.TotalSeconds:0.0} s"))),
             CancellationToken.None);
         if (storage.KeepOnlyMix)
