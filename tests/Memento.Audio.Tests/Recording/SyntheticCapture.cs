@@ -28,10 +28,12 @@ internal sealed class SyntheticCapture : IAudioCapture
         _signal = signal;
         _loseAfter = loseAfter;
         _lead = timestampLead?.Ticks ?? 0;
-        _latency = latency ?? TimeSpan.FromMilliseconds(50);
+        _latency = latency ?? DefaultLatency;
         _thread = new Thread(Run) { IsBackground = true, Name = "synthetic capture" };
         _thread.Start();
     }
+
+    public static TimeSpan DefaultLatency { get; } = TimeSpan.FromMilliseconds(50);
 
     public event EventHandler<CaptureLostEventArgs>? Lost;
 
@@ -85,36 +87,50 @@ internal sealed class SyntheticCapture : IAudioCapture
             const int packet = 480;
             var samples = new float[packet * 2];
             long frame = 0;
+            long PacketEnd() => origin + QpcClock.FramesToTicks(frame + packet, 48_000);
+
+            void Emit()
+            {
+                for (var i = 0; i < packet; i++)
+                {
+                    var v = _signal(frame + i);
+                    samples[2 * i] = v;
+                    samples[(2 * i) + 1] = v;
+                }
+
+                var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan());
+                var p = CapturePacket.FromData(bytes, packet, origin + QpcClock.FramesToTicks(frame, 48_000) + _lead);
+                if (!_channel.Writer.TryWrite(p))
+                {
+                    p.Release();
+                }
+
+                frame += packet;
+                Interlocked.Add(ref _frames, packet);
+                Interlocked.Increment(ref _packets);
+            }
+
             while (true)
             {
                 var now = QpcClock.Now;
                 if (_loseAfter is { } lose && now - start >= lose.Ticks)
                 {
-                    Loss = new CaptureLostEventArgs(Source, CaptureLostReason.DeviceInvalidated, unchecked((int)0x88890004), now);
+                    // The device goes away at exactly start + lose. Deliver what it had captured by then, however
+                    // late this thread woke up (a stalled CI runner), so the track always ends at the loss instant.
+                    var lostAt = start + lose.Ticks;
+                    while (PacketEnd() <= lostAt)
+                    {
+                        Emit();
+                    }
+
+                    Loss = new CaptureLostEventArgs(Source, CaptureLostReason.DeviceInvalidated, unchecked((int)0x88890004), lostAt);
                     ThreadPool.QueueUserWorkItem(_ => Lost?.Invoke(this, Loss));
                     return;
                 }
 
-                var end = origin + QpcClock.FramesToTicks(frame + packet, 48_000);
-                if (now >= end)
+                if (now >= PacketEnd())
                 {
-                    for (var i = 0; i < packet; i++)
-                    {
-                        var v = _signal(frame + i);
-                        samples[2 * i] = v;
-                        samples[(2 * i) + 1] = v;
-                    }
-
-                    var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(samples.AsSpan());
-                    var p = CapturePacket.FromData(bytes, packet, origin + QpcClock.FramesToTicks(frame, 48_000) + _lead);
-                    if (!_channel.Writer.TryWrite(p))
-                    {
-                        p.Release();
-                    }
-
-                    frame += packet;
-                    Interlocked.Add(ref _frames, packet);
-                    Interlocked.Increment(ref _packets);
+                    Emit();
                     continue;
                 }
 
