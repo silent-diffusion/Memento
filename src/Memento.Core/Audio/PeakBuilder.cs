@@ -3,10 +3,10 @@ using System.Text.Json;
 namespace Memento.Core.Audio;
 
 /// <summary>
-/// Waveform peaks for the UI: for every window of about 50 ms, the minimum and the maximum sample over all
-/// channels, appended as two values to one flat list. Written as
-/// <c>{ "schemaVersion": 1, "windowMs": 50, "peaks": [min0, max0, min1, max1, …] }</c>.
-/// Memory is 8 bytes per window (about 2.3 MB for four hours).
+/// Waveform peaks for the UI, in the same format as Memento.Audio's peak builder: for every window of about 50 ms,
+/// the RMS and the peak magnitude over all channels, both in [0, 1] and rounded to three decimals. Written as
+/// <c>{ "schemaVersion": 1, "windowMs": 50, "peaks": [[rms, peak], …] }</c>. Memory is one pair per window
+/// (about 288,000 pairs for four hours).
 /// </summary>
 public sealed class PeakBuilder
 {
@@ -14,11 +14,11 @@ public sealed class PeakBuilder
     public const int DefaultWindowMs = 50;
 
     private readonly int _channels;
-    private readonly int _windowFrames;
-    private readonly List<float> _peaks = [];
-    private int _framesInWindow;
-    private float _min;
-    private float _max;
+    private readonly int _windowSamples;
+    private readonly List<double[]> _peaks = [];
+    private int _inWindow;
+    private double _sumSquares;
+    private float _peak;
 
     public PeakBuilder(int sampleRate, int channels, int windowMs = DefaultWindowMs)
     {
@@ -27,47 +27,37 @@ public sealed class PeakBuilder
         ArgumentOutOfRangeException.ThrowIfLessThan(windowMs, 1);
         _channels = channels;
         WindowMs = windowMs;
-        _windowFrames = Math.Max(1, (int)((long)sampleRate * windowMs / 1000));
-        ResetWindow();
+        _windowSamples = (int)Math.Max(1, (long)sampleRate * windowMs / 1000) * channels;
     }
 
     public int WindowMs { get; }
 
-    /// <summary>Min/max pairs so far (complete windows only until <see cref="Complete"/>).</summary>
-    public IReadOnlyList<float> Peaks => _peaks;
+    /// <summary>[rms, peak] per window so far (complete windows only until <see cref="Complete"/>).</summary>
+    public IReadOnlyList<double[]> Peaks => _peaks;
 
-    /// <summary>Adds interleaved frames.</summary>
+    /// <summary>Adds interleaved samples.</summary>
     public void Add(ReadOnlySpan<float> interleaved)
     {
-        var frames = interleaved.Length / _channels;
-        for (var f = 0; f < frames; f++)
+        foreach (var sample in interleaved)
         {
-            var o = f * _channels;
-            for (var c = 0; c < _channels; c++)
+            _sumSquares += (double)sample * sample;
+            var magnitude = MathF.Abs(sample);
+            if (magnitude > _peak)
             {
-                var s = interleaved[o + c];
-                if (s < _min)
-                {
-                    _min = s;
-                }
-
-                if (s > _max)
-                {
-                    _max = s;
-                }
+                _peak = magnitude;
             }
 
-            if (++_framesInWindow == _windowFrames)
+            if (++_inWindow == _windowSamples)
             {
                 CloseWindow();
             }
         }
     }
 
-    /// <summary>Closes a final partial window.</summary>
+    /// <summary>Closes a final partial window of at least one frame.</summary>
     public void Complete()
     {
-        if (_framesInWindow > 0)
+        if (_inWindow >= _channels)
         {
             CloseWindow();
         }
@@ -87,9 +77,11 @@ public sealed class PeakBuilder
                 writer.WriteStartArray("peaks");
                 for (var i = 0; i < _peaks.Count; i++)
                 {
-                    // Four decimals is far below one pixel of any waveform and keeps the file small.
-                    writer.WriteNumberValue(Math.Round((double)_peaks[i], 4));
-                    if ((i & 0x3FFF) == 0)
+                    writer.WriteStartArray();
+                    writer.WriteNumberValue(_peaks[i][0]);
+                    writer.WriteNumberValue(_peaks[i][1]);
+                    writer.WriteEndArray();
+                    if ((i & 0x1FFF) == 0)
                     {
                         await writer.FlushAsync(cancellationToken);
                     }
@@ -108,15 +100,10 @@ public sealed class PeakBuilder
 
     private void CloseWindow()
     {
-        _peaks.Add(_min);
-        _peaks.Add(_max);
-        ResetWindow();
-    }
-
-    private void ResetWindow()
-    {
-        _framesInWindow = 0;
-        _min = 0f;
-        _max = 0f;
+        var rms = Math.Sqrt(_sumSquares / _inWindow);
+        _peaks.Add([Math.Round(Math.Clamp(rms, 0, 1), 3), Math.Round(Math.Clamp(_peak, 0, 1), 3)]);
+        _sumSquares = 0;
+        _peak = 0;
+        _inWindow = 0;
     }
 }

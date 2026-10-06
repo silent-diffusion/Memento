@@ -11,63 +11,73 @@ public sealed class PeakBuilderTests : IDisposable
     public void Dispose() => _directory.Dispose();
 
     [Fact]
-    public void TwoValuesPerFiftyMillisecondWindow()
+    public void RmsAndPeakPerFiftyMillisecondWindow()
     {
-        // 1 kHz, mono: 50 frames per window.
+        // 1 kHz, mono: 50 samples per window.
         var builder = new PeakBuilder(1000, 1);
         var samples = new float[120];
-        samples[10] = 0.5f;
-        samples[20] = -0.25f;
-        samples[60] = 0.75f;
-        samples[110] = -1f;
+        Array.Fill(samples, 0.5f, 0, 50);
+        samples[60] = -0.75f;
+        samples[110] = 0.2f;
 
         builder.Add(samples.AsSpan(0, 70));
         builder.Add(samples.AsSpan(70));
         builder.Complete();
 
-        Assert.Equal([-0.25f, 0.5f, 0f, 0.75f, -1f, 0f], builder.Peaks);
+        Assert.Equal(3, builder.Peaks.Count);
+        Assert.Equal([0.5, 0.5], builder.Peaks[0]);
+        Assert.Equal([Math.Round(0.75 / Math.Sqrt(50), 3), 0.75], builder.Peaks[1]);
+        Assert.Equal([Math.Round(0.2 / Math.Sqrt(20), 3), 0.2], builder.Peaks[2]);
     }
 
     [Fact]
-    public void PeaksSpanEveryChannel()
+    public void WindowsSpanEveryChannel()
     {
         var builder = new PeakBuilder(1000, 2);
         var frames = new float[100];
         frames[1] = 0.6f;
-        frames[2] = -0.4f;
+        frames[2] = -0.8f;
 
         builder.Add(frames);
         builder.Complete();
 
-        Assert.Equal([-0.4f, 0.6f], builder.Peaks);
+        var pair = Assert.Single(builder.Peaks);
+        Assert.Equal(0.8, pair[1]);
+        Assert.Equal(Math.Round(Math.Sqrt(((0.6 * 0.6) + (0.8 * 0.8)) / 100), 3), pair[0]);
     }
 
     [Fact]
-    public async Task WritesTheDocumentedFile()
+    public void ALoneSampleWithoutAWholeFrameIsDropped()
+    {
+        var builder = new PeakBuilder(1000, 2);
+        builder.Add([0.5f]);
+        builder.Complete();
+
+        Assert.Empty(builder.Peaks);
+    }
+
+    [Fact]
+    public async Task WritesTheMementoAudioFormat()
     {
         var builder = new PeakBuilder(1000, 1);
         var samples = new float[100];
-        samples[0] = 0.123456f;
-        samples[50] = -0.5f;
+        Array.Fill(samples, 0.123456f, 0, 50);
         builder.Add(samples);
         builder.Complete();
         var path = _directory.File("peaks.json");
 
         await builder.WriteAsync(path, CancellationToken.None);
 
-        Assert.Equal("""{"schemaVersion":1,"windowMs":50,"peaks":[0,0.1235,-0.5,0]}""", await File.ReadAllTextAsync(path));
+        Assert.Equal("""{"schemaVersion":1,"windowMs":50,"peaks":[[0.123,0.123],[0,0]]}""", await File.ReadAllTextAsync(path));
         Assert.False(File.Exists(path + ".tmp"));
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path));
-        Assert.Equal(4, document.RootElement.GetProperty("peaks").GetArrayLength());
+        Assert.Equal(2, document.RootElement.GetProperty("peaks").GetArrayLength());
     }
 
     [Fact]
     public void FourHoursOfPeaksStayCompact()
     {
-        var windows = 4 * 3600 * 1000 / PeakBuilder.DefaultWindowMs;
-
-        // Two floats per window: about 2.3 MB in memory for four hours.
-        Assert.Equal(288_000, windows);
-        Assert.True(windows * 2 * sizeof(float) < 2.5 * 1024 * 1024);
+        // One pair per 50 ms window: 288,000 pairs for four hours.
+        Assert.Equal(288_000, 4 * 3600 * 1000 / PeakBuilder.DefaultWindowMs);
     }
 }
