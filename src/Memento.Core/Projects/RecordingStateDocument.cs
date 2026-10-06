@@ -29,6 +29,13 @@ public sealed record RecordingStateDocument
 
     public int CheckpointSeconds { get; init; }
 
+    /// <summary>
+    /// How often the engine hands buffered audio to Windows between checkpoints (1000 for WASAPI), or <c>null</c>
+    /// if it only writes at checkpoints. Lets recovery bound what an app crash lost far more tightly than the
+    /// checkpoint interval.
+    /// </summary>
+    public int? FlushIntervalMs { get; init; }
+
     public IReadOnlyList<RecordingStateTrack> Tracks { get; init; } = [];
 
     public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];

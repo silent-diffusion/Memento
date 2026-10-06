@@ -156,7 +156,15 @@ public sealed partial class RecoveryService(
                 // The crash happened before the next checkpoint was due; anything after the data on disk is lost.
                 var checkpointedMs = repair.Format!.BytesToMilliseconds(track.BytesAtCheckpoint);
                 var beyond = Math.Max(0, durationMs - checkpointedMs);
-                mayBeMissingMs = Math.Max(mayBeMissingMs, Math.Max(0, intervalMs - beyond));
+                var bound = Math.Max(0, intervalMs - beyond);
+                if (beyond > 0 && state.FlushIntervalMs is { } flushMs and > 0)
+                {
+                    // Audio past the checkpoint reached the disk, so the writers were still flushing on their own
+                    // cadence when the app went down: at most one flush interval (plus a packet) is gone.
+                    bound = Math.Min(bound, flushMs + 100);
+                }
+
+                mayBeMissingMs = Math.Max(mayBeMissingMs, bound);
             }
 
             var existing = manifest.Tracks.FirstOrDefault(t => t.Id == track.TrackId);

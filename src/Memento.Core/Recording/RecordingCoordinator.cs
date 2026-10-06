@@ -829,6 +829,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     LastCheckpointAt = lastCheckpointAt,
                     ElapsedMsAtCheckpoint = tracks.Count == 0 ? 0 : tracks.Max(t => t.StartOffsetMs + t.Format.BytesToMilliseconds(t.CheckpointedBytes)),
                     CheckpointSeconds = (int)active.CheckpointInterval.TotalSeconds,
+                    FlushIntervalMs = _engine.FlushInterval is { } flush ? (int)flush.TotalMilliseconds : null,
                     Tracks = tracks.Select(SessionTrackMapper.ToState).ToList(),
                     Pauses = active.Session.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList(),
                 },

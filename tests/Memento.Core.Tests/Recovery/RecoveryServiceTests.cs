@@ -149,6 +149,38 @@ public sealed class RecoveryServiceTests : IDisposable
         Assert.Contains(await host.Store.ReadHistoryAsync(manifest.Id, CancellationToken.None), h => h.Detail?.Contains("no audio file", StringComparison.Ordinal) == true);
     }
 
+    [Theory]
+    [InlineData(null, 29_500)]
+    [InlineData(1000, 1100)]
+    public async Task WhatMayBeMissingIsBoundedByTheEnginesFlushInterval(int? flushIntervalMs, long expectedMissingMs)
+    {
+        using var host = new BridgeTestHost(directory: _directory);
+        var manifest = await host.Store.CreateAsync(new ProjectCreateRequest("Killed", "meeting", Start, ProjectStates.Recording), CancellationToken.None);
+        var folder = host.Store.GetProjectFolder(manifest.Id);
+
+        // 1.5 s on disk; the checkpoint covered 1 s, so audio kept reaching the disk after it.
+        WavTestFiles.Write(Path.Combine(folder, "tracks", "mic.wav"), PcmFormat.Pcm16(48_000, 1), 72_000, (_, _) => 0.1f);
+        await host.Store.WriteRecordingStateAsync(
+            new RecordingStateDocument
+            {
+                SessionId = "s",
+                RecordingId = manifest.Id,
+                StartedAt = Start,
+                LastCheckpointAt = Start.AddSeconds(1),
+                State = "recording",
+                CheckpointSeconds = 30,
+                FlushIntervalMs = flushIntervalMs,
+                Tracks = [new RecordingStateTrack("mic", Mic, "microphone", "Mic", "tracks/mic.wav", 48_000, 1, 16, "pcm", 0, 96_000, null, null)],
+            },
+            CancellationToken.None);
+
+        await host.Recovery.RunAsync(CancellationToken.None);
+
+        var recovered = await host.Store.LoadAsync(manifest.Id, CancellationToken.None);
+        Assert.Equal(1500, recovered.Recovery!.RecoveredDurationMs);
+        Assert.Equal(expectedMissingMs, recovered.Recovery.MayBeMissingMs);
+    }
+
     [Fact]
     public async Task EveryPartOfATrackThatRolledOverIsRepairedAndCounted()
     {

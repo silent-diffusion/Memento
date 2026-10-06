@@ -16,6 +16,9 @@ public sealed partial class WasapiRecordingEngine(WasapiEngineOptions options, T
 
     public string Name => "WASAPI";
 
+    /// <summary>Every <see cref="Writing.TrackWriter"/> hands its buffer to Windows about once per second.</summary>
+    public TimeSpan? FlushInterval => new Writing.TrackWriterOptions(".", "x", AudioFormat.Float32Stereo48k).FlushInterval;
+
     public async Task<IRecordingSession> StartAsync(RecordingPlan plan, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(plan);
