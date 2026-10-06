@@ -46,17 +46,22 @@ Acceptance: a 2-hour meeting transcribes end-to-end on this machine's GPU and on
 
 Acceptance: every agenda fixture in `tests/` parses to the expected items; exports open in common tools; a failed export leaves the project untouched.
 
-## M4 — AI, documents, styles (0.5.0)
+## 0.5.0 — first public release (M1 + M2 + M3)
 
-- Settings › AI and privacy: enable switch (off by default), ask-before-send, keep-record, provider keys in DPAPI, sharing checklist.
-- `IAiProvider` with Anthropic and OpenAI; payload composer; "Preview exactly what will be sent".
-- Document builder: palette, rows, drag and drop, keyboard fallbacks, module settings, live preview, inputs and output tab, save template, templates manager.
-- Generation with structured output per module, grounding validator, timestamp references, generation record in History.
+Decided 2026-10-06: the first public release ships as soon as M3 is done, without AI documents, so that recording, transcription, review, agenda import and export are in people's hands while M4 is built. Its README and in-app copy say plainly that document generation arrives in a later version. The M5 hardening items that concern recording and transcription (device unplug, low disk, recovery, long recordings) are run before 0.5.0, not deferred to 1.0.
+
+## M4 — AI, documents, styles (0.6.0 → 0.9.0)
+
+- Settings › AI and privacy: enable switch (off by default), ask-before-send, keep-record, provider keys in DPAPI, sharing checklist. A **Local** provider that needs no key and never sends anything: its model is downloaded and managed in Settings through the model manager like the transcription models.
+- `IAiProvider` with Anthropic, OpenAI and **Local** (an on-device LLM via llama.cpp with the Vulkan backend, model chosen by free VRAM; see ARCHITECTURE §8); payload composer; "Preview exactly what will be sent" (for Local it reads "stays on this PC").
+- **Chunked, per-module generation with verification**: the transcript is split into chunks that respect chapter, topic and speaker-turn boundaries and a token budget; each module is generated in its own pass (map over chunks, then reduce) with only the inputs it needs; a separate **verification pass** asks the model to check every claim and citation of the module against the cited transcript spans and to drop or flag what is not supported; then the deterministic grounding validator runs. This pipeline is the same for every provider; for the cloud providers the chunk budget is simply larger.
+- Document builder: palette, rows, drag and drop, keyboard fallbacks, module settings, live preview, inputs and output tab, save template, templates manager. Modules gain a **Text size** setting (Smaller / Normal / Larger, relative to the style's base size) that applies in the preview, the viewer and the Word and PDF exports. A **Full transcript** module places the entire transcript (speakers, timestamps, optional chapter headings) in the document as data, with no AI involved.
+- Generation with structured output per module, grounding validator, timestamp references, generation record in History (including which chunks and which verification results produced each module).
 - Document viewer with light editing, timestamp chips, How this was made, versions and restore, regenerate.
 - Style editor with live sample page; Corporate, Minimal, Academic presets; duplicate and reset.
 - Document export: Word (two-column rows, footnote timestamps), PDF via the viewer HTML, Markdown.
 
-Acceptance: a document generated from a reviewed transcript has every decision and action item traceable to a transcript moment; unsupported items read "not discussed"; the DOCX and PDF match the preview.
+Acceptance: a document generated from a reviewed transcript has every decision and action item traceable to a transcript moment; unsupported items read "not discussed"; the DOCX and PDF match the preview; the Local provider produces minutes for a 1-hour meeting on the reference laptop without exceeding its VRAM and with every claim verified; a Full transcript module round-trips the transcript exactly.
 
 ## M5 — Hardening and 1.0.0
 
@@ -69,6 +74,6 @@ Acceptance: a document generated from a reviewed transcript has every decision a
 ## Later (2.0+)
 
 - Video capture: screen, window, camera; MP4 export.
-- Additional AI providers; local LLM option through the model manager.
+- Additional AI providers.
 - Remember speakers by voice across recordings.
 - Calendar integration for prefilled titles and participants.

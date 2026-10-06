@@ -626,10 +626,20 @@ Initial supported providers:
 
 * OpenAI / ChatGPT
 * Anthropic / Claude
+* Local (an on-device model, downloaded and managed in Settings like the transcription models; nothing leaves the PC; no key)
 
 The architecture should allow additional providers to be added later.
 
 Settings should offer "ask before every send" (on by default) and "keep a record of what was sent" (on by default). API keys are stored securely and never echoed in the interface.
+
+## Working within a small context
+
+The local model has a small context window, and long transcripts exceed it. Generation therefore never sends a whole transcript in one request:
+
+* The transcript is broken into chunks at natural boundaries (chapters, topics, speaker turns) sized to the provider's budget.
+* Each document module is generated in its own pass over the chunks it needs, and its results are merged in time order.
+* A separate verification pass asks the model to confirm each claim against the exact transcript span it cites; claims the span does not support are dropped or reported as "not discussed".
+* The same pipeline is used for the external providers, with larger chunks, so documents are produced the same way whichever provider is chosen.
 
 ---
 
@@ -742,7 +752,7 @@ Users should be able to:
 * Drag modules between rows, into a new row, or **beside** another module to put them side by side
 * Reorder with the keyboard or buttons as well as by dragging
 * Remove modules
-* Configure each module: instructions, length, and whether its points link back to the transcript
+* Configure each module: instructions, length, text size (smaller, normal, or larger than the style's base size), and whether its points link back to the transcript
 * See a **live preview** of the resulting document as they work: the real title and meta line, every row as columns, the headings in the chosen style, and a skeleton of the content each module will produce
 * Choose which inputs the AI receives, the provider, the style, and the output options
 * Save the arrangement as a template
@@ -794,10 +804,13 @@ Potential modules include:
 * Timeline
 * Follow-up (including a follow-up email)
 * Notes
+* Full transcript (the entire transcript with speakers and timestamps, placed as data; no AI is involved)
 * Custom text
 * Custom AI-generated section
 
-Each module declares the kind of content it produces (paragraph, list, table, chips, label/value, quote, timeline) so the preview can show it, and the grounding rules that apply to it (for example, an Action Item requires a traceable commitment).
+Each module declares the kind of content it produces (paragraph, list, table, chips, label/value, quote, timeline, transcript) so the preview can show it, and the grounding rules that apply to it (for example, an Action Item requires a traceable commitment).
+
+Each module also carries its own text size (smaller, normal, or larger relative to the style's base size), so a Full transcript can be set small while an Executive Summary stays prominent. The setting applies in the preview, the Document viewer, and Word and PDF exports.
 
 The module system should be extensible.
 
