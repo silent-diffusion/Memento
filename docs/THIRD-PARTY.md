@@ -18,6 +18,9 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | Serilog.Sinks.File | Apache-2.0 | Rolling log files |
 | Serilog.Sinks.Console | Apache-2.0 | Console log output in Debug builds |
 | Velopack | MIT | Installer and update hooks in the app |
+| Microsoft.Data.Sqlite | MIT | Library index (`library.db`) |
+| SQLitePCLRaw.bundle_e_sqlite3, SQLitePCLRaw.core, SQLitePCLRaw.provider.e_sqlite3 (Microsoft.Data.Sqlite dependencies) | Apache-2.0 | SQLite bindings and the bundled native `e_sqlite3` library |
+| SQLite (inside `e_sqlite3`, with FTS5) | Public domain | Database engine and full-text search for the library index |
 
 Build, test and packaging tools (not shipped in the installer):
 
