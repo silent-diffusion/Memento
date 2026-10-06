@@ -17,9 +17,15 @@ internal sealed class TempDirectory : IDisposable
     {
         try
         {
+            // Finalized tracks are read-only on purpose.
+            foreach (var file in Directory.EnumerateFiles(Path, "*", SearchOption.AllDirectories))
+            {
+                System.IO.File.SetAttributes(file, FileAttributes.Normal);
+            }
+
             Directory.Delete(Path, recursive: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // A test left a handle open; the OS temp cleaner will remove the folder.
         }

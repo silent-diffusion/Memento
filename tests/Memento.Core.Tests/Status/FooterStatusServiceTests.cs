@@ -21,7 +21,7 @@ public sealed class FooterStatusServiceTests : IDisposable
 
         Assert.Equal(212L * 1024 * 1024 * 1024, status.Storage.FreeBytes);
         Assert.False(status.Storage.LowSpace);
-        Assert.Equal(AppPaths.DefaultLibrary, Assert.Single(_host.FreeSpace.Queried));
+        Assert.Equal(_host.Library.Root, Assert.Single(_host.FreeSpace.Queried));
     }
 
     [Theory]
