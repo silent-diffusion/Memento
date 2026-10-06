@@ -105,7 +105,6 @@ export function historyTone(entry: Pick<HistoryEntry, 'event'>): HistoryTone {
     case 'failed':
       return 'failed';
     case 'started':
-    case 'progress':
     case 'info':
       return 'info';
   }

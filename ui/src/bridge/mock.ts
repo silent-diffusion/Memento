@@ -1,16 +1,19 @@
 import type { BridgeLogger, BridgeTransport } from './client';
 import { formatSize } from '../format/storage';
 import { estimateSizeBytes, isoWithOffset, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
-import { advanceStages, processingOf, queryLibrary } from './mockLibrary';
+import { advanceStages, processingOf, queryLibrary, visibleStages } from './mockLibrary';
 import { mockMediaUrls } from './mockMedia';
 import { createMockSession, MockHostError } from './mockSession';
 import type {
+  AnnotationOrigin,
   BridgeEventEnvelope,
   BridgeRequest,
   BridgeResponse,
+  Chapter,
   EventName,
   EventPayload,
   FooterStatusPayload,
+  Highlight,
   MethodName,
   MethodParams,
   MethodResult,
@@ -18,6 +21,7 @@ import type {
   RecordingSummary,
   RecoveredRecording,
   SettingsSnapshot,
+  StageStatus,
   ThemePreference,
 } from './types';
 
@@ -94,7 +98,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   }
   // A project exists from the moment recording starts (BRIDGE.md: project.updateDetails works during
   // recording); the preview lists it in the Library once it has finalized.
-  const summaries = () => [...projects.values()].map((p) => p.summary).filter((r) => r.state !== 'recording' && r.state !== 'finalizing');
+  const listed = () => [...projects.values()].filter((p) => p.summary.state !== 'recording' && p.summary.state !== 'finalizing');
+  const summaries = () => listed().map((p) => p.summary);
 
   const recovered: RecoveredRecording[] = [];
   const recoverySample = projects.get('20261002-153000-sam11');
@@ -115,7 +120,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     engine: { ready: true, device: 'GPU' },
     storage: { freeBytes: (options.lowSpace ?? false) ? 4 * GIB : 212 * GIB, lowSpace: options.lowSpace ?? false },
     recording: { active: false, lastCheckpointAt: null, lostSource: null },
-    processingPaused: null,
+    // The host's only reason in M1 (FooterStatusService.LowSpaceReason), sent while space is low.
+    processingPaused: (options.lowSpace ?? false) ? 'Low disk space' : null,
   };
 
   const deliver = (message: BridgeResponse | BridgeEventEnvelope): void => {
@@ -138,7 +144,11 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   const find = (recordingId: string): MockProject => {
     const project = projects.get(recordingId);
     if (project === undefined) {
-      throw new MockHostError('project.notFound', 'That recording is no longer in the library.', recordingId);
+      throw new MockHostError(
+        'project.notFound',
+        'This recording is no longer in the library; it may have been deleted. Nothing was changed. Go back to the Library to see what is there.',
+        recordingId,
+      );
     }
     return project;
   };
@@ -146,7 +156,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   // Media exists once finalize has written the mix and peaks (the stored stage is done).
   const mediaOf = (project: MockProject) => {
     const { summary } = project;
-    const storing = summary.stages.some((st) => st.stage === 'stored' && st.state !== 'done');
+    const storing = project.stages.some((st) => st.stage === 'stored' && st.state !== 'done');
     if (summary.state === 'recording' || summary.state === 'finalizing' || storing) {
       return null;
     }
@@ -170,13 +180,35 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     };
   };
 
+  // The host assigns annotation ids on add (c…, h…, t…); any id the page sends with an add is ignored.
   let idCounter = 0;
-  const nextId = (prefix: string): string => `${prefix}-${(++idCounter).toString(36)}`;
+  const nextId = (prefix: 'c' | 'h' | 't'): string => `${prefix}${(++idCounter).toString(16).padStart(10, '0')}`;
 
-  const setStages = (project: MockProject, stages: MockProject['summary']['stages']): void => {
+  const invalid = (message: string): MockHostError => new MockHostError('bridge.invalidParams', message);
+  const missing = (kind: 'chapter' | 'highlight' | 'topic', id: string): MockHostError =>
+    new MockHostError(
+      'annotations.notFound',
+      `That ${kind} is not in this recording any more; it may have been removed. Nothing was changed. Reopen the recording to see its current ${kind}s.`,
+      id,
+    );
+  // The page's JSON is not checked against the types, so an unknown origin can still arrive.
+  const ORIGINS: readonly string[] = ['user', 'local', 'ai'] satisfies AnnotationOrigin[];
+  const originOf = (origin: AnnotationOrigin | undefined): AnnotationOrigin => {
+    if (origin === undefined) {
+      return 'user';
+    }
+    if (!ORIGINS.includes(origin)) {
+      throw invalid(`Origin '${origin}' is not one of user, local, ai.`);
+    }
+    return origin;
+  };
+  const byTime = <T extends { atMs: number }>(items: T[]): T[] => items.sort((a, b) => a.atMs - b.atMs);
+
+  const setStages = (project: MockProject, stages: StageStatus[]): void => {
+    project.stages = stages;
     project.summary = {
       ...project.summary,
-      stages,
+      stages: visibleStages(stages),
       isProcessing: stages.some((st) => st.state === 'active' || st.state === 'queued'),
     };
     emit('processing.progress', { recordingId: project.summary.id, stages });
@@ -212,6 +244,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       };
       projects.set(summary.id, {
         summary,
+        stages: [],
         details: {
           title: result.title,
           type: result.type,
@@ -252,10 +285,17 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       const trackCount = result.tracks.length;
       project.tracks = result.tracks.map((t) => ({ ...t, file: t.file.replace(/\.wav$/, '.flac') }));
       project.trackSources = result.tracks.map((t) => t.sourceKind);
+      // Finalize always stores lossless FLAC; a smaller format in Settings queues the optimize stage after it.
+      const smaller = settings.recording.storage.codec !== 'flac';
+      const pipeline: StageStatus[] = [
+        { stage: 'stored', state: 'active', percent: 0, label: 'Saving tracks' },
+        ...(smaller ? [{ stage: 'optimize', state: 'queued', percent: null, label: 'Queued' } satisfies StageStatus] : []),
+      ];
+      project.stages = pipeline;
       project.summary = {
         ...project.summary,
         durationMs: result.durationMs,
-        stages: [{ stage: 'stored', state: 'active', percent: 0, label: 'Saving tracks' }],
+        stages: visibleStages(pipeline),
         isProcessing: true,
         state: 'ready',
       };
@@ -270,26 +310,36 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         },
       ];
       changed(project.summary.id);
-      // Storing (FLAC + mix + peaks) finishes over a few seconds.
+      // Storing (FLAC + mix + peaks), then making smaller if asked, finish over a few seconds.
+      const label = (st: StageStatus): string =>
+        st.stage === 'optimize' ? `${st.percent ?? 0}% · making smaller` : `Saving tracks · ${st.percent ?? 0}%`;
+      const finished = (before: StageStatus[], after: StageStatus[], stage: StageStatus['stage']): boolean =>
+        before.some((st) => st.stage === stage && st.state !== 'done') && after.some((st) => st.stage === stage && st.state === 'done');
       const timer = setInterval(() => {
         const current = projects.get(result.recordingId);
         if (current === undefined) {
           clearInterval(timer);
           return;
         }
-        const stages = advanceStages(current.summary.stages, 25, 'this PC').map((st) =>
-          st.state === 'active' ? { ...st, label: `Saving tracks · ${st.percent ?? 0}%` } : st,
-        );
-        if (stages.every((st) => st.state === 'done')) {
+        const stages = advanceStages(current.stages, 25, 'this PC').map((st) => (st.state === 'active' ? { ...st, label: label(st) } : st));
+        const at = isoWithOffset(new Date(now()));
+        if (finished(current.stages, stages, 'stored')) {
           current.history = [
             ...current.history,
             {
-              at: isoWithOffset(new Date(now())),
+              at,
               stage: 'stored',
               event: 'completed',
               summary: 'Stored as lossless FLAC',
               detail: `${trackCount} ${trackCount === 1 ? 'track' : 'tracks'} · ${formatSize(current.summary.sizeBytes)} on this PC`,
             },
+          ];
+        }
+        if (finished(current.stages, stages, 'optimize')) {
+          const codec = settings.recording.storage.codec.toUpperCase();
+          current.history = [
+            ...current.history,
+            { at, stage: 'optimize', event: 'completed', summary: 'Saved smaller files', detail: `${codec} · the lossless FLAC files were replaced` },
           ];
         }
         setStages(current, stages);
@@ -329,7 +379,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       return settings;
     },
     'library.list': (params) => queryLibrary(summaries(), params),
-    'library.processing': () => processingOf(summaries()),
+    'library.processing': () => processingOf(listed()),
     'project.get': (params) => toProject(find(params.recordingId)),
     'project.updateDetails': (params) => {
       const project = find(params.recordingId);
@@ -348,10 +398,10 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       const project = find(params.recordingId);
       const tracks = project.trackSources.length;
       const items = ['the recording', tracks === 1 ? 'its track' : `its ${tracks} tracks`];
-      if (project.summary.stages.some((st) => st.stage === 'transcript' && st.state === 'done')) {
+      if (project.stages.some((st) => st.stage === 'transcript' && st.state === 'done')) {
         items.push('its transcript');
       }
-      if (project.summary.stages.some((st) => st.stage === 'minutes' && st.state === 'done')) {
+      if (project.stages.some((st) => st.stage === 'minutes' && st.state === 'done')) {
         items.push('its documents');
       }
       items.push('its details and highlights');
@@ -377,7 +427,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       const project = find(params.recordingId);
       const title = params.title.trim();
       if (title === '') {
-        throw new MockHostError('invalidParams', 'A recording needs a title. The old title was kept.');
+        throw invalid('A recording needs a title. The old title was kept.');
       }
       project.summary = { ...project.summary, title };
       project.details = { ...project.details, title };
@@ -386,61 +436,101 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     'annotations.addChapter': (params) => {
       const project = find(params.recordingId);
-      project.chapters = [
-        ...project.chapters,
-        { id: nextId('chapter'), atMs: params.chapter.atMs ?? 0, title: params.chapter.title ?? 'New chapter', origin: 'user' as const },
-      ].sort((a, b) => a.atMs - b.atMs);
+      const { atMs, title, origin } = params.chapter;
+      if (atMs === undefined) {
+        throw invalid('A new chapter needs a time (atMs).');
+      }
+      const chapter: Chapter = { id: nextId('c'), atMs, title: (title ?? '').trim(), origin: originOf(origin) };
+      project.chapters = byTime([...project.chapters, chapter]);
       return { chapters: project.chapters };
     },
     'annotations.updateChapter': (params) => {
       const project = find(params.recordingId);
-      project.chapters = project.chapters
-        .map((c) => (c.id === params.chapter.id ? { ...c, ...params.chapter, id: c.id } : c))
-        .sort((a, b) => a.atMs - b.atMs);
+      const { id, atMs, title, origin } = params.chapter;
+      if (id === undefined) {
+        throw invalid('Say which chapter to change: the chapter needs its id.');
+      }
+      const existing = project.chapters.find((c) => c.id === id);
+      if (existing === undefined) {
+        throw missing('chapter', id);
+      }
+      const changedChapter: Chapter = {
+        ...existing,
+        atMs: atMs ?? existing.atMs,
+        title: title?.trim() ?? existing.title,
+        origin: origin === undefined ? existing.origin : originOf(origin),
+      };
+      project.chapters = byTime(project.chapters.map((c) => (c.id === id ? changedChapter : c)));
       return { chapters: project.chapters };
     },
     'annotations.removeChapter': (params) => {
       const project = find(params.recordingId);
+      if (!project.chapters.some((c) => c.id === params.chapterId)) {
+        throw missing('chapter', params.chapterId);
+      }
       project.chapters = project.chapters.filter((c) => c.id !== params.chapterId);
       return { chapters: project.chapters };
     },
     'annotations.addHighlight': (params) => {
       const project = find(params.recordingId);
-      project.highlights = [
-        ...project.highlights,
-        {
-          id: nextId('highlight'),
-          atMs: params.highlight.atMs ?? 0,
-          note: params.highlight.note ?? '',
-          origin: 'user' as const,
-          segmentId: params.highlight.segmentId ?? null,
-        },
-      ].sort((a, b) => a.atMs - b.atMs);
+      const { atMs, note, origin, segmentId } = params.highlight;
+      if (atMs === undefined) {
+        throw invalid('A new highlight needs a time (atMs).');
+      }
+      const highlight: Highlight = { id: nextId('h'), atMs, note: (note ?? '').trim(), origin: originOf(origin), segmentId: segmentId ?? null };
+      project.highlights = byTime([...project.highlights, highlight]);
       return { highlights: project.highlights };
     },
     'annotations.updateHighlight': (params) => {
       const project = find(params.recordingId);
-      project.highlights = project.highlights
-        .map((h) => (h.id === params.highlight.id ? { ...h, ...params.highlight, id: h.id } : h))
-        .sort((a, b) => a.atMs - b.atMs);
+      const { id, atMs, note, origin, segmentId } = params.highlight;
+      if (id === undefined) {
+        throw invalid('Say which highlight to change: the highlight needs its id.');
+      }
+      const existing = project.highlights.find((h) => h.id === id);
+      if (existing === undefined) {
+        throw missing('highlight', id);
+      }
+      const changedHighlight: Highlight = {
+        ...existing,
+        atMs: atMs ?? existing.atMs,
+        note: note?.trim() ?? existing.note,
+        origin: origin === undefined ? existing.origin : originOf(origin),
+        segmentId: segmentId ?? existing.segmentId,
+      };
+      project.highlights = byTime(project.highlights.map((h) => (h.id === id ? changedHighlight : h)));
       return { highlights: project.highlights };
     },
     'annotations.removeHighlight': (params) => {
       const project = find(params.recordingId);
+      if (!project.highlights.some((h) => h.id === params.highlightId)) {
+        throw missing('highlight', params.highlightId);
+      }
       project.highlights = project.highlights.filter((h) => h.id !== params.highlightId);
       return { highlights: project.highlights };
     },
     'annotations.addTopic': (params) => {
       const project = find(params.recordingId);
-      project.topics = [...project.topics, { id: nextId('topic'), label: params.topic.label ?? '', origin: 'user' }];
+      const label = (params.topic.label ?? '').trim();
+      if (label === '') {
+        throw invalid('A topic needs a label.');
+      }
+      const origin = originOf(params.topic.origin);
+      // A label the recording already has, ignoring case, changes nothing (as on the host).
+      if (!project.topics.some((t) => t.label.toLocaleLowerCase() === label.toLocaleLowerCase())) {
+        project.topics = [...project.topics, { id: nextId('t'), label, origin }];
+      }
       return { topics: project.topics };
     },
     'annotations.removeTopic': (params) => {
       const project = find(params.recordingId);
+      if (!project.topics.some((t) => t.id === params.topicId)) {
+        throw missing('topic', params.topicId);
+      }
       project.topics = project.topics.filter((t) => t.id !== params.topicId);
       return { topics: project.topics };
     },
-    'sources.list': () => ({ audio: [...SAMPLE_SOURCES], videoAvailable: false }),
+    'sources.list':() => ({ audio: [...SAMPLE_SOURCES], videoAvailable: false }),
     'recording.start': (params) => session.start(params),
     'recording.setSource': (params) => {
       const tracks = session.setSource(params.sessionId, params.sourceId, params.enabled);
@@ -474,7 +564,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     if (handler === undefined) {
       return {
         id: request.id,
-        error: { code: 'unknownMethod', message: `Memento does not know '${request.method}'.`, detail: null },
+        error: { code: 'bridge.unknownMethod', message: `Memento does not know '${request.method}'.`, detail: null },
       };
     }
     try {
@@ -485,7 +575,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       }
       return {
         id: request.id,
-        error: { code: 'internal', message: error instanceof Error ? error.message : 'The preview host failed.', detail: null },
+        error: { code: 'bridge.internal', message: error instanceof Error ? error.message : 'The preview host failed.', detail: null },
       };
     }
   };
@@ -511,8 +601,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     if (live) {
       setInterval(() => {
         for (const project of projects.values()) {
-          if (project.summary.isProcessing && project.summary.stages.some((st) => st.stage === 'transcript')) {
-            setStages(project, advanceStages(project.summary.stages, 1));
+          if (project.summary.isProcessing && project.stages.some((st) => st.stage === 'transcript')) {
+            setStages(project, advanceStages(project.stages, 1));
           }
         }
       }, 3000);

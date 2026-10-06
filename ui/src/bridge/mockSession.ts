@@ -4,6 +4,7 @@
 import { isoWithOffset } from './mockData';
 import type {
   AudioSource,
+  ErrorCode,
   EventName,
   EventPayload,
   Highlight,
@@ -16,10 +17,10 @@ import type {
 } from './types';
 
 export class MockHostError extends Error {
-  readonly code: string;
+  readonly code: ErrorCode;
   readonly detail: string | null;
 
-  constructor(code: string, message: string, detail: string | null = null) {
+  constructor(code: ErrorCode, message: string, detail: string | null = null) {
     super(message);
     this.name = 'MockHostError';
     this.code = code;
@@ -150,6 +151,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       channels: source.kind === 'microphone' ? 1 : 2,
       durationMs: 0,
       sha256: null,
+      startOffsetMs: Math.round(elapsed()),
       endedEarlyAtMs: null,
     };
   };
@@ -233,7 +235,11 @@ export function createMockSession(env: SessionEnvironment): MockSession {
   return {
     start(params) {
       if (session !== null && (session.state === 'recording' || session.state === 'paused')) {
-        throw new MockHostError('invalidRequest', `"${session.title}" is still recording. Stop it before starting another.`);
+        throw new MockHostError(
+          'recording.alreadyActive',
+          `"${session.title}" is still recording. Stop it before starting another; it keeps recording until you do.`,
+          session.sessionId,
+        );
       }
       if (params.sourceIds.length === 0) {
         throw new MockHostError('recording.noSources', 'Choose at least one audio source to record.');

@@ -68,7 +68,7 @@ describe('footer variants (DESIGN.md §17)', () => {
   });
 
   it('turns accent when processing is paused', () => {
-    expect(statusLine(status({ processingPaused: 'PC is busy' }))).toEqual({ text: 'Transcription paused · PC is busy', tone: 'accent' });
+    expect(statusLine(status({ processingPaused: 'Low disk space' }))).toEqual({ text: 'Transcription paused · Low disk space', tone: 'accent' });
   });
 
   it('turns danger and names the lost source while recording', () => {

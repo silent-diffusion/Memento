@@ -76,6 +76,7 @@ const DONE_NAMES: Record<StageName, string> = {
   transcript: 'Transcript',
   speakers: 'Speakers',
   minutes: 'Minutes',
+  optimize: 'Smaller files',
 };
 
 const ACTIVE_NAMES: Record<StageName, string> = {
@@ -83,6 +84,7 @@ const ACTIVE_NAMES: Record<StageName, string> = {
   transcript: 'Transcribing',
   speakers: 'Speakers',
   minutes: 'Minutes',
+  optimize: 'Making smaller',
 };
 
 /** The processing card's column names (DESIGN.md §4). */
@@ -91,7 +93,11 @@ export const CARD_STAGE_NAMES: Record<StageName, string> = {
   transcript: 'Transcribing',
   speakers: 'Speakers',
   minutes: 'Minutes',
+  optimize: 'Smaller files',
 };
+
+/** Stages that only keep the audio safe or small: a finished one is the normal state, not news. */
+const HOUSEKEEPING: ReadonlySet<StageName> = new Set<StageName>(['stored', 'optimize']);
 
 function pillFor(stage: StageStatus): Pill {
   switch (stage.state) {
@@ -110,14 +116,15 @@ function pillFor(stage: StageStatus): Pill {
 }
 
 /**
- * Row pills. A finished "Stored" stage is the normal state of every recording, so it is shown only
- * beside a failed stage, where it says the recording itself is safe. An empty list means "Audio only".
+ * Row pills. A finished "Stored" or "Smaller files" stage is the normal state of a recording (the
+ * host leaves both out of RecordingSummary.stages), so it is shown only beside a failed stage, where
+ * it says the recording itself is safe. An empty list means "Audio only".
  */
 export function stagePills(stages: readonly StageStatus[]): Pill[] {
   const anyFailed = stages.some((s) => s.state === 'failed');
   const failed = stages.filter((s) => s.state === 'failed').map(pillFor);
   const rest = stages
-    .filter((s) => s.state !== 'failed' && (s.stage !== 'stored' || s.state !== 'done' || anyFailed))
+    .filter((s) => s.state !== 'failed' && (!HOUSEKEEPING.has(s.stage) || s.state !== 'done' || anyFailed))
     .map(pillFor);
   return [...failed, ...rest];
 }

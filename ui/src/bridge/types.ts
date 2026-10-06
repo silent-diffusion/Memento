@@ -32,24 +32,38 @@ export type EmptyParams = Record<string, never>;
 /** Result of a method that only acknowledges. */
 export type EmptyResult = Record<string, never>;
 
-/** Error codes the host may answer with (BRIDGE.md, Error codes). */
+/**
+ * Error codes the host may answer with (BRIDGE.md, Error codes): the router's `bridge.*` codes
+ * (BridgeErrorCodes.cs), then the methods' codes (DomainErrorCodes.cs). The C# tests check this list
+ * against both files.
+ */
 export const ERROR_CODES = [
-  'invalidRequest',
-  'invalidJson',
-  'invalidParams',
-  'unknownMethod',
-  'cancelled',
-  'internal',
+  'bridge.invalidJson',
+  'bridge.invalidRequest',
+  'bridge.unknownMethod',
+  'bridge.invalidParams',
+  'bridge.cancelled',
+  'bridge.internal',
+  'app.openExternal.unsupportedTarget',
+  'app.openExternal.failed',
+  'settings.invalidValue',
+  'settings.libraryMoveUnavailable',
   'project.notFound',
   'project.recording',
+  'annotations.notFound',
   'recording.noSources',
   'recording.sourceUnavailable',
   'recording.noSession',
   'recording.diskFull',
-  'settings.libraryMoveUnavailable',
+  'recording.alreadyActive',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+/** Codes the bridge client produces itself; the host never sends them. */
+export const CLIENT_ERROR_CODES = ['bridge.timeout', 'bridge.sendFailed'] as const;
+
+export type ClientErrorCode = (typeof CLIENT_ERROR_CODES)[number];
 
 // ---------------------------------------------------------------------------------------------
 // Shared types
@@ -67,7 +81,8 @@ export type BuiltInRecordingType =
 /** A built-in type, or any other string as the name of a custom type. */
 export type RecordingType = BuiltInRecordingType | (string & Record<never, never>);
 
-export type StageName = 'stored' | 'transcript' | 'speakers' | 'minutes';
+/** Pipeline order. `optimize` converts the lossless files to the smaller AAC/MP3 choice, after every other stage. */
+export type StageName = 'stored' | 'transcript' | 'speakers' | 'minutes' | 'optimize';
 
 export type StageState = 'done' | 'active' | 'queued' | 'failed';
 
@@ -94,7 +109,10 @@ export interface RecordingSummary {
   /** People listed for the recording: 0 reads "Just me" (a solo recording), 1 "1 speaker", n "n people". */
   participantCount: number;
   hasVideo: boolean;
-  /** [] means no processing has run ("Audio only"). */
+  /**
+   * [] means no processing has run ("Audio only"). A finished `stored` or `optimize` stage is left
+   * out; library.processing's `stages` keep every stage.
+   */
   stages: StageStatus[];
   /** Participant names and renamed speakers, for search and the meta line. */
   people: string[];
@@ -131,6 +149,9 @@ export interface Track {
   channels: number;
   durationMs: number;
   sha256: string | null;
+  /** 0 for tracks that started with the session; where a track added mid-session begins on the timeline. */
+  startOffsetMs: number;
+  /** When the track stopped before the session did (turned off or device lost). */
   endedEarlyAtMs: number | null;
 }
 
@@ -185,10 +206,15 @@ export interface Topic {
   origin: AnnotationOrigin;
 }
 
+/** Values the host writes (BRIDGE.md, History): stored and optimize in M1, the other stages from M2. */
+export type HistoryStage = StageName | 'recorded' | 'recovered' | 'edited';
+
+export type HistoryEvent = 'started' | 'completed' | 'failed' | 'info';
+
 export interface HistoryEntry {
   at: string;
-  stage: StageName | 'recorded' | 'edited' | 'exported' | 'recovered';
-  event: 'started' | 'progress' | 'completed' | 'failed' | 'info';
+  stage: HistoryStage;
+  event: HistoryEvent;
   summary: string;
   /** Engine, model, device, duration, what was sent. */
   detail: string | null;
@@ -307,6 +333,7 @@ export interface ProcessingCurrent {
   recordingId: string;
   title: string;
   meta: RecordingSummary;
+  /** Every stage in pipeline order, finished stored and optimize included (meta.stages leaves those out). */
   stages: StageStatus[];
 }
 
@@ -336,9 +363,16 @@ export interface ProjectDeleteEstimate {
   items: string[];
 }
 
+/**
+ * Partial<Chapter> (ChapterPatch.cs). Add: `atMs` required, `title` defaults to "", `origin` to
+ * 'user', and any `id` is ignored (the host assigns it). Update: `id` required; the fields present change.
+ */
+export type ChapterPatch = Partial<Chapter>;
+
+/** annotations.addChapter and annotations.updateChapter. An unknown id answers annotations.notFound. */
 export interface ChapterParams {
   recordingId: string;
-  chapter: Partial<Chapter>;
+  chapter: ChapterPatch;
 }
 
 export interface ChapterIdParams {
@@ -350,9 +384,16 @@ export interface ChaptersResult {
   chapters: Chapter[];
 }
 
+/**
+ * Partial<Highlight> (HighlightPatch.cs). Add: `atMs` required, `note` defaults to "", `origin` to
+ * 'user', `segmentId` to null, and any `id` is ignored. Update: `id` required; the fields present change.
+ */
+export type HighlightPatch = Partial<Highlight>;
+
+/** annotations.addHighlight and annotations.updateHighlight. An unknown id answers annotations.notFound. */
 export interface HighlightParams {
   recordingId: string;
-  highlight: Partial<Highlight>;
+  highlight: HighlightPatch;
 }
 
 export interface HighlightIdParams {
@@ -364,9 +405,15 @@ export interface HighlightsResult {
   highlights: Highlight[];
 }
 
+/**
+ * Partial<Topic> (TopicPatch.cs) for annotations.addTopic: `label` required and not blank, `origin`
+ * defaults to 'user', any `id` is ignored. A label the recording already has (ignoring case) changes nothing.
+ */
+export type TopicPatch = Partial<Topic>;
+
 export interface TopicParams {
   recordingId: string;
-  topic: Partial<Topic>;
+  topic: TopicPatch;
 }
 
 export interface TopicIdParams {
@@ -495,7 +542,7 @@ export interface FooterStatusPayload {
   engine: EngineStatus;
   storage: StorageStatus;
   recording: FooterRecordingStatus;
-  /** Why processing is paused ("PC is busy"), or null. */
+  /** Why processing is paused, in words, or null. M1 hosts send only "Low disk space". */
   processingPaused: string | null;
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { createBridgeClient, type BridgeLogger } from './client';
-import { EVENT_NAMES, METHOD_NAMES, type BridgeEvents, type BridgeMethods, type EventName, type MethodName } from './types';
+import { CLIENT_ERROR_CODES, ERROR_CODES, EVENT_NAMES, METHOD_NAMES, type BridgeEvents, type BridgeMethods, type EventName, type MethodName } from './types';
 
 const quiet: BridgeLogger = { info: () => undefined, warn: () => undefined };
 
@@ -18,6 +18,23 @@ describe('contract name lists', () => {
     expect(new Set(EVENT_NAMES).size).toBe(EVENT_NAMES.length);
   });
 
+  it('error codes are area.reason, router codes carry the bridge. prefix, and client codes are separate', () => {
+    for (const code of [...ERROR_CODES, ...CLIENT_ERROR_CODES]) {
+      expect(code).toMatch(/^[a-z]+(\.[a-zA-Z]+)+$/);
+    }
+    expect(ERROR_CODES.filter((code) => code.startsWith('bridge.'))).toEqual([
+      'bridge.invalidJson',
+      'bridge.invalidRequest',
+      'bridge.unknownMethod',
+      'bridge.invalidParams',
+      'bridge.cancelled',
+      'bridge.internal',
+    ]);
+    expect(ERROR_CODES).toEqual(expect.arrayContaining(['annotations.notFound', 'recording.alreadyActive', 'settings.invalidValue']));
+    expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
+    expect(CLIENT_ERROR_CODES.filter((code) => (ERROR_CODES as readonly string[]).includes(code))).toEqual([]);
+  });
+
   it('names follow area.verb', () => {
     const names: readonly (MethodName | EventName)[] = [...METHOD_NAMES, ...EVENT_NAMES];
     for (const name of names) {
@@ -25,12 +42,12 @@ describe('contract name lists', () => {
     }
   });
 
-  it('the browser-preview host answers every method without unknownMethod', async () => {
+  it('the browser-preview host answers every method without bridge.unknownMethod', async () => {
     const client = createBridgeClient({ logger: quiet, mock: { live: false, recovery: false } });
     for (const method of METHOD_NAMES) {
       // Parameters do not matter here; a validation error is still an answer from a known method.
       const outcome = await (client.call as (m: string, p: unknown) => Promise<unknown>)(method, {}).catch((e: unknown) => e);
-      expect(outcome, method).not.toMatchObject({ code: 'unknownMethod' });
+      expect(outcome, method).not.toMatchObject({ code: 'bridge.unknownMethod' });
     }
   });
 });

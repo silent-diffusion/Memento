@@ -258,8 +258,12 @@ public sealed partial class ProjectService(
 
     private static BridgeException Invalid(string message) => new(BridgeErrorCodes.InvalidParams, message);
 
+    /// <summary><c>annotations.notFound</c>: the id names no chapter, highlight or topic of this recording.</summary>
     private static BridgeException MissingAnnotation(string kind, string id) =>
-        new(BridgeErrorCodes.InvalidParams, $"That {kind} is not in this recording any more; it may have been removed. Nothing was changed.", id);
+        new(
+            DomainErrorCodes.AnnotationsNotFound,
+            $"That {kind} is not in this recording any more; it may have been removed. Nothing was changed. Reopen the recording to see its current {kind}s.",
+            id);
 
     private static List<T> Sorted<T>(IEnumerable<T> items)
         where T : class =>
