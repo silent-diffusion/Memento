@@ -1,5 +1,6 @@
 using Memento.Core.Audio;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Recording;
 using Memento.Core.Recording.Simulation;
@@ -31,6 +32,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IAudioEncoder, PassThroughWavEncoder>();
         services.AddSingleton<ITrackFinalizer, TrackFinalizer>();
         services.AddSingleton<ProjectFinalizationService>();
+        services.AddSingleton<OptimizeStage>();
+        services.AddSingleton<ProcessingOrchestrator>();
         services.AddSingleton<RecordingCoordinator>();
         services.AddSingleton<RecoveryService>();
         return services;

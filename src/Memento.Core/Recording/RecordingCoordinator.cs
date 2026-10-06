@@ -6,6 +6,7 @@ using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Host;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Settings;
 using Memento.Core.Status;
@@ -31,6 +32,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     private readonly IProjectStore _store;
     private readonly ProjectCatalog _catalog;
     private readonly ProjectFinalizationService _finalization;
+    private readonly ProcessingOrchestrator _processing;
     private readonly ISettingsStore _settings;
     private readonly ILibraryLocation _library;
     private readonly IFreeSpaceProbe _freeSpace;
@@ -50,6 +52,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         IProjectStore store,
         ProjectCatalog catalog,
         ProjectFinalizationService finalization,
+        ProcessingOrchestrator processing,
         ISettingsStore settings,
         ILibraryLocation library,
         IFreeSpaceProbe freeSpace,
@@ -65,6 +68,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         _store = store;
         _catalog = catalog;
         _finalization = finalization;
+        _processing = processing;
         _settings = settings;
         _library = library;
         _freeSpace = freeSpace;
@@ -679,6 +683,19 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         _ = Task.Run(() => active.Session.DisposeAsync().AsTask(), CancellationToken.None);
     }
 
+    /// <summary>The stored recording is safe; later stages are best effort and must not turn it into a failure.</summary>
+    private async Task QueueProcessingAsync(string recordingId)
+    {
+        try
+        {
+            await _processing.EnqueueAfterStoredAsync(recordingId, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException)
+        {
+            LogQueueFailed(ex, recordingId);
+        }
+    }
+
     private async Task FinalizeInBackgroundAsync(ActiveRecording active, Finalizing finalizing)
     {
         try
@@ -690,6 +707,10 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 State = state,
                 Tracks = manifest.Tracks.Select(ProjectMapper.ToTrack).ToList(),
             });
+            if (manifest.State != ProjectStates.Failed)
+            {
+                await QueueProcessingAsync(active.RecordingId);
+            }
         }
 #pragma warning disable CA1031 // Background work: log and keep the files; recovery retries at the next launch.
         catch (Exception ex)
@@ -870,6 +891,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Finalizing recording {RecordingId} failed; its files are kept for the next launch")]
     private partial void LogFinalizeFailed(Exception exception, string recordingId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId} is stored, but its later processing stages could not be queued")]
+    private partial void LogQueueFailed(Exception exception, string recordingId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The empty project {RecordingId} of a recording that did not start could not be removed")]
     private partial void LogDiscardFailed(Exception exception, string recordingId);

@@ -2,6 +2,7 @@ using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Recording;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +17,7 @@ public sealed partial class ProjectService(
     ProjectCatalog catalog,
     ILibraryIndex index,
     RecordingCoordinator recordings,
+    ProcessingOrchestrator processing,
     TimeProvider time,
     ILogger<ProjectService> logger)
 {
@@ -106,6 +108,8 @@ public sealed partial class ProjectService(
             throw Recording(manifest.Details.Title);
         }
 
+        // A stage still converting this recording stops first and lets go of its files.
+        await processing.CancelAsync(recordingId);
         try
         {
             await store.DeleteAsync(recordingId, cancellationToken);

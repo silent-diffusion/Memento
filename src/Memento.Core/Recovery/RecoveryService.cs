@@ -2,6 +2,7 @@ using Memento.Core.Audio;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Recording;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ public sealed partial class RecoveryService(
     ILibraryIndex index,
     ProjectCatalog catalog,
     ProjectFinalizationService finalization,
+    ProcessingOrchestrator processing,
     TimeProvider time,
     ILogger<RecoveryService> logger)
 {
@@ -114,9 +116,26 @@ public sealed partial class RecoveryService(
         var intervalMs = (state?.CheckpointSeconds ?? 30) * 1000L;
         foreach (var track in stateTracks)
         {
-            var path = Path.Combine(folder, track.File.Replace('/', Path.DirectorySeparatorChar));
-            var repair = WavRepair.Repair(path, SessionTrackMapper.FormatOf(track));
-            if (repair.Succeeded && repair.DataBytes > 0)
+            // A long track continues in tracks/<id>.part2.wav, …; only the part being written can need repair, but
+            // checking every part costs one header read each.
+            var parts = CaptureParts.Find(folder, track.File);
+            var repair = WavRepair.Repair(Path.Combine(folder, track.File.Replace('/', Path.DirectorySeparatorChar)), SessionTrackMapper.FormatOf(track));
+            var durationMs = repair.DurationMs;
+            var dataBytes = repair.DataBytes;
+            foreach (var part in parts.Skip(1))
+            {
+                var partRepair = WavRepair.Repair(Path.Combine(folder, part.Replace('/', Path.DirectorySeparatorChar)), SessionTrackMapper.FormatOf(track));
+                if (!partRepair.Succeeded)
+                {
+                    LogTrackUnrepairable(id, $"{track.TrackId} ({part})", partRepair.Problem ?? "unknown");
+                    continue;
+                }
+
+                durationMs += partRepair.DurationMs;
+                dataBytes += partRepair.DataBytes;
+            }
+
+            if (repair.Succeeded && dataBytes > 0)
             {
                 intact++;
             }
@@ -130,7 +149,6 @@ public sealed partial class RecoveryService(
                 LogTrackRepaired(id, track.TrackId, repair.DataBytes, repair.TruncatedBytes);
             }
 
-            var durationMs = repair.DurationMs;
             recoveredMs = Math.Max(recoveredMs, track.StartOffsetMs + durationMs);
             var stillOpen = track.EndedAtMs is null;
             if (interrupted && stillOpen && state?.State == "recording" && repair.Succeeded)
@@ -197,6 +215,12 @@ public sealed partial class RecoveryService(
 
         var finalState = interrupted || manifest.Recovery is not null ? ProjectStates.Recovered : ProjectStates.Ready;
         var result = await finalization.FinalizeAsync(id, finalState, cancellationToken);
+        if (result.State != ProjectStates.Failed)
+        {
+            // Runs in the background after the window shows.
+            await processing.EnqueueAfterStoredAsync(id, cancellationToken);
+        }
+
         LogRecovered(id, interrupted, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, result.State);
         return interrupted;
     }

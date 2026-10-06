@@ -18,7 +18,8 @@ public interface IAudioEncoder
 
     /// <summary>
     /// Reads <paramref name="sourceWavPath"/> and writes <paramref name="destinationPath"/>. Must not modify the source.
-    /// The destination may exist from an interrupted earlier attempt and is overwritten.
+    /// The destination may exist from an interrupted earlier attempt and is overwritten. Finalize passes a capture
+    /// WAV; the <c>optimize</c> stage passes the stored FLAC to lossy encoders, which decode any format Windows reads.
     /// </summary>
     /// <exception cref="IOException">Writing failed; <see cref="DiskErrors.IsDiskFull"/> tells a full drive apart.</exception>
     Task EncodeAsync(string sourceWavPath, string destinationPath, AudioEncodeOptions options, CancellationToken cancellationToken);
