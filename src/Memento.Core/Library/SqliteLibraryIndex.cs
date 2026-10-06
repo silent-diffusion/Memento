@@ -142,7 +142,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         await using var command = connection.CreateCommand();
         command.CommandText = $"""
             SELECT {SelectColumns} FROM recordings r
-            WHERE ($type IS NULL OR r.type = $type)
+            WHERE r.state <> 'recording'
+              AND ($type IS NULL OR r.type = $type)
               AND ($match IS NULL OR r.id IN (SELECT id FROM recordings_fts WHERE recordings_fts MATCH $match))
             ORDER BY {order}
             """;

@@ -637,6 +637,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 Pauses = pauses,
                 DurationMs = result.ElapsedMs,
                 State = ProjectStates.Finalizing,
+                Stages = ProjectFinalizationService.WithStored(m.Stages, StageStates.Active, 0, "Saving tracks"),
             },
             CancellationToken.None);
         await WriteStateFileAsync(active, "stopped", tracks, active.LastCheckpointAt);

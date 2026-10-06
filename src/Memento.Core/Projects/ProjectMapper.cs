@@ -72,6 +72,7 @@ public static class ProjectMapper
             track.Channels,
             track.DurationMs,
             track.Sha256,
+            track.StartOffsetMs,
             track.EndedEarlyAtMs);
     }
 

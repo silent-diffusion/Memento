@@ -108,7 +108,8 @@ public sealed class RecordingPipelineTests : IDisposable
         {
             Assert.Equal(1, peaks.RootElement.GetProperty("schemaVersion").GetInt32());
             Assert.Equal(50, peaks.RootElement.GetProperty("windowMs").GetInt32());
-            Assert.Equal(2 * 160, peaks.RootElement.GetProperty("peaks").GetArrayLength());
+            Assert.Equal(160, peaks.RootElement.GetProperty("peaks").GetArrayLength());
+            Assert.All(peaks.RootElement.GetProperty("peaks").EnumerateArray(), p => Assert.Equal(2, p.GetArrayLength()));
         }
 
         // Annotations and history.
@@ -208,6 +209,8 @@ public sealed class RecordingPipelineTests : IDisposable
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
         Assert.Equal(["mic", "app-simulated-meeting-app", "mic-2"], manifest.Tracks.Select(t => t.Id));
         Assert.Equal(1000, manifest.Tracks[1].StartOffsetMs);
+        var project = await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }));
+        Assert.Equal([0L, 1000L, 2000L], project.GetProperty("tracks").EnumerateArray().Select(t => t.GetProperty("startOffsetMs").GetInt64()));
         Assert.Equal(2000, manifest.Tracks[1].DurationMs);
         Assert.Equal(2000, manifest.Tracks[0].EndedEarlyAtMs);
         Assert.Equal(2000, manifest.Tracks[2].StartOffsetMs);
@@ -428,6 +431,31 @@ public sealed class RecordingPipelineTests : IDisposable
         Assert.Equal(DomainErrorCodes.ProjectRecording, ErrorCode(delete));
         Assert.StartsWith("\"In progress\" is still recording or being saved", ErrorMessage(delete), StringComparison.Ordinal);
         Assert.True(_host.Store.Exists(recordingId));
+    }
+
+    [Fact]
+    public async Task AProjectExistsFromStartButTheLibraryListsItOnlyOnceStopped()
+    {
+        var (sessionId, recordingId) = await _host.StartAsync("Live list", Mic);
+        _host.Session.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(0, (await _host.ResultAsync("library.list")).GetProperty("totalCount").GetInt32());
+        Assert.Equal("recording", (await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }))).GetProperty("summary").GetProperty("state").GetString());
+        var chapters = await _host.ResultAsync("annotations.addChapter", JsonSerializer.Serialize(new { recordingId, chapter = new { atMs = 500, title = "Opening" } }));
+        Assert.Single(chapters.GetProperty("chapters").EnumerateArray());
+
+        await Session("recording.stop", sessionId);
+        var finalizing = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
+        if (finalizing.State == ProjectStates.Finalizing)
+        {
+            // From the moment it stops, a finalizing project shows its stored stage as active.
+            Assert.Equal("active", finalizing.Stages.Single(s => s.Stage == "stored").State);
+        }
+
+        await _host.Recordings.WhenIdleAsync();
+        var row = Assert.Single((await _host.ResultAsync("library.list")).GetProperty("recordings").EnumerateArray());
+        Assert.Equal(recordingId, row.GetProperty("id").GetString());
+        Assert.Single((await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }))).GetProperty("chapters").EnumerateArray());
     }
 
     [Fact]

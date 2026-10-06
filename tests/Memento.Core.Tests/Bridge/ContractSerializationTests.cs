@@ -182,7 +182,7 @@ public sealed class ContractSerializationTests : IDisposable
         var project = new Project(
             summary,
             new RecordingDetails("Sync", "meeting", [], "", "", "", "", "", [], Agenda.Empty),
-            [new Track("mic", "mic:x", "microphone", "Mic", "tracks/mic.flac", 48000, 1, 1000, "ab", null)],
+            [new Track("mic", "mic:x", "microphone", "Mic", "tracks/mic.flac", 48000, 1, 1000, "ab", 0, null)],
             "https://library.memento/projects/20261006-100000-k3f9ab/mix.flac",
             "https://library.memento/projects/20261006-100000-k3f9ab/peaks.json",
             [new Chapter("c1", 0, "Intro", "user")],
@@ -198,7 +198,7 @@ public sealed class ContractSerializationTests : IDisposable
         Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda", Names(root.GetProperty("details")));
         Assert.Equal("""{"source":null,"parsedLocally":false,"items":[]}""", root.GetProperty("details").GetProperty("agenda").GetRawText());
         Assert.Equal(
-            """{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.flac","sampleRate":48000,"channels":1,"durationMs":1000,"sha256":"ab","endedEarlyAtMs":null}""",
+            """{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.flac","sampleRate":48000,"channels":1,"durationMs":1000,"sha256":"ab","startOffsetMs":0,"endedEarlyAtMs":null}""",
             root.GetProperty("tracks")[0].GetRawText());
         Assert.Equal("""{"id":"c1","atMs":0,"title":"Intro","origin":"user"}""", root.GetProperty("chapters")[0].GetRawText());
         Assert.Equal("""{"id":"h1","atMs":500,"note":"","origin":"user","segmentId":null}""", root.GetProperty("highlights")[0].GetRawText());
@@ -231,9 +231,9 @@ public sealed class ContractSerializationTests : IDisposable
     [Fact]
     public void RecordingEvents()
     {
-        var track = new Track("mic", "mic:x", "microphone", "Mic", "tracks/mic.wav", 48000, 1, 1500, null, null);
+        var track = new Track("mic", "mic:x", "microphone", "Mic", "tracks/mic.wav", 48000, 1, 1500, null, 250, null);
         Assert.Equal(
-            """{"event":"recording.state","payload":{"sessionId":"s1","recordingId":"r1","state":"recording","startedAt":"2026-10-06T10:00:00+01:00","elapsedMs":1500,"tracks":[{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.wav","sampleRate":48000,"channels":1,"durationMs":1500,"sha256":null,"endedEarlyAtMs":null}],"lastCheckpointAt":null,"highlightsCount":2}}""",
+            """{"event":"recording.state","payload":{"sessionId":"s1","recordingId":"r1","state":"recording","startedAt":"2026-10-06T10:00:00+01:00","elapsedMs":1500,"tracks":[{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.wav","sampleRate":48000,"channels":1,"durationMs":1500,"sha256":null,"startOffsetMs":250,"endedEarlyAtMs":null}],"lastCheckpointAt":null,"highlightsCount":2}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.RecordingState, new RecordingStatePayload("s1", "r1", "recording", At, 1500, [track], null, 2), BridgeJsonContext.Default.BridgeEventEnvelopeRecordingStatePayload));
         Assert.Equal(
             """{"event":"recording.levels","payload":{"sessionId":"s1","levels":[{"sourceId":"mic:x","rms":0.25,"peak":0.5}]}}""",

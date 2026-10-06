@@ -20,6 +20,7 @@ public static class SessionTrackMapper
             track.Format.Channels,
             track.DurationMs,
             null,
+            track.StartOffsetMs,
             track.EndedAtMs);
     }
 

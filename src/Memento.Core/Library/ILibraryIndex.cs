@@ -19,6 +19,7 @@ public interface ILibraryIndex
 
     Task RemoveAsync(string recordingId, CancellationToken cancellationToken);
 
+    /// <summary>The Library list: every state except <c>recording</c> (BRIDGE.md), filtered and sorted.</summary>
     Task<LibraryQueryResult> QueryAsync(LibraryQuery query, CancellationToken cancellationToken);
 
     /// <summary>Recordings with a stage active or queued, newest first, with every stage (including <c>stored</c>).</summary>
