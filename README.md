@@ -9,7 +9,7 @@ Memento records meetings, interviews, lectures and dictation from any combinatio
 ## Install
 
 1. Open the [Releases](https://github.com/silent-diffusion/Memento/releases) page.
-2. Download `Memento-win-Setup.exe` from the latest release.
+2. Download `MementoApp-win-Setup.exe` from the latest release.
 3. Run it. Memento installs for the current user, needs no administrator rights, and updates itself from future releases.
 
 Requirements: Windows 11 (Windows 10 version 2004 or later should also work), 64-bit. A GPU speeds up transcription but is not required.
