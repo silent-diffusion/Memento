@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Error and recovery states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.btn,.icon-btn{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.pill.failed{border:1px solid var(--danger);color:var(--danger)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.g{display:flex;align-items:center;justify-content:center;height:32px;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:transparent;font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.p{display:flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:9px;border:none;background:var(--accent);color:#FFFFFF;font-size:13px;font-weight:700;white-space:nowrap}
+.d{display:flex;align-items:center;justify-content:center;height:32px;padding:0 14px;border-radius:9px;border:none;background:var(--danger);color:#FFFFFF;font-size:13px;font-weight:700;white-space:nowrap}
+.caption{font-size:11px;color:var(--text-3);margin-top:-6px}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div style="width: 1440px; min-height: 1300px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45">
+  <sc-for list="{{panels}}" as="pn" hint-placeholder-count="2">
+  <section class="app {{pn.cls}}" style="background: var(--bg); color: var(--text); padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Error and recovery · {{pn.name}}</h1>
+      <span style="font-size: 12px; color: var(--text-2)">Recording is never interrupted by a failing stage</span>
+    </div>
+
+    <span class="lbl">Toast · bottom right, 6 s, pauses on hover</span>
+    <div style="width: 380px; background: var(--surface); border-radius: 20px; box-shadow: var(--neo-sm); padding: 14px 16px; box-sizing: border-box; display: flex; gap: 12px; align-items: flex-start">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex: none"></span>
+      <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0">
+        <div style="display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px; font-weight: 700">Zoom audio stopped at 00:41:12</span><span style="font-size: 13px; color: var(--text-2)">Microphone and system audio are still recording.</span></div>
+        <div style="display: flex; gap: 8px"><button class="btn g" type="button">Reconnect Zoom</button><button class="btn" type="button" style="border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-3); padding: 0 6px">Dismiss</button></div>
+      </div>
+    </div>
+
+    <span class="lbl">Banner · top of the content column, stays until resolved</span>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; background: var(--accent-soft); color: var(--accent-text)">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5 M12 16h.01"></path></svg>
+      <span style="flex: 1; font-size: 14px"><span style="font-weight: 700">Low disk space · 4 GB free.</span> Recording continues. Transcription is paused until there is room.</span>
+      <button class="btn" type="button" style="height: 30px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--accent-text); background: transparent; font-size: 13px; font-weight: 700; color: var(--accent-text)">Free up space</button>
+    </div>
+
+    <span class="lbl">Processing card · a stage failed</span>
+    <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 18px 22px; box-sizing: border-box; display: flex; align-items: center; gap: 24px; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; gap: 3px; flex: 1 1 220px; min-width: 0">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--danger)"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--danger)"></span>Transcription failed</div>
+        <div style="font-size: 17px; font-weight: 700; letter-spacing: -0.01em">Q3 planning sync</div>
+        <div style="font-size: 13px; color: var(--text-2)">The GPU ran out of memory at 64%. The recording is safe and the partial transcript was kept.</div>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap"><button class="btn p" type="button">Retry on CPU</button><button class="btn g" type="button">Use the Medium model</button><button class="btn g" type="button">Details</button></div>
+    </div>
+
+    <span class="lbl">Library row · failed pill</span>
+    <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 14px 18px 14px 20px; box-sizing: border-box; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 76px; gap: 18px; align-items: center">
+      <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 16px; background: var(--surface-2); box-shadow: var(--neo-in); display: flex; align-items: center; justify-content: center; color: var(--text-2)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0"><span style="font-size: 15px; font-weight: 600">Q3 planning sync</span><span style="font-size: 13px; color: var(--text-2)">Meeting · 5 people · 10:00 AM</span></span>
+      <span style="display: flex; gap: 6px"><span class="pill failed">Transcript failed · Retry</span><span class="pill done">Stored</span></span>
+      <span class="mono" style="font-size: 13px; color: var(--text-2); text-align: right">1:02:14</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">Dialog · recovery on launch</span>
+        <div role="dialog" style="background: var(--surface); border-radius: 28px; box-shadow: var(--neo-card); padding: 22px 24px 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 18px; font-weight: 800; letter-spacing: -0.01em">Recovered an interrupted recording</span>
+            <span style="font-size: 14px; color: var(--text-2)"><span style="font-weight: 600; color: var(--text)">Q3 planning sync</span> was saved up to 1:02:14 before the PC shut down. All 3 tracks are intact. The last 20 seconds may be missing.</span>
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn g" type="button">Later</button><button class="btn p" type="button">Open recording</button></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">Dialog · destructive</span>
+        <div role="dialog" style="background: var(--surface); border-radius: 28px; box-shadow: var(--neo-card); padding: 22px 24px 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <span style="font-size: 18px; font-weight: 800; letter-spacing: -0.01em">Delete "Weekly 1:1 with Sam"?</span>
+            <span style="font-size: 14px; color: var(--text-2)">Removes the recording, its transcript and documents from this PC (410 MB). Exported copies are not affected. This cannot be undone.</span>
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: flex-end"><button class="btn g" type="button">Cancel</button><button class="btn d" type="button">Delete</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">Inline · export failed</span>
+        <div style="background: var(--surface); border-radius: 20px; box-shadow: var(--neo-sm); padding: 14px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 10px; align-items: flex-start"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--danger); flex: none; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5 M12 16h.01"></path></svg><span style="font-size: 14px"><span style="font-weight: 700">Couldn't write to D:\Exports.</span> <span style="color: var(--text-2)">The drive is not connected. Nothing inside Memento was changed.</span></span></div>
+          <div style="display: flex; gap: 8px"><button class="btn g" type="button">Try again</button><button class="btn g" type="button">Choose another folder</button></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">Inline · AI provider failed</span>
+        <div style="background: var(--surface); border-radius: 20px; box-shadow: var(--neo-sm); padding: 14px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 10px; align-items: flex-start"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--danger); flex: none; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5 M12 16h.01"></path></svg><span style="font-size: 14px"><span style="font-weight: 700">Claude didn't respond</span> <span style="color: var(--text-2)">(rate limited). Nothing was sent twice and no document was changed.</span></span></div>
+          <div style="display: flex; gap: 8px"><button class="btn g" type="button">Try again</button><button class="btn g" type="button">Switch to ChatGPT</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">Permission · asked when the source is first enabled</span>
+        <div style="background: var(--surface); border-radius: 20px; box-shadow: var(--neo-sm); padding: 14px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 14px"><span style="font-weight: 700">Memento needs access to your microphone.</span> <span style="color: var(--text-2)">Windows is blocking it. Allow it in Settings, then come back; the other sources keep working.</span></span>
+          <div style="display: flex; gap: 8px"><button class="btn p" type="button">Open Windows settings</button><button class="btn g" type="button">Continue without microphone</button></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="lbl">Stage status · recording stopped by a full drive</span>
+        <div style="background: var(--surface); border-radius: 20px; box-shadow: var(--neo-sm); padding: 14px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--danger)"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--danger)"></span>Stopped · drive full</div>
+          <span style="font-size: 14px; color: var(--text-2)">Recording stopped at <span class="mono" style="color: var(--text)">1:42:10</span> because the drive ran out of space. Everything up to that point is saved and will transcribe once there is room.</span>
+          <div style="display: flex; gap: 8px"><button class="btn p" type="button">Open recording</button><button class="btn g" type="button">Free up space</button></div>
+        </div>
+      </div>
+    </div>
+
+    <span class="lbl">Footer · status variants</span>
+    <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px">
+      <div style="display: flex; align-items: center; gap: 8px; color: var(--text-3)"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--ok)"></span>Local transcription ready · GPU<span style="margin-left: auto">212 GB free</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; color: var(--text-3)"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent)"></span>Transcription paused · PC is busy<span style="margin-left: auto; color: var(--accent-text); font-weight: 700">Low disk space · 4 GB free</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; color: var(--text-3)"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--danger)"></span><span style="color: var(--danger); font-weight: 700">Zoom audio lost at 00:41:12</span> · other tracks recording<span style="margin-left: auto">Saving continuously</span></div>
+    </div>
+
+  </section>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { panels: [{ name: 'light', cls: '' }, { name: 'dark', cls: 'dark' }] };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Review and transcript, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA);--sp1:#3B6FB6;--sp2:#2E8B7A;--sp3:#7A5AB8;--sp4:#A3741A}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320);--sp1:#7FA7E0;--sp2:#6FC4B2;--sp3:#B39BE6;--sp4:#D4A94A}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.nav,.seg,.segm{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.nav:focus-visible,.seg:focus-visible,.segm:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover,.nav:hover{background:var(--surface-2)}
+.nav.on{background:var(--surface-2);color:var(--text)}
+.primary:hover{filter:brightness(.94)}
+.field::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.pill.active{background:var(--accent-soft);color:var(--accent-text)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{height:32px;padding:0 12px;border:none;background:transparent;border-radius:7px;font-size:13px;font-weight:600;color:var(--text-2)}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.segm{display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;padding:12px 16px;border-radius:10px;text-align:left;border:none;background:transparent;width:100%;box-sizing:border-box}
+.segm:hover{background:var(--surface-2)}
+.segm.now{background:var(--surface-2)}
+.lowc{text-decoration:underline dotted var(--text-3);text-decoration-thickness:1.5px;text-underline-offset:3px}
+.hl{background:var(--accent-soft);border-radius:3px;padding:0 2px}
+.wb{flex:1;border-radius:1px;background:var(--line-strong)}
+.wb.played{background:var(--text)}
+.chap{display:flex;gap:10px;align-items:baseline;width:100%;padding:8px 10px;border-radius:8px;border:none;background:transparent;text-align:left}
+.chap.on{background:var(--surface-2)}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Main.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Library
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; flex-direction: column; flex: 1 1 320px; min-width: 0">
+      <span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Design review: library screen</span>
+      <span style="font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · audio + video</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <button class="btn ghost" type="button" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Export</button>
+      <a class="btn primary" href="Builder.dc.html" style="height: 36px; padding: 0 14px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 11v6 M9 14h6"></path></svg>
+        Create document
+      </a>
+      <button class="icon-btn" type="button" aria-label="More actions" style="width: 36px; height: 36px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
+      </button>
+    </div>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch">
+
+    <aside aria-label="Outline" style="flex: 0 1 260px; min-width: 220px; border-right: 1px solid var(--line); padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 10px"><span class="lbl">Chapters</span><button class="icon-btn" type="button" aria-label="Add chapter" style="width: 24px; height: 24px; border-radius: 6px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3)"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button></div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <sc-for list="{{chapters}}" as="c" hint-placeholder-count="5">
+          <button class="chap {{c.cls}}" type="button" onClick="{{c.pick}}">
+            <span class="mono" style="font-size: 11px; color: var(--text-3); flex: none; width: 44px">{{c.at}}</span>
+            <span style="font-size: 13px; font-weight: 600; color: var(--text)">{{c.title}}</span>
+          </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="padding: 0 10px"><span class="lbl">Highlights · 3</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <button class="chap" type="button"><span class="mono" style="font-size: 11px; color: var(--text-3); flex: none; width: 44px">18:42</span><span style="font-size: 13px; color: var(--text)">Row height agreed at 68 px</span></button>
+          <button class="chap" type="button"><span class="mono" style="font-size: 11px; color: var(--text-3); flex: none; width: 44px">41:10</span><span style="font-size: 13px; color: var(--text)">Dark theme ships with v1</span></button>
+          <button class="chap" type="button"><span class="mono" style="font-size: 11px; color: var(--text-3); flex: none; width: 44px">1:02:05</span><span style="font-size: 13px; color: var(--text)">Sam owns the empty state</span></button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 10px">
+        <span class="lbl">Topics</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <span class="pill done">Library layout</span><span class="pill done">Status pills</span><span class="pill done">Dark theme</span><span class="pill done">Empty state</span><span class="pill done">Next steps</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="padding: 0 10px"><span class="lbl">People</span></div>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <sc-for list="{{people}}" as="p" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px">
+            <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{p.color}}; flex: none"></span>
+            <span style="font-size: 13px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.name}}</span>
+            <span style="font-size: 11px; color: var(--text-3)">{{p.share}}</span>
+            <button class="icon-btn" type="button" aria-label="Rename speaker" style="width: 24px; height: 24px; border-radius: 6px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3)"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
+          </div>
+          </sc-for>
+        </div>
+      </div>
+    </aside>
+
+    <section aria-label="Player and transcript" style="flex: 999 1 560px; min-width: 0; background: var(--surface); display: flex; flex-direction: column">
+      <div style="padding: 20px 32px 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px">
+        <div aria-hidden="true" style="height: 56px; display: flex; align-items: center; gap: 2px">
+          <sc-for list="{{wave}}" as="w" hint-placeholder-count="80"><div class="wb {{w.cls}}" style="height: {{w.h}}"></div></sc-for>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+          <button class="icon-btn" type="button" aria-label="Back 10 seconds" style="width: 36px; height: 36px; border-radius: 14px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7 M3 4v5h5"></path></svg></button>
+          <button class="btn" type="button" onClick="{{togglePlay}}" aria-label="{{playLabel}}" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--text); color: var(--bg); display: inline-flex; align-items: center; justify-content: center">
+            <sc-if value="{{playing}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></sc-if>
+            <sc-if value="{{notPlaying}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg></sc-if>
+          </button>
+          <button class="icon-btn" type="button" aria-label="Forward 10 seconds" style="width: 36px; height: 36px; border-radius: 14px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7 M21 4v5h-5"></path></svg></button>
+          <span class="mono" style="font-size: 13px; color: var(--text-2); margin-left: 4px">{{now}} <span style="color: var(--text-3)">/ 1:10:02</span></span>
+          <button class="btn ghost" type="button" style="height: 32px; padding: 0 10px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">1.0×</button>
+          <span style="flex: 1"></span>
+          <div style="position: relative; width: 260px">
+            <label class="sr" for="tx-search">Search transcript</label>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 10px; color: var(--text-3)"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+            <input id="tx-search" class="field" type="search" placeholder="Search transcript" style="width: 100%; height: 36px; box-sizing: border-box; padding: 0 12px 0 36px; border-radius: 14px; border: none; background: var(--bg); box-shadow: var(--neo-in); color: var(--text); font: inherit; font-size: 13px">
+          </div>
+          <button class="btn ghost" type="button" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4a1 1 0 0 1 1-1h11l-2 4 2 4H6"></path></svg>
+            Highlight
+          </button>
+        </div>
+      </div>
+
+      <div style="padding: 20px 24px 40px; display: flex; flex-direction: column; gap: 4px; max-width: 920px">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px 10px">
+          <span class="lbl">{{chapterNow}}</span>
+          <span style="font-size: 12px; color: var(--text-3)">Click a line to play it · double-click to edit</span>
+        </div>
+        <sc-for list="{{segments}}" as="s" hint-placeholder-count="6">
+        <button class="segm {{s.cls}}" type="button" onClick="{{s.pick}}">
+          <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{s.color}}; flex: none"></span><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{s.speaker}}</span></span>
+            <span class="mono" style="font-size: 11px; color: var(--text-3)">{{s.at}}</span>
+          </span>
+          <span style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+            <span style="font-size: 15px; line-height: 1.55">{{s.a}}<span class="lowc">{{s.low}}</span>{{s.b}}<span class="{{s.hlCls}}">{{s.hl}}</span>{{s.c}}</span>
+            <sc-if value="{{s.hasNote}}" hint-placeholder-val="{{false}}">
+            <span style="display: inline-flex; align-items: flex-start; gap: 8px; align-self: flex-start; padding: 8px 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); font-size: 13px; color: var(--text-2)">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 3px; flex: none"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5"></path></svg>
+              <span><span style="font-weight: 700; color: var(--text)">{{s.noteBy}}</span> {{s.note}}</span>
+            </span>
+            </sc-if>
+          </span>
+        </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <aside aria-label="Recording details" style="flex: 0 1 320px; min-width: 260px; border-left: 1px solid var(--line); padding: 20px 20px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+      <div role="tablist" style="display: flex; gap: 2px; padding: 3px; border-radius: 16px; background: var(--surface-2); box-shadow: var(--neo-in)">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+        <button class="seg {{t.cls}}" type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="flex: 1">{{t.label}}</button>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{tabDetails}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; flex-direction: column; gap: 18px">
+        <div style="display: grid; grid-template-columns: 96px minmax(0, 1fr); row-gap: 10px; column-gap: 12px; font-size: 13px">
+          <span style="color: var(--text-3)">Type</span><span style="font-weight: 600">Meeting</span>
+          <span style="color: var(--text-3)">Recorded</span><span style="font-weight: 600">Oct 5, 2026 · 4:00 PM</span>
+          <span style="color: var(--text-3)">Duration</span><span class="mono" style="font-weight: 500">1:10:02</span>
+          <span style="color: var(--text-3)">Platform</span><span style="font-weight: 600">Zoom</span>
+          <span style="color: var(--text-3)">Tracks</span><span style="font-weight: 600">Microphone, Zoom, Screen</span>
+          <span style="color: var(--text-3)">Purpose</span><span>Agree the library layout before build starts</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lbl">Participants</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px"><span class="pill done">Sam Okafor</span><span class="pill done">Priya Natarajan</span><span class="pill done">Lee Chen</span><span class="pill done">Me</span></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center; justify-content: space-between"><span class="lbl">Agenda</span><span style="font-size: 11px; color: var(--text-3)">agenda.docx · parsed locally</span></div>
+          <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+            <li style="display: flex; gap: 8px"><span class="mono" style="color: var(--text-3)">1</span>Review mockups</li>
+            <li style="display: flex; gap: 8px"><span class="mono" style="color: var(--text-3)">2</span>Row density and status pills</li>
+            <li style="display: flex; gap: 8px"><span class="mono" style="color: var(--text-3)">3</span>Dark theme scope</li>
+            <li style="display: flex; gap: 8px"><span class="mono" style="color: var(--text-3)">4</span>Owners and next steps</li>
+          </ol>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lbl">Tags</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px"><span class="pill done">design</span><span class="pill done">memento</span><button class="btn ghost" type="button" style="height: 24px; padding: 0 9px; border-radius: 999px; border: 1px dashed var(--line-strong); background: transparent; font-size: 12px; font-weight: 600; color: var(--text-3)">+ Add</button></div>
+        </div>
+        <button class="btn ghost" type="button" style="height: 36px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Edit details</button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{tabDocs}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <a class="btn" href="Builder.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 16px; border: none; background: var(--surface); box-shadow: var(--neo-sm)">
+            <span style="font-size: 14px; font-weight: 700">Meeting minutes</span>
+            <span style="font-size: 12px; color: var(--text-2)">Corporate style · generated yesterday 5:14 PM · Claude</span>
+            <span style="font-size: 12px; color: var(--text-3)">Edited by you · 2 versions</span>
+          </a>
+          <a class="btn" href="Builder.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 16px; border: none; background: var(--surface); box-shadow: var(--neo-sm)">
+            <span style="font-size: 14px; font-weight: 700">Action items</span>
+            <span style="font-size: 12px; color: var(--text-2)">Minimal style · generated yesterday 5:16 PM · Claude</span>
+          </a>
+          <div style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 16px; border: none; background: var(--surface); box-shadow: var(--neo-sm)">
+            <span style="font-size: 14px; font-weight: 700">My notes</span>
+            <span style="font-size: 12px; color: var(--text-2)">Written by you during the meeting</span>
+          </div>
+        </div>
+        <a class="btn primary" href="Builder.dc.html" style="height: 36px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">Create document</a>
+        <p style="margin: 0; font-size: 12px; color: var(--text-3)">Documents are saved inside this recording and can be exported on their own.</p>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{tabHistory}}" hint-placeholder-val="{{false}}">
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 13px">
+        <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin: 6px 4px"></span><span><span style="font-weight: 600">Recorded</span><br><span style="color: var(--text-2)">Yesterday 4:00 PM · 1:10:02 · 3 tracks</span></span></li>
+        <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin: 6px 4px"></span><span><span style="font-weight: 600">Stored</span><br><span style="color: var(--text-2)">Lossless tracks · 1.9 GB on this PC</span></span></li>
+        <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin: 6px 4px"></span><span><span style="font-weight: 600">Transcribed locally</span><br><span style="color: var(--text-2)">GPU · 4 min 12 s · English · 2,140 segments</span></span></li>
+        <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin: 6px 4px"></span><span><span style="font-weight: 600">Speakers identified</span><br><span style="color: var(--text-2)">4 speakers · 3 renamed by you</span></span></li>
+        <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin: 6px 4px"></span><span><span style="font-weight: 600">Minutes generated</span><br><span style="color: var(--text-2)">Claude · sent transcript, agenda, participants · 38 s</span></span></li>
+        <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); margin: 6px 4px"></span><span><span style="font-weight: 600">Transcript edited</span><br><span style="color: var(--text-2)">12 corrections by you · version history on</span></span></li>
+      </ol>
+      </sc-if>
+    </aside>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { playing: true, chapter: 2, seg: 2, tab: 'Details' };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const colors = { 'Sam Okafor': 'var(--sp1)', 'Priya Natarajan': 'var(--sp2)', 'Lee Chen': 'var(--sp3)', 'Me': 'var(--sp4)' };
+    const chaptersRaw = [
+      ['0:00', 'Opening and goals'], ['6:30', 'Walkthrough of mockups'], ['18:10', 'Row density and status pills'],
+      ['34:00', 'Dark theme scope'], ['52:40', 'Empty state'], ['1:01:20', 'Owners and next steps']
+    ];
+    const chapters = chaptersRaw.map((c, i) => ({ at: c[0], title: c[1], cls: i === st.chapter ? 'on' : '', pick: () => this.setState({ chapter: i }) }));
+    const segsRaw = [
+      { sp: 'Sam Okafor', at: '00:18:10', a: 'Okay, next item. The rows feel a little tight to me on the ', low: 'fourteen-forty', b: ' mockup. Can we talk about density?', hl: '', c: '' },
+      { sp: 'Priya Natarajan', at: '00:18:24', a: 'I had the same note. If every row carries pills, the list gets busy fast.', low: '', b: '', hl: '', c: '' },
+      { sp: 'Me', at: '00:18:42', a: 'Proposal: ', low: '', b: '', hl: 'rows stay at 68 pixels, pills only for stages that have actually run', c: ', and nothing at all for audio-only recordings except a small caption.', note: 'check the README still says "status should be discoverable"', noteBy: 'Sam' },
+      { sp: 'Lee Chen', at: '00:19:05', a: 'That works. The caption is quieter than an empty pill would be.', low: '', b: '', hl: '', c: '' },
+      { sp: 'Sam Okafor', at: '00:19:20', a: 'Agreed then. Priya, can you update the ', low: 'Figma', b: ' and I will take the dark variant?', hl: '', c: '' },
+      { sp: 'Priya Natarajan', at: '00:19:31', a: 'Yes. One more: the processing card should disappear when a filter is active, otherwise it looks like a search result.', low: '', b: '', hl: '', c: '' }
+    ];
+    const segments = segsRaw.map((s, i) => ({
+      speaker: s.sp, at: s.at, color: colors[s.sp], a: s.a, low: s.low, b: s.b, hl: s.hl, c: s.c,
+      hlCls: s.hl ? 'hl' : '', hasNote: !!s.note, note: s.note || '', noteBy: s.noteBy || '',
+      cls: i === st.seg ? 'now' : '', pick: () => this.setState({ seg: i })
+    }));
+    const wave = [];
+    let v = 11;
+    const played = 0.266;
+    for (let i = 0; i < 160; i++) {
+      v = (v * 9301 + 49297) % 233280;
+      const r = v / 233280;
+      wave.push({ h: Math.round(6 + r * r * 50) + 'px', cls: i / 160 < played ? 'played' : '' });
+    }
+    const tabs = ['Details', 'Documents', 'History'].map(t => ({ label: t, on: st.tab === t, cls: st.tab === t ? 'on' : '', pick: () => this.setState({ tab: t }) }));
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      chapters, segments, wave, tabs,
+      chapterNow: chaptersRaw[st.chapter][1],
+      people: [
+        { name: 'Sam Okafor', color: 'var(--sp1)', share: '38%' },
+        { name: 'Priya Natarajan', color: 'var(--sp2)', share: '27%' },
+        { name: 'Lee Chen', color: 'var(--sp3)', share: '19%' },
+        { name: 'Me', color: 'var(--sp4)', share: '16%' }
+      ],
+      playing: st.playing, notPlaying: !st.playing,
+      playLabel: st.playing ? 'Pause' : 'Play',
+      togglePlay: () => this.setState({ playing: !st.playing }),
+      now: segsRaw[st.seg].at.replace(/^00:/, ''),
+      tabDetails: st.tab === 'Details', tabDocs: st.tab === 'Documents', tabHistory: st.tab === 'History'
+    };
+  }
+}
+</script>
+</body>
+</html>

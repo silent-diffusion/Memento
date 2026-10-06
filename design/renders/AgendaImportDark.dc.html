@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Details and agenda import, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA);--scrim:rgba(29,28,26,.28)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320);--scrim:rgba(0,0,0,.5)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.tog:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.field::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.input{height:36px;box-sizing:border-box;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;font-size:14px;width:100%}
+.item{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 4px;border-radius:9px}
+.item:hover{background:var(--surface-2)}
+.item .ii{flex:1;height:32px;border:1px solid transparent;background:transparent;border-radius:7px;padding:0 8px;font:inherit;font-size:14px;color:var(--text)}
+.item .ii:hover,.item .ii:focus{border-color:var(--line);background:var(--bg)}
+.item.low .ii{text-decoration:underline dotted var(--accent);text-decoration-thickness:1.5px;text-underline-offset:3px}
+.drop{border:2px dashed var(--line-strong);border-radius:14px;padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:var(--bg)}
+.drop.hot{border-color:var(--accent);background:var(--accent-soft)}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column; position: relative">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Main.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Library
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0">
+      <span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; padding: 0 10px">Q3 planning sync</span>
+      <span class="pill done">Meeting</span>
+    </div>
+    <button class="btn ghost" type="button" style="height: 36px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--text); background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 6px" aria-pressed="true">Details and agenda</button>
+  </header>
+
+  <main aria-hidden="true" style="flex: 1; padding: 32px 48px 40px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1344px; margin: 0 auto; display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+      <div style="flex: 1 1 280px; max-width: 320px; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+        <span class="lbl">Audio sources</span>
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; align-items: center; gap: 12px"><span class="tog on" style="display: inline-block; width: 40px; height: 22px; border-radius: 999px; background: var(--text)"></span><div style="display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Microphone</span><span style="font-size: 12px; color: var(--text-2)">Shure MV7 · USB</span></div></div>
+          <div style="display: flex; align-items: center; gap: 12px"><span class="tog on" style="display: inline-block; width: 40px; height: 22px; border-radius: 999px; background: var(--text)"></span><div style="display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">System audio</span><span style="font-size: 12px; color: var(--text-2)">Everything this PC plays</span></div></div>
+          <div style="display: flex; align-items: center; gap: 12px"><span class="tog on" style="display: inline-block; width: 40px; height: 22px; border-radius: 999px; background: var(--text)"></span><div style="display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Zoom</span><span style="font-size: 12px; color: var(--text-2)">Only this app</span></div></div>
+        </div>
+      </div>
+      <div style="flex: 3 1 480px; min-width: 0; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 32px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+        <span class="lbl">Ready to record</span>
+        <span class="mono" style="font-size: 64px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; color: var(--text-3)">00:00:00</span>
+        <span style="font-size: 13px; color: var(--text-2)">3 audio sources selected · audio only</span>
+        <span style="height: 56px; padding: 0 28px 0 22px; border-radius: 999px; background: var(--accent); color: #FFFFFF; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; gap: 12px; margin-top: 4px"><span style="width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF"></span>Start recording</span>
+      </div>
+    </div>
+  </main>
+
+  <div aria-hidden="true" style="position: absolute; inset: 60px 0 0 0; background: var(--scrim)"></div>
+
+  <aside role="dialog" aria-modal="true" aria-labelledby="sheet-title" style="position: absolute; top: 60px; right: 0; bottom: 0; width: 480px; max-width: 100%; background: var(--surface); border-left: 1px solid var(--line); box-sizing: border-box; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line)">
+      <h1 id="sheet-title" style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em">Details and agenda</h1>
+      <a class="icon-btn" href="Record.dc.html" aria-label="Close" style="width: 32px; height: 32px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+    </div>
+
+    <div style="flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 22px">
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+        <label style="display: flex; flex-direction: column; gap: 6px; grid-column: 1 / -1"><span class="lbl">Title</span><input class="input field" type="text" value="Q3 planning sync"></label>
+        <label style="display: flex; flex-direction: column; gap: 6px"><span class="lbl">Type</span><button class="btn ghost input" type="button" style="display: flex; align-items: center; justify-content: space-between; font-weight: 600">Meeting<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3)"><path d="M6 9l6 6 6-6"></path></svg></button></label>
+        <label style="display: flex; flex-direction: column; gap: 6px"><span class="lbl">Platform</span><input class="input field" type="text" value="Zoom"></label>
+        <div style="display: flex; flex-direction: column; gap: 6px; grid-column: 1 / -1">
+          <span class="lbl">Participants</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 36px; padding: 4px 6px; border-radius: 14px; border: none; background: var(--bg); box-shadow: var(--neo-in)">
+            <span class="pill done">Sam Okafor</span><span class="pill done">Priya Natarajan</span><span class="pill done">Lee Chen</span><span class="pill done">Me</span>
+            <label class="sr" for="add-person">Add a participant</label>
+            <input id="add-person" class="field" type="text" placeholder="Add a name" style="flex: 1; min-width: 100px; height: 26px; border: none; background: transparent; font: inherit; font-size: 13px; color: var(--text); padding: 0 4px">
+          </div>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 6px; grid-column: 1 / -1"><span class="lbl">Purpose</span><textarea class="input field" rows="2" style="height: auto; padding: 8px 12px; resize: vertical">Lock the launch date and agree Q3 budget asks.</textarea></label>
+      </div>
+
+      <div style="height: 1px; background: var(--line)"></div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
+          <span class="lbl">Agenda</span>
+          <sc-if value="{{parsed}}" hint-placeholder-val="{{true}}"><span style="font-size: 12px; color: var(--text-3)">From <span class="mono">agenda.docx</span> · parsed on this PC · <button class="btn" type="button" onClick="{{replace}}" style="border: none; background: transparent; padding: 0; font-size: 12px; font-weight: 700; color: var(--text-2)">Replace</button></span></sc-if>
+        </div>
+
+        <sc-if value="{{dropping}}" hint-placeholder-val="{{false}}">
+        <div class="drop {{dropCls}}" onDragOver="{{over}}" onDragLeave="{{leave}}" onDrop="{{dropped}}">
+          <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3)"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 18v-6 M9 15l3-3 3 3"></path></svg>
+          <span style="font-size: 15px; font-weight: 700">Drop an agenda here</span>
+          <span style="font-size: 13px; color: var(--text-2)">Word, PDF, Excel, CSV, Markdown, plain text, or a photo of a printed agenda</span>
+          <div style="display: flex; gap: 8px; margin-top: 4px">
+            <button class="btn ghost" type="button" onClick="{{choose}}" style="height: 34px; padding: 0 14px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600">Choose a file</button>
+            <button class="btn ghost" type="button" onClick="{{choose}}" style="height: 34px; padding: 0 14px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Paste text</button>
+          </div>
+          <span style="font-size: 12px; color: var(--text-3)">Parsed on this PC. Nothing is uploaded.</span>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{parsed}}" hint-placeholder-val="{{true}}">
+        <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px">
+          <sc-for list="{{items}}" as="it" hint-placeholder-count="5">
+          <li class="item {{it.cls}}">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color: var(--line-strong); flex: none; cursor: grab"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+            <span class="mono" style="font-size: 11px; color: var(--text-3); width: 14px; flex: none">{{it.n}}</span>
+            <label class="sr" for="{{it.id}}">Agenda item {{it.n}}</label>
+            <input id="{{it.id}}" class="ii field" type="text" value="{{it.text}}">
+            <button class="icon-btn" type="button" aria-label="Remove item" onClick="{{it.remove}}" style="width: 26px; height: 26px; border-radius: 12px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); flex: none"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          </li>
+          </sc-for>
+        </ol>
+        <sc-if value="{{hasLow}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-text); font-size: 13px">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5 M12 16h.01"></path></svg>
+          <span>One item is uncertain (dotted). A heading and its bullet may have been merged. Fix it here, or try the AI option below.</span>
+        </div>
+        </sc-if>
+        <button class="btn ghost" type="button" onClick="{{addItem}}" style="height: 36px; border-radius: 14px; border: 1px dashed var(--line-strong); background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2)">+ Add an item</button>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 16px; border: none; background: var(--bg); box-shadow: var(--neo-in)">
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+            <span style="font-size: 13px; font-weight: 700">Not quite right? Extract with AI</span>
+            <span style="font-size: 12px; color: var(--text-2)">Sends only the agenda file to Claude. You will be asked first.</span>
+          </div>
+          <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; flex: none">Extract</button>
+        </div>
+        </sc-if>
+      </div>
+
+      <div style="height: 1px; background: var(--line)"></div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <span class="lbl">Tags</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px"><span class="pill done">planning</span><span class="pill done">q3</span><button class="btn ghost" type="button" style="height: 24px; padding: 0 9px; border-radius: 999px; border: 1px dashed var(--line-strong); background: transparent; font-size: 12px; font-weight: 600; color: var(--text-3)">+ Add</button></div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line)">
+      <span style="font-size: 12px; color: var(--text-3)">Everything here can be changed later.</span>
+      <a class="btn primary" href="Record.dc.html" style="height: 36px; padding: 0 16px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center">Done</a>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"phase":{"editor":"enum","options":["parsed","drop"],"default":"parsed","section":"State"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      phase: props.phase ?? 'parsed',
+      hot: false,
+      items: [
+        { text: 'Q2 recap', low: false },
+        { text: 'Hiring plan', low: false },
+        { text: 'Launch date Options: 2nd week of Nov, after beta', low: true },
+        { text: 'Budget asks', low: false },
+        { text: 'Open questions', low: false }
+      ]
+    };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const items = st.items.map((it, i) => ({
+      id: 'ag-' + i, n: String(i + 1), text: it.text, cls: it.low ? 'low' : '',
+      remove: () => this.setState({ items: st.items.filter((x, j) => j !== i) })
+    }));
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      parsed: st.phase === 'parsed',
+      dropping: st.phase === 'drop',
+      dropCls: st.hot ? 'hot' : '',
+      items,
+      hasLow: st.items.some(x => x.low),
+      replace: () => this.setState({ phase: 'drop' }),
+      choose: () => this.setState({ phase: 'parsed' }),
+      over: (e) => { e.preventDefault(); if (!st.hot) this.setState({ hot: true }); },
+      leave: () => this.setState({ hot: false }),
+      dropped: (e) => { e.preventDefault(); this.setState({ phase: 'parsed', hot: false }); },
+      addItem: () => this.setState({ items: [...st.items, { text: '', low: false }] })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Document builder</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.seg,.tog,.modhead,.pal{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.seg:focus-visible,.tog:focus-visible,.modhead:focus-visible,.pal:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover,.pal:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.field::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{height:30px;padding:0 12px;border:none;background:transparent;border-radius:7px;font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.pal{display:flex;align-items:center;gap:8px;width:100%;height:34px;padding:0 10px 0 8px;border-radius:8px;border:none;background:transparent;font-size:13px;font-weight:600;color:var(--text);text-align:left;box-sizing:border-box;cursor:grab}
+.pal:active{cursor:grabbing}
+.mod{display:flex;flex-direction:column;gap:12px;min-width:0;padding:12px 12px 12px 10px;border-radius:12px;border:1px solid var(--line);background:var(--surface);box-sizing:border-box}
+.mod:hover{border-color:var(--line-strong)}
+.mod.on{border-color:var(--text);box-shadow:0 0 0 1px var(--text)}
+.mod.ghosted{opacity:.4}
+.handle{cursor:grab;color:var(--text-3);flex:none;display:inline-flex;padding:4px;border-radius:6px}
+.handle:active{cursor:grabbing}
+.dz{height:10px;border-radius:8px;transition:height .12s,background .12s;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-3)}
+.dz.live{height:40px;border:1px dashed var(--line-strong)}
+.dz.live.hot{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+.side{display:none;width:28px;border-radius:8px;border:1px dashed var(--line-strong);align-items:center;justify-content:center;color:var(--text-3)}
+.side.live{display:flex}
+.side.hot{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-text)}
+.chk{accent-color:var(--text);width:16px;height:16px;margin:0}
+.paper{background:#FFFFFF;color:#1D1C1A;padding:36px 36px 44px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px;min-height:560px}
+.paper.corporate{font-family:Manrope,'Segoe UI Variable',system-ui,sans-serif}
+.paper.minimal{font-family:Manrope,'Segoe UI Variable',system-ui,sans-serif}
+.paper.academic{font-family:Georgia,'Times New Roman',serif;counter-reset:sec}
+.paper .ttl{margin:0;line-height:1.15}
+.paper.corporate .ttl{font-size:22px;font-weight:800;letter-spacing:-.02em;color:#1F3A5F;padding-bottom:10px;border-bottom:2px solid #1F3A5F}
+.paper.minimal .ttl{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.paper.academic .ttl{font-size:21px;font-weight:700;text-align:center}
+.paper .meta{font-size:10px;color:#6B6861;margin:0}
+.paper.academic .meta{text-align:center}
+.paper h3{margin:0 0 8px;line-height:1.2}
+.paper.corporate h3{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#1F3A5F}
+.paper.minimal h3{font-size:12px;font-weight:700}
+.paper.academic h3{font-size:12px;font-weight:700}
+.paper.academic h3::before{counter-increment:sec;content:counter(sec) ".  "}
+.paper.minimal .sec{padding-top:12px;border-top:1px solid #E2DFD8}
+.bar{height:6px;border-radius:3px;background:#DCD9D2}
+.bar.d{background:#B9B5AC}
+.cell{height:14px;border-radius:3px;background:#E8E6E0}
+.cell.h{background:#D2CFC7}
+.paper.corporate .cell.h{background:#D9E1EC}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Review.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Design review: library screen
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0">
+      <label class="sr" for="tpl-name">Template name</label>
+      <input id="tpl-name" class="field" type="text" value="Meeting minutes" style="flex: 0 1 300px; min-width: 120px; height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 14px; border: 1px solid transparent; background: transparent; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.01em">
+      <span class="pill done">Template · {{count}} modules</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <button class="btn ghost" type="button" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Save template</button>
+      <a class="btn primary" href="DocView.dc.html" style="height: 36px; padding: 0 14px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px">
+        Generate minutes
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14 M13 6l6 6-6 6"></path></svg>
+      </a>
+    </div>
+  </header>
+
+  <main style="flex: 1; padding: 28px 40px 40px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1360px; margin: 0 auto; display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+
+      <section aria-label="Modules" style="flex: 0 1 236px; min-width: 200px; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+        <div style="position: relative">
+          <label class="sr" for="mod-search">Find a module</label>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 10px; color: var(--text-3)"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <input id="mod-search" class="field" type="search" placeholder="Find a module" style="width: 100%; height: 36px; box-sizing: border-box; padding: 0 12px 0 36px; border-radius: 14px; border: none; background: var(--bg); box-shadow: var(--neo-in); color: var(--text); font: inherit; font-size: 13px">
+        </div>
+        <sc-for list="{{palette}}" as="g" hint-placeholder-count="3">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span class="lbl" style="padding: 6px 10px 4px">{{g.label}}</span>
+          <sc-for list="{{g.items}}" as="m" hint-placeholder-count="4">
+          <button class="pal" type="button" draggable="{{true}}" onDragStart="{{m.dragStart}}" onDragEnd="{{dragEnd}}" onClick="{{m.add}}" aria-label="{{m.aria}}">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color: var(--line-strong); flex: none"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+            <span style="flex: 1">{{m.name}}</span>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color: var(--text-3)"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+          </sc-for>
+        </div>
+        </sc-for>
+        <p style="margin: 0; padding: 4px 10px 0; font-size: 12px; color: var(--text-3)">Drag onto the structure. Drop beside a module to put them side by side. Click to add at the end.</p>
+      </section>
+
+      <section aria-label="Document structure" style="flex: 999 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 0 2px 6px">
+          <span class="lbl">Structure · {{count}} modules in {{rowCount}} rows</span>
+          <span style="font-size: 12px; color: var(--text-3)">Top to bottom, left to right is the order in the document</span>
+        </div>
+
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div class="dz {{r.dzCls}}" onDragOver="{{r.overBefore}}" onDragLeave="{{leave}}" onDrop="{{r.dropBefore}}" aria-hidden="true">{{r.dzText}}</div>
+          <div style="display: flex; gap: 10px; align-items: stretch">
+            <div style="flex: 1; min-width: 0; display: grid; grid-template-columns: repeat({{r.cols}}, minmax(0, 1fr)); gap: 10px">
+              <sc-for list="{{r.items}}" as="m" hint-placeholder-count="2">
+              <div class="mod {{m.cls}}">
+                <div style="display: flex; align-items: center; gap: 2px">
+                  <span class="handle" draggable="{{true}}" onDragStart="{{m.dragStart}}" onDragEnd="{{dragEnd}}" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg></span>
+                  <button class="modhead" type="button" onClick="{{m.pick}}" aria-expanded="{{m.on}}" style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; border: none; background: transparent; padding: 0; text-align: left">
+                    <span class="mono" style="font-size: 11px; color: var(--text-3); width: 18px; flex: none">{{m.n}}</span>
+                    <span style="display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0">
+                      <span style="font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{m.name}}</span>
+                      <span style="font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{m.instr}}</span>
+                    </span>
+                  </button>
+                  <button class="icon-btn" type="button" aria-label="Move up" onClick="{{m.up}}" style="width: 26px; height: 26px; border-radius: 12px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3)"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"></path></svg></button>
+                  <button class="icon-btn" type="button" aria-label="Move down" onClick="{{m.down}}" style="width: 26px; height: 26px; border-radius: 12px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3)"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+                  <button class="icon-btn" type="button" aria-label="Remove module" onClick="{{m.remove}}" style="width: 26px; height: 26px; border-radius: 12px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--text-3)"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+                </div>
+                <sc-if value="{{m.on}}" hint-placeholder-val="{{false}}">
+                <div style="display: flex; flex-direction: column; gap: 12px; padding: 2px 0 0 32px">
+                  <label style="display: flex; flex-direction: column; gap: 6px">
+                    <span class="lbl">Instructions for this section</span>
+                    <textarea class="field" rows="3" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 14px; border: none; background: var(--bg); box-shadow: var(--neo-in); color: var(--text); font: inherit; font-size: 13px; resize: vertical">{{m.full}}</textarea>
+                  </label>
+                  <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+                    <div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 12px; color: var(--text-2)">Length</span><div role="group" aria-label="Length" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><button class="seg" type="button" style="height: 26px; font-size: 12px">Short</button><button class="seg on" type="button" aria-pressed="true" style="height: 26px; font-size: 12px">Medium</button><button class="seg" type="button" style="height: 26px; font-size: 12px">Long</button></div></div>
+                    <div style="display: flex; align-items: center; gap: 8px"><button class="tog on" type="button" role="switch" aria-checked="true" aria-label="Link each point to the transcript"><span></span></button><span style="font-size: 12px">Link to transcript</span></div>
+                  </div>
+                </div>
+                </sc-if>
+              </div>
+              </sc-for>
+            </div>
+            <div class="side {{r.sideCls}}" onDragOver="{{r.overSide}}" onDragLeave="{{leave}}" onDrop="{{r.dropSide}}" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></div>
+          </div>
+        </div>
+        </sc-for>
+        <div class="dz {{lastDzCls}}" onDragOver="{{overLast}}" onDragLeave="{{leave}}" onDrop="{{dropLast}}" aria-hidden="true">{{lastDzText}}</div>
+
+        <button class="btn ghost" type="button" onClick="{{addCustom}}" style="height: 44px; border-radius: 20px; border: 1px dashed var(--line-strong); background: transparent; font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 6px">+ Add a module</button>
+      </section>
+
+      <section aria-label="Preview and inputs" style="flex: 0 1 400px; min-width: 320px; display: flex; flex-direction: column; gap: 12px">
+        <div role="tablist" style="display: flex; gap: 2px; padding: 3px; border-radius: 16px; background: var(--surface-2); box-shadow: var(--neo-in)">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="2">
+          <button class="seg {{t.cls}}" type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="flex: 1">{{t.label}}</button>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{tabPreview}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 2px">
+            <span style="font-size: 12px; color: var(--text-2)">How the minutes will be laid out · <span style="font-weight: 700; color: var(--text)">{{styleName}}</span> style · Letter</span>
+            <a class="btn" href="StyleEditor.dc.html" style="font-size: 12px; font-weight: 700; color: var(--text)">Edit style</a>
+          </div>
+          <div class="paper {{styleCls}}">
+            <h2 class="ttl">Design review: library screen</h2>
+            <p class="meta">Meeting minutes · 5 October 2026 · 1 h 10 min · 4 participants</p>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+            <div class="sec" style="display: grid; grid-template-columns: repeat({{r.cols}}, minmax(0, 1fr)); gap: 18px">
+              <sc-for list="{{r.items}}" as="m" hint-placeholder-count="2">
+              <div style="min-width: 0; display: flex; flex-direction: column">
+                <h3>{{m.name}}</h3>
+                <sc-if value="{{m.kPara}}" hint-placeholder-val="{{true}}"><div style="display: flex; flex-direction: column; gap: 6px"><div class="bar"></div><div class="bar" style="width: 94%"></div><div class="bar" style="width: 88%"></div><div class="bar" style="width: 56%"></div></div></sc-if>
+                <sc-if value="{{m.kList}}" hint-placeholder-val="{{false}}"><div style="display: flex; flex-direction: column; gap: 7px"><div style="display: flex; gap: 8px; align-items: center"><span class="bar d" style="width: 5px; height: 5px"></span><div class="bar" style="flex: 1"></div></div><div style="display: flex; gap: 8px; align-items: center"><span class="bar d" style="width: 5px; height: 5px"></span><div class="bar" style="flex: 1; max-width: 80%"></div></div><div style="display: flex; gap: 8px; align-items: center"><span class="bar d" style="width: 5px; height: 5px"></span><div class="bar" style="flex: 1; max-width: 64%"></div></div></div></sc-if>
+                <sc-if value="{{m.kTable}}" hint-placeholder-val="{{false}}"><div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 4px"><div class="cell h"></div><div class="cell h"></div><div class="cell h"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div></sc-if>
+                <sc-if value="{{m.kChips}}" hint-placeholder-val="{{false}}"><div style="display: flex; flex-wrap: wrap; gap: 5px"><span class="cell" style="width: 64px; border-radius: 999px"></span><span class="cell" style="width: 78px; border-radius: 999px"></span><span class="cell" style="width: 52px; border-radius: 999px"></span><span class="cell" style="width: 40px; border-radius: 999px"></span></div></sc-if>
+                <sc-if value="{{m.kKv}}" hint-placeholder-val="{{false}}"><div style="display: grid; grid-template-columns: 56px 1fr; gap: 6px 10px"><div class="bar d" style="width: 40px"></div><div class="bar"></div><div class="bar d" style="width: 48px"></div><div class="bar" style="width: 70%"></div></div></sc-if>
+                <sc-if value="{{m.kQuote}}" hint-placeholder-val="{{false}}"><div style="display: flex; gap: 10px"><span style="width: 2px; background: #B9B5AC; border-radius: 1px"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 6px"><div class="bar"></div><div class="bar" style="width: 72%"></div><div class="bar d" style="width: 28%; height: 5px"></div></div></div></sc-if>
+                <sc-if value="{{m.kTimeline}}" hint-placeholder-val="{{false}}"><div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; gap: 8px; align-items: center"><span class="bar d" style="width: 24px; height: 5px"></span><span class="bar d" style="width: 6px; height: 6px; border-radius: 50%"></span><div class="bar" style="flex: 1"></div></div><div style="display: flex; gap: 8px; align-items: center"><span class="bar d" style="width: 24px; height: 5px"></span><span class="bar d" style="width: 6px; height: 6px; border-radius: 50%"></span><div class="bar" style="flex: 1; max-width: 70%"></div></div></div></sc-if>
+              </div>
+              </sc-for>
+            </div>
+            </sc-for>
+            <sc-if value="{{noModules}}" hint-placeholder-val="{{false}}"><p style="margin: 0; font-size: 12px; color: #8A867E">Add modules to see the layout.</p></sc-if>
+          </div>
+          <p style="margin: 0; padding: 0 2px; font-size: 12px; color: var(--text-3)">Grey bars stand for text the AI will write. Headings, order and columns are exactly what you will get.</p>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{tabInputs}}" hint-placeholder-val="{{false}}">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <span class="lbl">What the AI receives</span>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <sc-for list="{{inputs}}" as="i" hint-placeholder-count="5">
+              <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: {{i.color}}">
+                <input class="chk" type="checkbox" checked="{{i.on}}" disabled="{{i.locked}}" onChange="{{i.toggle}}">
+                <span style="flex: 1">{{i.name}}</span>
+                <span style="font-size: 12px; color: var(--text-3)">{{i.note}}</span>
+              </label>
+              </sc-for>
+            </div>
+          </div>
+          <div style="height: 1px; background: var(--line)"></div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <span class="lbl">Provider</span>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <sc-for list="{{providers}}" as="p" hint-placeholder-count="2">
+              <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; padding: 8px 10px; border-radius: 14px; border: 1px solid {{p.border}}">
+                <input class="chk" type="radio" name="provider" checked="{{p.on}}" onChange="{{p.pick}}" style="border-radius: 50%">
+                <span style="flex: 1; font-weight: 600">{{p.name}}</span>
+                <span style="font-size: 12px; color: var(--text-3)">{{p.note}}</span>
+              </label>
+              </sc-for>
+            </div>
+            <span style="font-size: 12px; color: var(--text-3)">Keys live in Settings › AI and privacy.</span>
+          </div>
+          <div style="height: 1px; background: var(--line)"></div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; justify-content: space-between"><span class="lbl">Style</span><a class="btn" href="StyleEditor.dc.html" style="font-size: 12px; font-weight: 700; color: var(--text-2)">Edit styles</a></div>
+            <div role="group" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)">
+              <sc-for list="{{styles}}" as="s" hint-placeholder-count="3">
+              <button class="seg {{s.cls}}" type="button" onClick="{{s.pick}}" style="flex: 1">{{s.name}}</button>
+              </sc-for>
+            </div>
+            <span style="font-size: 12px; color: var(--text-3)">Same structure, different look. Styles never change what is written.</span>
+          </div>
+          <div style="height: 1px; background: var(--line)"></div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <span class="lbl">Output</span>
+            <div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px">
+              <div style="display: flex; align-items: center; gap: 10px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok)"><path d="M5 12l5 5L20 7"></path></svg><span style="flex: 1">Saved inside this recording</span><span style="font-size: 12px; color: var(--text-3)">always</span></div>
+              <div style="display: flex; align-items: center; gap: 10px"><button class="tog" type="button" role="switch" aria-checked="false" aria-label="Also export as Word document"><span></span></button><span style="flex: 1">Also export as Word (.docx)</span></div>
+              <div style="display: flex; align-items: center; gap: 10px"><button class="tog" type="button" role="switch" aria-checked="false" aria-label="Also export as Markdown"><span></span></button><span style="flex: 1">Also export as Markdown</span></div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <div style="padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; color: var(--text-2); display: flex; flex-direction: column; gap: 6px">
+          <span>Nothing leaves this PC until you press Generate.</span>
+          <button class="btn" type="button" style="align-self: flex-start; border: none; background: transparent; padding: 0; font-size: 12px; font-weight: 700; color: var(--text)">Preview exactly what will be sent</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.n = 100;
+    this.drag = null;
+    this.state = {
+      mods: {
+        1: { name: 'Executive summary', instr: 'Three sentences. Decisions first, then risks.' },
+        2: { name: 'Meeting purpose', instr: 'One line, taken from the recording details.' },
+        3: { name: 'Participants', instr: 'Names and roles. Mark who was absent.' },
+        4: { name: 'Agenda', instr: 'As imported, with a note on items not reached.' },
+        5: { name: 'Discussion summary', instr: 'One short paragraph per agenda item, neutral tone.' },
+        6: { name: 'Decisions', instr: 'Bulleted. Quote the moment of agreement with a timestamp.' },
+        7: { name: 'Action items', instr: 'Table: action, owner, deadline. Only commitments actually made.' },
+        8: { name: 'Open questions', instr: 'Questions raised but not answered.' },
+        9: { name: 'Next meeting', instr: 'Date, time and proposed agenda if mentioned.' }
+      },
+      rows: [[1], [2, 3], [4], [5], [6, 7], [8, 9]],
+      selected: 6,
+      dragging: false,
+      over: null,
+      tab: 'Preview',
+      inputs: { transcript: true, participants: true, agenda: true, highlights: true, docs: false },
+      provider: 'claude',
+      style: 'Corporate'
+    };
+  }
+  kind(name) {
+    const n = name.toLowerCase();
+    if (n.includes('action')) return 'table';
+    if (n.includes('participant')) return 'chips';
+    if (n.includes('purpose') || n.includes('next meeting')) return 'kv';
+    if (n.includes('quote') || n.includes('highlight')) return 'quote';
+    if (n.includes('timeline') || n.includes('chapter')) return 'timeline';
+    if (n.includes('decision') || n.includes('agenda') || n.includes('open question') || n.includes('follow')) return 'list';
+    return 'para';
+  }
+  // Remove a module id from the rows, dropping emptied rows.
+  without(rows, id) {
+    return rows.map(r => r.filter(x => x !== id)).filter(r => r.length);
+  }
+  payloadId() {
+    // Returns an id for the dragged thing, creating the module if it comes from the palette.
+    const d = this.drag;
+    if (!d) return null;
+    if (d.kind === 'mod') return { id: d.id, mods: this.state.mods };
+    const id = ++this.n;
+    return { id, mods: { ...this.state.mods, [id]: { name: d.name, instr: 'Describe what this section should contain.' } } };
+  }
+  dropBetween(index) {
+    return (e) => {
+      e.preventDefault();
+      const p = this.payloadId();
+      if (!p) return;
+      let rows = this.without(this.state.rows, p.id);
+      // Re-find the insertion index after removal: count rows before `index` that still exist.
+      const before = this.state.rows.slice(0, index).map(r => r.filter(x => x !== p.id)).filter(r => r.length).length;
+      rows = [...rows.slice(0, before), [p.id], ...rows.slice(before)];
+      this.drag = null;
+      this.setState({ rows, mods: p.mods, selected: p.id, dragging: false, over: null });
+    };
+  }
+  dropBeside(index) {
+    return (e) => {
+      e.preventDefault();
+      const p = this.payloadId();
+      if (!p) return;
+      const target = this.state.rows[index];
+      if (!target || target.includes(p.id) || target.length >= 3) { this.setState({ dragging: false, over: null }); return; }
+      const key = target.join('|');
+      let rows = this.without(this.state.rows, p.id);
+      rows = rows.map(r => r.join('|') === key ? [...r, p.id] : r);
+      this.drag = null;
+      this.setState({ rows, mods: p.mods, selected: p.id, dragging: false, over: null });
+    };
+  }
+  over(key) {
+    return (e) => { e.preventDefault(); if (this.state.over !== key) this.setState({ over: key }); };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const ids = st.rows.flat();
+    let counter = 0;
+    const moveRow = (ri, dir) => {
+      const rows = st.rows.slice();
+      const j = ri + dir;
+      if (j < 0 || j >= rows.length) return;
+      const t = rows[ri]; rows[ri] = rows[j]; rows[j] = t;
+      this.setState({ rows });
+    };
+    const pullOut = (ri, id, dir) => {
+      let rows = this.without(st.rows, id);
+      const at = dir < 0 ? ri : ri + 1;
+      rows = [...rows.slice(0, at), [id], ...rows.slice(at)];
+      this.setState({ rows });
+    };
+    const rows = st.rows.map((r, ri) => ({
+      cols: r.length,
+      items: r.map(id => {
+        const m = st.mods[id];
+        counter += 1;
+        const k = this.kind(m.name);
+        return {
+          name: m.name, instr: m.instr, full: m.instr,
+          n: String(counter).padStart(2, '0'),
+          on: st.selected === id,
+          cls: (st.selected === id ? 'on' : '') + (st.dragging && this.drag && this.drag.kind === 'mod' && this.drag.id === id ? ' ghosted' : ''),
+          kPara: k === 'para', kList: k === 'list', kTable: k === 'table', kChips: k === 'chips', kKv: k === 'kv', kQuote: k === 'quote', kTimeline: k === 'timeline',
+          pick: () => this.setState({ selected: id }),
+          up: () => r.length > 1 ? pullOut(ri, id, -1) : moveRow(ri, -1),
+          down: () => r.length > 1 ? pullOut(ri, id, 1) : moveRow(ri, 1),
+          remove: () => this.setState({ rows: this.without(st.rows, id) }),
+          dragStart: (e) => { this.drag = { kind: 'mod', id }; try { e.dataTransfer.setData('text/plain', 'mod:' + id); e.dataTransfer.effectAllowed = 'move'; } catch (x) {} this.setState({ dragging: true }); }
+        };
+      }),
+      dzCls: (st.dragging ? 'live' : '') + (st.over === 'b' + ri ? ' hot' : ''),
+      dzText: st.dragging ? 'Drop here for a new row' : '',
+      overBefore: this.over('b' + ri),
+      dropBefore: this.dropBetween(ri),
+      sideCls: (st.dragging && r.length < 3 && !(this.drag && this.drag.kind === 'mod' && r.includes(this.drag.id)) ? 'live' : '') + (st.over === 's' + ri ? ' hot' : ''),
+      overSide: this.over('s' + ri),
+      dropSide: this.dropBeside(ri)
+    }));
+    const add = (name) => () => {
+      const id = ++this.n;
+      this.setState({ mods: { ...st.mods, [id]: { name, instr: 'Describe what this section should contain.' } }, rows: [...st.rows, [id]], selected: id });
+    };
+    const pal = (label, names) => ({ label, items: names.map(n => ({
+      name: n, aria: 'Add ' + n, add: add(n),
+      dragStart: (e) => { this.drag = { kind: 'new', name: n }; try { e.dataTransfer.setData('text/plain', 'new:' + n); e.dataTransfer.effectAllowed = 'copy'; } catch (x) {} this.setState({ dragging: true }); }
+    })) });
+    const palette = [
+      pal('Structure', ['Title', 'Executive summary', 'Participants', 'Agenda', 'Discussion summary', 'Decisions', 'Action items', 'Open questions', 'Next meeting']),
+      pal('Detail', ['Topic', 'Quote', 'Highlight', 'Chapter', 'Timeline', 'Follow-up email', 'Notes']),
+      pal('Custom', ['Custom text', 'Custom AI section'])
+    ];
+    const inp = (id, name, note) => ({
+      name, note, on: !!st.inputs[id], locked: false, color: 'var(--text)',
+      toggle: () => this.setState({ inputs: { ...st.inputs, [id]: !st.inputs[id] } })
+    });
+    const inputs = [
+      inp('transcript', 'Transcript', 'with speakers'),
+      inp('participants', 'Participants and details', ''),
+      inp('agenda', 'Agenda', 'agenda.docx'),
+      inp('highlights', 'Highlights and notes', '3 + 1'),
+      inp('docs', 'Imported documents', 'none attached'),
+      { name: 'Audio', note: 'never sent', on: false, locked: true, color: 'var(--text-3)', toggle: () => {} },
+      { name: 'Video', note: 'never sent', on: false, locked: true, color: 'var(--text-3)', toggle: () => {} }
+    ];
+    const providers = [
+      { id: 'claude', name: 'Claude', note: 'Anthropic · key saved' },
+      { id: 'openai', name: 'ChatGPT', note: 'OpenAI · no key' }
+    ].map(p => ({ ...p, on: st.provider === p.id, border: st.provider === p.id ? 'var(--text)' : 'var(--line)', pick: () => this.setState({ provider: p.id }) }));
+    const styles = ['Corporate', 'Minimal', 'Academic'].map(s => ({ name: s, cls: st.style === s ? 'on' : '', pick: () => this.setState({ style: s }) }));
+    const tabs = ['Preview', 'Inputs and output'].map(t => ({ label: t, on: st.tab === t, cls: st.tab === t ? 'on' : '', pick: () => this.setState({ tab: t }) }));
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      rows, palette, inputs, providers, styles, tabs,
+      count: ids.length,
+      rowCount: st.rows.length,
+      noModules: ids.length === 0,
+      styleName: st.style,
+      styleCls: st.style.toLowerCase(),
+      tabPreview: st.tab === 'Preview',
+      tabInputs: st.tab !== 'Preview',
+      addCustom: add('Custom AI section'),
+      dragEnd: () => { this.drag = null; this.setState({ dragging: false, over: null }); },
+      leave: () => { if (st.over) this.setState({ over: null }); },
+      lastDzCls: (st.dragging ? 'live' : '') + (st.over === 'last' ? ' hot' : ''),
+      lastDzText: st.dragging ? 'Drop here to add at the end' : '',
+      overLast: this.over('last'),
+      dropLast: this.dropBetween(st.rows.length)
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+artifacts/
+publish/
+*.binlog
+
+# Node / UI
+node_modules/
+ui/dist/
+ui/.vite/
+*.tsbuildinfo
+
+# Velopack / packaging output
+build/out/
+Releases/
+
+# Models, logs, local data (never commit)
+models/
+logs/
+*.log
+*.db
+*.db-wal
+*.db-shm
+*.wav
+*.flac
+*.mp3
+*.m4a
+!tests/**/fixtures/**/*.wav
+
+# OS / editors
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

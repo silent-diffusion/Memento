@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Export dialog, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA);--scrim:rgba(29,28,26,.28)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320);--scrim:rgba(0,0,0,.5)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.tog:focus-visible,.chk:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.chk{accent-color:var(--text);width:16px;height:16px;margin:0}
+.comp{display:flex;align-items:center;gap:14px;padding:12px 16px;min-height:52px}
+.comp+.comp{border-top:1px solid var(--line)}
+.comp.off .nm{color:var(--text-2)}
+.sub{display:flex;align-items:center;gap:14px;padding:8px 16px 10px 46px;border-top:1px solid var(--line);background:var(--bg)}
+.sel{height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:transparent;font-size:13px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.sel:disabled{opacity:.5}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column; position: relative">
+
+  <header aria-hidden="true" style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px">
+    <span style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>Library</span>
+    <span style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em">Design review: library screen</span><span style="font-size: 12px; color: var(--text-2)">Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · audio + video</span></div>
+    <span style="height: 36px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--text); background: var(--surface-2); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center">Export</span>
+    <span style="height: 36px; padding: 0 14px; border-radius: 14px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center">Create document</span>
+  </header>
+
+  <div aria-hidden="true" style="flex: 1; display: flex">
+    <div style="flex: 0 0 260px; border-right: 1px solid var(--line)"></div>
+    <div style="flex: 1; background: var(--surface)"></div>
+    <div style="flex: 0 0 320px; border-left: 1px solid var(--line)"></div>
+  </div>
+
+  <div aria-hidden="true" style="position: absolute; inset: 60px 0 0 0; background: var(--scrim)"></div>
+
+  <div style="position: absolute; inset: 60px 0 0 0; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box">
+    <div role="dialog" aria-modal="true" aria-labelledby="exp-title" style="width: 680px; max-width: 100%; max-height: 100%; background: var(--surface); border-radius: 28px; box-shadow: var(--neo-card); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 22px 24px 16px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h1 id="exp-title" style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.01em">Export copies</h1>
+          <p style="margin: 0; font-size: 13px; color: var(--text-2)">Design review: library screen. Files are written outside Memento; the recording inside Memento stays the original.</p>
+        </div>
+        <a class="icon-btn" href="Review.dc.html" aria-label="Close" style="width: 32px; height: 32px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); flex: none"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+      </div>
+
+      <div style="padding: 0 24px 20px; display: flex; flex-direction: column; gap: 20px; overflow: auto">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lbl">What to include</span>
+          <div style="border-radius: 20px; box-shadow: var(--neo-sm); overflow: hidden">
+            <sc-for list="{{comps}}" as="c" hint-placeholder-count="6">
+            <div>
+              <div class="comp {{c.cls}}">
+                <input class="chk" type="checkbox" id="{{c.id}}" checked="{{c.on}}" onChange="{{c.toggle}}">
+                <label for="{{c.id}}" style="flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: pointer">
+                  <span class="nm" style="font-size: 14px; font-weight: 600">{{c.name}}</span>
+                  <span style="font-size: 12px; color: var(--text-3)">{{c.desc}}</span>
+                </label>
+                <span class="mono" style="font-size: 12px; color: var(--text-3); width: 64px; text-align: right">{{c.size}}</span>
+                <button class="sel" type="button" disabled="{{c.off}}" aria-label="{{c.fmtLabel}}">{{c.fmt}}<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3)"><path d="M6 9l6 6 6-6"></path></svg></button>
+              </div>
+              <sc-if value="{{c.hasSub}}" hint-placeholder-val="{{false}}">
+              <div class="sub">
+                <sc-for list="{{c.subs}}" as="s" hint-placeholder-count="2">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"><input class="chk" type="checkbox" checked="{{s.on}}" onChange="{{s.toggle}}">{{s.name}}<span class="mono" style="font-size: 11px; color: var(--text-3)">{{s.size}}</span></label>
+                </sc-for>
+              </div>
+              </sc-if>
+            </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <span class="lbl">Where</span>
+          <div style="border-radius: 20px; box-shadow: var(--neo-sm); overflow: hidden">
+            <div class="comp">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0"><span style="font-size: 14px; font-weight: 600">Folder</span><span class="mono" style="font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{folder}}</span></div>
+              <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Change</button>
+            </div>
+            <div class="comp">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px; font-weight: 600">Put everything in a folder named after the recording</span><span style="font-size: 12px; color: var(--text-3)">Design review - library screen</span></div>
+              <button class="tog {{subfolderCls}}" type="button" role="switch" aria-checked="{{subfolder}}" aria-label="Create a folder named after the recording" onClick="{{toggleSub}}"><span></span></button>
+            </div>
+            <div class="comp">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 1px"><span style="font-size: 14px; font-weight: 600">Remember these choices</span><span style="font-size: 12px; color: var(--text-3)">Becomes the default in Settings › Export</span></div>
+              <button class="tog" type="button" role="switch" aria-checked="false" aria-label="Remember these choices"><span></span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px; border-top: 1px solid var(--line); background: var(--bg)">
+        <span style="font-size: 13px; color: var(--text-2)"><span style="font-weight: 700; color: var(--text)">{{fileCount}}</span> · about <span class="mono">{{total}}</span></span>
+        <div style="display: flex; gap: 8px">
+          <a class="btn ghost" href="Review.dc.html" style="height: 36px; padding: 0 14px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--text-2)">Cancel</a>
+          <a class="btn primary" href="Review.dc.html" style="height: 36px; padding: 0 16px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center">Export</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { on: { audio: true, tracks: false, video: false, transcript: true, docs: true, details: false, attach: false }, docs: { minutes: true, actions: true, notes: false }, subfolder: true };
+  }
+  fmtSize(mb) {
+    return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : (mb >= 10 ? Math.round(mb) : mb.toFixed(1)) + ' MB';
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const docSizes = { minutes: 0.3, actions: 0.1, notes: 0.1 };
+    const docNames = { minutes: 'Meeting minutes', actions: 'Action items', notes: 'My notes' };
+    const defs = [
+      { id: 'audio', name: 'Audio (mixed)', desc: 'One file with every track mixed together', mb: 420, fmt: 'FLAC', files: 1 },
+      { id: 'tracks', name: 'Individual tracks', desc: 'Microphone, Zoom and system audio as separate files', mb: 1300, fmt: 'FLAC', files: 3 },
+      { id: 'video', name: 'Video', desc: 'Screen recording with the mixed audio', mb: 1900, fmt: 'MP4', files: 1 },
+      { id: 'transcript', name: 'Transcript', desc: 'Speakers, timestamps and confidence', mb: 2.4, fmt: 'JSON', files: 1 },
+      { id: 'docs', name: 'Documents', desc: 'Generated and hand-written documents', mb: 0, fmt: 'Word', files: 0, subs: true },
+      { id: 'details', name: 'Recording details', desc: 'Title, date, participants, agenda, tags', mb: 0.1, fmt: 'JSON', files: 1 },
+      { id: 'attach', name: 'Attachments', desc: 'agenda.docx', mb: 4, fmt: 'Original', files: 1 }
+    ];
+    let files = 0, total = 0;
+    const comps = defs.map(d => {
+      const on = !!st.on[d.id];
+      let mb = d.mb, n = d.files;
+      let subs = [];
+      if (d.subs) {
+        subs = Object.keys(docNames).map(k => ({
+          name: docNames[k], size: this.fmtSize(docSizes[k]), on: !!st.docs[k],
+          toggle: () => this.setState({ docs: { ...st.docs, [k]: !st.docs[k] } })
+        }));
+        mb = Object.keys(docSizes).filter(k => st.docs[k]).reduce((a, k) => a + docSizes[k], 0);
+        n = Object.keys(docSizes).filter(k => st.docs[k]).length;
+      }
+      if (on) { files += n; total += mb; }
+      return {
+        id: 'exp-' + d.id, name: d.name, desc: d.desc, size: this.fmtSize(mb), fmt: d.fmt, fmtLabel: 'Format for ' + d.name,
+        on, off: !on, cls: on ? '' : 'off', hasSub: !!d.subs && on, subs,
+        toggle: () => this.setState({ on: { ...st.on, [d.id]: !on } })
+      };
+    });
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      comps,
+      fileCount: files + (files === 1 ? ' file' : ' files'),
+      total: this.fmtSize(total),
+      folder: st.subfolder ? 'D:\\Exports\\Design review - library screen\\' : 'D:\\Exports\\',
+      subfolder: st.subfolder, subfolderCls: st.subfolder ? 'on' : '',
+      toggleSub: () => this.setState({ subfolder: !st.subfolder })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Recording session</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.tog:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.field::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.pill.active{background:var(--accent-soft);color:var(--accent-text)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.src.off{opacity:.55}
+.bar{flex:1;border-radius:1px;background:var(--text-3)}
+.bar.live{background:var(--ok)}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Main.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Library
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0">
+      <label class="sr" for="rec-title">Recording title</label>
+      <input id="rec-title" class="field" type="text" value="Q3 planning sync" style="flex: 0 1 360px; min-width: 120px; height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 14px; border: 1px solid transparent; background: transparent; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.01em">
+      <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px">
+        Meeting
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <button class="btn ghost" type="button" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4"></path></svg>
+        Details and agenda
+      </button>
+    </div>
+  </header>
+
+  <main style="flex: 1; padding: 32px 48px 40px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1344px; margin: 0 auto; display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+
+      <section aria-label="Sources" style="flex: 1 1 280px; max-width: 320px; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <span class="lbl">Audio sources</span>
+          <button class="btn ghost" type="button" style="height: 28px; padding: 0 10px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 12px; font-weight: 600; color: var(--text-2)">Add</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <sc-for list="{{sources}}" as="s" hint-placeholder-count="3">
+          <div class="src {{s.cls}}" style="display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <button class="tog {{s.cls2}}" type="button" role="switch" aria-checked="{{s.on}}" aria-label="{{s.name}}" onClick="{{s.toggle}}"><span></span></button>
+              <div style="display: flex; flex-direction: column; min-width: 0; flex: 1">
+                <span style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{s.name}}</span>
+                <span style="font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{s.sub}}</span>
+              </div>
+            </div>
+            <div aria-hidden="true" style="height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-left: 52px"><div style="height: 6px; border-radius: 3px; background: var(--ok); width: {{s.level}}"></div></div>
+          </div>
+          </sc-for>
+        </div>
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <span class="lbl">Video</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <div class="src off" style="display: flex; align-items: center; gap: 12px">
+            <button class="tog" type="button" role="switch" aria-checked="false" aria-label="Screen"><span></span></button>
+            <div style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 15px; font-weight: 600">Screen</span><span style="font-size: 12px; color: var(--text-2)">Display 1 · 2560 × 1440</span></div>
+          </div>
+          <div class="src off" style="display: flex; align-items: center; gap: 12px">
+            <button class="tog" type="button" role="switch" aria-checked="false" aria-label="Camera"><span></span></button>
+            <div style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 15px; font-weight: 600">Camera</span><span style="font-size: 12px; color: var(--text-2)">Not recording video</span></div>
+          </div>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: var(--text-3)">Each source is saved as its own synchronized track.</p>
+      </section>
+
+      <section aria-label="Recording" style="flex: 3 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 32px 32px 28px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+
+          <sc-if value="{{isRec}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text)">
+            <span class="{{dotCls}}" aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent)"></span>
+            {{statusLabel}}
+          </div>
+          </sc-if>
+          <sc-if value="{{isReady}}" hint-placeholder-val="{{false}}">
+          <div class="lbl">Ready to record</div>
+          </sc-if>
+
+          <div class="mono" aria-live="off" style="font-size: 64px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; color: {{timerColor}}">{{timer}}</div>
+          <div style="font-size: 13px; color: var(--text-2)">{{subline}}</div>
+
+          <div style="display: flex; align-items: center; gap: 16px; margin-top: 4px">
+            <sc-if value="{{isRec}}" hint-placeholder-val="{{true}}">
+            <button class="btn ghost" type="button" onClick="{{togglePause}}" aria-label="{{pauseLabel}}" style="width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; justify-content: center; color: var(--text)">
+              <sc-if value="{{paused}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg></sc-if>
+              <sc-if value="{{notPaused}}" hint-placeholder-val="{{true}}"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></sc-if>
+            </button>
+            <a class="btn primary" href="Review.dc.html" aria-label="Stop and open review" style="width: 72px; height: 72px; border-radius: 50%; background: var(--accent-grad); display: inline-flex; align-items: center; justify-content: center">
+              <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="#FFFFFF"><rect x="5" y="5" width="14" height="14" rx="3"></rect></svg>
+            </a>
+            <button class="btn ghost" type="button" onClick="{{mark}}" style="height: 56px; padding: 0 18px; border-radius: 999px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 14px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 8px">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4a1 1 0 0 1 1-1h11l-2 4 2 4H6"></path></svg>
+              Mark highlight
+            </button>
+            </sc-if>
+            <sc-if value="{{isReady}}" hint-placeholder-val="{{false}}">
+            <button class="btn primary" type="button" onClick="{{start}}" style="height: 56px; padding: 0 28px 0 22px; border-radius: 999px; border: none; background: var(--accent-grad); color: #FFFFFF; font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; gap: 12px">
+              <span aria-hidden="true" style="width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF"></span>
+              Start recording
+            </button>
+            </sc-if>
+          </div>
+
+          <sc-if value="{{isReady}}" hint-placeholder-val="{{false}}">
+          <p style="margin: 0; font-size: 13px; color: var(--text-3); max-width: 420px">Starts the moment you press. Everything is saved to this PC as it records; transcription runs locally afterwards.</p>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{isRec}}" hint-placeholder-val="{{true}}">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; align-items: center; justify-content: space-between">
+            <span class="lbl">Tracks</span>
+            <span class="mono" style="font-size: 12px; color: var(--text-3)">{{timer}}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <sc-for list="{{lanes}}" as="l" hint-placeholder-count="3">
+            <div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; align-items: center">
+              <span style="font-size: 13px; font-weight: 600; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{l.name}}</span>
+              <div aria-hidden="true" style="height: 36px; display: flex; align-items: center; gap: 2px; border-radius: 12px; background: var(--surface-2); box-shadow: var(--neo-in); padding: 0 8px; box-sizing: border-box">
+                <sc-for list="{{l.bars}}" as="b" hint-placeholder-count="40"><div class="bar {{b.cls}}" style="height: {{b.h}}"></div></sc-for>
+              </div>
+            </div>
+            </sc-for>
+          </div>
+          <div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px">
+            <span></span>
+            <div class="mono" style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); padding: 0 8px"><span>00:00</span><span>{{quarter}}</span><span>{{half}}</span><span>{{threeq}}</span><span>{{timerShort}}</span></div>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{hasMarks}}" hint-placeholder-val="{{true}}">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <span class="lbl">Highlights</span>
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <sc-for list="{{marks}}" as="m" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span class="mono" style="font-size: 13px; color: var(--text-2); width: 72px">{{m.at}}</span>
+              <input class="field" type="text" value="{{m.note}}" placeholder="Add a note (optional)" aria-label="Highlight note" style="flex: 1; height: 32px; box-sizing: border-box; padding: 0 10px; border-radius: 12px; border: none; background: var(--bg); box-shadow: var(--neo-in); color: var(--text); font: inherit; font-size: 13px">
+            </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+      </section>
+
+      <section aria-label="Live transcript and agenda" style="flex: 1 1 300px; max-width: 360px; display: flex; flex-direction: column; gap: 24px">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+            <span class="lbl">Live transcript</span>
+            <span class="pill done">Local · GPU</span>
+          </div>
+          <sc-if value="{{isRec}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="font-size: 11px; color: var(--text-3)">00:11:02 · Speaker 1</span><span style="font-size: 14px">We should lock the launch date before the offsite, otherwise marketing can't plan the announcement.</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="font-size: 11px; color: var(--text-3)">00:11:31 · Speaker 3</span><span style="font-size: 14px">Agreed. Can we say the second week of November and revisit if the beta slips?</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="font-size: 11px; color: var(--text-3)">00:12:20 · Speaker 1</span><span style="font-size: 14px">Fine by me. Then the open question is who owns the <span style="color: var(--text-3)">…</span></span></div>
+          </div>
+          <p style="margin: 0; font-size: 12px; color: var(--text-3)">Rough draft. Speaker names and corrections happen in Review.</p>
+          </sc-if>
+          <sc-if value="{{isReady}}" hint-placeholder-val="{{false}}">
+          <p style="margin: 0; font-size: 13px; color: var(--text-3)">Words appear here a few seconds behind the recording. Turn this off in Settings if you prefer to transcribe afterwards.</p>
+          </sc-if>
+        </div>
+
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+            <span class="lbl">Agenda</span>
+            <span style="font-size: 12px; color: var(--text-3)">From agenda.docx</span>
+          </div>
+          <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+            <li style="display: flex; align-items: center; gap: 10px; color: var(--text-3)"><svg aria-label="Covered" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok)"><path d="M5 12l5 5L20 7"></path></svg><span style="text-decoration: line-through">Q2 recap</span></li>
+            <li style="display: flex; align-items: center; gap: 10px; color: var(--text-3)"><svg aria-label="Covered" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--ok)"><path d="M5 12l5 5L20 7"></path></svg><span style="text-decoration: line-through">Hiring plan</span></li>
+            <li style="display: flex; align-items: center; gap: 10px; font-weight: 600"><span aria-hidden="true" style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--accent); box-sizing: border-box"></span>Launch date</li>
+            <li style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); box-sizing: border-box"></span>Budget asks</li>
+            <li style="display: flex; align-items: center; gap: 10px"><span aria-hidden="true" style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); box-sizing: border-box"></span>Open questions</li>
+          </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer style="min-height: 36px; box-sizing: border-box; padding: 0 24px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 12px; color: var(--text-3); flex-wrap: wrap">
+    <span style="display: flex; align-items: center; gap: 8px"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--ok)"></span>{{saveLine}}</span>
+    <span>212 GB free · about 190 hours at this quality</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"phase":{"editor":"enum","options":["recording","ready"],"default":"recording","section":"State"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      phase: props.phase ?? 'recording',
+      paused: false,
+      seconds: 767,
+      sources: { mic: true, sys: true, zoom: true },
+      marks: [{ at: '00:04:12', note: 'Decision: launch date' }, { at: '00:09:48', note: '' }]
+    };
+  }
+  componentDidMount() {
+    this.t = setInterval(() => {
+      if (this.state.phase === 'recording' && !this.state.paused) this.setState({ seconds: this.state.seconds + 1 });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.t); }
+  fmt(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0');
+  }
+  short(s) {
+    const m = Math.floor(s / 60), x = s % 60;
+    return String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0');
+  }
+  bars(seed, n, live) {
+    const out = [];
+    let v = seed;
+    for (let i = 0; i < n; i++) {
+      v = (v * 9301 + 49297) % 233280;
+      const r = v / 233280;
+      const h = Math.round(4 + r * r * 22);
+      out.push({ h: h + 'px', cls: live ? 'live' : '' });
+    }
+    return out;
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const rec = st.phase === 'recording';
+    const s = st.sources;
+    const mk = (id, name, sub, lvl) => ({
+      name, sub, on: s[id], level: s[id] ? lvl : '0%', cls: s[id] ? '' : 'off', cls2: s[id] ? 'on' : '',
+      toggle: () => this.setState({ sources: { ...s, [id]: !s[id] } })
+    });
+    const sources = [
+      mk('mic', 'Microphone', 'Shure MV7 · USB', '62%'),
+      mk('sys', 'System audio', 'Everything this PC plays', '38%'),
+      mk('zoom', 'Zoom', 'Only this app', '71%')
+    ];
+    const active = sources.filter(x => x.on).length;
+    const lanes = [
+      { name: 'Microphone', bars: this.bars(7, 72, s.mic) },
+      { name: 'System audio', bars: this.bars(13, 72, s.sys) },
+      { name: 'Zoom', bars: this.bars(29, 72, s.zoom) }
+    ];
+    const sec = rec ? st.seconds : 0;
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      isRec: rec,
+      isReady: !rec,
+      paused: st.paused,
+      notPaused: !st.paused,
+      dotCls: st.paused ? '' : 'pulse',
+      statusLabel: st.paused ? 'Paused' : 'Recording',
+      pauseLabel: st.paused ? 'Resume' : 'Pause',
+      timer: this.fmt(sec),
+      timerShort: this.short(sec),
+      quarter: this.short(Math.floor(sec / 4)),
+      half: this.short(Math.floor(sec / 2)),
+      threeq: this.short(Math.floor(sec * 3 / 4)),
+      timerColor: rec ? 'var(--text)' : 'var(--text-3)',
+      subline: rec ? 'Started 10:00 AM · ' + active + ' audio tracks · audio only' : active + ' audio sources selected · audio only',
+      saveLine: rec ? 'Saving continuously · last checkpoint 8 s ago' : 'Ready · recordings save to this PC as they happen',
+      togglePause: () => this.setState({ paused: !st.paused }),
+      start: () => this.setState({ phase: 'recording', seconds: 0, paused: false, marks: [] }),
+      mark: () => this.setState({ marks: [...st.marks, { at: this.fmt(st.seconds), note: '' }] }),
+      marks: st.marks,
+      hasMarks: rec && st.marks.length > 0,
+      sources,
+      lanes
+    };
+  }
+}
+</script>
+</body>
+</html>

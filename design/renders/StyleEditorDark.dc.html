@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Style editor, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.seg,.tog,.sw{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.seg:focus-visible,.tog:focus-visible,.sw:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{height:30px;padding:0 12px;border:none;background:transparent;border-radius:7px;font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.sw{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0;box-shadow:0 0 0 1px var(--line)}
+.sw.on{border-color:var(--bg);box-shadow:0 0 0 2px var(--text)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px}
+.row+.row{border-top:1px solid var(--line)}
+.paper{background:#FFFFFF;color:#1D1C1A;box-sizing:border-box;display:flex;flex-direction:column}
+.paper p,.paper ul{margin:0}
+.paper ul{padding-left:18px}
+.paper table{border-collapse:collapse;width:100%}
+.paper th{text-align:left;font-weight:700;padding:6px 9px}
+.paper td{padding:6px 9px;border-bottom:1px solid #E2DFD8;vertical-align:top}
+.paper .h{margin:0 0 6px;line-height:1.2;font-weight:800}
+.paper.numbered{counter-reset:sec}
+.paper.numbered .h::before{counter-increment:sec;content:counter(sec) ".  "}
+.paper.caps .h{text-transform:uppercase;letter-spacing:.1em}
+.paper.rules section+section{border-top:1px solid #E2DFD8}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Builder.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Meeting minutes
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0">
+      <label class="sr" for="style-name">Style name</label>
+      <input id="style-name" class="field" type="text" value="Corporate" style="flex: 0 1 240px; min-width: 120px; height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 14px; border: 1px solid transparent; background: transparent; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.01em">
+      <span class="pill done">Style · used by 2 templates</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <button class="btn ghost" type="button" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Duplicate</button>
+      <button class="btn ghost" type="button" onClick="{{reset}}" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Reset</button>
+      <a class="btn primary" href="Builder.dc.html" style="height: 36px; padding: 0 14px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center">Save style</a>
+    </div>
+  </header>
+
+  <main style="flex: 1; padding: 28px 40px 40px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1280px; margin: 0 auto; display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start">
+
+      <section aria-label="Style settings" style="flex: 0 1 380px; min-width: 300px; display: flex; flex-direction: column; gap: 20px">
+
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 6px 18px; box-sizing: border-box; display: flex; flex-direction: column">
+          <div style="padding: 12px 0 6px"><span class="lbl">Type</span></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Headings</span><div role="group" aria-label="Heading typeface" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><sc-for list="{{hFont}}" as="o" hint-placeholder-count="2"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for></div></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Body</span><div role="group" aria-label="Body typeface" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><sc-for list="{{bFont}}" as="o" hint-placeholder-count="2"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for></div></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Base size</span><div role="group" aria-label="Base size" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><sc-for list="{{size}}" as="o" hint-placeholder-count="3"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for></div></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Heading case</span><div role="group" aria-label="Heading case" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><sc-for list="{{hCase}}" as="o" hint-placeholder-count="2"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for></div></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Numbered headings</span><button class="tog {{numCls}}" type="button" role="switch" aria-checked="{{numbered}}" aria-label="Numbered headings" onClick="{{toggleNum}}"><span></span></button></div>
+        </div>
+
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 6px 18px; box-sizing: border-box; display: flex; flex-direction: column">
+          <div style="padding: 12px 0 6px"><span class="lbl">Colour</span></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Headings and rules</span><div role="group" aria-label="Heading colour" style="display: flex; gap: 10px"><sc-for list="{{colors}}" as="c" hint-placeholder-count="4"><button class="sw {{c.cls}}" type="button" onClick="{{c.pick}}" aria-label="{{c.name}}" aria-pressed="{{c.on}}" style="background: {{c.hex}}"></button></sc-for></div></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Body text</span><span style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2)"><span aria-hidden="true" style="width: 16px; height: 16px; border-radius: 50%; background: #1D1C1A; box-shadow: 0 0 0 1px var(--line)"></span>Ink</span></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Table header fill</span><button class="tog {{thCls}}" type="button" role="switch" aria-checked="{{thFill}}" aria-label="Table header fill" onClick="{{toggleTh}}"><span></span></button></div>
+        </div>
+
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 6px 18px; box-sizing: border-box; display: flex; flex-direction: column">
+          <div style="padding: 12px 0 6px"><span class="lbl">Structure</span></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Rule under the title</span><button class="tog {{ruleCls}}" type="button" role="switch" aria-checked="{{rule}}" aria-label="Rule under the title" onClick="{{toggleRule}}"><span></span></button></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Lines between sections</span><button class="tog {{secCls}}" type="button" role="switch" aria-checked="{{secRules}}" aria-label="Lines between sections" onClick="{{toggleSec}}"><span></span></button></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Spacing</span><div role="group" aria-label="Spacing" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><sc-for list="{{space}}" as="o" hint-placeholder-count="3"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for></div></div>
+        </div>
+
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 6px 18px; box-sizing: border-box; display: flex; flex-direction: column">
+          <div style="padding: 12px 0 6px"><span class="lbl">Page</span></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Paper</span><div role="group" aria-label="Paper" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)"><sc-for list="{{paper}}" as="o" hint-placeholder-count="2"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for></div></div>
+          <div class="row"><span style="font-size: 14px; font-weight: 600">Page numbers</span><button class="tog {{pnCls}}" type="button" role="switch" aria-checked="{{pageNums}}" aria-label="Page numbers" onClick="{{togglePn}}"><span></span></button></div>
+          <div class="row"><span style="display: flex; flex-direction: column"><span style="font-size: 14px; font-weight: 600">Running header</span><span style="font-size: 12px; color: var(--text-2)">Recording title and date on every page</span></span><button class="tog {{hdrCls}}" type="button" role="switch" aria-checked="{{header}}" aria-label="Running header" onClick="{{toggleHdr}}"><span></span></button></div>
+        </div>
+
+        <p style="margin: 0; padding: 0 2px; font-size: 12px; color: var(--text-3)">A style changes how a document looks, never what it says. Exports to Word and PDF follow it; Markdown ignores it.</p>
+      </section>
+
+      <section aria-label="Preview" style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 2px">
+          <span style="font-size: 12px; color: var(--text-2)">Preview · sample minutes · <span style="font-weight: 700; color: var(--text)">{{paperName}}</span></span>
+          <span style="font-size: 12px; color: var(--text-3)">Updates as you change settings</span>
+        </div>
+        <div class="paper {{paperCls}}" style="max-width: {{paperW}}; width: 100%; margin: 0 auto; padding: {{pad}}; font-family: {{bodyFamily}}; font-size: {{baseSize}}; line-height: 1.55; gap: {{gap}}">
+          <sc-if value="{{header}}" hint-placeholder-val="{{true}}"><div style="display: flex; justify-content: space-between; font-size: 0.78em; color: #8A867E; padding-bottom: 8px; border-bottom: 1px solid #E2DFD8"><span>Design review: library screen</span><span>5 October 2026</span></div></sc-if>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <h1 style="margin: 0; font-family: {{headFamily}}; font-size: 2em; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: {{hColor}}; padding-bottom: {{rulePad}}; border-bottom: {{ruleCss}}">Design review: library screen</h1>
+            <p style="font-size: 0.85em; color: #6B6861">Meeting minutes · 5 October 2026 · 1 h 10 min · 4 participants</p>
+          </div>
+          <section style="padding-top: {{secPad}}">
+            <h2 class="h" style="font-family: {{headFamily}}; font-size: {{hSize}}; color: {{hColor}}">Executive summary</h2>
+            <p>The team approved the library layout for build with two changes: rows stay at 68 px with status pills only for stages that have run, and the processing card hides whenever a filter is active. The dark theme ships with the first version.</p>
+          </section>
+          <section style="padding-top: {{secPad}}">
+            <h2 class="h" style="font-family: {{headFamily}}; font-size: {{hSize}}; color: {{hColor}}">Decisions</h2>
+            <ul style="display: flex; flex-direction: column; gap: 4px">
+              <li>Row height stays at 68 px.</li>
+              <li>Status pills only for stages that have run; audio-only shows a caption.</li>
+              <li>Dark theme ships in v1.</li>
+            </ul>
+          </section>
+          <section style="padding-top: {{secPad}}">
+            <h2 class="h" style="font-family: {{headFamily}}; font-size: {{hSize}}; color: {{hColor}}">Action items</h2>
+            <table style="font-size: 0.92em">
+              <thead><tr><th style="background: {{thBg}}; color: {{thColor}}">Action</th><th style="background: {{thBg}}; color: {{thColor}}">Owner</th><th style="background: {{thBg}}; color: {{thColor}}">Due</th></tr></thead>
+              <tbody>
+                <tr><td>Update the library mockup</td><td>Priya</td><td>Wed</td></tr>
+                <tr><td>Produce the dark variant</td><td>Sam</td><td>Wed</td></tr>
+                <tr><td>Write empty-state copy</td><td>Sam</td><td>Fri</td></tr>
+              </tbody>
+            </table>
+          </section>
+          <sc-if value="{{pageNums}}" hint-placeholder-val="{{true}}"><div style="margin-top: auto; padding-top: 16px; text-align: center; font-size: 0.78em; color: #8A867E">1 of 2</div></sc-if>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = this.defaults();
+  }
+  defaults() {
+    return { hFont: 0, bFont: 0, size: 1, hCase: 1, numbered: false, color: 0, thFill: true, rule: true, secRules: false, space: 1, paper: 0, pageNums: true, header: true };
+  }
+  seg(key, labels) {
+    return labels.map((label, i) => ({ label, on: this.state[key] === i, cls: this.state[key] === i ? 'on' : '', pick: () => this.setState({ [key]: i }) }));
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const palette = [
+      { name: 'Navy', hex: '#1F3A5F', soft: '#D9E1EC' },
+      { name: 'Ink', hex: '#1D1C1A', soft: '#E8E6E0' },
+      { name: 'Forest', hex: '#2F6B4F', soft: '#DCE9E1' },
+      { name: 'Burgundy', hex: '#7A2E2E', soft: '#EEDCDC' }
+    ];
+    const c = palette[st.color];
+    const sans = "Manrope, 'Segoe UI Variable', system-ui, sans-serif";
+    const serif = "Georgia, 'Times New Roman', serif";
+    const sizes = ['11px', '12px', '13.5px'];
+    const spaces = ['10px', '18px', '28px'];
+    const tog = (key) => ({ on: st[key], cls: st[key] ? 'on' : '', toggle: () => this.setState({ [key]: !st[key] }) });
+    const num = tog('numbered'), th = tog('thFill'), rule = tog('rule'), sec = tog('secRules'), pn = tog('pageNums'), hdr = tog('header');
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      hFont: this.seg('hFont', ['Sans', 'Serif']),
+      bFont: this.seg('bFont', ['Sans', 'Serif']),
+      size: this.seg('size', ['Small', 'Normal', 'Large']),
+      hCase: this.seg('hCase', ['Normal', 'Small caps']),
+      space: this.seg('space', ['Tight', 'Normal', 'Airy']),
+      paper: this.seg('paper', ['Letter', 'A4']),
+      colors: palette.map((p, i) => ({ ...p, on: st.color === i, cls: st.color === i ? 'on' : '', pick: () => this.setState({ color: i }) })),
+      numbered: num.on, numCls: num.cls, toggleNum: num.toggle,
+      thFill: th.on, thCls: th.cls, toggleTh: th.toggle,
+      rule: rule.on, ruleCls: rule.cls, toggleRule: rule.toggle,
+      secRules: sec.on, secCls: sec.cls, toggleSec: sec.toggle,
+      pageNums: pn.on, pnCls: pn.cls, togglePn: pn.toggle,
+      header: hdr.on, hdrCls: hdr.cls, toggleHdr: hdr.toggle,
+      reset: () => this.setState(this.defaults()),
+      headFamily: st.hFont === 1 ? serif : sans,
+      bodyFamily: st.bFont === 1 ? serif : sans,
+      baseSize: sizes[st.size],
+      hSize: st.hCase === 1 ? '0.8em' : '1.05em',
+      hColor: c.hex,
+      thBg: st.thFill ? c.soft : 'transparent',
+      thColor: st.thFill ? c.hex : '#1D1C1A',
+      ruleCss: st.rule ? '2px solid ' + c.hex : 'none',
+      rulePad: st.rule ? '10px' : '0',
+      secPad: st.secRules ? spaces[st.space] : '0',
+      gap: spaces[st.space],
+      paperCls: (st.numbered ? 'numbered ' : '') + (st.hCase === 1 ? 'caps ' : '') + (st.secRules ? 'rules' : ''),
+      paperName: st.paper === 0 ? 'Letter' : 'A4',
+      paperW: st.paper === 0 ? '640px' : '620px',
+      pad: st.paper === 0 ? '52px 56px 40px' : '56px 52px 40px'
+    };
+  }
+}
+</script>
+</body>
+</html>
