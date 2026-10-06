@@ -20,7 +20,7 @@ This document fixes the technical decisions for the Memento Windows application.
 | External AI | `IAiProvider` abstraction with Anthropic (Messages API) and OpenAI implementations. Off by default. | Spec requirement; extensible to more providers. |
 | Secrets | API keys encrypted with Windows DPAPI (user scope) in `%LOCALAPPDATA%\Memento\secrets.bin`. Never in settings.json, logs, exports or project folders. | Keys must never be echoed or leak into a shared project. |
 | Logging | Serilog, rolling files in `%LOCALAPPDATA%\Memento\logs\`. Logs may contain file paths and engine diagnostics; they must never contain transcript text, document text, participant names or keys. | Diagnosable without leaking content. |
-| Installer and updates | **Velopack**: `Setup.exe` one-click install per user, delta updates from GitHub Releases, no admin rights. WebView2 Evergreen runtime bootstrapped if missing. Unsigned for now. | Matches "download and install with one click". |
+| Installer and updates | **Velopack**: `Setup.exe` one-click install per user, delta updates from GitHub Releases, no admin rights. WebView2 Evergreen runtime bootstrapped if missing. Unsigned for now. The Velopack pack id is `MementoApp` (installer `MementoApp-win-Setup.exe`, installed to `%LOCALAPPDATA%MementoApp`) because Velopack replaces or deletes its whole install folder, and the data root is `%LOCALAPPDATA%Memento`. The id is permanent. | Matches "download and install with one click". |
 | CI | GitHub Actions on `windows-latest`: build, test, lint on every PR; tag `v*` publishes a release with `Setup.exe` and the Velopack update feed. | Every release is reproducible from a tag. |
 | Versioning | SemVer. `0.y.z` until the first public release `1.0.0`. | |
 
