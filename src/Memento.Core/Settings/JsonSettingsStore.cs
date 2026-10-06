@@ -113,7 +113,60 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             normalized = normalized with { ListDensity = ListDensity.Comfortable };
         }
 
-        return normalized;
+        return normalized with { Recording = NormalizeRecording(settings.Recording) };
+    }
+
+    /// <summary>Replaces each out-of-range recording value with its default, keeping the rest.</summary>
+    private RecordingSettings NormalizeRecording(RecordingSettings? recording)
+    {
+        var defaults = new RecordingSettings();
+        if (recording is null)
+        {
+            return defaults;
+        }
+
+        var result = recording with
+        {
+            DefaultSourceIds = recording.DefaultSourceIds ?? [],
+            Storage = recording.Storage ?? new StorageSettings(),
+            KeepSeparateTracks = true,
+        };
+
+        if (string.IsNullOrWhiteSpace(result.DefaultType) || result.DefaultType.Length > 64)
+        {
+            LogInvalidValue("recording.defaultType", result.DefaultType ?? "null", defaults.DefaultType);
+            result = result with { DefaultType = defaults.DefaultType };
+        }
+
+        if (result.CheckpointSeconds is < RecordingSettings.MinCheckpointSeconds or > RecordingSettings.MaxCheckpointSeconds)
+        {
+            LogInvalidValue("recording.checkpointSeconds", result.CheckpointSeconds.ToString(CultureInfo.InvariantCulture), defaults.CheckpointSeconds.ToString(CultureInfo.InvariantCulture));
+            result = result with { CheckpointSeconds = defaults.CheckpointSeconds };
+        }
+
+        if (result.LowSpaceGb is < RecordingSettings.MinLowSpaceGb or > RecordingSettings.MaxLowSpaceGb)
+        {
+            LogInvalidValue("recording.lowSpaceGb", result.LowSpaceGb.ToString(CultureInfo.InvariantCulture), defaults.LowSpaceGb.ToString(CultureInfo.InvariantCulture));
+            result = result with { LowSpaceGb = defaults.LowSpaceGb };
+        }
+
+        if (result.DefaultSourceIds.Count > 32 || result.DefaultSourceIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 512))
+        {
+            LogInvalidValue("recording.defaultSourceIds", "list", "[]");
+            result = result with { DefaultSourceIds = [] };
+        }
+
+        if (result.Storage.Validate() is not null)
+        {
+            LogInvalidValue("recording.storage", result.Storage.Codec ?? "null", StorageSettings.Flac);
+            result = result with { Storage = new StorageSettings() };
+        }
+        else if (!result.Storage.IsLossy && result.Storage.BitrateKbps is not null)
+        {
+            result = result with { Storage = result.Storage with { BitrateKbps = null } };
+        }
+
+        return result;
     }
 
     private static void Validate(AppSettings settings)
@@ -133,6 +186,16 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
         if (settings.LibraryPath is not null && !Path.IsPathFullyQualified(settings.LibraryPath))
         {
             throw new ArgumentException("The library path must be a full path such as D:\\Memento Library.", nameof(settings));
+        }
+
+        if (settings.Recording is null)
+        {
+            throw new ArgumentException("Recording settings are missing.", nameof(settings));
+        }
+
+        if (settings.Recording.Validate() is { } problem)
+        {
+            throw new ArgumentException(problem, nameof(settings));
         }
     }
 

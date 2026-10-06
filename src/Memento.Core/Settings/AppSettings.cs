@@ -22,6 +22,9 @@ public sealed record AppSettings
     /// <summary>One of <see cref="Settings.ListDensity"/>.</summary>
     public string ListDensity { get; init; } = Settings.ListDensity.Comfortable;
 
+    /// <summary>Settings › Recording (M1). Missing in M0 files, which then read with the defaults.</summary>
+    public RecordingSettings Recording { get; init; } = new();
+
     // A setter rather than init: System.Text.Json cannot bind extension data through init-only members.
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

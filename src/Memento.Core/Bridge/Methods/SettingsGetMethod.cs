@@ -16,6 +16,20 @@ public sealed class SettingsGetMethod(ISettingsStore store) : BridgeMethod<Empty
     public override Task<SettingsSnapshot> InvokeAsync(EmptyParams parameters, CancellationToken cancellationToken) =>
         Task.FromResult(ToSnapshot(store.Current));
 
-    internal static SettingsSnapshot ToSnapshot(AppSettings settings) =>
-        new(settings.Theme, settings.EffectiveLibraryPath, settings.ListDensity);
+    internal static SettingsSnapshot ToSnapshot(AppSettings settings)
+    {
+        var recording = settings.Recording;
+        var storage = recording.Storage;
+        return new SettingsSnapshot(
+            settings.Theme,
+            settings.EffectiveLibraryPath,
+            settings.ListDensity,
+            new RecordingSettingsSnapshot(
+                recording.DefaultType,
+                recording.DefaultSourceIds,
+                recording.KeepSeparateTracks,
+                new StorageSettingsSnapshot(storage.Codec, storage.IsLossy ? storage.BitrateKbps : null, storage.DownmixMono, storage.KeepOnlyMix),
+                recording.CheckpointSeconds,
+                recording.LowSpaceGb));
+    }
 }

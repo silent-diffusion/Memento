@@ -13,4 +13,7 @@ public sealed record SettingsSetParams
 
     /// <summary><c>"comfortable"</c> or <c>"compact"</c>.</summary>
     public string? ListDensity { get; init; }
+
+    /// <summary>Settings › Recording, itself partial.</summary>
+    public RecordingSettingsPatch? Recording { get; init; }
 }
