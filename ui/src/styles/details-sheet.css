@@ -1,0 +1,461 @@
+/* Details and agenda sheet (DESIGN.md §14), transcribed from design/renders/AgendaImport.dc.html.
+   The sheet frame (480 px, header, scrolling body, footer) is in surfaces.css. */
+
+.sheet-content {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-top: 6px;
+}
+
+.sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheet-field--wide {
+  grid-column: 1 / -1;
+}
+
+.sheet-input {
+  width: 100%;
+}
+
+.sheet-textarea {
+  height: auto;
+  padding: 8px 12px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.sheet-field .menu-root {
+  display: flex;
+}
+
+.sheet-field .select-btn {
+  width: 100%;
+  max-width: none;
+  height: 36px;
+  justify-content: space-between;
+}
+
+/* Participants: a pressed-in well of pills with an inline input. */
+.sheet-well {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+}
+
+.sheet-well:focus-within {
+  box-shadow: var(--neo-in), 0 0 0 2px var(--focus);
+}
+
+.sheet-well-input {
+  flex: 1;
+  min-width: 100px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  padding: 0 4px;
+  outline: none;
+}
+
+.sheet-well-input::placeholder {
+  color: var(--text-3);
+}
+
+.sheet-pill {
+  padding-right: 4px;
+}
+
+.sheet-pill-remove {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sheet-pill-remove:hover {
+  color: var(--text);
+  box-shadow: var(--neo-in-xs);
+}
+
+.sheet-pill-remove:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.sheet-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheet-section--tags {
+  gap: 6px;
+}
+
+.sheet-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sheet-caption {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.link-btn:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+/* Drop zone: pressed in, radius 24, padding 28 x 20; a hovering file adds the accent ring. */
+.agenda-drop {
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  background: var(--bg);
+}
+
+.drop-icon {
+  color: var(--text-3);
+}
+
+.drop-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.drop-sub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.drop-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.drop-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.drop-btn--quiet {
+  color: var(--text-2);
+}
+
+.drop-btn:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  cursor: default;
+}
+
+.drop-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Paste text. */
+.paste-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.paste-text {
+  height: auto;
+  min-height: 132px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sheet-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.paste-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sheet-notice {
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent-text);
+}
+
+/* Parsed list: handle, mono index, inline input (field shows on hover/focus), remove. */
+.agenda-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agenda-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 4px;
+}
+
+.agenda-item--dragging {
+  opacity: 0.4;
+}
+
+.agenda-item--over {
+  box-shadow: var(--neo-in), 0 0 0 2px var(--accent);
+}
+
+.drag-handle {
+  width: 22px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  flex: none;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  color: var(--text-3);
+}
+
+.drag-handle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.agenda-index {
+  font-size: 11px;
+  color: var(--text-3);
+  width: 14px;
+  flex: none;
+}
+
+.agenda-item .ii {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+}
+
+.agenda-item .ii:hover {
+  background: var(--bg);
+  box-shadow: var(--neo-in-xs);
+}
+
+.agenda-item .ii:focus {
+  background: var(--bg);
+}
+
+.agenda-item.low .ii {
+  text-decoration: underline dotted var(--accent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.agenda-remove {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  flex: none;
+}
+
+.agenda-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 13px;
+}
+
+.agenda-notice-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Dashed "add" affordances (DESIGN.md §2.3). */
+button.btn.add-row {
+  height: 36px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.add-row:hover {
+  color: var(--text);
+}
+
+button.btn.add-pill {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.add-pill:hover {
+  color: var(--text-2);
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag-input {
+  height: 26px;
+  width: 120px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+/* AI fallback: a pressed-in card with its own ghost button. */
+.ai-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+}
+
+.ai-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-card-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-card-sub {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.ai-card-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+
+.ai-card-btn:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  cursor: default;
+}
+
+.sheet-save {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.sheet-save--error {
+  color: var(--danger);
+}
+
+.sheet-done {
+  height: 36px;
+  padding: 0 16px;
+}
