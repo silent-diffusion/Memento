@@ -96,6 +96,7 @@ jobs:
           --releaseName "Memento ${{ steps.version.outputs.version }}"
           --publish
           --merge
+          ${{ startsWith(steps.version.outputs.version, '0.') && '--pre' || '' }}
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
