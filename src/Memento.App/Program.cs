@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using Memento.App.Bridge;
 using Memento.App.Hosting;
@@ -44,6 +45,12 @@ internal static class Program
                 AppInfo.ReadProductVersion(),
                 Environment.OSVersion.VersionString,
                 options.IsScreenshotRun ? " (screenshot run)" : string.Empty);
+
+            if (AppContext.BaseDirectory.StartsWith(AppPaths.DataRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                // The installer replaces or deletes its own folder; user data must never live inside it (build/pack.ps1).
+                Log.Error("Memento is installed inside its data folder {DataRoot}; an uninstall or update would delete user data", AppPaths.DataRoot);
+            }
 
             // A screenshot run is a separate, short-lived process; it must not hand off to a running Memento.
             using var guard = options.IsScreenshotRun ? null : SingleInstanceGuard.Acquire();
