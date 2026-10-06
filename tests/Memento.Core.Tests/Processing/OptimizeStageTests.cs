@@ -76,6 +76,24 @@ public sealed class OptimizeStageTests : IDisposable
     }
 
     [Fact]
+    public async Task QueuingAConvertedRecordingAgainKeepsItsStageDone()
+    {
+        var host = await StartAsync(new StorageSettings { Codec = StorageSettings.Aac, BitrateKbps = 160 });
+        var recordingId = await host.RecordAsync("Twice", 2, Mic);
+        await host.Processing.WhenIdleAsync();
+        var calls = _aac.Calls.Count;
+
+        // Recovery queues a recording and the launch resume finds it queued: the stage may run a second time.
+        await host.Processing.EnqueueAfterStoredAsync(recordingId, CancellationToken.None);
+        await host.Processing.WhenIdleAsync();
+
+        var manifest = await host.Store.LoadAsync(recordingId, CancellationToken.None);
+        Assert.Equal(StageStates.Done, Assert.Single(manifest.Stages, s => s.Stage == StageNames.Optimize).State);
+        Assert.Equal("tracks/mic.m4a", manifest.Tracks[0].File);
+        Assert.Equal(calls, _aac.Calls.Count);
+    }
+
+    [Fact]
     public async Task MonoDownmixAppliesToTracksButNotTheMix()
     {
         var host = await StartAsync(new StorageSettings { Codec = StorageSettings.Aac, BitrateKbps = 128, DownmixMono = true });

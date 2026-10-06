@@ -150,7 +150,8 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
     {
         lock (_sync)
         {
-            if (!_pending.Add(recordingId))
+            // Already waiting or already running (recovery queues it, then the launch resume finds it queued).
+            if (_running?.RecordingId == recordingId || !_pending.Add(recordingId))
             {
                 return;
             }

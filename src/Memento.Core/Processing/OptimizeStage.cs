@@ -88,7 +88,17 @@ public sealed partial class OptimizeStage(
         var work = PlanWork(folder, manifest, encoder);
         if (work.Count == 0)
         {
-            await RemoveStageAsync(recordingId, cancellationToken);
+            // Run again after it already converted everything (e.g. queued twice at launch): it stays done.
+            var alreadySmaller = manifest.Tracks.Any(t => !IsLossless(t.Codec)) || (manifest.Mix is { } mix && !IsLossless(mix.Codec));
+            if (alreadySmaller)
+            {
+                await SetStageAsync(recordingId, StageStates.Done, null, "Done", cancellationToken);
+            }
+            else
+            {
+                await RemoveStageAsync(recordingId, cancellationToken);
+            }
+
             return;
         }
 
