@@ -1,12 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- WASAPI, Media Foundation and shell icons are Windows-only; the -windows TFM satisfies the platform analyzer. -->
+    <!-- Process loopback needs Windows 10 2004+; callers get a specific error from activation on older builds. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>Memento.Audio</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="NAudio.Core" />
+    <PackageReference Include="NAudio.Wasapi" />
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Memento.Audio.Tests" />
   </ItemGroup>
 
 </Project>
