@@ -111,7 +111,8 @@ public sealed partial class MediaFoundationFlacEncoder
 
         var bytes = new FileInfo(outputPath).Length;
         var sha = await FileHashing.Sha256Async(outputPath, cancellationToken).ConfigureAwait(false);
-        LogEncoded(_logger, TrackName(input), input.TotalDataBytes, bytes);
+        var trackName = TrackName(input);
+        LogEncoded(_logger, trackName, input.TotalDataBytes, bytes);
         return new EncodeResult(outputPath, bytes, sha, input.Duration);
     }
 

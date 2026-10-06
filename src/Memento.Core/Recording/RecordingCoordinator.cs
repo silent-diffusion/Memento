@@ -425,7 +425,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             DomainErrorCodes.RecordingDiskFull,
             $"The library drive has only {HumanFormat.Bytes(free ?? 0)} free, so the recording did not start. Nothing was recorded. Free up space and try again.");
 
-    private async Task<List<AudioSource>> ResolveSourcesAsync(IReadOnlyList<string> sourceIds, CancellationToken cancellationToken)
+    private async Task<List<AudioSource>> ResolveSourcesAsync(List<string> sourceIds,CancellationToken cancellationToken)
     {
         var available = await _sources.ListAsync(cancellationToken);
         var resolved = new List<AudioSource>(sourceIds.Count);
@@ -666,7 +666,14 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         var finalizing = new Finalizing(payload);
         _finalizing[active.RecordingId] = finalizing;
         finalizing.Task = Task.Run(() => FinalizeInBackgroundAsync(active, finalizing), CancellationToken.None);
-        LogStopped(active.RecordingId, result.ElapsedMs, reason?.ToString() ?? "user");
+        if (reason is { } byHost)
+        {
+            LogStoppedByHost(active.RecordingId, result.ElapsedMs, byHost);
+        }
+        else
+        {
+            LogStopped(active.RecordingId, result.ElapsedMs);
+        }
 
         // Not awaited here: this can run on the session's own event thread, which disposing waits for.
         _ = Task.Run(() => active.Session.DisposeAsync().AsTask(), CancellationToken.None);
@@ -834,8 +841,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} started (session {SessionId}, {Tracks} tracks, engine {Engine})")]
     private partial void LogStarted(string recordingId, string sessionId, int tracks, string engine);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by {By}; finalizing")]
-    private partial void LogStopped(string recordingId, long elapsedMs, string by);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by the user; finalizing")]
+    private partial void LogStopped(string recordingId, long elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by the host ({Reason}); finalizing")]
+    private partial void LogStoppedByHost(string recordingId, long elapsedMs, HostStopReason reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId} stopped by the host ({Reason}) at {AtMs} ms: {Detail}")]
     private partial void LogHostStopped(string recordingId, string reason, long atMs, string detail);

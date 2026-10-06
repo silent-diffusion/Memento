@@ -615,7 +615,14 @@ public sealed partial class SimulatedRecordingSession : IRecordingSession
 
         await Task.WhenAll(_slots.Select(s => s.Loop));
         var result = new RecordingSessionResult(elapsed, Tracks, Pauses, _time.GetLocalNow(), reason);
-        LogStopped(SessionId, elapsed, reason?.ToString() ?? "user", Overruns);
+        if (reason is { } byHost)
+        {
+            LogStoppedByHost(SessionId, elapsed, byHost, Overruns);
+        }
+        else
+        {
+            LogStopped(SessionId, elapsed, Overruns);
+        }
         _dispatcher.Post(() => StateChanged?.Invoke(this, new SessionStateChangedEventArgs(RecordingSessionState.Stopped, elapsed)));
         if (reason is { } stopReason)
         {
@@ -749,8 +756,11 @@ public sealed partial class SimulatedRecordingSession : IRecordingSession
     [LoggerMessage(Level = LogLevel.Information, Message = "Simulated session {SessionId} started with {Tracks} tracks at speed {Speed}")]
     private partial void LogStarted(string sessionId, int tracks, double speed);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Simulated session {SessionId} stopped at {ElapsedMs} ms ({Reason}); {Overruns} packets dropped")]
-    private partial void LogStopped(string sessionId, long elapsedMs, string reason, long overruns);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Simulated session {SessionId} stopped at {ElapsedMs} ms by the user; {Overruns} packets dropped")]
+    private partial void LogStopped(string sessionId, long elapsedMs, long overruns);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Simulated session {SessionId} stopped at {ElapsedMs} ms by the host ({Reason}); {Overruns} packets dropped")]
+    private partial void LogStoppedByHost(string sessionId, long elapsedMs, HostStopReason reason, long overruns);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Session {SessionId}: track {TrackId} started at {AtMs} ms")]
     private partial void LogTrackStarted(string sessionId, string trackId, long atMs);

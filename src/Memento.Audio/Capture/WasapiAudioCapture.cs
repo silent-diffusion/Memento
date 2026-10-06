@@ -169,7 +169,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
                 (session, sink) = TryRegisterSessionEvents(client);
                 client.GetBufferSize(out var bufferFrames);
                 _format = format;
-                LogOpened(_logger, Source.ToString(), format.ToString(), bufferFrames, bufferDuration.TotalMilliseconds, sw.ElapsedMilliseconds);
+                LogOpened(_logger, Source, format, bufferFrames, bufferDuration.TotalMilliseconds, sw.ElapsedMilliseconds);
                 _ready.TrySetResult(format);
             }
 #pragma warning disable CA1031 // Every activation failure is reported to the opener as a specific exception.
@@ -238,7 +238,8 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
 
             if (_stopRequested)
             {
-                LogStopped(_logger, Source.ToString(), _counters.Snapshot().ToString());
+                var statistics = _counters.Snapshot(); // once per capture, at stop
+                LogStopped(_logger, Source, statistics);
                 return;
             }
 
@@ -538,7 +539,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or NotSupportedException)
         {
             // Elevated or protected process: no exit notification; capture still works and ends on device loss.
-            LogNoExitWatch(_logger, Source.ToString(), ex.Message);
+            LogNoExitWatch(_logger, Source, ex.Message);
         }
     }
 
@@ -581,7 +582,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
     {
         var args = new CaptureLostEventArgs(Source, reason, hr, QpcClock.Now);
         Volatile.Write(ref _loss, args);
-        LogLost(_logger, Source.ToString(), reason, hr);
+        LogLost(_logger, Source, reason, hr);
         ThreadPool.UnsafeQueueUserWorkItem(static state => state.Self.Lost?.Invoke(state.Self, state.Args), (Self: this, Args: args), preferLocal: false);
     }
 
@@ -597,7 +598,8 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
             }
         }
 
-        LogNoMmcss(_logger, Source.ToString(), Marshal.GetLastPInvokeError());
+        var mmcssError = Marshal.GetLastPInvokeError();
+        LogNoMmcss(_logger, Source, mmcssError);
         return IntPtr.Zero;
     }
 
@@ -671,17 +673,17 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Capture {Source} opened: {Format}, buffer {BufferFrames} frames ({BufferMs} ms), activation {ActivationMs} ms")]
-    private static partial void LogOpened(ILogger logger, string source, string format, uint bufferFrames, double bufferMs, long activationMs);
+    private static partial void LogOpened(ILogger logger, AudioSourceId source, AudioFormat format, uint bufferFrames, double bufferMs, long activationMs);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Capture {Source} stopped: {Statistics}")]
-    private static partial void LogStopped(ILogger logger, string source, string statistics);
+    private static partial void LogStopped(ILogger logger, AudioSourceId source, CaptureStatistics statistics);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Capture {Source} lost: {Reason} (0x{HResult:X8})")]
-    private static partial void LogLost(ILogger logger, string source, CaptureLostReason reason, int hResult);
+    private static partial void LogLost(ILogger logger, AudioSourceId source, CaptureLostReason reason, int hResult);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Capture {Source}: MMCSS registration failed (error {Error}); running at normal real-time priority")]
-    private static partial void LogNoMmcss(ILogger logger, string source, int error);
+    private static partial void LogNoMmcss(ILogger logger, AudioSourceId source, int error);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Capture {Source}: no exit notification for the target process ({Reason})")]
-    private static partial void LogNoExitWatch(ILogger logger, string source, string reason);
+    private static partial void LogNoExitWatch(ILogger logger, AudioSourceId source, string reason);
 }
