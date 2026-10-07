@@ -43,7 +43,8 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
     private CaptureLostEventArgs? _loss;
     private int _disposed;
 
-    private WasapiAudioCapture(AudioSourceId source, CaptureOptions options, ILogger logger)
+    /// <summary>A stream whose capture thread has not started (<see cref="OpenAsync"/> starts it; tests drive <see cref="Drain"/> directly).</summary>
+    internal WasapiAudioCapture(AudioSourceId source, CaptureOptions options, ILogger logger)
     {
         Source = source;
         _options = options;
@@ -255,12 +256,20 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
         }
     }
 
-    /// <summary>Takes every packet WASAPI holds. Returns a failing HRESULT on device loss.</summary>
-    private int Drain(CoreAudio.IAudioCaptureClient capture, AudioFormat format, SilenceGapFiller? filler)
+    /// <summary>Takes every packet WASAPI holds. Returns a failing HRESULT on device loss or when a packet cannot be released.</summary>
+    internal int Drain(CoreAudio.IAudioCaptureClient capture, AudioFormat format, SilenceGapFiller? filler)
     {
         var block = format.BlockAlign;
+        var released = CoreAudio.SOk;
         while (true)
         {
+            // A packet WASAPI would not take back means the stream is broken: the packet already copied is kept, then
+            // capture ends as lost instead of reading a buffer it may not own.
+            if (released < 0)
+            {
+                return released;
+            }
+
             var hr = capture.GetNextPacketSize(out var next);
             if (hr < 0)
             {
@@ -293,7 +302,7 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
                 Marshal.Copy(data, buffer, 0, bytes);
             }
 
-            capture.ReleaseBuffer(frameCount);
+            released = capture.ReleaseBuffer(frameCount);
             _counters.Packet(frames, wasapiFlags);
             if (frames == 0)
             {
@@ -399,9 +408,11 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
             var iid = CoreAudio.IidAudioClient;
             Check(device.Activate(ref iid, CoreAudio.ClsctxAll, IntPtr.Zero, out var instance), "IMMDevice::Activate");
             var client = (CoreAudio.IAudioClient)instance;
-            Check(client.GetMixFormat(out var mix), "GetMixFormat");
+            var mix = IntPtr.Zero;
             try
             {
+                // Inside the try: a failing GetMixFormat must release the client too.
+                Check(client.GetMixFormat(out mix), "GetMixFormat");
                 var format = NativeWaveFormat.Read(mix);
                 var flags = CoreAudio.StreamFlagsEventCallback | (isLoopback ? CoreAudio.StreamFlagsLoopback : 0);
                 Check(client.Initialize(CoreAudio.AudclntShareModeShared, flags, _options.EndpointBufferDuration.Ticks, 0, mix, IntPtr.Zero), "IAudioClient::Initialize");
@@ -414,7 +425,10 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
             }
             finally
             {
-                Marshal.FreeCoTaskMem(mix);
+                if (mix != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(mix);
+                }
             }
         }
         finally
