@@ -13,9 +13,9 @@ public sealed class WorkerWatchdogTests
 
     private static readonly WorkerClientOptions Short = new()
     {
-        QuietLimit = TimeSpan.FromMilliseconds(300),
-        ExitGrace = TimeSpan.FromMilliseconds(100),
-        KillGrace = TimeSpan.FromMilliseconds(100),
+        QuietLimit = TimeSpan.FromSeconds(2), // generous: a loaded machine can take longer than 300 ms to start the scripted worker
+        ExitGrace = TimeSpan.FromMilliseconds(300),
+        KillGrace = TimeSpan.FromMilliseconds(300),
     };
 
     private readonly ScriptedWorkerLauncher _launcher = new();
@@ -68,10 +68,10 @@ public sealed class WorkerWatchdogTests
     {
         _launcher.Script = async (_, context, _) =>
         {
-            for (var i = 0; i < 8; i++)
+            for (var i = 0; i < 10; i++)
             {
                 context.Send(new WorkerReply { Type = WorkerMessageTypes.Progress, Percent = i * 10 });
-                await Task.Delay(100, CancellationToken.None);
+                await Task.Delay(400, CancellationToken.None);
             }
 
             context.Send(new WorkerReply { Type = WorkerMessageTypes.Result });
@@ -79,7 +79,7 @@ public sealed class WorkerWatchdogTests
         };
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, Short);
 
-        // 800 ms in all, far beyond the 300 ms limit, but never 300 ms without a line.
+        // 4 s in all, twice the 2 s limit, but never 2 s without a line.
         var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(WorkerMessageTypes.Result, reply.Type);
