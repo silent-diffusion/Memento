@@ -21,15 +21,19 @@ export const MODEL_IDS = {
   titanet: 'nemo-titanet-small',
   eres2net: '3dspeaker-eres2net-base',
   tesseract: 'tesseract-eng',
+  // M4: the Local provider's language models (ROADMAP M4a).
+  qwen: 'qwen3.5-4b-instruct-q4',
+  ministral: 'ministral-3-3b-instruct-q4',
 } as const;
 
 /**
  * The catalog as the preview starts: Large v3 Turbo, Small and both speaker models installed, or
  * nothing installed (`?models=none`, the first run).
  */
-export function sampleModels(installed: 'sample' | 'none' = 'sample'): ModelInfo[] {
+export function sampleModels(installed: 'sample' | 'none' = 'sample', alsoInstalled: readonly string[] = []): ModelInfo[] {
   const has = (id: string): boolean =>
-    installed === 'sample' && ([MODEL_IDS.turbo, MODEL_IDS.small, MODEL_IDS.segmentation, MODEL_IDS.titanet] as string[]).includes(id);
+    alsoInstalled.includes(id) ||
+    (installed === 'sample' && ([MODEL_IDS.turbo, MODEL_IDS.small, MODEL_IDS.segmentation, MODEL_IDS.titanet] as string[]).includes(id));
   const model = (m: Omit<ModelInfo, 'installing' | 'installed'>): ModelInfo => ({ ...m, installed: has(m.id), installing: null });
   return [
     model({
@@ -136,6 +140,32 @@ export function sampleModels(installed: 'sample' | 'none' = 'sample'): ModelInfo
       accuracyNote: 'Per-word confidence',
       role: null,
     }),
+    model({
+      id: MODEL_IDS.qwen,
+      engine: 'llm',
+      name: 'Qwen3.5 4B',
+      description: 'Writes documents on this PC. Nothing leaves it. Best with a graphics card with 4 GB or more.',
+      sizeBytes: 2_715_000_000,
+      license: 'Apache-2.0',
+      recommended: true,
+      runsOn: 'either',
+      minVramBytes: 4 * GB,
+      accuracyNote: 'Most capable',
+      role: null,
+    }),
+    model({
+      id: MODEL_IDS.ministral,
+      engine: 'llm',
+      name: 'Ministral 3 3B',
+      description: 'A smaller local model for computers with less graphics memory; slower on the processor alone.',
+      sizeBytes: 2_020_000_000,
+      license: 'Apache-2.0',
+      recommended: false,
+      runsOn: 'either',
+      minVramBytes: 3 * GB,
+      accuracyNote: 'Lighter',
+      role: null,
+    }),
   ];
 }
 
@@ -148,6 +178,8 @@ export interface ModelManagerEnvironment {
   failure: ModelFailureMode;
   /** `?models=none`: start with nothing installed, like a first run. */
   installed?: 'sample' | 'none';
+  /** M4: models installed in addition (`?ai=local` installs the local language model). */
+  alsoInstalled?: readonly string[];
   /** Called after a model finished installing (stages waiting for a model start by themselves). */
   onInstalled?: (modelId: string) => void;
   /** Milliseconds between progress steps (shorter in tests). */
@@ -164,7 +196,7 @@ export interface MockModelManager {
 }
 
 export function createMockModels(env: ModelManagerEnvironment): MockModelManager {
-  const models = sampleModels(env.installed ?? 'sample');
+  const models = sampleModels(env.installed ?? 'sample', env.alsoInstalled ?? []);
   let running: { modelId: string; timer: ReturnType<typeof setInterval> } | null = null;
   const stepMs = env.stepMs ?? 250;
 

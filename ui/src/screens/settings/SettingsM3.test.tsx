@@ -97,6 +97,9 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
       'Claude (Anthropic)',
       'ChatGPT (OpenAI)',
       'Allowed data',
+      // M4
+      'Default provider',
+      'Local model',
     ]);
     expect(button('Allow external AI services').getAttribute('aria-checked')).toBe('false');
     expect(rowOf('Claude (Anthropic)').querySelector('.settings-key')?.textContent).toBe(MASKED_KEY);
@@ -168,7 +171,14 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     await until(() => h.store.settings.value?.export.defaults.transcript.formats[0] === 'srt');
     await click(button('Change the default export folder'));
     await until(() => h.store.settings.value?.export.defaultFolder === 'E:\\Recordings\\Memento');
-    expect(rowOf('Documents').textContent).toContain('Available in a later version');
+    // M4: documents are exported too, all of a recording's by default, in the chosen format.
+    const documents = [...rowOf('Components').querySelectorAll<HTMLInputElement>('input')].find((i) => i.closest('label')?.textContent.startsWith('Documents') === true);
+    expect(documents?.disabled).toBe(false);
+    await click(documents);
+    await until(() => h.store.settings.value?.export.defaults.documents.on === true);
+    await click(rowOf('Documents').querySelector('.select-btn'));
+    await click([...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === 'PDF'));
+    await until(() => h.store.settings.value?.export.defaults.documents.format === 'pdf');
   });
 
   it('Storage: usage, reclaim with progress, Review large recordings and Rebuild index', async () => {

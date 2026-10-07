@@ -56,6 +56,25 @@ describe('route parsing', () => {
     }
   });
 
+  it('parses and formats the M4 routes: Builder, Document viewer, Style editor and Review at a moment', () => {
+    const routes: Route[] = [
+      { name: 'review', recordingId: 'r1', atMs: 1_122_000 },
+      { name: 'builder', recordingId: 'r1', templateId: null, documentId: null },
+      { name: 'builder', recordingId: 'r1', templateId: 'meeting-minutes', documentId: 'doc 1' },
+      { name: 'builder', recordingId: null, templateId: 'interview-notes', documentId: null },
+      { name: 'document', recordingId: 'r1', documentId: 'doc-1' },
+      { name: 'style', styleId: 'corporate' },
+    ];
+    for (const route of routes) {
+      expect(parseRoute(formatRoute(route))).toEqual(route);
+    }
+    expect(formatRoute({ name: 'review', recordingId: 'r1', atMs: 65_500 })).toBe('#/review/r1?t=65.5');
+    expect(formatRoute({ name: 'builder', recordingId: null, templateId: 'x', documentId: null })).toBe('#/builder?template=x');
+    expect(parseRoute('#/review/r1?t=soon')).toEqual({ name: 'review', recordingId: 'r1' });
+    expect(parseRoute('#/document/r1')).toEqual({ name: 'library' });
+    expect(parseRoute('#/style')).toEqual({ name: 'library' });
+  });
+
   it('keeps one screen key for all of Settings so changing section does not cross-fade', () => {
     expect(screenKey({ name: 'settings', section: 'general' })).toBe(screenKey({ name: 'settings', section: 'storage' }));
     expect(screenKey({ name: 'review', recordingId: 'a' })).not.toBe(screenKey({ name: 'review', recordingId: 'b' }));

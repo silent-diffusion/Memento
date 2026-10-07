@@ -1,0 +1,23 @@
+/* M4: the Documents row's per-document checkboxes (renders/ExportDialog.dc.html `.sub`). */
+.export-subrows {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 16px 10px 46px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.export-subrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.export-subrow-size {
+  font-size: 11px;
+  color: var(--text-3);
+}

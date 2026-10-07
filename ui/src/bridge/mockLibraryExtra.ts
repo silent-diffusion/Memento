@@ -6,6 +6,7 @@ import { createMockAgenda, type AgendaFlag, type MockAgenda, type PendingOrigina
 import { isoWithOffset, type MockProject } from './mockData';
 import { createMockExport, type ExportFlag, type MockExport } from './mockExport';
 import { visibleStages } from './mockLibrary';
+import { MODEL_IDS } from './mockModels';
 import { MockHostError } from './mockSession';
 import { mergeSettings } from './settingsMerge';
 import type {
@@ -118,6 +119,9 @@ export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export'
       share: { transcript: true, details: true, participants: true, agenda: true, highlights: true, attachments: false },
       // The preview pretends a Claude key is stored so the masked row and Replace can be seen.
       providers: { anthropic: { hasKey: true }, openai: { hasKey: false } },
+      // M4
+      defaultProviderId: null,
+      localModelId: MODEL_IDS.qwen,
     },
     storage: { reclaimOlderThanDays: null },
   };
@@ -145,6 +149,8 @@ export interface MockM3Environment {
   version: string;
   flags: M3Flags;
   stepMs: number;
+  /** M4: the documents a recording holds, for the Export dialog's Documents row. */
+  documents?: (recordingId: string) => { id: string; name: string; sizeBytes: number }[];
 }
 
 export interface MockM3 {
@@ -263,6 +269,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     version: env.version,
     flag: env.flags.export,
     stepMs: env.stepMs,
+    ...(env.documents === undefined ? {} : { documents: env.documents }),
   });
 
   /** A background job with percent steps; `finish` runs at 100 and may return a final message. */

@@ -52,13 +52,15 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(row('exp-tracks').textContent).toContain('Shure MV7, Everything this PC plays and Zoom as separate files');
     expect(row('exp-transcript').textContent).toContain('Speakers, timestamps and confidence');
     expect(row('exp-video').textContent).toContain('Not in this version');
-    expect(row('exp-documents').textContent).toContain('Documents arrive in a later version');
+    // M4: the recording's documents can be exported.
+    expect(row('exp-documents').textContent).toContain('Generated and hand-written documents');
     expect(row('exp-attachments').textContent).toContain('agenda.docx and library-mockups-v3.pdf');
     // Defaults: mixed audio as FLAC and the transcript as JSON.
     expect(dialog().querySelector<HTMLInputElement>('#exp-audio')?.checked).toBe(true);
     expect(dialog().querySelector<HTMLInputElement>('#exp-transcript')?.checked).toBe(true);
     expect(dialog().querySelector<HTMLInputElement>('#exp-video')?.disabled).toBe(true);
-    expect(dialog().querySelector<HTMLInputElement>('#exp-documents')?.disabled).toBe(true);
+    expect(dialog().querySelector<HTMLInputElement>('#exp-documents')?.disabled).toBe(false);
+    expect(dialog().querySelector<HTMLInputElement>('#exp-documents')?.checked).toBe(false);
     // Format selects are disabled while their row is unticked.
     expect(row('exp-tracks').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(true);
     expect(row('exp-audio').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(false);

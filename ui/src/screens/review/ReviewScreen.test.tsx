@@ -209,7 +209,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     details.focus();
     await press(details, 'ArrowRight');
     expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Documents');
-    expect(container.textContent).toContain('No documents yet');
+    await until(() => container.textContent.includes('No documents yet'));
     expect(container.textContent).toContain('Documents are saved inside this recording and can be exported on their own.');
     await press(button('Documents'), 'ArrowRight');
     expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('History');
@@ -222,16 +222,14 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await until(() => !container.textContent.includes('Transcription failed') || container.textContent.includes('Transcribing'));
   });
 
-  it('opens Export copies (M3) and keeps Create document real, saying documents arrive later', async () => {
+  it('opens Export copies (M3), and Create document opens the Document builder (M4)', async () => {
     await open();
     await click(button('Export'));
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Export copies');
     await click(document.querySelector<HTMLElement>('.export-foot .btn.g') ?? document.body);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click(button('Create document'));
-    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Documents arrive in a later version');
-    await click(button('OK'));
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(store.route.value).toEqual({ name: 'builder', recordingId: DESIGN_REVIEW, templateId: null, documentId: null });
   });
 
   it('offers Reprocess as a submenu and deletes back to the Library', async () => {

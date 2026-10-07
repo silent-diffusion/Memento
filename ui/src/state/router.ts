@@ -21,8 +21,14 @@ export type Route =
   | { name: 'library' }
   /** `sessionId` rejoins an active session; without it the screen opens ready to record. */
   | { name: 'record'; sessionId: string | null }
-  | { name: 'review'; recordingId: string }
-  | { name: 'settings'; section: SettingsSection };
+  /** `atMs` (M4): open at that moment (a document's timestamp chip). */
+  | { name: 'review'; recordingId: string; atMs?: number }
+  | { name: 'settings'; section: SettingsSection }
+  // M4
+  /** The Document builder for a recording (null: a template opened from Settings), with a template and the document Regenerate writes into. */
+  | { name: 'builder'; recordingId: string | null; templateId: string | null; documentId: string | null }
+  | { name: 'document'; recordingId: string; documentId: string }
+  | { name: 'style'; styleId: string };
 
 export const LIBRARY_ROUTE: Route = { name: 'library' };
 
@@ -43,14 +49,32 @@ function decode(part: string | undefined): string | null {
 
 /** `#/review/abc` -> route. Anything unknown is the Library. */
 export function parseRoute(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, '').split('/');
+  const [path = '', search = ''] = hash.replace(/^#\/?/, '').split('?');
+  const parts = path.split('/');
+  const query = new URLSearchParams(search);
   const [name, arg] = parts;
   switch (name) {
     case 'record':
       return { name: 'record', sessionId: decode(arg) };
     case 'review': {
       const recordingId = decode(arg);
-      return recordingId === null ? LIBRARY_ROUTE : { name: 'review', recordingId };
+      if (recordingId === null) {
+        return LIBRARY_ROUTE;
+      }
+      const t = Number(query.get('t'));
+      return query.has('t') && Number.isFinite(t) && t >= 0 ? { name: 'review', recordingId, atMs: Math.round(t * 1000) } : { name: 'review', recordingId };
+    }
+    // M4
+    case 'builder':
+      return { name: 'builder', recordingId: decode(arg), templateId: query.get('template'), documentId: query.get('document') };
+    case 'document': {
+      const recordingId = decode(arg);
+      const documentId = decode(parts[2]);
+      return recordingId === null || documentId === null ? LIBRARY_ROUTE : { name: 'document', recordingId, documentId };
+    }
+    case 'style': {
+      const styleId = decode(arg);
+      return styleId === null ? LIBRARY_ROUTE : { name: 'style', styleId };
     }
     case 'settings': {
       const section = decode(arg) ?? 'general';
@@ -68,9 +92,25 @@ export function formatRoute(route: Route): string {
     case 'record':
       return route.sessionId === null ? '#/record' : `#/record/${encodeURIComponent(route.sessionId)}`;
     case 'review':
-      return `#/review/${encodeURIComponent(route.recordingId)}`;
+      return `#/review/${encodeURIComponent(route.recordingId)}${route.atMs === undefined ? '' : `?t=${route.atMs / 1000}`}`;
     case 'settings':
       return `#/settings/${route.section}`;
+    // M4
+    case 'builder': {
+      const query = new URLSearchParams();
+      if (route.templateId !== null) {
+        query.set('template', route.templateId);
+      }
+      if (route.documentId !== null) {
+        query.set('document', route.documentId);
+      }
+      const search = query.toString();
+      return `#/builder${route.recordingId === null ? '' : `/${encodeURIComponent(route.recordingId)}`}${search === '' ? '' : `?${search}`}`;
+    }
+    case 'document':
+      return `#/document/${encodeURIComponent(route.recordingId)}/${encodeURIComponent(route.documentId)}`;
+    case 'style':
+      return `#/style/${encodeURIComponent(route.styleId)}`;
   }
 }
 

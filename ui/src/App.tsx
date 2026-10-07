@@ -7,6 +7,10 @@ import { LibraryScreen } from './screens/library/LibraryScreen';
 import { RecordScreen } from './screens/record/RecordScreen';
 import { ReviewScreen } from './screens/review/ReviewScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { BuilderScreen } from './screens/builder/BuilderScreen';
+import { connectGeneration } from './screens/builder/generation';
+import { DocumentScreen } from './screens/docview/DocumentScreen';
+import { StyleEditorScreen } from './screens/styleeditor/StyleEditorScreen';
 import { AppContext, createMemoryRouter, type AppServices } from './state/context';
 import { connectJobEvents } from './state/jobs';
 import { screenKey, type Route, type Router } from './state/router';
@@ -30,9 +34,16 @@ function Screen({ route }: { route: Route }): JSX.Element {
     case 'record':
       return <RecordScreen />;
     case 'review':
-      return <ReviewScreen recordingId={route.recordingId} />;
+      return <ReviewScreen recordingId={route.recordingId} {...(route.atMs === undefined ? {} : { startAtMs: route.atMs })} />;
     case 'settings':
       return <SettingsScreen section={route.section} />;
+    // M4
+    case 'builder':
+      return <BuilderScreen recordingId={route.recordingId} templateId={route.templateId} documentId={route.documentId} />;
+    case 'document':
+      return <DocumentScreen recordingId={route.recordingId} documentId={route.documentId} />;
+    case 'style':
+      return <StyleEditorScreen styleId={route.styleId} />;
   }
 }
 
@@ -44,6 +55,8 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
   );
   // M3: export, library move and reclaim progress (state/jobs.ts).
   useEffect(() => connectJobEvents(bridge, store), [bridge, store]);
+  // M4: generation.progress for the Builder and for jobs that end while it is closed.
+  useEffect(() => connectGeneration(services), [services]);
   const route = store.route.value;
   const modalOpen = store.overlays.value > 0;
   return (
