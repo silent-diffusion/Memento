@@ -78,14 +78,24 @@ internal sealed class GrayImage
         return new GrayImage(width, height, pixels);
     }
 
+    /// <summary>The canvas <see cref="Rotate"/> would allocate, so a caller can refuse it before any memory is taken.</summary>
+    public static (int Width, int Height) RotatedSize(int width, int height, double degrees)
+    {
+        var radians = degrees * Math.PI / 180;
+        var cos = Math.Abs(Math.Cos(radians));
+        var sin = Math.Abs(Math.Sin(radians));
+        return (
+            (int)Math.Ceiling((width * cos) + (height * sin) - 0.001),
+            (int)Math.Ceiling((width * sin) + (height * cos) - 0.001));
+    }
+
     /// <summary>Rotates clockwise by <paramref name="degrees"/> around the centre onto a canvas that fits the whole image, white outside.</summary>
     public GrayImage Rotate(double degrees, CancellationToken cancellationToken)
     {
         var radians = degrees * Math.PI / 180;
         var cos = Math.Cos(radians);
         var sin = Math.Sin(radians);
-        var width = (int)Math.Ceiling((Math.Abs(Width * cos) + Math.Abs(Height * sin)) - 0.001);
-        var height = (int)Math.Ceiling((Math.Abs(Width * sin) + Math.Abs(Height * cos)) - 0.001);
+        var (width, height) = RotatedSize(Width, Height, degrees);
         var pixels = new byte[width * height];
         var centerX = (Width - 1) / 2.0;
         var centerY = (Height - 1) / 2.0;
