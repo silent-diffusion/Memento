@@ -100,7 +100,10 @@ public sealed partial class LlamaLocalLlmEngineFactory(IGpuVramProbe vramProbe, 
             }
 
             var reading = backend == "vulkan" ? vramProbe.Read() : null;
-            var free = reading?.FreeBytes ?? (backend == "vulkan" ? job.FreeVramBytes : null);
+            // The device's budget is this process's; the host's figure also counts what other apps hold. Take the smaller.
+            var free = backend != "vulkan" ? null
+                : reading?.FreeBytes is { } budget && job.FreeVramBytes is { } host ? Math.Min(budget, host)
+                : reading?.FreeBytes ?? job.FreeVramBytes;
             var plan = LocalVramPlanner.Plan(job.Profile, backend == "vulkan" ? job.Device : LocalLlmDevices.Cpu, free, job.ContextTokens, job.VramMarginBytes, job.GpuLayers);
             LogPlan(job.ModelId, backend, plan.UseGpu, plan.GpuLayers, plan.ContextTokens, plan.Reason);
             Volatile.Write(ref onGpu, plan.UseGpu);
