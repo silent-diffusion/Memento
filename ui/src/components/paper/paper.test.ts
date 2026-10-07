@@ -48,6 +48,27 @@ describe('the document paper (DESIGN.md §5.18, the viewer markup contract)', ()
     expect(importPaper('<p>No paper</p>')).toBeNull();
   });
 
+  it('keeps only the renderer’s inline style properties (security audit SA-05)', () => {
+    const article = importPaper(
+      '<article class="paper" style="--paper-base:14px;--paper-head:#1F3A5F;position:fixed;inset:0;z-index:99;background-image:url(https://example.invalid/x.png)">' +
+        '<div class="paper-row" data-cols="1"><section class="paper-module" data-id="m1"><h2 class="paper-h">A</h2>' +
+        '<table class="paper-table"><colgroup><col style="width:40%;background:url(//example.invalid/y)"></colgroup></table>' +
+        '<p style="--paper-base:url(https://example.invalid/z)">x</p><a class="ts" href="javascript:alert(1)" data-t="1">0:01</a>' +
+        '<a class="ts" href="data:text/html,x" data-t="2">0:02</a></section></div></article>',
+    );
+    if (article === null) {
+      throw new Error('no article');
+    }
+    expect(article.style.getPropertyValue('--paper-base')).toBe('14px');
+    expect(article.style.getPropertyValue('position')).toBe('');
+    expect(article.style.getPropertyValue('z-index')).toBe('');
+    const html = serializePaper(article);
+    expect(html).not.toContain('example.invalid');
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('data:text');
+    expect(article.querySelector('col')?.style.getPropertyValue('width')).toBe('40%');
+  });
+
   it('serialises what saveEdit receives without the viewer’s editing attributes', () => {
     const article = importPaper(viewerFixture);
     if (article === null) {

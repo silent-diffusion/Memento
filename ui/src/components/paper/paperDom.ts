@@ -31,6 +31,33 @@ function allowedAttribute(name: string, value: string): boolean {
   return ATTRIBUTES.has(name);
 }
 
+/**
+ * Inline style properties the renderer writes: the paper's custom properties on the article, column widths
+ * (`<col style="width:…">`) and the skeleton's bar sizes and grid columns. Anything else, and any value that
+ * could load a resource or escape the paper (`url(…)`, `image-set(…)`, `position`), is dropped.
+ */
+const STYLE_PROPERTIES: ReadonlySet<string> = new Set(['width', 'max-width', 'min-width', 'height', 'grid-template-columns']);
+const UNSAFE_STYLE_VALUE = /url\s*\(|image-set|image\s*\(|expression\s*\(|@import|\\/i;
+
+function applyStyle(element: HTMLElement, cssText: string, doc: Document): void {
+  const probe = doc.createElement('div').style;
+  probe.cssText = cssText;
+  for (let i = 0; i < probe.length; i++) {
+    const name = probe.item(i);
+    const value = probe.getPropertyValue(name);
+    if ((name.startsWith('--paper-') || STYLE_PROPERTIES.has(name)) && !UNSAFE_STYLE_VALUE.test(value)) {
+      element.style.setProperty(name, value);
+    }
+  }
+  // Custom properties are not always enumerated (older CSSOM implementations); read the renderer's by name.
+  for (const match of cssText.matchAll(/(--paper-[a-z-]+)\s*:\s*([^;]*)/g)) {
+    const [, name, value] = match;
+    if (name !== undefined && value !== undefined && element.style.getPropertyValue(name) === '' && !UNSAFE_STYLE_VALUE.test(value)) {
+      element.style.setProperty(name, value.trim());
+    }
+  }
+}
+
 function copy(source: Node, into: Node, doc: Document): void {
   for (const child of Array.from(source.childNodes)) {
     if (child.nodeType === 3) {
@@ -52,11 +79,9 @@ function copy(source: Node, into: Node, doc: Document): void {
     const element = doc.createElement(tag);
     for (const attribute of Array.from(child.attributes)) {
       const name = attribute.name.toLowerCase();
-      if (name === STYLE_CARRIER) {
-        element.style.cssText = attribute.value;
-      } else if (name === 'style') {
-        // Never set as an attribute: the CSP refuses inline style attributes.
-        element.style.cssText = attribute.value;
+      if (name === STYLE_CARRIER || name === 'style') {
+        // Never set as an attribute (the CSP refuses inline style attributes); only the renderer's properties survive.
+        applyStyle(element, attribute.value, doc);
       } else if (allowedAttribute(name, attribute.value)) {
         element.setAttribute(name, attribute.value);
       }
