@@ -10,7 +10,7 @@ public sealed class ModelCatalogTests
           "runsOn": "either", "minVramBytes": null, "recommendedFor": null, "accuracyNote": "n" }
         """;
 
-    private static string Catalog(string sha = "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", string url = "https://example.org/tiny", int schema = 1, int entries = 1) =>
+    private static string Catalog(string sha = "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", string url = "https://huggingface.co/tiny", int schema = 1, int entries = 1) =>
         $$"""{ "schemaVersion": {{schema}}, "models": [ {{string.Join(",", Enumerable.Repeat(Entry.Replace("SHA", sha, StringComparison.Ordinal).Replace("URL", url, StringComparison.Ordinal), entries))}} ] }""";
 
     [Fact]
@@ -47,15 +47,64 @@ public sealed class ModelCatalogTests
     }
 
     [Theory]
-    [InlineData("ABC", "https://example.org/tiny", 1, 1, "sha256")]
-    [InlineData("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", "http://example.org/tiny", 1, 1, "https")]
-    [InlineData("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", "https://example.org/tiny", 2, 1, "schema 2")]
-    [InlineData("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", "https://example.org/tiny", 1, 2, "twice")]
+    [InlineData("ABC", "https://huggingface.co/tiny", 1, 1, "sha256")]
+    [InlineData("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", "http://huggingface.co/tiny", 1, 1, "https")]
+    [InlineData("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", "https://huggingface.co/tiny", 2, 1, "schema 2")]
+    [InlineData("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", "https://huggingface.co/tiny", 1, 2, "twice")]
     public void RejectsAnInvalidCatalogWithTheReason(string sha, string url, int schema, int entries, string reason)
     {
         var error = Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(Catalog(sha, url, schema, entries)));
 
         Assert.Contains(reason, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("https://example.org/tiny")]
+    [InlineData("https://huggingface.co.example.org/tiny")]
+    [InlineData("https://cdn-lfs.huggingface.co/tiny")]
+    [InlineData("https://raw.githubusercontent.com/tiny")]
+    public void RejectsADownloadAddressOffThePublishingHosts(string url)
+    {
+        var error = Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(Catalog(url: url)));
+
+        Assert.Contains("url must be on huggingface.co or github.com", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("NUL")]
+    [InlineData("nul.bin")]
+    [InlineData("COM1.onnx")]
+    [InlineData("lpt9")]
+    [InlineData("ggml-tiny.bin.")]
+    [InlineData("ggml-tiny.bin ")]
+    [InlineData(" ggml-tiny.bin")]
+    [InlineData("..")]
+    [InlineData("a/b.bin")]
+    [InlineData("a\\\\b.bin")]
+    [InlineData("c:b.bin")]
+    [InlineData("a*b.bin")]
+    [InlineData("ggml-tiny.bin.part")]
+    [InlineData("ggml-tiny.bin.verified.json")]
+    [InlineData("ggml-tiny.bin.corrupt-20260101")]
+    public void RejectsAFileNameWindowsOrTheModelManagerWouldMisread(string fileName)
+    {
+        var json = Catalog().Replace("\"ggml-tiny.bin\"", "\"" + fileName + "\"", StringComparison.Ordinal);
+
+        var error = Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(json));
+
+        Assert.Contains("fileName must be a plain Windows file name", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RejectsTwoEntriesThatShareAFileWhateverTheCase()
+    {
+        var first = Entry.Replace("SHA", "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", StringComparison.Ordinal).Replace("URL", "https://huggingface.co/a", StringComparison.Ordinal);
+        var second = first.Replace("\"tiny\"", "\"tiny-two\"", StringComparison.Ordinal).Replace("ggml-tiny.bin", "GGML-Tiny.bin", StringComparison.Ordinal);
+
+        var error = Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse($$"""{ "schemaVersion": 1, "models": [ {{first}}, {{second}} ] }"""));
+
+        Assert.Contains("'tiny-two'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("already uses the file name", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -12,6 +12,12 @@ public sealed partial class ModelCatalog
     private const string ResourceName = "Memento.Core.Models.catalog.json";
     private static readonly Lazy<ModelCatalog> BuiltIn = new(LoadBuiltIn);
 
+    private static readonly string[] ReservedNames =
+        ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"];
+
+    // Files the model manager keeps beside a model; a catalog file name must not collide with one of them.
+    private static readonly string[] ManagerSuffixes = [".part", ".tmp", ModelVerifiedStamp.Suffix];
+
     private readonly Dictionary<string, ModelCatalogEntry> _byId;
 
     private ModelCatalog(IReadOnlyList<ModelCatalogEntry> entries)
@@ -55,12 +61,43 @@ public sealed partial class ModelCatalog
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        // Windows file names are case-insensitive: two entries must never share a file.
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in document.Models)
         {
             Check(entry, seen);
+            if (!files.Add(entry.Engine + "/" + entry.FileName))
+            {
+                throw new InvalidDataException($"Model catalog entry '{entry.Id}' is not valid: another entry of engine '{entry.Engine}' already uses the file name '{entry.FileName}'.");
+            }
         }
 
         return new ModelCatalog(document.Models);
+    }
+
+    private static bool IsPlainFileName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)
+            || name.Length > 200
+            || name.Any(c => c < 0x20 || c is '<' or '>' or ':' or '"' or '/' or '\\' or '|' or '?' or '*')
+            || name.Trim('.').Length == 0
+            || name.EndsWith('.')
+            || name.EndsWith(' ')
+            || name.StartsWith(' '))
+        {
+            return false;
+        }
+
+        // "nul", "nul.bin" and "COM1.onnx" all open a device on Windows.
+        var stem = name.Split('.')[0].TrimEnd(' ');
+        if (ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return !ManagerSuffixes.Any(s => name.EndsWith(s, StringComparison.OrdinalIgnoreCase))
+            && !name.Contains(".corrupt-", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void Check(ModelCatalogEntry entry, HashSet<string> seen)
@@ -90,9 +127,13 @@ public sealed partial class ModelCatalog
         {
             problem = "url must be an https address";
         }
-        else if (string.IsNullOrWhiteSpace(entry.FileName) || entry.FileName.IndexOfAny(['/', '\\', ':']) >= 0 || entry.FileName.Trim('.').Length == 0)
+        else if (!ModelDownloadHosts.IsAllowedCatalogUrl(uri))
         {
-            problem = "fileName must be a plain file name";
+            problem = $"url must be on {string.Join(" or ", ModelDownloadHosts.CatalogHosts)}, not {uri.Host}";
+        }
+        else if (!IsPlainFileName(entry.FileName))
+        {
+            problem = "fileName must be a plain Windows file name (no folders, device names such as NUL, trailing dots or spaces, or the names Memento keeps beside a model)";
         }
         else if (string.IsNullOrWhiteSpace(entry.Engine) || !IdPattern().IsMatch(entry.Engine))
         {

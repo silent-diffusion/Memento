@@ -221,6 +221,34 @@ public sealed class ModelManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task ARedirectOnTheSameServerIsFollowed()
+    {
+        _server.Redirects["moved"] = _server.Url("ggml-test.bin");
+        var manager = Create(path: "moved");
+
+        await manager.InstallAsync("test", CancellationToken.None);
+
+        Assert.Equal("done", (await FinishedAsync()).GetProperty("state").GetString());
+        Assert.True(manager.IsInstalled("test"));
+    }
+
+    [Fact]
+    public async Task ARedirectToAnotherHostIsRefusedAndInstallsNothing()
+    {
+        _server.Redirects["moved"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"http://localhost:{_server.Port}/ggml-test.bin");
+        var manager = Create(path: "moved");
+
+        var error = await Assert.ThrowsAsync<BridgeException>(() => manager.InstallAsync("test", CancellationToken.None));
+
+        Assert.Equal("models.downloadFailed", error.Code);
+        Assert.Contains("sent it on to localhost", error.Message, StringComparison.Ordinal);
+        Assert.Contains("not one of the servers Memento downloads models from", error.Message, StringComparison.Ordinal);
+        Assert.False(manager.IsInstalled("test"));
+        Assert.False(File.Exists(ModelPath));
+        Assert.False(File.Exists(ModelPath + ".part"));
+    }
+
+    [Fact]
     public async Task AnInstalledModelIsStampedWithItsHash()
     {
         var manager = Create();

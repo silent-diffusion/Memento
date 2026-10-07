@@ -514,6 +514,14 @@ public sealed partial class ModelManager : IModelManager, IDisposable
 
         using (response)
         {
+            // Redirects are followed by the handler; whatever answered must still be one of the model hosts.
+            var answered = response.RequestMessage?.RequestUri;
+            if (!ModelDownloadHosts.IsAllowedDownload(new Uri(entry.Url), answered))
+            {
+                throw new HttpRequestException(
+                    $"the download server sent it on to {answered?.Host ?? "an unknown address"}{(answered is { Scheme: not "https" } ? " without https" : string.Empty)}, which is not one of the servers Memento downloads models from");
+            }
+
             if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && existing > 0)
             {
                 File.Delete(part);
