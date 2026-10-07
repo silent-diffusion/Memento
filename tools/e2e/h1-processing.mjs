@@ -23,6 +23,7 @@ const audio2h = resolve(option(args, '--audio2h', ''));
 const shortAudio = resolve(option(args, '--short', ''));
 const models = resolve(option(args, '--models', ''));
 const part = option(args, '--part', null);
+const exe = option(args, '--exe', undefined);
 const summaries = [];
 
 const transcriptStage = (run, id) => {
@@ -51,7 +52,7 @@ function passNumbers(run, id) {
 }
 
 async function partA() {
-  const run = new Run({ name: 'A. 2-hour file, busy pause, cancel, crash, CPU', dataRoot: join(base, 'A'), out: join(out, 'A'), port: 9460, models });
+  const run = new Run({ name: 'A. 2-hour file, busy pause, cancel, crash, CPU', dataRoot: join(base, 'A'), out: join(out, 'A'), port: 9460, models, exe });
   rmSync(run.dataRoot, { recursive: true, force: true });
   run.copyModels();
   const numbers = {};
@@ -75,7 +76,7 @@ async function partA() {
     await run.hasText('RECORDING');
     const paused = await run.until(() => /Paused/.test(transcriptStage(run, id)?.label ?? '') && transcriptStage(run, id), 'the pause', 60_000, 200).catch(() => null);
     await sleep(3000);
-    const workersWhilePaused = run.workerPids().length;
+    const workersWhilePaused = run.ownWorkerPids().length;
     await run.page.click({ name: 'Library' });
     await sleep(800);
     await run.shot('busy-paused-library');
@@ -101,7 +102,8 @@ async function partA() {
     await run.shot('cancelled-card');
     run.check('cancel: the card says where it stopped and offers to continue', !!card && /Transcription was cancelled at [\d:]+\./.test(card) && card.includes('Continue transcribing'), card ?? '(none)');
     await run.page.click({ name: 'Continue transcribing' });
-    await run.until(() => transcriptStage(run, id)?.state === 'active', 'transcription to continue', 60_000, 300);
+    // The short recording from the busy pause is processed first (one recording at a time), then this pass continues.
+    await run.until(() => transcriptStage(run, id)?.state === 'active', 'transcription to continue', 15 * 60_000, 300);
     await run.until(() => windowsDone(run, id) > beforeCancel || transcriptStage(run, id)?.state === 'done', 'a window after continuing', 10 * 60_000, 500);
     run.check('cancel: continuing keeps the windows already done', windowsDone(run, id) >= beforeCancel || transcriptStage(run, id)?.state === 'done', `windows ${beforeCancel} → ${windowsDone(run, id)}`);
 
@@ -116,15 +118,15 @@ async function partA() {
 
     // Again, the worker killed inside its first window: Retry on CPU.
     await run.bridge('transcript.retranscribe', { recordingId: id });
-    await run.until(() => transcriptStage(run, id)?.state === 'active' && run.workerPids().length > 0 && (transcriptStage(run, id)?.percent ?? 0) >= 1, 'the second pass', 10 * 60_000, 300);
-    const killed = run.workerPids();
+    await run.until(() => transcriptStage(run, id)?.state === 'active' && run.ownWorkerPids().length > 0 && (transcriptStage(run, id)?.percent ?? 0) >= 1, 'the second pass', 10 * 60_000, 300);
+    const killed = run.ownWorkerPids();
     execFileSync('taskkill', ['/F', '/PID', String(killed[0])]);
     const crash = await run.until(() => failureCard(run), 'the crash card', 60_000).catch(() => null);
     await run.shot('worker-crash-card');
     run.check('crash: the card names the failure, the code, what is kept, and offers Retry on CPU first', !!crash && /Transcription stopped/.test(crash) && /0x[0-9A-F]{8}/.test(crash) && /Retry on CPU/.test(crash), crash ?? '(none)');
     const cpuStarted = Date.now();
     await run.page.click({ name: 'Retry on CPU' });
-    await run.until(() => transcriptStage(run, id)?.state === 'active', 'the CPU pass', 60_000, 300);
+    await run.until(() => transcriptStage(run, id)?.state === 'active', 'the CPU pass', 15 * 60_000, 300);
     await sleep(5000);
     await run.shot('cpu-transcribing');
     run.check('CPU: the pass runs on the processor', /CPU/.test(transcriptStage(run, id)?.label ?? ''), transcriptStage(run, id)?.label);
@@ -184,7 +186,7 @@ function startMirror(root, bytesPerSecond) {
 }
 
 async function partB() {
-  const run = new Run({ name: 'B. interrupted download, damaged model', dataRoot: join(base, 'B'), out: join(out, 'B'), port: 9461 });
+  const run = new Run({ name: 'B. interrupted download, damaged model', dataRoot: join(base, 'B'), out: join(out, 'B'), port: 9461, exe });
   rmSync(run.dataRoot, { recursive: true, force: true });
   const mirror = await startMirror(models, 20 * 1024 * 1024);
   const appArgs = ['--simulate-audio', '--update-feed=off', `--model-mirror=http://127.0.0.1:${mirror.port}/`];
@@ -236,7 +238,7 @@ async function partB() {
     await run.shot('damaged-model-card');
     result.card = card;
     run.check('damaged: reported specifically, the recording safe, re-download offered', !!card && card.includes('model file is damaged') && card.includes('SHA-256') && card.includes('Download Small again'), card ?? '(none)');
-    run.check('damaged: set aside, never used', existsSync(small + '.damaged') && !existsSync(small) && run.workerPids().length === 0);
+    run.check('damaged: set aside, never used', existsSync(small + '.damaged') && !existsSync(small) && run.ownWorkerPids().length === 0);
     run.check('damaged: the log names the checksums', run.logLines(/Model whisper-small is damaged: SHA-256 \w+ instead of \w+/).length > 0);
     await run.page.click({ name: 'Download Small again' });
     await run.until(() => transcriptStage(run, id)?.state === 'done', 'transcription after the re-download', 10 * 60_000, 1000);

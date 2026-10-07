@@ -205,6 +205,17 @@ export class Run {
     }
   }
 
+  /** Workers started by this run's Memento (other Mementos on the PC, such as a soak, are left alone). */
+  ownWorkerPids() {
+    if (!this.app?.process?.pid) return [];
+    try {
+      const text = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(Get-CimInstance Win32_Process -Filter "Name='Memento.Worker.exe' AND ParentProcessId=${this.app.process.pid}").ProcessId`], { encoding: 'utf8', windowsHide: true });
+      return text.split(/\s+/).filter(Boolean).map(Number);
+    } catch {
+      return [];
+    }
+  }
+
   summary() {
     const failed = this.results.filter((r) => !r.passed);
     return { name: this.name, passed: this.results.length - failed.length, failed: failed.length, results: this.results, crashReports: this.crashReports() };
