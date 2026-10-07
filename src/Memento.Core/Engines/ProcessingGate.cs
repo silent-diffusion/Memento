@@ -15,6 +15,11 @@ public sealed class ProcessingGate
     public const double BusyCpuPercent = 85;
     public static readonly TimeSpan BusyFor = TimeSpan.FromSeconds(10);
 
+    /// <summary>A busy pause ends once the processor has been at or below this for <see cref="CalmFor"/>.</summary>
+    public const double ResumeCpuPercent = 70;
+
+    public static readonly TimeSpan CalmFor = TimeSpan.FromSeconds(15);
+
     private readonly object _sync = new();
     private readonly TimeProvider _time;
     private TaskCompletionSource _open = NewOpen();
@@ -24,6 +29,7 @@ public sealed class ProcessingGate
     private bool _cpuBusy;
     private bool _busyReleased;
     private DateTimeOffset? _busySince;
+    private DateTimeOffset? _calmSince;
     private string? _reason;
 
     public ProcessingGate(TimeProvider time)
@@ -91,14 +97,38 @@ public sealed class ProcessingGate
         {
             _recording = pauseWhenBusy && recordingActive;
             _lowSpace = lowSpace;
-            if (!pauseWhenBusy || cpuBusyPercent is not { } cpu || cpu <= BusyCpuPercent)
+            var now = _time.GetUtcNow();
+            if (!pauseWhenBusy || cpuBusyPercent is not { } cpu)
             {
                 _busySince = null;
+                _calmSince = null;
                 _cpuBusy = false;
+            }
+            else if (_cpuBusy)
+            {
+                // Paused for a busy processor: resume only once it has been calm for a while, or a PC hovering
+                // around the threshold stops and restarts the same window again and again.
+                if (cpu > ResumeCpuPercent)
+                {
+                    _calmSince = null;
+                }
+                else
+                {
+                    _calmSince ??= now;
+                    if (now - _calmSince.Value >= CalmFor)
+                    {
+                        _cpuBusy = false;
+                        _busySince = null;
+                        _calmSince = null;
+                    }
+                }
+            }
+            else if (cpu <= BusyCpuPercent)
+            {
+                _busySince = null;
             }
             else
             {
-                var now = _time.GetUtcNow();
                 _busySince ??= now;
                 _cpuBusy = now - _busySince.Value >= BusyFor;
             }
