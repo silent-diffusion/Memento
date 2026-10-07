@@ -194,3 +194,96 @@ Method codes:
 | `recording.alreadyActive` | `recording.start` while another session is recording or paused; `detail` is that session's id. |
 
 The UI's bridge client adds two codes of its own, never sent by the host: `bridge.timeout` (no answer in time) and `bridge.sendFailed` (the request could not be posted).
+
+---
+
+# M2 — Transcription and speakers (contract; to be implemented)
+
+Everything below is additive. Host and UI build to it from the same text; the UI's mock implements it with sample data.
+
+## Shared types (M2)
+
+```ts
+interface TranscriptWord { w: string; s: number; e: number; c: number }          // seconds; c = confidence 0..1
+interface TranscriptSegment {
+  id: string; start: number; end: number;                                        // seconds
+  track: string | null;                                                          // track id the words came from
+  speaker: string | null; speakerConfidence: number | null;                      // speaker id; null when speakers were not identified
+  text: string; confidence: number;                                              // min of word confidences
+  words: TranscriptWord[];                                                       // [] when word timestamps are off
+  edited: { at: string; original: string } | null;
+}
+interface Speaker { id: string; name: string; renamed: boolean; color: 1 | 2 | 3 | 4; talkTimeMs: number }
+interface Transcript {
+  schemaVersion: 1; language: string; languageDetected: boolean;
+  engine: { name: string; model: string; device: string; version: string; durationMs: number };
+  speakers: Speaker[]; segments: TranscriptSegment[];
+  reviewed: boolean; version: number;                                            // version increments on every write
+  lowConfidenceThreshold: number;                                                // from settings at generation time
+}
+type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
+interface StageFailure { stage: StageName; message: string; kept: string; remedies: { id: string; label: string }[] }   // DESIGN §17 copy: what failed, what was kept, most specific fix first
+interface ModelInfo {
+  id: string; engine: 'transcription' | 'speakers' | 'ocr'; name: string; description: string;
+  sizeBytes: number; license: string; installed: boolean; installing: { percent: number; bytesDone: number } | null;
+  recommended: boolean; runsOn: 'gpu' | 'cpu' | 'either'; minVramBytes: number | null; accuracyNote: string;   // "Most accurate", "Fast on CPU"
+}
+interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: string | null; freeVramBytes: number | null; model: string | null; paused: string | null }
+```
+
+`StageName` gains `transcript` and `speakers` as running stages (they already exist as pill names). `HistoryEntry.stage` gains `transcript`, `speakers`, `topics`; `detail` carries engine, model, device, duration and segment count.
+
+## Methods (M2)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `transcript.get` | `{ recordingId }` | `{ transcript: Transcript \| null, status: TranscriptStatus, failure: StageFailure \| null }` | `transcript` is null until the first pass completes; a failed pass may still return a partial transcript with `status: 'failed'`. |
+| `transcript.editSegment` | `{ recordingId, segmentId, text }` | `{ segment: TranscriptSegment, version }` | Keeps `edited.original` from the first edit. Words are re-aligned proportionally (confidence set to 1 for edited words). |
+| `transcript.setSegmentSpeaker` | `{ recordingId, segmentId, speakerId: string \| null, newSpeakerName?: string }` | `{ segment, speakers }` | `newSpeakerName` creates a speaker and assigns it. |
+| `transcript.renameSpeaker` | `{ recordingId, speakerId, name }` | `{ speakers }` | Updates every segment by reference; `renamed: true`. |
+| `transcript.mergeSpeakers` | `{ recordingId, fromSpeakerId, intoSpeakerId }` | `{ speakers, segmentsChanged }` | |
+| `transcript.markReviewed` | `{ recordingId, reviewed }` | `{ reviewed }` | |
+| `transcript.search` | `{ recordingId, query }` | `{ matches: { segmentId, start, snippet }[] }` | Case-insensitive, word-boundary aware. |
+| `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording. |
+| `transcript.versions` | `{ recordingId }` | `{ versions: { id, at, reason: 'transcribed' \| 'edited' \| 'restored' \| 'retranscribed', engine: string \| null, segments: number }[] }` | Empty when history is off. |
+| `transcript.restoreVersion` | `{ recordingId, versionId }` | `{ transcript }` | The replaced transcript becomes a version. |
+| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies` (e.g. `cpu`, `model:small`). |
+| `processing.cancel` | `{ recordingId, stage }` | `{}` | Partial results are kept. |
+| `processing.pause` / `processing.resume` | `{}` | `{}` | Global; shown in the footer as "Transcription paused". |
+| `models.list` | `{}` | `{ models: ModelInfo[] }` | Catalog plus installed state; re-reads disk. |
+| `models.install` | `{ modelId }` | `{}` | Downloads with SHA-256 verification; progress via `models.progress`. One download at a time. |
+| `models.cancelInstall` | `{ modelId }` | `{}` | Removes the partial file. |
+| `models.remove` | `{ modelId }` | `{}` | Refused with `models.inUse` while a stage is using it. |
+| `engine.status` | `{}` | `{ transcription: EngineStatusDetail, speakers: EngineStatusDetail }` | Probe result; `freeVramBytes` null on CPU-only. |
+| `library.list` | (as M1) | `RecordingSummary` | `query` now also matches transcript text (FTS); the summary gains `matchSnippet: string \| null` for transcript hits. |
+
+## Events (M2)
+
+| Event | Payload | Notes |
+|---|---|---|
+| `processing.progress` | (as M1) stages now include `transcript` and `speakers` with `percent` and `label` ("64% · local GPU", "Queued", "Paused · PC is busy") | |
+| `transcript.changed` | `{ recordingId, version, reason: 'transcribed' \| 'edited' \| 'speakers' \| 'restored' \| 'topics' }` | The UI refetches `transcript.get` (or applies the edit it made). |
+| `models.progress` | `{ modelId, percent, bytesDone, bytesTotal, state: 'downloading' \| 'verifying' \| 'done' \| 'failed', message: string \| null }` | |
+| `status.footer` | adds `engine.detail: EngineStatusDetail` | Footer left side: "Local transcription ready · GPU (RTX 3060)" / "Transcription paused · PC is busy" / "No transcription model installed". |
+| `recording.liveTranscript` | `{ sessionId, segments: { start: number, end: number, text: string }[] }` | Optional. Rough draft segments for the Recording session's Live transcript card; replaced entirely by the full pass. If live transcription is not available in a build, the host never sends it and the card says so. |
+
+## Settings snapshot (M2 additions)
+
+```ts
+transcription: {
+  auto: boolean;                         // transcribe automatically after recording (true)
+  timing: 'after' | 'during';            // 'during' adds the live draft; the authoritative pass still runs after
+  pauseWhenBusy: boolean;                // true
+  modelId: string;                       // default: the recommended model that fits the hardware
+  cpuFallbackModelId: string;            // default: small
+  language: 'auto' | string;             // BCP-47 primary subtag
+  keepWordTimestamps: boolean;           // true
+  lowConfidenceThreshold: number;        // 0.5
+}
+speakers: { identify: boolean; expectedSpeakers: 'auto' | number; rememberRenamed: boolean; embeddingModelId: string }
+history: { keepVersions: boolean; keepDays: number }     // true, 90
+```
+
+## Error codes (M2)
+
+`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
