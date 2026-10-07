@@ -184,6 +184,7 @@ Everything can be reached with Tab and Shift+Tab; the focused control has a visi
 - **No video capture**; importing a video file uses its sound.
 - **Keep running in the tray** is stored but not applied yet; closing the window closes Memento.
 - There is no button to stop a transcription that is running; it pauses by itself while you record or the PC is busy, and continues where it stopped.
+- Memento's transcription always lets other programs go first. A pass on the graphics card does not pause when the processor is busy, but while other programs keep every processor core fully busy it can stand still at the same percentage; it carries on once they are done.
 - "Everything this PC plays" records the output device that was in use when the recording started. If you switch Windows to another output device mid-recording, sound sent to the new device is not on that track (an app source follows the app wherever it plays).
 - Speaker identification can split one person into two speakers or merge two similar voices; rename, move or merge them in Review.
 - English is the only interface language. Transcription detects the spoken language, or use the language you set in Settings.
