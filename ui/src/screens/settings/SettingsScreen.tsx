@@ -6,9 +6,9 @@ import { SpokeHeader } from '../../components/SpokeHeader';
 import { goToLibrary } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { SETTINGS_SECTIONS, type SettingsSection } from '../../state/router';
-import { GeneralSection, RecordingSection, StorageSection } from './sections';
+import { RecordingSection } from './sections';
+import { AiPrivacySection, ExportSection, GeneralSectionM3, StorageSectionM3 } from './sections-m3';
 import { DocumentsSection, SpeakersSection, TranscriptionSection } from './TranscriptionSections';
-import { LaterCard } from './SettingsParts';
 
 interface SectionInfo {
   label: string;
@@ -16,20 +16,20 @@ interface SectionInfo {
   Body: () => JSX.Element;
 }
 
-/** DESIGN.md §11 sections in order. Those not built yet say so with one card. */
+/** DESIGN.md §11 sections in order (M3: every section is built). */
 export const SECTIONS: Record<SettingsSection, SectionInfo> = {
-  general: { label: 'General', blurb: 'Appearance, startup and where your library lives.', Body: GeneralSection },
+  general: { label: 'General', blurb: 'Appearance, startup and where your library lives.', Body: GeneralSectionM3 },
   recording: { label: 'Recording', blurb: 'What a new recording captures and how it is kept safe.', Body: RecordingSection },
   transcription: { label: 'Transcription', blurb: 'Runs on this PC. Nothing is uploaded.', Body: TranscriptionSection },
   speakers: { label: 'Speakers', blurb: 'Who said what, worked out locally.', Body: SpeakersSection },
   'ai-privacy': {
     label: 'AI and privacy',
     blurb: 'Optional. Memento records, transcribes and exports without any of this.',
-    Body: LaterCard,
+    Body: AiPrivacySection,
   },
   documents: { label: 'Documents', blurb: 'Templates, styles and version history for transcripts and documents.', Body: DocumentsSection },
-  export: { label: 'Export', blurb: 'Copies saved outside Memento. The project inside Memento stays the original.', Body: LaterCard },
-  storage: { label: 'Storage and history', blurb: 'How much space the library uses and how to get some back.', Body: StorageSection },
+  export: { label: 'Export', blurb: 'Copies saved outside Memento. The project inside Memento stays the original.', Body: ExportSection },
+  storage: { label: 'Storage and history', blurb: 'How much space the library uses and how to get some back.', Body: StorageSectionM3 },
 };
 
 /** Settings spoke (DESIGN.md §11, renders/Settings.dc.html). */
