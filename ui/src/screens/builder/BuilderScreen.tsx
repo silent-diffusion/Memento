@@ -26,6 +26,7 @@ import { draftKey, draftOf, type BuilderTab } from './draft';
 import { cancelGeneration, confirmGeneration, dismissGeneration, generationOf, startGeneration, watchGeneration } from './generation';
 import { Palette } from './Palette';
 import { PreviewPanel, type InputRow } from './PreviewPanel';
+import { layoutOfDocument } from './regenerate';
 import { ConfirmSendDialog, PayloadSheet } from './SendDialogs';
 import { initialStructure, moduleCount, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
@@ -146,7 +147,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
         const { document } = await bridge.call('documents.get', { recordingId, documentId });
         const record = document.record;
         if (record !== null) {
-          chosen = { ...chosen, inputs: record.inputs, providerId: record.providerId, styleId: record.styleId };
+          chosen = { ...chosen, inputs: record.inputs, providerId: record.providerId, styleId: record.styleId, rows: layoutOfDocument(chosen, document) };
         }
       }
       if (!isAlive()) {
