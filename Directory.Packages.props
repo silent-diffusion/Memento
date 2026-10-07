@@ -20,6 +20,8 @@
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.3" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="8.0.31" />
+    <!-- DPAPI for the AI provider keys in secrets.bin (M3). -->
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup Label="Audio">
     <PackageVersion Include="NAudio.Core" Version="2.4.0" />

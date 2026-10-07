@@ -17,4 +17,8 @@ public static class BridgeEventNames
 
     /// <summary>Optional live draft; this build never sends it (BRIDGE.md M2).</summary>
     public const string RecordingLiveTranscript = "recording.liveTranscript";
+
+    public const string ExportProgress = "export.progress";
+    public const string LibraryMoveProgress = "library.moveProgress";
+    public const string StorageReclaimProgress = "storage.reclaimProgress";
 }

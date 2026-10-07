@@ -1,6 +1,7 @@
 using System.Globalization;
 using Memento.Documents.Agenda.Layout;
 using Memento.Documents.Agenda.Text;
+using Memento.Documents.Agenda.Ocr;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Exceptions;
@@ -9,11 +10,29 @@ namespace Memento.Documents.Agenda.Pdf;
 
 /// <summary>
 /// PDF files with a text layer: words with their positions, lines rebuilt from word boxes, two-column pages read
-/// left column first (with a warning), headings from larger or bold type, numbering from the text.
+/// left column first (with a warning), headings from larger or bold type, numbering from the text. A PDF with no text
+/// layer (a scan) is rendered page by page and read with text recognition when an OCR engine and a renderer are given.
 /// </summary>
 public sealed class PdfAgendaParser : IAgendaParser
 {
     private const int MaxPages = 200;
+
+    private readonly List<IOcrEngine> _engines;
+    private readonly IPdfPageRenderer? _renderer;
+
+    /// <summary>Text-layer PDFs only: a scan is refused with <c>agenda.noText</c>.</summary>
+    public PdfAgendaParser()
+        : this([], null)
+    {
+    }
+
+    /// <summary>Scans are rendered with <paramref name="renderer"/> and read with the first available engine.</summary>
+    public PdfAgendaParser(IEnumerable<IOcrEngine> engines, IPdfPageRenderer? renderer)
+    {
+        ArgumentNullException.ThrowIfNull(engines);
+        _engines = engines.ToList();
+        _renderer = renderer;
+    }
 
     public IReadOnlyList<AgendaSourceKind> Kinds { get; } = [AgendaSourceKind.Pdf];
 
@@ -24,10 +43,13 @@ public sealed class PdfAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        return await Task.Run(() => Parse(bytes, options, cancellationToken), cancellationToken).ConfigureAwait(false);
+        var canRecognize = _renderer is not null && _engines.Count > 0;
+        var result = await Task.Run(() => Parse(bytes, options, canRecognize, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return result ?? await ScannedPdfReader.ReadAsync(bytes, options, _engines, _renderer!, cancellationToken).ConfigureAwait(false);
     }
 
-    private static AgendaParseResult Parse(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, CancellationToken cancellationToken)
+    /// <returns><c>null</c> when the PDF has no text layer and <paramref name="canRecognize"/> is set.</returns>
+    private static AgendaParseResult? Parse(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, bool canRecognize, CancellationToken cancellationToken)
     {
         PdfDocument document;
         try
@@ -102,6 +124,11 @@ public sealed class PdfAgendaParser : IAgendaParser
 
             if (wordCount == 0)
             {
+                if (canRecognize)
+                {
+                    return null;
+                }
+
                 throw AgendaErrors.NoText(
                     options,
                     "has no text to read; it may be a scan or a photo saved as a PDF",

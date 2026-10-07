@@ -25,4 +25,16 @@ public sealed record SettingsSetParams
 
     /// <summary>Settings › Documents › History; each field present is changed, the others keep their value.</summary>
     public HistorySettingsPatch? History { get; init; }
+
+    /// <summary>Settings › General (M3); each field present is changed.</summary>
+    public GeneralSettingsPatch? General { get; init; }
+
+    /// <summary>Settings › Export (M3); each field present is changed, <c>defaults</c> replaces whole.</summary>
+    public ExportSettingsPatch? Export { get; init; }
+
+    /// <summary>Settings › AI and privacy (M3); each field present is changed. Keys go through <c>ai.setKey</c>.</summary>
+    public AiSettingsPatch? Ai { get; init; }
+
+    /// <summary>Settings › Storage and history (M3).</summary>
+    public LibraryStorageSettingsPatch? Storage { get; init; }
 }

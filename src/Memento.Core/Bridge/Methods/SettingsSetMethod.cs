@@ -12,7 +12,7 @@ namespace Memento.Core.Bridge.Methods;
 /// so a request with one bad field changes nothing. The <c>recording</c> block is replaced whole; the M2 blocks
 /// (<c>transcription</c>, <c>speakers</c>, <c>history</c>) change only the fields they carry.
 /// </summary>
-public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selector, IModelManager models) : BridgeMethod<SettingsSetParams, SettingsSnapshot>
+public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selector, IModelManager models, SettingsExtras? extras = null) : BridgeMethod<SettingsSetParams, SettingsSnapshot>
 {
     public const string InvalidValueCode = DomainErrorCodes.SettingsInvalidValue;
     public const string LibraryMoveUnavailableCode = DomainErrorCodes.SettingsLibraryMoveUnavailable;
@@ -45,7 +45,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             // Moving the library is copy-then-verify-then-delete with progress (ARCHITECTURE.md §4), not a settings write.
             throw new BridgeException(
                 LibraryMoveUnavailableCode,
-                "The library location can't be changed in this version. Your recordings stay where they are; moving the library arrives with Settings in a later version.");
+                "The library location is changed with Change in Settings › Storage, which copies every recording and checks it before switching. Nothing was changed; your recordings stay where they are.");
         }
 
         var recording = parameters.Recording is null ? null : Replace(store.Current.Recording, parameters.Recording);
@@ -64,8 +64,16 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
 
         ValidateModels(parameters.Transcription, parameters.Speakers);
 
+        // M3 blocks: validated before anything is written; the startup entry changes first so a refusal changes nothing.
+        if (M3SettingsBlocks.Validate(M3SettingsBlocks.Merge(store.Current, parameters)) is { } m3Problem)
+        {
+            throw new BridgeException(InvalidValueCode, m3Problem + " Nothing was changed.");
+        }
+
+        M3SettingsBlocks.ApplyStartup(parameters, extras);
+
         var updated = await store.UpdateAsync(
-            current => current with
+            current => M3SettingsBlocks.Merge(current, parameters) with
             {
                 Theme = parameters.Theme ?? current.Theme,
                 ListDensity = parameters.ListDensity ?? current.ListDensity,
@@ -76,7 +84,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             },
             cancellationToken);
 
-        return SettingsGetMethod.ToSnapshot(updated, selector.EffectiveModelId(updated.Transcription));
+        return SettingsGetMethod.ToSnapshot(updated, selector.EffectiveModelId(updated.Transcription), extras);
     }
 
     /// <summary>Settings › Transcription: each field present replaces the stored one; <c>null</c> keeps it.</summary>

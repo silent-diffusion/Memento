@@ -228,7 +228,7 @@ public sealed class BridgeRouterTests
     {
         using var host = new BridgeTestHost();
 
-        // Every method in docs/BRIDGE.md, M0, M1 and M2.
+        // Every method in docs/BRIDGE.md, M0, M1, M2 and M3.
         string[] expected =
         [
             "annotations.addChapter", "annotations.addHighlight", "annotations.addTopic", "annotations.removeChapter",
@@ -242,6 +242,10 @@ public sealed class BridgeRouterTests
             "processing.cancel", "processing.pause", "processing.resume", "processing.retry",
             "transcript.editSegment", "transcript.get", "transcript.markReviewed", "transcript.mergeSpeakers", "transcript.renameSpeaker",
             "transcript.restoreVersion", "transcript.retranscribe", "transcript.search", "transcript.setSegmentSpeaker", "transcript.versions",
+            "agenda.apply", "agenda.discard", "agenda.importDropped", "agenda.importFile", "agenda.parseText", "agenda.setCovered",
+            "ai.clearKey", "ai.setKey", "app.setStartup", "attachments.add", "attachments.list", "attachments.open", "attachments.remove",
+            "export.cancel", "export.estimate", "export.openFolder", "export.run", "library.importMedia", "library.move",
+            "library.rebuildIndex", "library.usage", "project.changeType", "storage.reclaim",
         ];
 
         Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));

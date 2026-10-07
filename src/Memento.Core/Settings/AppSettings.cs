@@ -34,6 +34,20 @@ public sealed record AppSettings
     /// <summary>Settings › Documents › History (M2).</summary>
     public HistorySettings History { get; init; } = new();
 
+    // The M3 blocks have setters, not init: source-generated JSON sets a missing init-only member to null.
+
+    /// <summary>Settings › General (M3). Missing in M2 files, which then read with the defaults.</summary>
+    public GeneralSettings General { get; set; } = new();
+
+    /// <summary>Settings › Export (M3).</summary>
+    public ExportSettings Export { get; set; } = new();
+
+    /// <summary>Settings › AI and privacy (M3); keys are never stored here.</summary>
+    public AiSettings Ai { get; set; } = new();
+
+    /// <summary>Settings › Storage and history (M3).</summary>
+    public LibraryStorageSettings Storage { get; set; } = new();
+
     // A setter rather than init: System.Text.Json cannot bind extension data through init-only members.
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
