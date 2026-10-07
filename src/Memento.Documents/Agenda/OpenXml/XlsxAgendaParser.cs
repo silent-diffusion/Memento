@@ -19,6 +19,12 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 {
     private const int MaxRows = 10_000;
 
+    /// <summary>Columns read from a sheet; an agenda never needs more, and the table is built densely.</summary>
+    private const int MaxColumns = 64;
+
+    /// <summary>Excel's last column, XFD.</summary>
+    private const int ExcelColumns = 16_384;
+
     public IReadOnlyList<AgendaSourceKind> Kinds { get; } = [AgendaSourceKind.Xlsx];
 
     public bool CanParse(string fileName, string? contentType) =>
@@ -99,16 +105,18 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             return [];
         }
 
+        // Rows and columns past the limits are skipped, not stored: a damaged sheet can name row 4294967295 or column
+        // ZZZZZZ, and the table below is built densely from the first to the last row.
         var cellsByRow = new SortedDictionary<int, Dictionary<int, string>>();
-        var nextRow = 1;
+        long nextRow = 1;
         foreach (var row in data.Elements<Row>())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var rowIndex = (int)(OpenXmlValues.UInt(row.RowIndex) ?? (uint)nextRow);
+            long rowIndex = OpenXmlValues.UInt(row.RowIndex) ?? nextRow;
             nextRow = rowIndex + 1;
-            if (rowIndex > MaxRows)
+            if (rowIndex is 0 or > MaxRows)
             {
-                break;
+                continue;
             }
 
             var cells = new Dictionary<int, string>();
@@ -116,6 +124,12 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             foreach (var cell in row.Elements<Cell>())
             {
                 var column = cell.CellReference?.Value is { } reference ? ColumnIndex(reference) : nextColumn;
+                if (column is < 0 or >= MaxColumns)
+                {
+                    nextColumn = MaxColumns;
+                    continue;
+                }
+
                 nextColumn = column + 1;
                 var value = context.ValueOf(cell);
                 if (value.Length > 0)
@@ -126,7 +140,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 
             if (cells.Count > 0)
             {
-                cellsByRow[rowIndex] = cells;
+                cellsByRow[(int)rowIndex] = cells;
             }
         }
 
@@ -168,7 +182,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 
             var (firstColumn, firstRow) = (ColumnIndex(parts[0]), RowIndex(parts[0]));
             var (lastColumn, lastRow) = (ColumnIndex(parts[1]), RowIndex(parts[1]));
-            if (firstRow != lastRow || lastColumn <= firstColumn || !cellsByRow.TryGetValue(firstRow, out var cells))
+            if (firstColumn < 0 || firstRow != lastRow || lastColumn <= firstColumn || !cellsByRow.TryGetValue(firstRow, out var cells))
             {
                 continue;
             }
@@ -182,9 +196,11 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
         return rows;
     }
 
-    private static int ColumnIndex(string reference)
+    /// <summary>The 0-based column of a reference such as "B7"; -1 past Excel's last column (XFD) or for more than three letters.</summary>
+    internal static int ColumnIndex(string reference)
     {
         var index = 0;
+        var letters = 0;
         foreach (var c in reference)
         {
             if (!char.IsAsciiLetter(c))
@@ -192,10 +208,15 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 break;
             }
 
+            if (++letters > 3)
+            {
+                return -1;
+            }
+
             index = (index * 26) + (char.ToUpperInvariant(c) - 'A' + 1);
         }
 
-        return Math.Max(0, index - 1);
+        return index > ExcelColumns ? -1 : Math.Max(0, index - 1);
     }
 
     private static int RowIndex(string reference)
