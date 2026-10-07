@@ -15,7 +15,7 @@ import type {
 } from '../../bridge/types';
 import { Toggle } from '../../components/Controls';
 import { CloseIcon, InfoIcon } from '../../components/icons';
-import { SelectMenu } from '../../components/Menus';
+import { MultiSelectMenu, SelectMenu } from '../../components/Menus';
 import { useModal } from '../../components/Overlay';
 import { joinList } from '../../format/messages';
 import {
@@ -426,13 +426,13 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                     update({ transcript: { ...s.transcript, on: !s.transcript.on } });
                   }}
                   format={
-                    <SelectMenu<TranscriptExportFormat>
+                    <MultiSelectMenu<TranscriptExportFormat>
                       label="Format for Transcript"
-                      value={s.transcript.formats[0] ?? 'json'}
+                      values={s.transcript.formats.length === 0 ? ['json'] : s.transcript.formats}
                       options={TRANSCRIPT_OPTIONS}
                       disabled={!s.transcript.on || !isAvailable('transcript')}
-                      onChange={(format) => {
-                        update({ transcript: { ...s.transcript, formats: [format] } });
+                      onChange={(formats) => {
+                        update({ transcript: { ...s.transcript, formats } });
                       }}
                     />
                   }

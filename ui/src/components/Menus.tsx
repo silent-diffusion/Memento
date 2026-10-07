@@ -190,6 +190,110 @@ export function SelectMenu<T extends string>({
   );
 }
 
+interface MultiSelectMenuProps<T extends string> {
+  /** Accessible name of the choice ("Format for Transcript"). */
+  label: string;
+  values: readonly T[];
+  options: readonly SelectOption<T>[];
+  /** The new choice, in option order; never empty (the last ticked option cannot be unticked). */
+  onChange: (values: T[]) => void;
+  disabled?: boolean;
+}
+
+/**
+ * A select-style button whose listbox takes several values (the transcript's formats in the
+ * Export dialog: "JSON + SRT"). Enter or Space ticks or unticks an option and keeps the list open;
+ * Esc closes it. At least one option stays ticked.
+ */
+export function MultiSelectMenu<T extends string>({ label, values, options, onChange, disabled = false }: MultiSelectMenuProps<T>): JSX.Element {
+  const pop = usePopover();
+  const chosen = options.filter((o) => values.includes(o.value));
+  const text = chosen.length === 0 ? 'None' : chosen.map((o) => o.label).join(' + ');
+  const listId = useRef(`listbox-${Math.random().toString(36).slice(2, 9)}`).current;
+
+  const toggle = (option: T): void => {
+    const on = values.includes(option);
+    if (on && values.length === 1) {
+      return;
+    }
+    const next = options.map((o) => o.value).filter((v) => (v === option ? !on : values.includes(v)));
+    onChange(next);
+  };
+
+  return (
+    <div class="menu-root" ref={pop.rootRef}>
+      <button
+        ref={pop.buttonRef}
+        class="btn ghost select-btn"
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={pop.open}
+        aria-controls={pop.open ? listId : undefined}
+        aria-label={`${label}: ${text}`}
+        disabled={disabled}
+        onClick={() => {
+          if (pop.open) {
+            pop.close(false);
+          } else {
+            pop.show('selected');
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            pop.show('selected');
+          }
+        }}
+      >
+        <span class="select-text">{text}</span>
+        <ChevronDownIcon size={14} class="select-chevron" />
+      </button>
+      {pop.open ? (
+        <ul
+          id={listId}
+          ref={(el) => {
+            pop.popRef.current = el;
+          }}
+          class="popover"
+          role="listbox"
+          aria-label={label}
+          aria-multiselectable="true"
+          onKeyDown={(event) => {
+            popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close);
+          }}
+        >
+          {options.map((option) => {
+            const selected = values.includes(option.value);
+            return (
+              <li
+                key={option.value}
+                class="item menu-item"
+                role="option"
+                aria-selected={selected}
+                tabIndex={-1}
+                onClick={() => {
+                  toggle(option.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggle(option.value);
+                  }
+                }}
+              >
+                <span class="menu-check" aria-hidden="true">
+                  {selected ? <CheckIcon size={12} /> : null}
+                </span>
+                {option.label}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 export interface MenuAction {
   label: string;
   run: () => void;

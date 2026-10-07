@@ -88,6 +88,28 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     await until(() => /about \d+ MB/.test(summary()));
   });
 
+  it('exports the transcript in several formats at once, keeping at least one', async () => {
+    await open();
+    const formatButton = (): HTMLButtonElement | null => dialog().querySelector<HTMLButtonElement>('[aria-label^="Format for Transcript:"]');
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: JSON');
+    await click(formatButton());
+    expect(document.querySelector('[role="listbox"][aria-label="Format for Transcript"]')?.getAttribute('aria-multiselectable')).toBe('true');
+    const option = (name: string): Element | undefined => [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === name);
+    await click(option('SRT'));
+    // The list stays open for another tick; unticking the last format is refused.
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: JSON + SRT');
+    await click(option('JSON'));
+    await click(option('SRT'));
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: SRT');
+    await click(option('JSON'));
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: JSON + SRT');
+    await press(document.querySelector('[role="listbox"]'), 'Escape');
+    await settle(ESTIMATE_DEBOUNCE_MS + 60);
+    await click(dialog().querySelector('.export-foot .btn.p'));
+    await until(() => h.callsOf('export.run').length === 1);
+    expect((h.callsOf('export.run')[0] as ExportRunParams).selection.transcript).toEqual({ on: true, formats: ['json', 'srt'] });
+  });
+
   it('previews the path with and without the recording folder and remembers the choices', async () => {
     await open();
     const path = (): string => dialog().querySelector('.export-path')?.textContent ?? '';
