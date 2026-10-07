@@ -8,22 +8,23 @@ namespace Memento.Core.Workers;
 /// Runs one job in a fresh worker process and speaks the JSON-lines protocol with it: sends <c>start</c>, passes every
 /// <c>device</c>/<c>track</c>/<c>progress</c> line to the caller as it arrives, and returns the <c>result</c>. On
 /// cancellation it sends <c>cancel</c> and kills the process if it has not exited within a few seconds. A process
-/// that ends without a result raises <see cref="WorkerCrashedException"/>, so a native abort never reaches the app.
+/// that ends without a result raises <see cref="WorkerCrashedException"/>, so a native abort never reaches the app; so
+/// does one that sends nothing for <see cref="WorkerClientOptions.QuietLimit"/> (it is stopped as hung, so a stuck
+/// native call cannot hold the graphics card forever).
 /// Jobs that use the graphics card run one at a time: a second one waits until the first worker has exited.
 /// </summary>
-public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<WorkerClient> logger) : IDisposable
+public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<WorkerClient> logger, WorkerClientOptions? options = null) : IDisposable
 {
-    private static readonly TimeSpan CancelGrace = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan ExitGrace = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan KillGrace = TimeSpan.FromSeconds(10);
-
     internal const int TailLines = 8;
     internal const int TailLineChars = 300;
     internal const int TailTotalChars = 2000;
 
+    private static readonly TimeSpan CancelGrace = TimeSpan.FromSeconds(5);
+
     private readonly ConcurrentDictionary<int, IWorkerProcess> _running = new();
     private readonly SemaphoreSlim _gpu = new(1, 1);
     private readonly ILogger<WorkerClient> _logger = logger;
+    private readonly WorkerClientOptions _options = options ?? WorkerClientOptions.Default;
 
     /// <summary>Processor time used by the workers running now.</summary>
     public TimeSpan RunningCpuTime => _running.Values.Aggregate(TimeSpan.Zero, (sum, p) => sum + SafeCpu(p));
@@ -72,13 +73,24 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
             while (true)
             {
                 string? line;
+                var read = process.Output.ReadLineAsync(CancellationToken.None).AsTask();
                 try
                 {
-                    line = await process.Output.ReadLineAsync(CancellationToken.None);
+                    line = await read.WaitAsync(_options.QuietLimit, CancellationToken.None);
                 }
                 catch (IOException)
                 {
                     line = null;
+                }
+                catch (TimeoutException)
+                {
+                    // Nothing at all for the quiet limit: a native call is stuck. Stop it so the next job can run.
+                    _ = read.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                    LogHung(process.Id, (long)_options.QuietLimit.TotalSeconds);
+                    process.Kill();
+                    var code = await WaitGoneAsync(process);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    throw new WorkerCrashedException(_options.QuietLimit, code, process.ErrorTail);
                 }
 
                 if (line is null)
@@ -148,15 +160,17 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         }
     }
 
-    private async Task WaitGoneAsync(IWorkerProcess process)
+    /// <summary>Waits for a killed worker to exit; its exit code, or -1 if it is still there after <see cref="WorkerClientOptions.KillGrace"/>.</summary>
+    private async Task<int> WaitGoneAsync(IWorkerProcess process)
     {
         try
         {
-            await process.Exited.WaitAsync(KillGrace);
+            return await process.Exited.WaitAsync(_options.KillGrace);
         }
         catch (TimeoutException)
         {
-            LogNotGone(process.Id);
+            LogNotGone(process.Id, _options.KillGrace.TotalSeconds);
+            return -1;
         }
     }
 
@@ -193,16 +207,16 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         await process.Input.FlushAsync();
     }
 
-    private static async Task<int> WaitForExitAsync(IWorkerProcess process)
+    private async Task<int> WaitForExitAsync(IWorkerProcess process)
     {
         try
         {
-            return await process.Exited.WaitAsync(ExitGrace);
+            return await process.Exited.WaitAsync(_options.ExitGrace);
         }
         catch (TimeoutException)
         {
             process.Kill();
-            return await process.Exited;
+            return await WaitGoneAsync(process);
         }
     }
 
@@ -251,8 +265,11 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
     [LoggerMessage(Level = LogLevel.Information, Message = "A worker job waits for the graphics card: another one is using it")]
     private partial void LogWaitingForGpu();
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker {Pid} was killed but had not exited after 10 s")]
-    private partial void LogNotGone(int pid);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker {Pid} was killed but had not exited after {GraceSeconds} s")]
+    private partial void LogNotGone(int pid, double graceSeconds);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Worker {Pid} sent nothing for {QuietSeconds} s and was stopped as hung")]
+    private partial void LogHung(int pid, long quietSeconds);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Worker {Pid} {Level}: {Message}")]
     private partial void LogWorkerLine(int pid, string level, string message);

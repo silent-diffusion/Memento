@@ -24,6 +24,12 @@ internal sealed class ScriptedWorkerLauncher : IWorkerLauncher
     /// <summary>Throw this from <see cref="Start"/> (a missing worker).</summary>
     public Exception? StartFailure { get; set; }
 
+    /// <summary>Workers ignore <see cref="IWorkerProcess.Kill"/> (a process Windows cannot end at once).</summary>
+    public bool IgnoreKill { get; set; }
+
+    /// <summary>Writing to a worker's stdin throws this (a worker that died as it started).</summary>
+    public Exception? InputFailure { get; set; }
+
     public List<ScriptedWorkerProcess> Started
     {
         get
@@ -42,7 +48,7 @@ internal sealed class ScriptedWorkerLauncher : IWorkerLauncher
             throw failure;
         }
 
-        var process = new ScriptedWorkerProcess(Script);
+        var process = new ScriptedWorkerProcess(Script) { IgnoreKill = IgnoreKill, InputFailure = InputFailure };
         lock (_gate)
         {
             _started.Add(process);
@@ -91,6 +97,10 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
 
     public bool Killed { get; private set; }
 
+    public bool IgnoreKill { get; init; }
+
+    public Exception? InputFailure { get; init; }
+
     public bool CancelReceived => _cancel.IsCancellationRequested;
 
     public List<string> Received
@@ -109,7 +119,10 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
     public void Kill()
     {
         Killed = true;
-        Exit(unchecked((int)0xC0000409));
+        if (!IgnoreKill)
+        {
+            Exit(unchecked((int)0xC0000409));
+        }
     }
 
     public void Dispose() => _cancel.Dispose();
@@ -122,6 +135,12 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
 
     private void OnLine(string line)
     {
+        if (InputFailure is { } failure)
+        {
+            Exit(unchecked((int)0xC0000005));
+            throw failure;
+        }
+
         lock (_received)
         {
             _received.Add(line);
