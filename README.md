@@ -4,13 +4,13 @@ Local-first recording, transcription and meeting workspace for Windows.
 
 Memento records meetings, interviews, lectures and dictation from any combination of microphones, system audio and individual applications, keeps every source as its own synchronized track, transcribes on your PC, identifies speakers, and turns the result into documents you can trust. Everything stays on your computer unless you choose to export it. External AI is optional and off by default.
 
-> **Status:** pre-release. Memento is being built milestone by milestone; see [docs/ROADMAP.md](docs/ROADMAP.md) for what each version contains. The first public release will be `1.0.0`.
+> **Status:** 0.5.0 is the first public release: recording, transcription, speakers, agenda import and export are ready to rely on. Documents written with AI arrive in a later version; see [docs/ROADMAP.md](docs/ROADMAP.md). The [user guide](docs/USER-GUIDE.md) explains everything step by step.
 
 ## Install
 
-1. Open the [Releases](https://github.com/silent-diffusion/Memento/releases) page.
-2. Download `MementoApp-win-Setup.exe` from the latest release.
-3. Run it. Memento installs for the current user, needs no administrator rights, and updates itself from future releases.
+1. Open the [latest release](https://github.com/silent-diffusion/Memento/releases/latest).
+2. Download `MementoApp-win-Setup.exe`.
+3. Run it. Memento installs for the current user and needs no administrator rights. It checks for new versions, downloads them in the background and installs them when you restart it (see [Updates](docs/USER-GUIDE.md#updates)).
 
 Requirements: Windows 11 (Windows 10 version 2004 or later should also work), 64-bit. A GPU speeds up transcription but is not required.
 
@@ -18,7 +18,7 @@ The installer is not yet code-signed, so Windows SmartScreen may show a warning 
 
 ## What it does
 
-Version 0.4.0 records, imports, transcribes, plays back and exports:
+Version 0.5.0 records, imports, transcribes, plays back and exports:
 
 - **Record** from microphones, everything the PC plays, or one application at a time, with each source saved as its own synchronized track and checkpointed to disk every 30 seconds. Pause, mark highlights with notes, and turn sources on or off mid-recording.
 - **Never lose a recording**: a crash or power cut is repaired at the next start, and the recovery dialog says what was saved and what may be missing.
@@ -64,11 +64,12 @@ cd ui && npm test
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it is built: stack, storage, pipelines, reliability rules |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones and acceptance criteria |
 | [design/DESIGN.md](design/DESIGN.md) | Design handoff: tokens, components, every screen |
+| [docs/USER-GUIDE.md](docs/USER-GUIDE.md) | How to use Memento: recording, review, export, settings, backups, recovery |
 | [docs/THIRD-PARTY.md](docs/THIRD-PARTY.md) | Bundled components and their licenses |
 
 ## Privacy
 
-Recordings, transcripts and documents are stored in a library folder on your PC (by default under your local application data, never in a cloud-synced folder). Memento makes no network connections except: downloading transcription or recognition models you choose to install, checking this repository for updates, and sending the inputs you tick to an AI provider you have enabled. Audio and video are never sent anywhere.
+Recordings, transcripts and documents are stored in a library folder on your PC (by default under your local application data, never in a cloud-synced folder). Memento makes no network connections except: downloading transcription or recognition models you choose to install; checking this repository's GitHub releases for a newer version when it starts and once a day (never while recording or processing) and downloading it, which you can turn off in Settings › General › Updates ("Check now" still works); and sending the inputs you tick to an AI provider you have enabled. An update check sends nothing about you or your recordings. Audio and video are never sent anywhere. There is no account and no telemetry.
 
 ## License
 
