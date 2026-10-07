@@ -85,7 +85,7 @@ public sealed partial class DpapiSecretStore : ISecretStore, IDisposable
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            var document = Read();
+            var document = Read(forUpdate: true);
             change(document.Keys);
             await WriteAsync(document, cancellationToken);
             Volatile.Write(ref _providersWithKeys, document.Keys.Keys.ToHashSet(StringComparer.Ordinal));
@@ -97,7 +97,12 @@ public sealed partial class DpapiSecretStore : ISecretStore, IDisposable
         }
     }
 
-    private SecretsDocument Read()
+    /// <param name="forUpdate">
+    /// Reading to change one key and write the file back: a file that cannot be read right now (locked, no access)
+    /// throws, so the other provider's key is never overwritten with nothing; a file whose content cannot be used
+    /// (another format, a newer Memento, DPAPI refusing it) is kept beside as <c>secrets.bin.unreadable</c>.
+    /// </param>
+    private SecretsDocument Read(bool forUpdate = false)
     {
         if (!File.Exists(_options.FilePath))
         {
@@ -111,7 +116,7 @@ public sealed partial class DpapiSecretStore : ISecretStore, IDisposable
             if (bytes.Length <= Magic.Length + 1 || !bytes.AsSpan(0, Magic.Length).SequenceEqual(Magic) || bytes[Magic.Length] != FormatVersion)
             {
                 LogUnreadable("not a Memento secrets file of a known version");
-                return new SecretsDocument();
+                return Unusable(forUpdate);
             }
 
             plain = Unprotect(bytes[(Magic.Length + 1)..]);
@@ -119,16 +124,21 @@ public sealed partial class DpapiSecretStore : ISecretStore, IDisposable
             if (document is null || document.SchemaVersion > SecretsDocument.CurrentSchemaVersion)
             {
                 LogUnreadable("written by a newer Memento");
-                return new SecretsDocument();
+                return Unusable(forUpdate);
             }
 
             return document with { Keys = new Dictionary<string, string>(document.Keys, StringComparer.Ordinal) };
+        }
+        catch (Exception ex) when (forUpdate && ex is IOException or UnauthorizedAccessException)
+        {
+            LogUnreadable(ex.GetType().Name);
+            throw;
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException or IOException or UnauthorizedAccessException)
         {
             // The exception text is safe (it never carries the key) but the type is all that is needed.
             LogUnreadable(ex.GetType().Name);
-            return new SecretsDocument();
+            return Unusable(forUpdate && ex is CryptographicException or JsonException);
         }
         finally
         {
@@ -137,6 +147,24 @@ public sealed partial class DpapiSecretStore : ISecretStore, IDisposable
                 CryptographicOperations.ZeroMemory(plain);
             }
         }
+    }
+
+    /// <summary>An empty document; before an update replaces an unusable file, that file is kept beside it.</summary>
+    private SecretsDocument Unusable(bool setAside)
+    {
+        if (setAside)
+        {
+            try
+            {
+                File.Copy(_options.FilePath, _options.FilePath + ".unreadable", overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LogUnreadable(ex.GetType().Name);
+            }
+        }
+
+        return new SecretsDocument();
     }
 
     private async Task WriteAsync(SecretsDocument document, CancellationToken cancellationToken)

@@ -175,6 +175,11 @@ internal sealed partial class MainWindow : Window
         core.NavigationStarting += OnNavigationStarting;
         core.FrameNavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
+
+        // The page needs no microphone, camera, clipboard or other permission (audio is captured by the host), and it
+        // never downloads anything: refuse both outright so no browser prompt or download can ever appear.
+        core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
+        core.DownloadStarting += (_, e) => e.Cancel = true;
         core.NavigationCompleted += OnNavigationCompleted;
         core.ProcessFailed += OnProcessFailed;
         core.WebMessageReceived += OnDroppedFiles; // before the bridge, so a drop's paths are known when its request runs

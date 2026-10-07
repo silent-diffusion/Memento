@@ -157,6 +157,24 @@ public sealed class ImportAndLibraryTests : IDisposable
     }
 
     [Fact]
+    public async Task AFileTooBigForTheFreeSpaceIsRefusedBeforeAnythingIsWritten()
+    {
+        var source = Tone("long_lecture.wav", seconds: 2);
+        _m3.Host.FreeSpace.FreeBytes = 512L * 1024 * 1024; // less than the 1 GB margin alone
+
+        var error = await _m3.ErrorAsync("library.importMedia", new { path = source });
+
+        Assert.Equal(BridgeErrorCodes.InvalidParams, error.GetProperty("code").GetString());
+        Assert.Contains("needs about", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("Nothing was imported", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Empty(_m3.Host.Store.ListIds());
+
+        _m3.Host.FreeSpace.FreeBytes = null; // unreadable: the import goes ahead
+        var result = await _m3.ResultAsync("library.importMedia", new { path = source });
+        Assert.NotNull(result.GetProperty("recordingId").GetString());
+    }
+
+    [Fact]
     public async Task AFileThatCannotBeDecodedIsRefusedAndNothingIsAdded()
     {
         var source = _m3.WriteFile("noise.mp3", "ID3 not really audio");

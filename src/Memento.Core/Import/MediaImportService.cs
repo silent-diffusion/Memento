@@ -33,7 +33,9 @@ public sealed partial class MediaImportService(
     ISettingsStore settings,
     LibraryActivity activity,
     TimeProvider time,
-    ILogger<MediaImportService> logger) : IAsyncDisposable, IDisposable
+    ILogger<MediaImportService> logger,
+    Host.IFreeSpaceProbe? freeSpace = null,
+    Library.ILibraryLocation? library = null) : IAsyncDisposable, IDisposable
 {
     public const string TrackId = "imported";
 
@@ -190,7 +192,35 @@ public sealed partial class MediaImportService(
             throw Unsupported(name, ex.Message);
         }
 
-        return probe.SampleRate <= 0 || probe.Channels <= 0 ? throw Unsupported(name, "it has no audio stream") : probe;
+        if (probe.SampleRate <= 0 || probe.Channels <= 0)
+        {
+            throw Unsupported(name, "it has no audio stream");
+        }
+
+        EnsureRoom(name, probe);
+        return probe;
+    }
+
+    /// <summary>
+    /// A small, highly compressed file can decode to gigabytes of 24-bit audio: the decoded track, its mix and the
+    /// FLAC copies need about 2.5 times the decoded size while it is stored. Refused before anything is written when
+    /// the library drive does not have that and 1 GB to spare, so an import can never fill the drive under a recording.
+    /// </summary>
+    private void EnsureRoom(string name, MediaProbe probe)
+    {
+        if (freeSpace is null || library is null || probe.DurationMs <= 0)
+        {
+            return;
+        }
+
+        var decoded = probe.DurationMs / 1000.0 * probe.SampleRate * probe.Channels * 3;
+        var needed = (long)(decoded * 2.5) + (1L << 30);
+        if (freeSpace.GetFreeBytes(library.Root) is { } free && free < needed)
+        {
+            throw M3Errors.Invalid(
+                $"Importing \"{name}\" needs about {Formatting.HumanFormat.Bytes(needed)} free on the library drive while it is stored, and there is {Formatting.HumanFormat.Bytes(free)}. Nothing was imported. Free up space, then import it again.",
+                name);
+        }
     }
 
     private async Task StartAsync(string id, string path, string name, MediaProbe probe, DateTimeOffset modified, CancellationToken cancellationToken)

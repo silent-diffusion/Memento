@@ -89,6 +89,12 @@ internal sealed record CommandLineOptions(
                     break;
                 case "--update-feed":
                     updateFeed = inline ?? ValueAfter(args, ref i, "--update-feed needs a feed URL, a folder, or 'off'.");
+                    if (!IsLocalFeed(updateFeed))
+                    {
+                        // A shortcut with this switch must never install updates from someone else's server.
+                        throw new ArgumentException($"--update-feed takes 'off', a folder on this PC or an http address on this PC (localhost), not '{updateFeed}'.", nameof(args));
+                    }
+
                     break;
                 case "--model-mirror":
                     var mirror = inline ?? ValueAfter(args, ref i, "--model-mirror needs an http address on this PC.");
@@ -105,6 +111,22 @@ internal sealed record CommandLineOptions(
         }
 
         return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed, modelMirror);
+    }
+
+    /// <summary>'off', a local folder (not a network share), or an http(s) address on this PC.</summary>
+    internal static bool IsLocalFeed(string feed)
+    {
+        if (string.Equals(feed, "off", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (Uri.TryCreate(feed, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
+        {
+            return uri.IsLoopback;
+        }
+
+        return Path.IsPathFullyQualified(feed) && !feed.StartsWith(@"\\", StringComparison.Ordinal);
     }
 
     /// <summary><c>--name=value</c> → (<c>--name</c>, <c>value</c>); anything else → (argument, null).</summary>

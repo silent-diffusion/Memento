@@ -211,6 +211,28 @@ public sealed class M3SettingsTests : IDisposable
         Assert.False(store.HasKey("openai"));
         await store.SetKeyAsync("openai", "sk-replacement-key", CancellationToken.None);
         Assert.True(store.HasKey("openai"));
+        Assert.True(File.Exists(_m3.Directory.File("secrets.bin.unreadable"))); // the unusable file is kept, not overwritten
+    }
+
+    [Fact]
+    public async Task ASecretsFileThatCannotBeReadNowIsNeverOverwritten()
+    {
+        var path = _m3.Directory.File("secrets.bin");
+        using (var first = new DpapiSecretStore(new SecretStoreOptions(path), NullLogger<DpapiSecretStore>.Instance))
+        {
+            await first.SetKeyAsync("anthropic", "sk-ant-first-key-123", CancellationToken.None);
+        }
+
+        var before = await File.ReadAllBytesAsync(path);
+        using var store = new DpapiSecretStore(new SecretStoreOptions(path), NullLogger<DpapiSecretStore>.Instance);
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            // Locked (an antivirus scan, a backup): saving the other provider's key must fail, not drop this one.
+            await Assert.ThrowsAnyAsync<IOException>(() => store.SetKeyAsync("openai", "sk-openai-second-key", CancellationToken.None));
+        }
+
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+        Assert.Equal("sk-ant-first-key-123", await store.GetKeyAsync("anthropic", CancellationToken.None));
     }
 
     [Fact]
