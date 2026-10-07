@@ -480,6 +480,8 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
                 // Waiting here blocks only this capture thread; the opener awaits asynchronously.
                 if (hr >= 0 && Task.WaitAny([handler.Completion], _options.ActivationTimeout) != 0)
                 {
+                    // Windows may still finish later: the client it hands over then is released, not leaked.
+                    ReleaseWhenCompleted(handler.Completion, static client => Marshal.ReleaseComObject(client));
                     throw new AudioSourceUnavailableException(Source, $"Windows did not open per-app capture for process {pid} within {_options.ActivationTimeout.TotalSeconds:0} s. Try again, or record everything this PC plays instead.");
                 }
 
@@ -669,6 +671,32 @@ public sealed partial class WasapiAudioCapture : IAudioCapture
             ? "Windows denied access. Allow microphone access for desktop apps in Settings › Privacy & security › Microphone."
             : $"Windows reported 0x{ex.HResult:X8}. Reconnect the device or choose another source.";
         return new AudioSourceUnavailableException(Source, $"Could not open {what} for recording. {detail}", ex.HResult, ex);
+    }
+
+    /// <summary>
+    /// When an activation nobody waits for any more completes, hands its result to <paramref name="release"/>; a failed
+    /// activation's exception is observed so it never surfaces as an unobserved task exception.
+    /// </summary>
+    internal static void ReleaseWhenCompleted<T>(Task<T> activation, Action<T> release)
+    {
+        ArgumentNullException.ThrowIfNull(activation);
+        ArgumentNullException.ThrowIfNull(release);
+        activation.ContinueWith(
+            static (task, state) =>
+            {
+                if (task.IsCompletedSuccessfully)
+                {
+                    ((Action<T>)state!)(task.Result);
+                }
+                else
+                {
+                    _ = task.Exception;
+                }
+            },
+            release,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private static CaptureLostReason MapLoss(int hr) => hr switch
