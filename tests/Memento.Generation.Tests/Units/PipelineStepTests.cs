@@ -1,0 +1,143 @@
+using Memento.AI.Payload;
+using Memento.Generation.Generation;
+using Memento.Generation.Tests.Support;
+
+namespace Memento.Generation.Tests.Units;
+
+/// <summary>Citation repair, the reducer and the grounding validator on their own, on the synthetic meeting's lines.</summary>
+public sealed class PipelineStepTests
+{
+    private static readonly TranscriptIndex Transcript = new(
+        PayloadComposer.Compose(SyntheticMeeting.Material().ToPayloadInputs(null), SyntheticMeeting.AllInputs).TranscriptLines);
+
+    private static readonly IReadOnlyList<string> People = SyntheticMeeting.Speakers.Select(s => s.Name).ToList();
+
+    private static int D1 => SyntheticMeeting.LinesOf("D1")[0];
+
+    [Fact]
+    public void ACitationMovesToTheLineThatHoldsItsQuote()
+    {
+        var claim = Claim(ClaimKinds.Decision, "Release 3.2 ships on November 12.", D1 + 3, "We ship 3.2 on Thursday, November twelfth");
+
+        CitationRepair.Repair(claim, Transcript, null);
+
+        Assert.Equal(D1, claim.Line);
+        Assert.Contains(claim.Notes, n => n.Contains("citation moved", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AQuoteThatIsNowhereLosesItsCitationAndTheValidatorDropsTheClaim()
+    {
+        var claim = Claim(ClaimKinds.Decision, "The team agreed to hire two engineers.", D1, "we will hire two engineers in January");
+        claim.Verdict = Verdicts.Supported;
+
+        CitationRepair.Repair(claim, Transcript, null);
+        GroundingValidator.Validate(claim, Transcript, People);
+
+        Assert.Null(claim.Line);
+        Assert.False(claim.Kept);
+        Assert.Equal(GroundingValidator.NoCitation, claim.DropReason);
+    }
+
+    [Fact]
+    public void AQuoteRunningIntoTheNextLineStaysAndANearQuoteMovesWithoutItsWords()
+    {
+        var spanning = Claim(ClaimKinds.Decision, "Ship 3.2 on November 12.", D1, "We ship 3.2 on Thursday, November twelfth. Works for me");
+        CitationRepair.Repair(spanning, Transcript, null);
+        Assert.Equal(D1, spanning.Line);
+
+        var near = Claim(ClaimKinds.Quote, "x", D1 + 5, "Then lets make it official we ship 3.2 on Thursday November the twelfth");
+        CitationRepair.Repair(near, Transcript, null);
+        Assert.Equal(D1, near.Line);
+        Assert.Null(near.Quote);
+    }
+
+    [Fact]
+    public void TheReducerMergesCopiesKeepsTheEarliestAndRemembersTheOthers()
+    {
+        var first = Claim(ClaimKinds.Action, "Cut the 3.3 branch and put the template code behind a feature flag.", 27, "I'll cut the 3.3 branch");
+        var recap = Claim(ClaimKinds.Action, "Cut the 3.3 branch and flag the template code.", 115, "Luis cuts the 3.3 branch");
+        recap.Owner = "Luis";
+        recap.Due = "by Friday";
+        var other = Claim(ClaimKinds.Action, "Write the conflict log design doc.", 48, "design doc");
+
+        var reduced = ClaimReducer.Reduce([recap, other, first]);
+
+        Assert.Equal([27, 48], reduced.Select(c => c.Line));
+        Assert.Equal("Luis", reduced[0].Owner);
+        Assert.Equal("by Friday", reduced[0].Due);
+        Assert.Same(recap, Assert.Single(reduced[0].Alternates));
+    }
+
+    [Fact]
+    public void ADecisionWhoseLineParksItIsNotADecision()
+    {
+        var parked = SyntheticMeeting.Lines.Single(l => l.Text.Contains("We park the price change", StringComparison.Ordinal)).ShortId;
+        var claim = Claim(ClaimKinds.Decision, "The Pro price change waits for the pricing review.", parked, "We park the price change");
+        claim.Verdict = Verdicts.Supported;
+
+        GroundingValidator.Validate(claim, Transcript, People);
+
+        Assert.False(claim.Kept);
+        Assert.Equal(GroundingValidator.Deferred, claim.DropReason);
+    }
+
+    [Fact]
+    public void OwnersAreTheTranscriptsNamesAndOnlyWhenTheSpanStatesThem()
+    {
+        var commitment = SyntheticMeeting.LinesOf("A1")[^1];
+        var named = Claim(ClaimKinds.Action, "Cut the 3.3 branch.", commitment, "I'll cut the 3.3 branch");
+        named.Verdict = Verdicts.Supported;
+        named.Owner = "Luis";
+        named.Due = "by Friday";
+        GroundingValidator.Validate(named, Transcript, People);
+        Assert.True(named.Kept);
+        Assert.Equal("Luis Brandt", named.Owner);
+        Assert.Equal("by Friday", named.Due);
+
+        var helpCenter = SyntheticMeeting.LinesOf("U1")[0];
+        var invented = Claim(ClaimKinds.Action, "Update the help-center article.", helpCenter, "Someone should update that article");
+        invented.Verdict = Verdicts.Supported;
+        invented.Owner = "Mei";
+        invented.Due = "next Monday";
+        GroundingValidator.Validate(invented, Transcript, People);
+        Assert.True(invented.Kept);
+        Assert.Null(invented.Owner);
+        Assert.Null(invented.Due);
+        Assert.Contains(GroundingValidator.OwnerNotStated, invented.Notes);
+        Assert.Contains(GroundingValidator.DueNotStated, invented.Notes);
+    }
+
+    [Fact]
+    public void NothingTheVerifierDidNotSupportSurvivesAndQuotesMustBeVerbatim()
+    {
+        var unsupported = Claim(ClaimKinds.Point, "Release 3.2 ships on November 19.", D1, "We ship 3.2");
+        unsupported.Verdict = Verdicts.Unsupported;
+        var unchecked_ = Claim(ClaimKinds.Point, "Release 3.2 ships.", D1, "We ship 3.2");
+        var quote = Claim(ClaimKinds.Quote, "We ship 3.2 on Thursday, November twelfth.", D1, "We ship 3.2 on Thursday, November twelfth.");
+        var notQuote = Claim(ClaimKinds.Quote, "We ship 3.2 on the 12th.", D1, "We ship 3.2 on the 12th.");
+
+        foreach (var claim in new[] { unsupported, unchecked_, quote, notQuote })
+        {
+            GroundingValidator.Validate(claim, Transcript, People);
+        }
+
+        Assert.Equal(GroundingValidator.NotSupported, unsupported.DropReason);
+        Assert.Equal(GroundingValidator.NotChecked, unchecked_.DropReason);
+        Assert.True(quote.Kept);
+        Assert.Equal(GroundingValidator.NotVerbatim, notQuote.DropReason);
+        Assert.Equal(["Dana Okafor"], GroundingValidator.Participants(["Dana Okafor", "The CFO"], People));
+    }
+
+    [Fact]
+    public void ModelAnswersThatSayNoOwnerAreNoOwner()
+    {
+        Assert.Null(MapPrompts.Unstated("null"));
+        Assert.Null(MapPrompts.Unstated("Not stated."));
+        Assert.Null(MapPrompts.Unstated("the team"));
+        Assert.Equal("Luis", MapPrompts.Unstated(" Luis "));
+    }
+
+    private static Claim Claim(string kind, string text, int line, string quote) =>
+        new() { Family = ModuleTask.Commitments, Kind = kind, Text = text, Line = line, Quote = quote };
+}

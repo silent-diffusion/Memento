@@ -70,7 +70,7 @@ public static partial class GroundingValidator
             if (claim.Owner is not null)
             {
                 var owner = NormalizeOwner(claim.Owner, people);
-                if (claim.OwnerVerdict == Verdicts.Unsupported || !OwnerInSpan(owner, span))
+                if (claim.OwnerVerdict == Verdicts.Unsupported || !OwnerInSpan(owner, span, cited.ShortId))
                 {
                     claim.Notes.Add(OwnerNotStated);
                     claim.Owner = null;
@@ -119,8 +119,8 @@ public static partial class GroundingValidator
         return byFirst.Count == 1 ? byFirst[0] : value;
     }
 
-    /// <summary>The owner speaks in the span, or is named in it (in full or by first name).</summary>
-    public static bool OwnerInSpan(string owner, IReadOnlyList<TranscriptIndex.Entry> span)
+    /// <summary>The owner is named in the span (in full or by first name), or speaks the cited line or the next one.</summary>
+    public static bool OwnerInSpan(string owner, IReadOnlyList<TranscriptIndex.Entry> span, int citedLine)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(span);
@@ -130,12 +130,12 @@ public static partial class GroundingValidator
             return false;
         }
 
+        // Named anywhere in the span, or speaking the cited line or the one after it (taking the task on: "I'll do it",
+        // or "Yes" to a request). Another speaker elsewhere in the span is not the owner.
         var first = name.Split(' ')[0];
-        return span.Any(e =>
-            TextMatch.Normalize(e.Speaker) == name
-            || TextMatch.Normalize(e.Speaker).Split(' ')[0] == first
-            || TextMatch.ContainsPhrase(e.Text, owner)
-            || (first.Length > 2 && TextMatch.ContainsPhrase(e.Text, first)));
+        bool Speaks(TranscriptIndex.Entry e) => TextMatch.Normalize(e.Speaker) == name || TextMatch.Normalize(e.Speaker).Split(' ')[0] == first;
+        return span.Any(e => TextMatch.ContainsPhrase(e.Text, owner) || (first.Length > 2 && TextMatch.ContainsPhrase(e.Text, first)))
+            || span.Any(e => (e.ShortId == citedLine || e.ShortId == citedLine + 1) && Speaks(e));
     }
 
     /// <summary>The due date's words ("by Friday" → friday) occur in the span.</summary>
