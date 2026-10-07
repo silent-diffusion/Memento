@@ -94,7 +94,7 @@ public sealed class WorkerLocalLlmJobClientTests : IDisposable
         using var cancel = new CancellationTokenSource();
 
         var run = provider.GenerateAsync(AiRequest.Create("map.x", "s", "u", 50), null, cancel.Token);
-        await _engines.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await _engines.Started.Task.WaitAsync(Patience.Ceiling);
         await cancel.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
