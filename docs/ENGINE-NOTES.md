@@ -137,3 +137,28 @@ Measured with `tests/Memento.AI.Tests` (`--filter Category=Hardware`) on the ref
 | Package | Version | License |
 |---|---|---|
 | LLamaSharp, LLamaSharp.Backend.Cpu, LLamaSharp.Backend.Vulkan.Windows | 0.27.0 | MIT |
+
+### I.2 The local pipeline at the M4 integration (0.9.0), October 2026
+
+Measured with `LocalPipelineHardwareTests` (Meeting minutes of the 20-minute synthetic meeting, Qwen3.5 4B on Vulkan, 16k context asked, 3,000-token chunks → 2 chunks) and `FixedVerification` (the spike's 20 claims, 14 true and 6 planted false). **No run had a quiet PC:** another session's soak and processing apps, and another resident app's llama-server and speech server, shared the RTX 3060 (18–35 % utilisation from other processes, at times 4.3 GB of its memory), so the times are contended; accuracy is not affected.
+
+| | Before (8ce9c56) | After (0.9.0) |
+|---|---|---|
+| Recall / precision on the 14 decisions and action items | 0.79 (11/14) / 1.00 | **0.93 (13/14) / 1.00** |
+| Fixed verification set (planted false caught) | 18/20 (6/6) | **20/20 (6/6)** |
+| Agenda items reported "Not reached" (truth: 5, 7) | 2, 5, 7 | **5, 7** |
+| Requests / model loads | 76 / 3 | **28 / 1** |
+| Pipeline time (map / verify / load and warm-up) | 338 s (174 / 164 / 33) | **225 s (142 / 80 / 8)** |
+| Output tokens (verify) | ~4,300 | 1,986 |
+
+What moved the numbers, each measured on its own:
+
+- **Recall was lost in the map, not the verifier.** On chunk 2 the model answered decisions first and then wrote one action item (117 output tokens), missing A5, A6 and U2. With `action_items` before `decisions` in the answer it wrote 349 tokens and found A5 and A6 (U2, "we need to tell the sales team", is still missed). Smaller chunks found everything but cost more: 2,000-token chunks (3 chunks) found U2, A5 and A6 for 1.5× the map calls and invented a weekend-coverage action; 2,500-token chunks found 13/14 with more parked items offered as decisions. An instruction to "list every action item, also small ones" changed nothing.
+- **Span.** The fixed set against the truth's lines only: 18/20 ("deliver final pricing page mockups" rejected because the line says "final mockups"); with one neighbouring line either side 20/20, two either side 20/20. The pipeline's span (two either side) was already wide enough; the fixed set now uses one neighbour either side.
+- **Graded verdicts.** "supported / partly / not supported" with the supported part: one request per claim 16/20 on the truth lines and 19/20 with one neighbour (the mockups claim graded "partly"); in batches of 6, 20/20; of 10, 19/20; of 20, 20/20; planted claims 6/6 in every variant. "Partly" keeps a summary point shortened to the supported part, only when the shorter text adds no word that is neither the claim's nor the excerpt's. For decisions, action items, owners, dates and agenda coverage "partly" gets a **second vote** (plain yes/no over one more line either side), which accepted the mockups claim and never a planted one.
+- **The claim in the transcript's own words** was not needed: the map already copies the decision's wording ("We ship 3.2 on Thursday, November twelfth"), and every verifier miss was on the fixed set's paraphrases, which the wider span fixed.
+- **Agenda coverage** from one yes/no answer per chunk missed item 2 ("Next, the offline mode backlog." answered "not discussed"). Each item's words are now matched in code against the transcript and the other passes' citations (most of the item's words, at least two), and up to three matching lines per item become candidates for the same verifier. Items 5 and 7 have no candidate, so they stay "Not reached".
+- **Speed.** One model load per generation (a worker job that stays loaded and answers `prompts` lines) took loads and warm-ups from 33 s to 8 s and keeps the graphics card for the whole generation. Verification in batches of up to 6 per module family **without a reason per item**: the reason changed no verdict on the fixed set (20/20 either way; a reason capped at 80 characters dropped to 19/20) but was most of the output (4,259 → 2,216 tokens). Summary-like modules have only their length's worth of statements checked (spread over the recording, then replacements for failures), and the meeting purpose asks for one point per chunk: 76 → 28 requests. Data modules never had model requests.
+- **Duplicates.** A recap's shorter copy of a person's task ("Send final pricing mockups") is merged when the owner matches at word similarity 0.25 (others keep 0.34).
+- **Trap: free video memory is not the budget.** With 5.3 GB reported free, a 16k context had 0.5 GB of its KV cache moved to shared memory while another app held video memory; 8k fitted. A spill while loading or warming up now reloads once at the profile's smallest context (8k for Qwen) before failing with `ai.notEnoughVram`.
+- **Not a meeting.** A three-minute reading of two short stories came out "Not discussed." in every section: the executive summary's instructions ("decisions first, then risks") and the discussion summary's ("one paragraph per agenda item") aimed at things the reading did not have, and the model answered with empty lists. Summary-like sections now write about what the excerpt says when the instructions miss; open questions and a stated purpose still stay empty.
