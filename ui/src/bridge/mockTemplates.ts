@@ -1,4 +1,4 @@
-// The browser-preview host's module catalog, templates and styles (BRIDGE-M4.md): the 23 modules
+// The browser-preview host's module catalog, templates and styles (BRIDGE.md, M4): the 23 modules
 // of src/Memento.Documents/Model/Modules/ModuleCatalog.cs, the four built-in templates and three
 // built-in styles copied from the JSON resources in src/Memento.Documents/Templates and Styles,
 // CRUD with built-in protection, and styles.sampleHtml built from the host's own sample page.

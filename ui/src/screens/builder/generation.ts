@@ -1,4 +1,4 @@
-// Generating a document (BRIDGE-M4.md generation.*): start, the "ask before every send"
+// Generating a document (BRIDGE.md, M4: generation.*): start, the "ask before every send"
 // confirmation (DESIGN.md §5.19), generation.progress, cancel, and the §17 failure. Kept beside the
 // store so the Builder shows the same job after a round trip to the Style editor, and a job that
 // finishes while the Builder is closed still says so.

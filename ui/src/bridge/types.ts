@@ -114,6 +114,7 @@ export const ERROR_CODES = [
   'documents.notFound',
   'documents.unsupportedEdit',
   'documents.versionNotFound',
+  'documents.exportFailed',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -1426,7 +1427,7 @@ export interface StorageReclaimSettings {
 }
 
 // ---------------------------------------------------------------------------------------------
-// M4: AI, documents, templates, styles (docs/BRIDGE-M4.md)
+// M4: AI, documents, templates, styles (docs/BRIDGE.md, the M4 sections)
 // ---------------------------------------------------------------------------------------------
 
 /** The built-in module types (src/Memento.Documents/Model/Modules/ModuleIds.cs). */

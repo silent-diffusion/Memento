@@ -1,4 +1,4 @@
-// The browser-preview host's documents (BRIDGE-M4.md): the documents saved inside each recording,
+// The browser-preview host's documents (BRIDGE.md, M4): the documents saved inside each recording,
 // rendered in the engine's viewer markup, light edits with versions, duplicate, delete, make
 // template and single-document export. The sample "Design review" recording starts with the
 // engine's own corporate viewer snapshot (tests/Memento.Documents.Tests/fixtures/expected) as its

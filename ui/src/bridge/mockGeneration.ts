@@ -1,4 +1,4 @@
-// The browser-preview host's M4 methods (BRIDGE-M4.md): providers and their readiness, the payload
+// The browser-preview host's M4 methods (BRIDGE.md, M4): providers and their readiness, the payload
 // preview ("Preview exactly what will be sent"), the Builder's skeleton paper, a simulated
 // generation job that reports generation.progress through composing → generating per module →
 // verifying → rendering → done, and the documents, templates and styles handlers composed into one
