@@ -25,9 +25,37 @@ public sealed partial class LlamaLocalLlmEngineFactory(IGpuVramProbe vramProbe, 
     {
     }
 
+    /// <summary>
+    /// Loads the model. When the graphics card spills while the model loads or warms up (Windows moves part of it to
+    /// shared memory: free memory as reported is not always memory the driver will give this process), the load is
+    /// tried once more with the profile's smallest context before giving up (ENGINE-NOTES.md §H trap 2).
+    /// </summary>
     public async Task<ILocalLlmEngine> LoadAsync(LocalLlmJob job, Action<LocalLlmProgress>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(job);
+        try
+        {
+            return await LoadOnceAsync(job, progress, cancellationToken);
+        }
+        catch (LocalLlmException ex) when (IsSpill(ex) && SmallerContext(job) is { } smaller)
+        {
+            LogSmallerContext(job.ModelId, smaller, ex.Error.Diagnostic ?? "-");
+            return await LoadOnceAsync(job with { ContextTokens = smaller }, progress, cancellationToken);
+        }
+    }
+
+    internal static bool IsSpill(LocalLlmException exception) =>
+        exception.Code == AiErrorCodes.NotEnoughVram && exception.Error.Diagnostic?.StartsWith("sharedGrowth=", StringComparison.Ordinal) == true;
+
+    /// <summary>The profile's smallest context on the graphics card, when the job asked for more.</summary>
+    internal static int? SmallerContext(LocalLlmJob job)
+    {
+        var asked = job.ContextTokens > 0 ? job.ContextTokens : job.Profile.ContextTokens;
+        return job.Device != LocalLlmDevices.Cpu && job.GpuLayers is null && asked > job.Profile.MinContextTokens ? job.Profile.MinContextTokens : null;
+    }
+
+    private async Task<ILocalLlmEngine> LoadOnceAsync(LocalLlmJob job, Action<LocalLlmProgress>? progress, CancellationToken cancellationToken)
+    {
         const string provider = LocalAiProvider.ProviderName;
         if (!File.Exists(job.ModelPath))
         {
@@ -174,6 +202,9 @@ public sealed partial class LlamaLocalLlmEngineFactory(IGpuVramProbe vramProbe, 
             throw new LocalLlmException(AiErrors.VramSpilled(LocalAiProvider.ProviderName, job.ModelName, spill.MaxSharedGrowthBytes));
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Local model {ModelId} spilled out of the graphics card's memory while loading ({Diagnostic}); loading again with a {Context}-token context")]
+    private partial void LogSmallerContext(string modelId, int context, string diagnostic);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Local model {ModelId} on {Backend}: GPU {UseGpu}, {Layers} layers, context {Context} ({Reason})")]
     private partial void LogPlan(string modelId, string backend, bool useGpu, int layers, int context, string reason);
