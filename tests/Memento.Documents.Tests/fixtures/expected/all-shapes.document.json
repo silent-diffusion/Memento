@@ -1,0 +1,571 @@
+{
+  "schemaVersion": 1,
+  "id": "doc-all-shapes",
+  "title": "Every module shape",
+  "meta": {
+    "kind": "Fixture",
+    "recordedAt": "2026-10-05T16:00:00+01:00",
+    "durationMs": 2520000,
+    "participantCount": 3
+  },
+  "styleId": "corporate",
+  "rows": [
+    {
+      "modules": [
+        {
+          "id": "s01",
+          "type": "customText",
+          "title": "Text and runs",
+          "textSize": "larger",
+          "linkToTranscript": false,
+          "provenance": {
+            "kind": "user",
+            "claimIds": [],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "heading",
+              "level": 1,
+              "runs": [
+                {
+                  "kind": "text",
+                  "text": "A sub-heading"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "runs": [
+                {
+                  "kind": "text",
+                  "text": "Plain text, "
+                },
+                {
+                  "kind": "emphasis",
+                  "text": "bold",
+                  "style": "bold"
+                },
+                {
+                  "kind": "text",
+                  "text": ", "
+                },
+                {
+                  "kind": "emphasis",
+                  "text": "italic",
+                  "style": "italic"
+                },
+                {
+                  "kind": "text",
+                  "text": ", "
+                },
+                {
+                  "kind": "emphasis",
+                  "text": "both",
+                  "style": "boldItalic"
+                },
+                {
+                  "kind": "text",
+                  "text": " and a "
+                },
+                {
+                  "kind": "note",
+                  "text": "quiet note"
+                },
+                {
+                  "kind": "text",
+                  "text": ", then a moment."
+                },
+                {
+                  "kind": "timestamp",
+                  "text": "1:05",
+                  "t": 65.5
+                },
+                {
+                  "kind": "text",
+                  "text": " Characters that need escaping: \u003Ctag\u003E \u0026 \u0022quotes\u0022 * _ [x] # 50% | pipe.\nA second line."
+                }
+              ]
+            },
+            {
+              "type": "heading",
+              "level": 2,
+              "runs": [
+                {
+                  "kind": "text",
+                  "text": "A smaller sub-heading"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "runs": [
+                {
+                  "kind": "text",
+                  "text": "After an hour"
+                },
+                {
+                  "kind": "timestamp",
+                  "text": "1:02:05",
+                  "t": 3725.25
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "modules": [
+        {
+          "id": "s02",
+          "type": "decisions",
+          "title": "Bulleted, nested",
+          "textSize": "normal",
+          "linkToTranscript": true,
+          "provenance": {
+            "kind": "ai",
+            "claimIds": [
+              "a1"
+            ],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "list",
+              "style": "bulleted",
+              "items": [
+                {
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "First point"
+                    }
+                  ],
+                  "items": [
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Nested point"
+                        }
+                      ],
+                      "items": []
+                    },
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Nested with "
+                        },
+                        {
+                          "kind": "emphasis",
+                          "text": "emphasis",
+                          "style": "bold"
+                        }
+                      ],
+                      "items": [
+                        {
+                          "runs": [
+                            {
+                              "kind": "text",
+                              "text": "Third level"
+                            }
+                          ],
+                          "items": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Second point"
+                    },
+                    {
+                      "kind": "timestamp",
+                      "text": "2:10",
+                      "t": 130
+                    }
+                  ],
+                  "items": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s03",
+          "type": "agenda",
+          "title": "Numbered, nested",
+          "textSize": "normal",
+          "linkToTranscript": true,
+          "provenance": {
+            "kind": "ai",
+            "claimIds": [
+              "a2"
+            ],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "list",
+              "style": "numbered",
+              "items": [
+                {
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Opening"
+                    }
+                  ],
+                  "items": [
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Welcome"
+                        }
+                      ],
+                      "items": []
+                    },
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Minutes of the last meeting"
+                        }
+                      ],
+                      "items": []
+                    }
+                  ]
+                },
+                {
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Budget"
+                    }
+                  ],
+                  "items": []
+                },
+                {
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Close"
+                    }
+                  ],
+                  "items": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "modules": [
+        {
+          "id": "s04",
+          "type": "actionItems",
+          "title": "Table",
+          "textSize": "smaller",
+          "linkToTranscript": true,
+          "provenance": {
+            "kind": "ai",
+            "claimIds": [
+              "a3"
+            ],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "table",
+              "columns": [
+                "Action",
+                "Owner",
+                "Due"
+              ],
+              "widths": [
+                2,
+                1,
+                1
+              ],
+              "rows": [
+                {
+                  "cells": [
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Send the draft"
+                        },
+                        {
+                          "kind": "timestamp",
+                          "text": "5:00",
+                          "t": 300
+                        }
+                      ]
+                    },
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Jordan"
+                        }
+                      ]
+                    },
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Mon"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "cells": [
+                    {
+                      "runs": [
+                        {
+                          "kind": "text",
+                          "text": "Book the room"
+                        }
+                      ]
+                    },
+                    {
+                      "runs": [
+                        {
+                          "kind": "note",
+                          "text": "No owner was named"
+                        }
+                      ]
+                    },
+                    {
+                      "runs": [
+                        {
+                          "kind": "note",
+                          "text": "No date was given"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s05",
+          "type": "participants",
+          "title": "Chips",
+          "textSize": "normal",
+          "linkToTranscript": false,
+          "provenance": {
+            "kind": "data",
+            "claimIds": [],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "chips",
+              "items": [
+                "Jordan Vale",
+                "Alex Moreau",
+                "Kim Ito"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s06",
+          "type": "nextMeeting",
+          "title": "Label and value",
+          "textSize": "larger",
+          "linkToTranscript": false,
+          "provenance": {
+            "kind": "ai",
+            "claimIds": [
+              "a4"
+            ],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "labelValue",
+              "pairs": [
+                {
+                  "label": "When",
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Not discussed"
+                    }
+                  ]
+                },
+                {
+                  "label": "Agenda",
+                  "runs": [
+                    {
+                      "kind": "emphasis",
+                      "text": "To be agreed",
+                      "style": "italic"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "modules": [
+        {
+          "id": "s07",
+          "type": "quote",
+          "title": "Quote",
+          "textSize": "normal",
+          "linkToTranscript": true,
+          "provenance": {
+            "kind": "ai",
+            "claimIds": [
+              "a5"
+            ],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "quote",
+              "runs": [
+                {
+                  "kind": "text",
+                  "text": "We should ship the smaller thing first."
+                }
+              ],
+              "attribution": "Alex Moreau",
+              "t": 512
+            },
+            {
+              "type": "quote",
+              "runs": [
+                {
+                  "kind": "text",
+                  "text": "An unattributed remark."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s08",
+          "type": "timeline",
+          "title": "Timeline",
+          "textSize": "normal",
+          "linkToTranscript": true,
+          "provenance": {
+            "kind": "ai",
+            "claimIds": [
+              "a6"
+            ],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "timeline",
+              "entries": [
+                {
+                  "t": 0,
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Opening"
+                    }
+                  ]
+                },
+                {
+                  "t": 512,
+                  "runs": [
+                    {
+                      "kind": "text",
+                      "text": "Scope agreed"
+                    }
+                  ]
+                },
+                {
+                  "t": 3725,
+                  "runs": [
+                    {
+                      "kind": "emphasis",
+                      "text": "Close",
+                      "style": "bold"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "modules": [
+        {
+          "id": "s09",
+          "type": "fullTranscript",
+          "title": "Transcript",
+          "textSize": "smaller",
+          "linkToTranscript": false,
+          "provenance": {
+            "kind": "data",
+            "claimIds": [],
+            "edited": false
+          },
+          "blocks": [
+            {
+              "type": "transcript",
+              "segments": [
+                {
+                  "id": "s0001",
+                  "speaker": "Jordan Vale",
+                  "t": 1.5,
+                  "text": "Shall we start?"
+                },
+                {
+                  "id": "s0002",
+                  "speaker": "Alex Moreau",
+                  "t": 12.25,
+                  "text": "Yes. Two things today."
+                },
+                {
+                  "id": "s0003",
+                  "speaker": "Kim Ito",
+                  "t": 64,
+                  "text": "First, the scope.\nThen the dates."
+                }
+              ],
+              "chapters": [
+                {
+                  "t": 0,
+                  "title": "Opening"
+                },
+                {
+                  "t": 60,
+                  "title": "Scope"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "version": 1,
+  "createdAt": "2026-10-05T16:00:00+01:00",
+  "modifiedAt": "2026-10-05T16:00:00+01:00"
+}

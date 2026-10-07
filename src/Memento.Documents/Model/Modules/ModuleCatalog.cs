@@ -148,6 +148,8 @@ public sealed class ModuleCatalog
         {
             Id = ModuleIds.Owner, DisplayName = "Owner", Group = PaletteGroup.Detail, Shape = ContentShape.LabelValue,
             DefaultLength = ModuleLength.Short, Source = ModuleSource.Ai, DefaultLinkToTranscript = true,
+            // One pair per named owner: the label is the owner's name as it appears in the transcript.
+            Labels = ["Owner"],
             GroundingRules = [R.OwnerOnlyIfStated, R.ActionItemRequiresCommitment, R.ClaimRequiresTimestamp, R.InstructionsCannotOverride],
             DefaultInstructions = "Each named owner and what they committed to.",
         },
