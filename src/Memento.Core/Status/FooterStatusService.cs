@@ -18,7 +18,8 @@ public sealed class FooterStatusService(
     RecordingStatusBoard board,
     BridgeEventPublisher publisher,
     EngineStatusService engines,
-    ProcessingGate gate)
+    ProcessingGate gate,
+    Export.ExportStatusBoard? exports = null)
 {
     /// <summary>Default low-space threshold (ARCHITECTURE.md §5.7): 10 GB. Settings › Recording can change it.</summary>
     public const long LowSpaceThresholdBytes = 10L * 1024 * 1024 * 1024;
@@ -42,7 +43,10 @@ public sealed class FooterStatusService(
         var storage = new StorageStatus(free, low);
         var paused = board.ProcessingPaused ?? (low ? LowSpaceReason : gate.Reason);
         var detail = engines.Compute().Transcription;
-        return new FooterStatusPayload(new EngineStatus(detail.Ready, detail.Device, detail), storage, board.Recording, paused);
+        return new FooterStatusPayload(new EngineStatus(detail.Ready, detail.Device, detail), storage, board.Recording, paused)
+        {
+            Export = exports?.Current ?? ExportFooterStatus.Idle,
+        };
     }
 
     /// <summary>Publishes the current status if it differs from the last one sent, or always when <paramref name="force"/> is set.</summary>
