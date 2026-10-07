@@ -21,6 +21,8 @@ Scope so far: the **Library** (home) in list, grid and first-run states, a found
 | Details sheet and agenda import | §14 | Details and agenda import · light / dark |
 | Export dialog | §15 | Export dialog · light / dark |
 | Error and recovery states | §17 | Error and recovery states (light and dark on one sheet) |
+| Video: recording, picker, review, export, settings, errors, processing | §18 | Recording session · video, Display and window picker, Review · video player, Export dialog · video enabled, Settings › Recording · video defaults, Settings › Storage · remove video, Error and recovery states · video, Processing card, rows and cards · video |
+| 2.0 components | §19 | 2.0 components (light and dark on one sheet) |
 
 ---
 
@@ -566,13 +568,106 @@ Copy rules: name the thing (source, stage, drive, provider), give the time or am
 
 ---
 
-## 18. Not yet designed (follow this document when building)
+## 18. Video
 
-- Reprocess, rename and change-type flows from Review's More menu (simple dialogs; use §5.19).
-- Context menus on Library rows and cards; multi-select and bulk export or delete.
+Canvas artboards: *Recording session · video*, *Display and window picker*, *Review · video player*, *Export dialog · video enabled*, *Settings › Recording · video defaults*, *Settings › Storage · remove video*, *Error and recovery states · video*, *Processing card, rows and cards · video*, each light and dark (the two component sheets show both themes on one board). Renders: `RecordVideo`, `DisplayPicker`, `ReviewVideo`, `ExportVideo`, `SettingsVideo`, `SettingsStorageVideo`, `ErrorStatesVideo`, `ProcessingVideo`.
+
+Governing rules: video is one more synchronized track, never the recording itself. It can fail, pause or be removed on its own while audio continues; it is never transcribed, analysed or sent anywhere; and every video figure (resolution, frame rate, size, time remaining) is shown in plain numbers.
+
+### 18.1 Recording session with video
+
+The Sources card gains a live **VIDEO** section under the audio sources, headed by an `active` pill "Recording video" while any video source is on. Each video source is a row of toggle · name 15/600 · sub-line 12 `text-2` · a 72 × 42 px live **thumbnail** (pressed-in well, radius 12) · and, on a second line indented 52 px, a small ghost **selector** chip that opens the picker (§18.2):
+
+| Source | Sub-line | Selector |
+|---|---|---|
+| Screen | "Display 1 · 2560 × 1440 · 30 fps" | "Display 1 ▾" |
+| Window | "Capture one window instead of a whole display" | "Pick a window ▾" |
+| Camera | "Logitech Brio · 1080p" | device name ▾ |
+
+Below them, **Screen + camera** (toggle) places the camera as a picture-in-picture inset. When on, an **inset corner** picker appears: a 2 × 2 grid of 22 × 16 px buttons (raised; the chosen one pressed in and `text`-filled) and the note *Both are also kept as separate tracks.* Disabled sources fade to 55% as audio sources do. The card footer reads *Each source is saved as its own synchronized track. Video never leaves this PC.*
+
+The **stage** keeps the timer (56 px here to make room) and the sub-line becomes "Started 4:00 PM · screen + camera + 3 audio tracks" (the parts update live as sources toggle). Under the sub-line sits the **live preview**: a 16:9 pressed-in well up to 560 px wide showing the captured screen with the camera inset in the chosen corner, a mono caption at the lower left ("Display 1 · 2560 × 1440 · 30 fps") and "LIVE" at the lower right. Controls are unchanged; Stop opens Review with the video player.
+
+The **Tracks card** gains a **video lane** first: the same 36 px well, filled with alternating frame blocks instead of bars, labelled with a camera icon and "Screen + camera" (or "Screen", "Camera", "Video (off)"). Audio lanes follow.
+
+The right column keeps the live transcript (footnote: *Video is not analysed; only the audio tracks are transcribed.*) and adds an **Encoder** card: a `done` pill ("Hardware · GPU" or "Software · CPU") and a small mono fact grid: Resolution, Frame rate with dropped-frame count, Bitrate, Video so far. Footnote: *Change resolution and quality in Settings › Recording. Changes apply to the next recording.*
+
+Footer: left "Saving continuously · last checkpoint 6 s ago · video and audio in sync"; right the storage estimate **at video rates**: "212 GB free · about 9 hours at this quality (screen 30 fps + camera)".
+
+### 18.2 Display and window picker
+
+A 600 px side sheet (§5.19) over the Recording session, opened from a Screen or Window selector. Header "Choose what to capture" with close. Body:
+
+- A segmented control **Entire screen | This window** (the Screen selector opens on the first, the Window selector on the second).
+- A two-column grid of **tiles** (raised, radius 16, 10 px padding): a 16:9 schematic thumbnail, name 14/600, sub-line 12 `text-2` with resolution and a hint ("primary · this is where Memento is", "right of Display 1", "Zoom · 1600 × 900"). The chosen tile is pressed in with a 2 px `accent` ring. Memento's own window is listed but disabled, with the sub-line *This app is excluded from capture*.
+- An inline **note** (pressed-in well, info icon) that says exactly what will be captured. Screen: *Captures everything shown on the chosen display, including other windows and notifications that appear on it. Your other displays are not captured. The mouse pointer is included.* Window: *Captures only this window, even when other windows cover it. If it is minimised, the video pauses and resumes when it comes back; audio keeps recording.*
+
+Footer: *You can change this while recording; the track continues.* · ghost **Cancel** · primary **Use {name}**.
+
+### 18.3 Review with video
+
+The centre pane gains a **video area** above the waveform: a 16:9 pressed-in well up to 640 px wide, centred, showing the screen recording with the camera inset. A mono caption at the top left gives the chapter and timecode. An overlay row along the bottom (translucent dark pills, 32 px, radius 12) holds: **Camera inset** (toggle button; when on, a 2 × 2 corner picker follows it so the inset can be moved during playback), a spacer, **Audio only**, and **Fullscreen**.
+
+- One playhead drives video, waveform, transcript and chapters. Clicking a transcript line seeks the video; the play, skip and speed controls are the ones already in the player strip, so there is no second set.
+- **Fullscreen** hides both side panes and the transcript, lets the video fill the centre pane, and swaps the button to **Exit fullscreen**. Esc also exits.
+- **Audio only** hides the video area and shows a pressed-in line *Video hidden. Playback and the transcript are unchanged.* with a **Show video** button. When the recording's video has been removed (Settings › Storage or the row menu) the same line reads *Video was removed on {date} to free {size}. Audio tracks, transcript and documents are intact.* and there is no Show video button. The artboard's State tweak switches between present and removed.
+- The outline pane adds a **Video** block (Sources, Resolution, Frame rate, Size) and a ghost **Remove video, keep audio…** that opens a confirmation dialog (§18.6). The details pane lists the video tracks and encoder facts and states that video is never transcribed or sent.
+- The header meta line starts with the camera icon and ends with "screen + camera · 1.9 GB video".
+
+### 18.4 Export dialog with video
+
+The Video row is ticked: name **Video**, description "Screen and camera, 2560 × 1440 · 30 fps, with the mixed audio", size, and the format select **MP4 ▾** (options: MP4, Original container). While ticked it shows a sub-row with a segmented **One file, as recorded | Two files: screen and camera**, and a note: one file *burns the camera inset in where it was while recording*; two files *keep their own resolution; audio goes with the screen file*. *MP4 re-encodes; "Original container" copies the recorded frames untouched.* The footer's file count and size follow the choice (two files add the camera track's size).
+
+### 18.5 Settings for video
+
+**Recording › Video defaults** (a new group after Tracks and storage): Default video source (select: Screen + camera), Resolution (select: Match display (2560 × 1440), 1080p, 720p), Frame rate (segmented 24 | 30 | 60; 30 default), Quality (segmented Smaller | Balanced | Best; the description states the bitrate, "Balanced is about 12 Mb/s at 1440p"), Default camera (select), Picture-in-picture position (select: four corners), Hardware encoder (toggle, on; *Falls back to software automatically if it fails, with a notice*), Include the mouse pointer (toggle, on). Recording mode defaults to Audio + video on this artboard to show the group in context; the product default remains Audio only.
+
+**Storage and history › Remove video older than** is live: select (Never, 30, 90, 180 days, 1 year) and a description that states the effect right now: *Would free 11.3 GB now, from 3 recordings. Audio tracks, transcript and documents are kept; the Library shows "Video removed".* Removal is a stage like any other and appears in the recording's History.
+
+### 18.6 Video errors and recovery
+
+Same components and copy rules as §17; the extra rule is **video fails first and alone**.
+
+| Situation | Component | Copy |
+|---|---|---|
+| Camera in use by another app | Inline card | "Logitech Brio is in use by Zoom." Recording continues with screen and audio; the camera track starts when free. Actions: Retry camera, Continue without camera, Pick another camera. |
+| Screen capture blocked by Windows privacy settings | Permission card | Where to allow it; audio unaffected. Actions: Open Windows settings, Record audio only. |
+| Display disconnected mid-recording | Toast (`accent` dot) | "Display 2 disconnected at 00:23:40." Video paused, audio and camera continue. Actions: Switch to Display 1, Keep waiting. |
+| Captured window closed | Toast (`accent` dot) | "'Zoom Meeting' was closed at 00:58:12." The video track ends there; everything before is saved. Actions: Capture Display 1 instead, Audio only from here. |
+| Hardware encoder failed | Banner | "Hardware encoder failed at 00:12:03." Switched to software; no frames lost; CPU use higher. Action: Lower quality. |
+| Low disk with video | Banner | "Low disk space · 4 GB free · about 25 minutes of video at this quality." Video stops first, audio last. Actions: Stop video now, Free up space. |
+| Video encoding failed in processing | Processing card, `danger` | Where it stopped; raw frames and audio safe; transcript unaffected. Actions: Retry with software encoder, Keep raw frames, Details. |
+| Remove video (user action) | Dialog (§5.19) | Names the recording and the size freed, states that audio, transcript and documents are kept, and that it cannot be undone. Cancel, Remove video (`danger`). |
+| Footer variants | Footer | "video and audio in sync"; "Video paused · Display 2 disconnected · audio recording"; "Software encoder · 3 dropped frames". |
+
+### 18.7 Processing and Library states with video
+
+- The processing card gains a **Video** stage between Stored and Transcribing. It runs in parallel with transcription and never blocks it. Its status text names the sub-step: "Encoding 42% · GPU", "Trimming", "Muxing camera inset".
+- Pill vocabulary: `active` "Video · Encoding 42%" / "Video · Trimming", `done` "Video", `queued` "Video", `failed` "Video failed · Retry". A recording whose video was removed shows the crossed-camera icon in its meta line and the caption "Video removed · audio kept" in place of a pill.
+- Grid cards: the video strip carries the `active` pill at its top left while encoding and a mono caption ("Screen + camera · 1440p"). A removed-video card shows a pressed-in `surface-2` strip with the crossed-camera icon and "Video removed · audio kept".
+- List rows reuse the camera icon in the meta line (§4) and the pills above.
+
+---
+
+## 19. 2.0 components
+
+Canvas artboard: *2.0 components* (light and dark on one sheet). Render: `Features20`.
+
+- **Known voices** (Settings › Speakers): a card listing each learned voice with its speaker dot, name, "Confirmed in n recordings · last {date}", a per-voice toggle (suggest this voice) and a ghost **Forget**. Footnote: *A voice is learned only when you confirm a name in Review. Forgetting it removes the signature immediately.* Signatures are stored on the PC, never audio.
+- **Match prompt** (Review › People): under an unnamed speaker, a pressed-in line "Sounds like **Priya Natarajan** · 91% match · 4 past recordings" with a small primary **Use name** and a ghost **Not her**. Accepting renames every segment as §9 describes; declining hides the suggestion for this recording.
+- **Suggested chapters** (Review › Outline): a "Suggested chapters · n" block with **Accept all**. Each row has the mono time, the title with a dotted underline (meaning unconfirmed), and two 26 px icon buttons: accept (`ok` check) and dismiss (×). Accepted chapters lose the dots and move into the Chapters list. Suggestions come from local topic shifts.
+- **Selection mode** (Library): a bulk action bar (raised, radius 16) with a select-all checkbox, "n selected · duration · size", and actions Export…, Change type, Remove video, Delete… (`danger` text), Cancel. Rows gain a leading checkbox and selected rows are pressed in. Enter via a row menu's Select, Ctrl+click, or a Select button that appears on hover over a group label; Esc leaves.
+- **Context menu** (rows and cards): 240 px, raised, radius 16, 6 px padding, 34 px items. Open · Rename… · Change type ▸ · Select · divider · Create document… · Export… · Reprocess ▸ · Remove video, keep audio… · divider · Show in folder · Delete… (`danger`). Opens on right-click, Shift+F10, or the ⋯ button.
+
+---
+
+## 20. Not yet designed (follow this document when building)
+
+- Reprocess, rename and change-type dialogs behind the context menu (simple dialogs; use §5.19).
 - The "Preview exactly what will be sent" payload view (read-only sheet listing each input with its size).
 - Templates and styles manager (list of templates with their module counts; opened from Settings › Documents).
 - Onboarding of transcription models (download size, progress) in Settings › Transcription.
 - Small-window layout below 1024 px, and the stacked phone-width fallback of the three-pane Review.
+- Trimming video in Review (start and end handles on the waveform) and a camera-only recording layout.
 
 Add each as a new artboard on the existing canvas rather than a new file set, so tokens and components stay shared. Derive the dark variant from the light file; only the theme default differs. Apply the shadow tokens from §2.5 by role rather than inventing new shadows, and give every new control the press behaviour in §2.4.

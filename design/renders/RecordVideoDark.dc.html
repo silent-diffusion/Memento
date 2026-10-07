@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Recording session with video, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.tog:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.field::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.pill.active{background:var(--accent-soft);color:var(--accent-text)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.src.off{opacity:.55}
+.bar{flex:1;border-radius:1px;background:var(--text-3)}
+.bar.live{background:var(--ok)}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+<style>
+.thumb{width:72px;height:42px;border-radius:8px;background:#2A2824;position:relative;overflow:hidden;flex:none;box-shadow:var(--neo-in-xs)}
+.thumb .win{position:absolute;inset:6px 8px 10px 8px;border-radius:3px;background:#3A3733}
+.thumb .cam{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#8C7B6A 0 9px,#4A443D 10px 100%)}
+.corner{width:22px;height:16px;border-radius:4px;border:none;background:var(--surface);box-shadow:var(--neo-xs);padding:0;cursor:pointer}
+.corner.on{background:var(--text);box-shadow:var(--neo-in-xs)}
+.corner:active{box-shadow:var(--neo-in)!important}
+.frame{flex:1;height:28px;border-radius:3px;background:#3A3733}
+.frame.alt{background:#4A463F}
+.frame.off{background:var(--line-strong)}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Main.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); background: var(--surface); box-shadow: var(--neo-sm)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Library
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0">
+      <label class="sr" for="rec-title">Recording title</label>
+      <input id="rec-title" class="field" type="text" value="Design review: library screen" style="flex: 0 1 360px; min-width: 120px; height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 14px; border: 1px solid transparent; background: transparent; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.01em">
+      <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px">Meeting<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+    </div>
+    <a class="btn ghost" href="AgendaImport.dc.html" style="height: 36px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4"></path></svg>
+      Details and agenda
+    </a>
+  </header>
+
+  <main style="flex: 1; padding: 32px 48px 40px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1344px; margin: 0 auto; display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+
+      <section aria-label="Sources" style="flex: 1 1 300px; max-width: 340px; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+        <span class="lbl">Audio sources</span>
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <sc-for list="{{audio}}" as="s" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <button class="tog on" type="button" role="switch" aria-checked="true" aria-label="{{s.name}}"><span></span></button>
+              <div style="display: flex; flex-direction: column; min-width: 0; flex: 1"><span style="font-size: 15px; font-weight: 600">{{s.name}}</span><span style="font-size: 12px; color: var(--text-2)">{{s.sub}}</span></div>
+            </div>
+            <div aria-hidden="true" style="height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-left: 52px; box-shadow: var(--neo-in-xs)"><div style="height: 6px; border-radius: 3px; background: var(--ok); width: {{s.level}}"></div></div>
+          </div>
+          </sc-for>
+        </div>
+
+        <div style="height: 1px; background: var(--line)"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between"><span class="lbl">Video</span><span class="pill active">Recording video</span></div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <sc-for list="{{video}}" as="v" hint-placeholder-count="3">
+          <div class="src {{v.cls}}" style="display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <button class="tog {{v.cls2}}" type="button" role="switch" aria-checked="{{v.on}}" aria-label="{{v.name}}" onClick="{{v.toggle}}"><span></span></button>
+              <div style="display: flex; flex-direction: column; min-width: 0; flex: 1"><span style="font-size: 15px; font-weight: 600">{{v.name}}</span><span style="font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{v.sub}}</span></div>
+              <div class="thumb" aria-hidden="true"><div class="{{v.thumbCls}}"></div></div>
+            </div>
+            <div style="margin-left: 52px; display: flex; gap: 8px; align-items: center">
+              <a class="btn ghost" href="DisplayPicker.dc.html" style="height: 28px; padding: 0 10px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 12px; font-weight: 600; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px">{{v.pick}}<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></a>
+            </div>
+          </div>
+          </sc-for>
+
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <button class="tog {{pipCls}}" type="button" role="switch" aria-checked="{{pip}}" aria-label="Screen plus camera" onClick="{{togglePip}}"><span></span></button>
+              <div style="display: flex; flex-direction: column; min-width: 0; flex: 1"><span style="font-size: 15px; font-weight: 600">Screen + camera</span><span style="font-size: 12px; color: var(--text-2)">Camera as a small inset on the screen recording</span></div>
+            </div>
+            <sc-if value="{{pip}}" hint-placeholder-val="{{true}}">
+            <div style="margin-left: 52px; display: flex; align-items: center; gap: 12px">
+              <span style="font-size: 12px; color: var(--text-2)">Inset corner</span>
+              <div role="group" aria-label="Inset corner" style="display: grid; grid-template-columns: repeat(2, 22px); gap: 4px">
+                <sc-for list="{{corners}}" as="c" hint-placeholder-count="4"><button class="corner {{c.cls}}" type="button" aria-label="{{c.name}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}"></button></sc-for>
+              </div>
+              <span style="font-size: 12px; color: var(--text-3)">Both are also kept as separate tracks.</span>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+        <p style="margin: 0; font-size: 12px; color: var(--text-3)">Each source is saved as its own synchronized track. Video never leaves this PC.</p>
+      </section>
+
+      <section aria-label="Recording" style="flex: 3 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 28px 32px 28px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text)">
+            <span class="pulse" aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent)"></span>Recording
+          </div>
+          <div class="mono" style="font-size: 56px; font-weight: 500; letter-spacing: -0.02em; line-height: 1">{{timer}}</div>
+          <div style="font-size: 13px; color: var(--text-2)">Started 4:00 PM · {{subline}}</div>
+
+          <div aria-label="Live preview" style="width: 100%; max-width: 560px; aspect-ratio: 16 / 9; border-radius: 16px; background: #2A2824; position: relative; overflow: hidden; box-shadow: var(--neo-in)">
+            <div aria-hidden="true" style="position: absolute; inset: 22px 28px 34px 28px; border-radius: 6px; background: #3A3733"></div>
+            <div aria-hidden="true" style="position: absolute; left: 28px; top: 22px; width: 160px; height: 8px; border-radius: 2px; background: #57534C"></div>
+            <sc-if value="{{showCam}}" hint-placeholder-val="{{true}}">
+            <div aria-hidden="true" style="position: absolute; width: 128px; height: 72px; border-radius: 8px; background: radial-gradient(circle at 50% 42%, #8C7B6A 0 16px, #4A443D 17px 100%); box-shadow: 0 4px 12px rgba(0,0,0,.4); {{camPos}}"></div>
+            </sc-if>
+            <span class="mono" style="position: absolute; left: 14px; bottom: 10px; font-size: 11px; color: #C9C5BC">{{previewLabel}}</span>
+            <span class="mono" style="position: absolute; right: 14px; bottom: 10px; font-size: 11px; color: #C9C5BC">LIVE</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 16px; margin-top: 2px">
+            <button class="btn ghost" type="button" aria-label="Pause" style="width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; justify-content: center; color: var(--text)"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></button>
+            <a class="btn primary" href="ReviewVideo.dc.html" aria-label="Stop and open review" style="width: 72px; height: 72px; border-radius: 50%; background: var(--accent-grad); display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="#FFFFFF"><rect x="5" y="5" width="14" height="14" rx="3"></rect></svg></a>
+            <button class="btn ghost" type="button" style="height: 56px; padding: 0 18px; border-radius: 999px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 14px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4a1 1 0 0 1 1-1h11l-2 4 2 4H6"></path></svg>Mark highlight</button>
+          </div>
+        </div>
+
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; align-items: center; justify-content: space-between"><span class="lbl">Tracks</span><span class="mono" style="font-size: 12px; color: var(--text-3)">{{timer}}</span></div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; align-items: center">
+              <span style="font-size: 13px; font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg>{{videoLane}}</span>
+              <div aria-hidden="true" style="height: 36px; display: flex; align-items: center; gap: 2px; border-radius: 12px; background: var(--surface-2); box-shadow: var(--neo-in); padding: 0 8px; box-sizing: border-box">
+                <sc-for list="{{frames}}" as="f" hint-placeholder-count="30"><div class="frame {{f.cls}}"></div></sc-for>
+              </div>
+            </div>
+            <sc-for list="{{lanes}}" as="l" hint-placeholder-count="3">
+            <div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; align-items: center">
+              <span style="font-size: 13px; font-weight: 600; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{l.name}}</span>
+              <div aria-hidden="true" style="height: 36px; display: flex; align-items: center; gap: 2px; border-radius: 12px; background: var(--surface-2); box-shadow: var(--neo-in); padding: 0 8px; box-sizing: border-box">
+                <sc-for list="{{l.bars}}" as="b" hint-placeholder-count="40"><div class="bar live" style="height: {{b.h}}"></div></sc-for>
+              </div>
+            </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Live transcript and agenda" style="flex: 1 1 280px; max-width: 320px; display: flex; flex-direction: column; gap: 24px">
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span class="lbl">Live transcript</span><span class="pill done">Local · GPU</span></div>
+          <div style="display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="font-size: 11px; color: var(--text-3)">00:18:10 · Speaker 1</span><span style="font-size: 14px">Okay, next item. The rows feel a little tight to me on the fourteen-forty mockup.</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><span class="mono" style="font-size: 11px; color: var(--text-3)">00:18:24 · Speaker 2</span><span style="font-size: 14px">I had the same note. If every row carries pills, the list gets <span style="color: var(--text-3)">…</span></span></div>
+          </div>
+          <p style="margin: 0; font-size: 12px; color: var(--text-3)">Rough draft. Video is not analysed; only the audio tracks are transcribed.</p>
+        </div>
+        <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px"><span class="lbl">Encoder</span><span class="pill done">Hardware · GPU</span></div>
+          <div style="display: grid; grid-template-columns: 1fr auto; row-gap: 6px; font-size: 13px; color: var(--text-2)">
+            <span>Resolution</span><span class="mono" style="color: var(--text)">2560 × 1440</span>
+            <span>Frame rate</span><span class="mono" style="color: var(--text)">30 fps · 0 dropped</span>
+            <span>Bitrate</span><span class="mono" style="color: var(--text)">12 Mb/s</span>
+            <span>Video so far</span><span class="mono" style="color: var(--text)">1.6 GB</span>
+          </div>
+          <p style="margin: 0; font-size: 12px; color: var(--text-3)">Change resolution and quality in Settings › Recording. Changes apply to the next recording.</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer style="min-height: 36px; box-sizing: border-box; padding: 0 24px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 12px; color: var(--text-3); flex-wrap: wrap">
+    <span style="display: flex; align-items: center; gap: 8px"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--ok)"></span>Saving continuously · last checkpoint 6 s ago · video and audio in sync</span>
+    <span>212 GB free · about 9 hours at this quality (screen 30 fps + camera)</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { seconds: 1104, screen: true, window: false, camera: true, pip: true, corner: 3 };
+  }
+  componentDidMount() { this.t = setInterval(() => this.setState({ seconds: this.state.seconds + 1 }), 1000); }
+  componentWillUnmount() { clearInterval(this.t); }
+  fmt(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return [h, m, x].map(n => String(n).padStart(2, '0')).join(':'); }
+  bars(seed, n) { const out = []; let v = seed; for (let i = 0; i < n; i++) { v = (v * 9301 + 49297) % 233280; const r = v / 233280; out.push({ h: Math.round(4 + r * r * 22) + 'px' }); } return out; }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const vid = (id, name, sub, pick, thumbCls) => ({ name, sub, pick, thumbCls, on: st[id], cls: st[id] ? '' : 'off', cls2: st[id] ? 'on' : '', toggle: () => this.setState({ [id]: !st[id] }) });
+    const video = [
+      vid('screen', 'Screen', 'Display 1 · 2560 × 1440 · 30 fps', 'Display 1', 'win'),
+      vid('window', 'Window', 'Capture one window instead of a whole display', 'Pick a window', 'win'),
+      vid('camera', 'Camera', 'Logitech Brio · 1080p', 'Logitech Brio', 'cam')
+    ];
+    const cornerNames = ['Top left', 'Top right', 'Bottom left', 'Bottom right'];
+    const corners = cornerNames.map((name, i) => ({ name, on: st.corner === i, cls: st.corner === i ? 'on' : '', pick: () => this.setState({ corner: i }) }));
+    const pos = ['left: 14px; top: 14px', 'right: 14px; top: 14px', 'left: 14px; bottom: 30px', 'right: 14px; bottom: 30px'][st.corner];
+    const parts = [];
+    if (st.screen) parts.push('screen'); if (st.window) parts.push('window'); if (st.camera) parts.push('camera');
+    const frames = []; for (let i = 0; i < 48; i++) frames.push({ cls: (st.screen || st.window || st.camera) ? (i % 2 ? 'alt' : '') : 'off' });
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      timer: this.fmt(st.seconds),
+      audio: [{ name: 'Microphone', sub: 'Shure MV7 · USB', level: '62%' }, { name: 'System audio', sub: 'Everything this PC plays', level: '38%' }, { name: 'Zoom', sub: 'Only this app', level: '71%' }],
+      video, corners, frames,
+      pip: st.pip, pipCls: st.pip ? 'on' : '', togglePip: () => this.setState({ pip: !st.pip }),
+      showCam: st.camera && st.pip && (st.screen || st.window),
+      camPos: pos,
+      subline: (parts.length ? parts.join(' + ') + ' + ' : '') + '3 audio tracks',
+      previewLabel: (st.screen ? 'Display 1 · 2560 × 1440 · 30 fps' : st.window ? 'Window · 30 fps' : st.camera ? 'Camera · 1080p' : 'No video source'),
+      videoLane: st.screen && st.camera ? 'Screen + camera' : st.screen ? 'Screen' : st.camera ? 'Camera' : 'Video (off)',
+      lanes: [{ name: 'Microphone', bars: this.bars(7, 72) }, { name: 'System audio', bars: this.bars(13, 72) }, { name: 'Zoom', bars: this.bars(29, 72) }]
+    };
+  }
+}
+</script>
+</body>
+</html>

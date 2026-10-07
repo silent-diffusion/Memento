@@ -28,9 +28,24 @@
     "ExportDialogDark.dc.html": {"x": 1520, "y": 11100, "w": 1440, "h": 900, "title": "Export dialog · dark", "expand": "fill", "is_interactive": true},
     "LibraryGrid.dc.html": {"x": 0, "y": 12300, "w": 1440, "h": 900, "title": "Library · grid view · light", "expand": "fill", "is_interactive": true},
     "LibraryGridDark.dc.html": {"x": 1520, "y": 12300, "w": 1440, "h": 900, "title": "Library · grid view · dark", "expand": "fill", "is_interactive": true},
-    "ErrorStates.dc.html": {"x": 0, "y": 13500, "w": 1440, "h": 1300, "title": "Error and recovery states"}
+    "ErrorStates.dc.html": {"x": 0, "y": 13500, "w": 1440, "h": 1300, "title": "Error and recovery states"},
+    "RecordVideo.dc.html": {"x": 0, "y": 15000, "w": 1440, "h": 900, "title": "Recording session · video · light", "expand": "fill", "is_interactive": true},
+    "RecordVideoDark.dc.html": {"x": 1520, "y": 15000, "w": 1440, "h": 900, "title": "Recording session · video · dark", "expand": "fill", "is_interactive": true},
+    "DisplayPicker.dc.html": {"x": 0, "y": 16200, "w": 1440, "h": 900, "title": "Display and window picker · light", "expand": "fill", "is_interactive": true},
+    "DisplayPickerDark.dc.html": {"x": 1520, "y": 16200, "w": 1440, "h": 900, "title": "Display and window picker · dark", "expand": "fill", "is_interactive": true},
+    "ReviewVideo.dc.html": {"x": 0, "y": 17400, "w": 1440, "h": 900, "title": "Review · video player · light", "expand": "fill", "is_interactive": true},
+    "ReviewVideoDark.dc.html": {"x": 1520, "y": 17400, "w": 1440, "h": 900, "title": "Review · video player · dark", "expand": "fill", "is_interactive": true},
+    "ExportVideo.dc.html": {"x": 0, "y": 18600, "w": 1440, "h": 900, "title": "Export dialog · video enabled · light", "expand": "fill", "is_interactive": true},
+    "ExportVideoDark.dc.html": {"x": 1520, "y": 18600, "w": 1440, "h": 900, "title": "Export dialog · video enabled · dark", "expand": "fill", "is_interactive": true},
+    "SettingsVideo.dc.html": {"x": 0, "y": 19800, "w": 1440, "h": 900, "title": "Settings › Recording · video defaults · light", "expand": "fill", "is_interactive": true},
+    "SettingsVideoDark.dc.html": {"x": 1520, "y": 19800, "w": 1440, "h": 900, "title": "Settings › Recording · video defaults · dark", "expand": "fill", "is_interactive": true},
+    "SettingsStorageVideo.dc.html": {"x": 0, "y": 21000, "w": 1440, "h": 900, "title": "Settings › Storage · remove video · light", "expand": "fill", "is_interactive": true},
+    "SettingsStorageVideoDark.dc.html": {"x": 1520, "y": 21000, "w": 1440, "h": 900, "title": "Settings › Storage · remove video · dark", "expand": "fill", "is_interactive": true},
+    "ErrorStatesVideo.dc.html": {"x": 0, "y": 22200, "w": 1440, "h": 1100, "title": "Error and recovery states · video"},
+    "ProcessingVideo.dc.html": {"x": 1520, "y": 22200, "w": 1440, "h": 1100, "title": "Processing card, rows and cards · video"},
+    "Features20.dc.html": {"x": 0, "y": 23500, "w": 1440, "h": 1200, "title": "2.0 components: known voices, suggested chapters, selection, context menu"}
   },
-  "order": ["Main.dc.html", "LibraryDark.dc.html", "LibraryEmpty.dc.html", "Foundations.dc.html", "Record.dc.html", "RecordDark.dc.html", "Review.dc.html", "ReviewDark.dc.html", "Builder.dc.html", "BuilderDark.dc.html", "Settings.dc.html", "SettingsDark.dc.html", "DocView.dc.html", "DocViewDark.dc.html", "StyleEditor.dc.html", "StyleEditorDark.dc.html", "AgendaImport.dc.html", "AgendaImportDark.dc.html", "ExportDialog.dc.html", "ExportDialogDark.dc.html", "LibraryGrid.dc.html", "LibraryGridDark.dc.html", "ErrorStates.dc.html"],
+  "order": ["Main.dc.html", "LibraryDark.dc.html", "LibraryEmpty.dc.html", "Foundations.dc.html", "Record.dc.html", "RecordDark.dc.html", "Review.dc.html", "ReviewDark.dc.html", "Builder.dc.html", "BuilderDark.dc.html", "Settings.dc.html", "SettingsDark.dc.html", "DocView.dc.html", "DocViewDark.dc.html", "StyleEditor.dc.html", "StyleEditorDark.dc.html", "AgendaImport.dc.html", "AgendaImportDark.dc.html", "ExportDialog.dc.html", "ExportDialogDark.dc.html", "LibraryGrid.dc.html", "LibraryGridDark.dc.html", "ErrorStates.dc.html", "RecordVideo.dc.html", "RecordVideoDark.dc.html", "DisplayPicker.dc.html", "DisplayPickerDark.dc.html", "ReviewVideo.dc.html", "ReviewVideoDark.dc.html", "ExportVideo.dc.html", "ExportVideoDark.dc.html", "SettingsVideo.dc.html", "SettingsVideoDark.dc.html", "SettingsStorageVideo.dc.html", "SettingsStorageVideoDark.dc.html", "ErrorStatesVideo.dc.html", "ProcessingVideo.dc.html", "Features20.dc.html"],
   "notes": {
     "t1": {"x": 0, "y": -300, "w": 240, "text": "Memento — Library (home), neumorphism", "kind": "title1", "maxW": 2960},
     "t2": {"x": 0, "y": 940, "w": 240, "text": "First run and foundations", "kind": "title1", "maxW": 2960},
@@ -43,7 +58,15 @@
     "t9": {"x": 0, "y": 9640, "w": 240, "text": "Details sheet and agenda import", "kind": "title1", "maxW": 2960},
     "t10": {"x": 0, "y": 10840, "w": 240, "text": "Export dialog", "kind": "title1", "maxW": 2960},
     "t11": {"x": 0, "y": 12040, "w": 240, "text": "Library — grid view", "kind": "title1", "maxW": 2960},
-    "t12": {"x": 0, "y": 13240, "w": 240, "text": "Error and recovery states", "kind": "title1", "maxW": 2960}
+    "t12": {"x": 0, "y": 13240, "w": 240, "text": "Error and recovery states", "kind": "title1", "maxW": 2960},
+    "t13": {"x": 0, "y": 14740, "w": 240, "text": "Video — Recording session with screen, camera and picture-in-picture", "kind": "title1", "maxW": 2960},
+    "t14": {"x": 0, "y": 15940, "w": 240, "text": "Video — Display and window picker", "kind": "title1", "maxW": 2960},
+    "t15": {"x": 0, "y": 17140, "w": 240, "text": "Video — Review player, fullscreen, audio only", "kind": "title1", "maxW": 2960},
+    "t16": {"x": 0, "y": 18340, "w": 240, "text": "Video — Export dialog with the Video row enabled", "kind": "title1", "maxW": 2960},
+    "t17": {"x": 0, "y": 19540, "w": 240, "text": "Video — Settings › Recording defaults", "kind": "title1", "maxW": 2960},
+    "t18": {"x": 0, "y": 20740, "w": 240, "text": "Video — Settings › Storage, remove video older than", "kind": "title1", "maxW": 2960},
+    "t19": {"x": 0, "y": 21940, "w": 240, "text": "Video — errors and recovery · processing, rows and cards", "kind": "title1", "maxW": 2960},
+    "t20": {"x": 0, "y": 23240, "w": 240, "text": "2.0 — known voices, suggested chapters, selection mode, context menus", "kind": "title1", "maxW": 2960}
   },
   "designSystems": []
 }

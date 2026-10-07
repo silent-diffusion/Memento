@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Processing and Library states with video</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover,.app a.row,.app a.row:hover,.app a.icon-btn,.app a.icon-btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.chip,.row,.icon-btn{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.chip:focus-visible,.row:focus-visible,.icon-btn:focus-visible,.search:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.row:hover{background:var(--surface-2)}
+.row.selected{background:var(--accent-soft)}
+.row+.row{border-top:1px solid var(--line)}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.icon-btn.on{background:var(--surface-2);color:var(--text)}
+.chip:hover{border-color:var(--line-strong)}
+.chip.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+.primary:hover{filter:brightness(.94)}
+.search::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.pill.active{background:var(--accent-soft);color:var(--accent-text)}
+.pill.queued{border:1px dashed var(--line-strong);color:var(--text-3)}
+.bar.done{background:var(--ok)}.bar.active{background:var(--accent)}.bar.queued{background:transparent}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+<style>
+.strip{height:96px;background:#2A2824;position:relative;border-radius:16px 16px 0 0}
+.strip .win{position:absolute;inset:12px 12px 24px 12px;border-radius:6px;background:#3A3733}
+.strip .cam{position:absolute;right:18px;bottom:30px;width:48px;height:30px;border-radius:4px;background:#57534C}
+</style>
+</helmet>
+<div style="width: 1440px; min-height: 1100px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45">
+  <sc-for list="{{panels}}" as="pn" hint-placeholder-count="2">
+  <section class="app {{pn.cls}}" style="background: var(--bg); color: var(--text); padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Processing and Library · video · {{pn.name}}</h1>
+      <span style="font-size: 12px; color: var(--text-2)">Video is a stage like any other</span>
+    </div>
+
+    <span class="lbl">Processing card · video stage encoding</span>
+    <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px 24px; box-sizing: border-box; display: flex; align-items: center; gap: 24px; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; gap: 3px; flex: 1 1 200px; min-width: 0">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text)"><span class="pulse" aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent)"></span>Processing now</div>
+        <div style="font-size: 18px; font-weight: 700; letter-spacing: -0.01em">Design review: library screen</div>
+        <div style="font-size: 13px; color: var(--text-2)">Meeting · screen + camera · 1:10:02</div>
+      </div>
+      <div style="display: flex; align-items: flex-end; gap: 14px; flex: 2 1 380px">
+        <sc-for list="{{stages}}" as="s" hint-placeholder-count="5">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0">
+          <div style="display: flex; justify-content: space-between; gap: 6px; font-size: 12px"><span style="font-weight: 600">{{s.label}}</span><span style="color: var(--text-3); white-space: nowrap">{{s.status}}</span></div>
+          <div style="height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; box-shadow: var(--neo-in-xs)"><div class="bar {{s.kind}}" style="height: 4px; border-radius: 2px; width: {{s.width}}"></div></div>
+        </div>
+        </sc-for>
+      </div>
+    </div>
+    <p style="margin: -10px 0 0; font-size: 12px; color: var(--text-3)">Video runs in parallel with transcription and never blocks it. Status text names the sub-step: "Encoding 42%", "Trimming", "Muxing camera inset".</p>
+
+    <span class="lbl">Library rows</span>
+    <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); overflow: hidden; display: flex; flex-direction: column">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+      <div class="row" style="display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 76px 20px; align-items: center; gap: 18px; min-height: 68px; padding: 14px 18px 14px 20px; box-sizing: border-box">
+        <span aria-hidden="true" style="width: 40px; height: 40px; border-radius: 16px; background: var(--surface-2); box-shadow: var(--neo-in); display: flex; align-items: center; justify-content: center; color: var(--text-2)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+        <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+          <span style="font-size: 15px; font-weight: 600">{{r.title}}</span>
+          <span style="font-size: 13px; color: var(--text-2); display: flex; align-items: center; gap: 6px">
+            <sc-if value="{{r.video}}" hint-placeholder-val="{{true}}"><svg aria-label="Includes video" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg></sc-if>
+            <sc-if value="{{r.removed}}" hint-placeholder-val="{{false}}"><svg aria-label="Video removed" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" style="color: var(--text-3)"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z M3 3l18 18"></path></svg></sc-if>
+            {{r.meta}}
+          </span>
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px"><sc-for list="{{r.pills}}" as="p" hint-placeholder-count="3"><span class="pill {{p.kind}}">{{p.label}}</span></sc-for></span>
+        <span class="mono" style="font-size: 13px; color: var(--text-2); text-align: right">{{r.dur}}</span>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3)"><path d="M9 6l6 6-6 6"></path></svg>
+      </div>
+      </sc-for>
+    </div>
+
+    <span class="lbl">Grid cards</span>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+      <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); overflow: hidden; display: flex; flex-direction: column">
+        <div class="strip" aria-hidden="true" style="border-radius: 0"><div class="win"></div><div class="cam"></div><span class="pill active" style="position: absolute; left: 12px; top: 10px">Encoding 42%</span><span class="mono" style="position: absolute; left: 12px; bottom: 6px; font-size: 11px; color: #C9C5BC">Screen + camera · 1440p</span></div>
+        <div style="padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 14px; font-weight: 600">Design review: library screen</span>
+          <span style="font-size: 12px; color: var(--text-2)">Meeting · 4 people · 4:00 PM</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="pill done">Transcript</span><span class="pill active">Video</span><span class="pill queued">Minutes</span></div>
+        </div>
+      </div>
+      <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); overflow: hidden; display: flex; flex-direction: column">
+        <div aria-hidden="true" style="height: 96px; background: var(--surface-2); box-shadow: var(--neo-in-xs); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--text-3)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3z M3 3l18 18"></path></svg>Video removed · audio kept</div>
+        <div style="padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px">
+          <span style="font-size: 14px; font-weight: 600">Board prep walkthrough</span>
+          <span style="font-size: 12px; color: var(--text-2)">Presentation · 3 people · Sep 29</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><span class="pill done">Transcript</span><span class="pill done">Speakers</span><span class="pill done">Minutes</span></div>
+        </div>
+      </div>
+    </div>
+
+    <span class="lbl">Pill vocabulary for video</span>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+      <span class="pill active">Video · Encoding 42%</span><span class="pill active">Video · Trimming</span><span class="pill done">Video</span><span class="pill queued">Video</span><span class="pill failed">Video failed · Retry</span><span style="font-size: 12px; color: var(--text-3)">Video removed · audio kept</span>
+    </div>
+  </section>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      panels: [{ name: 'light', cls: '' }, { name: 'dark', cls: 'dark' }],
+      stages: [
+        { label: 'Stored', status: 'Done · 5 tracks', kind: 'done', width: '100%' },
+        { label: 'Video', status: 'Encoding 42% · GPU', kind: 'active', width: '42%' },
+        { label: 'Transcribing', status: '88% · local GPU', kind: 'active', width: '88%' },
+        { label: 'Speakers', status: 'Queued', kind: 'queued', width: '0%' },
+        { label: 'Minutes', status: 'Queued', kind: 'queued', width: '0%' }
+      ],
+      rows: [
+        { title: 'Design review: library screen', meta: 'Meeting · 4 people · 4:00 PM', dur: '1:10:02', video: true, removed: false, pills: [{ label: 'Transcript', kind: 'done' }, { label: 'Video · Encoding 42%', kind: 'active' }, { label: 'Minutes', kind: 'queued' }] },
+        { title: 'Town hall Q&A', meta: 'Meeting · 12 people · Sep 18', dur: '1:45:30', video: true, removed: false, pills: [{ label: 'Transcript', kind: 'done' }, { label: 'Video', kind: 'done' }, { label: 'Minutes', kind: 'done' }] },
+        { title: 'Board prep walkthrough', meta: 'Presentation · 3 people · Sep 29 · video removed', dur: '52:10', video: false, removed: true, pills: [{ label: 'Transcript', kind: 'done' }, { label: 'Speakers', kind: 'done' }, { label: 'Minutes', kind: 'done' }] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

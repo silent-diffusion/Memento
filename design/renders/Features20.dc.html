@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento 2.0 feature components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.btn,.icon-btn,.nav,.seg,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.nav:focus-visible,.seg:focus-visible,.tog:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover,.nav:hover{background:var(--surface-2)}
+.nav{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 12px;border-radius:9px;border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-2);text-align:left;box-sizing:border-box}
+.nav.on{background:var(--surface-2);color:var(--text)}
+.field::placeholder{color:var(--text-3)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{height:30px;padding:0 12px;border:none;background:transparent;border-radius:7px;font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.row+.row{border-top:1px solid var(--line)}
+.chk{accent-color:var(--text);width:16px;height:16px;margin:0}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+<style>
+.card{background:var(--surface);border-radius:24px;box-shadow:var(--neo-card);padding:16px 18px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
+.mi{display:flex;align-items:center;gap:10px;height:34px;padding:0 12px;border-radius:12px;border:none;background:transparent;font:inherit;font-size:13px;font-weight:600;color:var(--text);text-align:left;cursor:pointer;width:100%}
+.mi:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.mi.danger{color:var(--danger)}
+.chk{accent-color:var(--text);width:16px;height:16px;margin:0}
+.sug{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:var(--bg);box-shadow:var(--neo-in-xs)}
+</style>
+</helmet>
+<div style="width: 1440px; min-height: 1200px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45">
+  <sc-for list="{{panels}}" as="pn" hint-placeholder-count="2">
+  <section class="app {{pn.cls}}" style="background: var(--bg); color: var(--text); padding: 40px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">2.0 components · {{pn.name}}</h1>
+      <span style="font-size: 12px; color: var(--text-2)">Known voices · suggested chapters · selection mode · context menus</span>
+    </div>
+
+    <span class="lbl">Settings › Speakers · Known voices</span>
+    <div class="card">
+      <div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 15px; font-weight: 600">Known voices</span><span style="font-size: 12px; color: var(--text-3)">Stored on this PC as voice signatures, never as audio</span></div>
+      <div style="display: flex; flex-direction: column">
+        <sc-for list="{{voices}}" as="v" hint-placeholder-count="3">
+        <div class="row" style="display: flex; align-items: center; gap: 12px; padding: 10px 4px; min-height: 48px">
+          <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{v.color}}; flex: none"></span>
+          <span style="flex: 1; display: flex; flex-direction: column"><span style="font-size: 14px; font-weight: 600">{{v.name}}</span><span style="font-size: 12px; color: var(--text-2)">{{v.sub}}</span></span>
+          <button class="tog on" type="button" role="switch" aria-checked="true" aria-label="Suggest this voice"><span></span></button>
+          <button class="btn ghost" type="button" style="height: 30px; padding: 0 10px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 12px; font-weight: 600; color: var(--text-2)">Forget</button>
+        </div>
+        </sc-for>
+      </div>
+      <span style="font-size: 12px; color: var(--text-3)">A voice is learned only when you confirm a name in Review. Forgetting it removes the signature immediately.</span>
+    </div>
+
+    <span class="lbl">Review › People · match prompt</span>
+    <div class="card" style="max-width: 420px; padding: 12px 14px">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 6px 4px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--sp2)"></span><span style="font-size: 13px; font-weight: 600; flex: 1">Speaker 2</span><span style="font-size: 11px; color: var(--text-3)">27%</span></div>
+      <div class="sug">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3); flex: none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"></path></svg>
+        <span style="flex: 1; font-size: 13px">Sounds like <span style="font-weight: 700">Priya Natarajan</span> <span style="color: var(--text-3)">· 91% match · 4 past recordings</span></span>
+        <button class="btn primary" type="button" style="height: 28px; padding: 0 10px; border-radius: 12px; border: none; background: var(--accent-grad); color: #FFFFFF; font-size: 12px; font-weight: 700">Use name</button>
+        <button class="btn ghost" type="button" style="height: 28px; padding: 0 10px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 12px; font-weight: 600; color: var(--text-2)">Not her</button>
+      </div>
+    </div>
+
+    <span class="lbl">Review › Outline · suggested chapters</span>
+    <div class="card" style="max-width: 420px; padding: 12px 14px">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 4px"><span class="lbl">Suggested chapters · 3</span><button class="btn" type="button" style="border: none; background: transparent; padding: 0; font-size: 12px; font-weight: 700; color: var(--text-2)">Accept all</button></div>
+      <sc-for list="{{chapters}}" as="c" hint-placeholder-count="3">
+      <div class="chap" style="display: flex; align-items: center; gap: 10px; padding: 8px 10px">
+        <span class="mono" style="font-size: 11px; color: var(--text-3); width: 44px; flex: none">{{c.at}}</span>
+        <span style="flex: 1; font-size: 13px; font-weight: 600; text-decoration: underline dotted var(--text-3); text-underline-offset: 3px">{{c.title}}</span>
+        <button class="icon-btn" type="button" aria-label="Accept chapter" style="width: 26px; height: 26px; border-radius: 10px; border: none; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; justify-content: center; color: var(--ok)"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg></button>
+        <button class="icon-btn" type="button" aria-label="Dismiss chapter" style="width: 26px; height: 26px; border-radius: 10px; border: none; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; justify-content: center; color: var(--text-3)"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </div>
+      </sc-for>
+      <span style="font-size: 12px; color: var(--text-3); padding: 0 4px">Found locally from topic shifts. Dotted titles are suggestions until accepted; accepted chapters lose the dots and join the list above.</span>
+    </div>
+
+    <span class="lbl">Library · selection mode and bulk action bar</span>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 18px; border-radius: 16px; background: var(--surface); box-shadow: var(--neo-card)">
+        <input class="chk" type="checkbox" checked="{{true}}" aria-label="Select all" style="accent-color: var(--text)">
+        <span style="font-size: 14px; font-weight: 700">3 selected</span><span style="font-size: 12px; color: var(--text-3)">· 3 h 12 min · 4.1 GB</span>
+        <span style="flex: 1"></span>
+        <a class="btn ghost" href="ExportDialog.dc.html" style="height: 32px; padding: 0 12px; border-radius: 12px; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--text-2)">Export…</a>
+        <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Change type</button>
+        <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Remove video</button>
+        <button class="btn ghost" type="button" style="height: 32px; padding: 0 12px; border-radius: 12px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--danger)">Delete…</button>
+        <button class="btn" type="button" style="height: 32px; padding: 0 10px; border-radius: 12px; border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-3)">Cancel</button>
+      </div>
+      <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); overflow: hidden; display: flex; flex-direction: column">
+        <sc-for list="{{sel}}" as="r" hint-placeholder-count="3">
+        <div class="row {{r.cls}}" style="display: grid; grid-template-columns: 24px minmax(0, 1fr) 76px; align-items: center; gap: 16px; min-height: 56px; padding: 10px 18px 10px 20px; box-sizing: border-box">
+          <input class="chk" type="checkbox" checked="{{r.on}}" aria-label="{{r.title}}">
+          <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 14px; font-weight: 600">{{r.title}}</span><span style="font-size: 12px; color: var(--text-2)">{{r.meta}}</span></span>
+          <span class="mono" style="font-size: 13px; color: var(--text-2); text-align: right">{{r.dur}}</span>
+        </div>
+        </sc-for>
+      </div>
+      <span style="font-size: 12px; color: var(--text-3)">Enter selection mode from a row's menu ("Select"), Ctrl+click, or the Select button that appears on hover over the group label. Esc leaves it.</span>
+    </div>
+
+    <span class="lbl">Context menu · row or card (right-click, Shift+F10, or the ⋯ button)</span>
+    <div style="width: 240px; padding: 6px; border-radius: 16px; background: var(--surface); box-shadow: var(--neo-card); display: flex; flex-direction: column; gap: 2px">
+      <button class="mi" type="button">Open</button>
+      <button class="mi" type="button">Rename…</button>
+      <button class="mi" type="button">Change type<span style="margin-left: auto; font-size: 12px; color: var(--text-3)">Meeting ▸</span></button>
+      <button class="mi" type="button">Select</button>
+      <div style="height: 1px; background: var(--line); margin: 4px 8px"></div>
+      <button class="mi" type="button">Create document…</button>
+      <button class="mi" type="button">Export…</button>
+      <button class="mi" type="button">Reprocess<span style="margin-left: auto; font-size: 12px; color: var(--text-3)">▸</span></button>
+      <button class="mi" type="button">Remove video, keep audio…</button>
+      <div style="height: 1px; background: var(--line); margin: 4px 8px"></div>
+      <button class="mi" type="button">Show in folder</button>
+      <button class="mi danger" type="button">Delete…</button>
+    </div>
+  </section>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      panels: [{ name: 'light', cls: '' }, { name: 'dark', cls: 'dark' }],
+      voices: [
+        { name: 'Sam Okafor', sub: 'Confirmed in 6 recordings · last Oct 5', color: 'var(--sp1)' },
+        { name: 'Priya Natarajan', sub: 'Confirmed in 4 recordings · last Oct 5', color: 'var(--sp2)' },
+        { name: 'Lee Chen', sub: 'Confirmed in 2 recordings · last Sep 29', color: 'var(--sp3)' }
+      ],
+      chapters: [{ at: '12:40', title: 'Status pill density' }, { at: '27:15', title: 'Processing card placement' }, { at: '44:02', title: 'Dark theme tokens' }],
+      sel: [
+        { title: 'Weekly 1:1 with Sam', meta: 'Meeting · Wed, 3:30 PM', dur: '29:08', on: true, cls: 'selected' },
+        { title: 'Field notes, site visit', meta: 'Research · Tue, 5:40 PM', dur: '14:22', on: true, cls: 'selected' },
+        { title: 'Board prep walkthrough', meta: 'Presentation · Sep 29 · video', dur: '52:10', on: true, cls: 'selected' },
+        { title: 'Town hall Q&A', meta: 'Meeting · Sep 18 · video', dur: '1:45:30', on: false, cls: '' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

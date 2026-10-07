@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Display and window picker, dark</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA);--scrim:rgba(29,28,26,.28)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320);--scrim:rgba(0,0,0,.5)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.btn,.icon-btn,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.tog:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover{background:var(--surface-2)}
+.primary:hover{filter:brightness(.94)}
+.field::placeholder{color:var(--text-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.done{background:var(--surface-2);color:var(--text-2)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.input{height:36px;box-sizing:border-box;padding:0 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;font-size:14px;width:100%}
+.item{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 4px;border-radius:9px}
+.item:hover{background:var(--surface-2)}
+.item .ii{flex:1;height:32px;border:1px solid transparent;background:transparent;border-radius:7px;padding:0 8px;font:inherit;font-size:14px;color:var(--text)}
+.item .ii:hover,.item .ii:focus{border-color:var(--line);background:var(--bg)}
+.item.low .ii{text-decoration:underline dotted var(--accent);text-decoration-thickness:1.5px;text-underline-offset:3px}
+.drop{border:2px dashed var(--line-strong);border-radius:14px;padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:var(--bg)}
+.drop.hot{border-color:var(--accent);background:var(--accent-soft)}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+<style>
+.tile{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:16px;border:none;background:var(--surface);box-shadow:var(--neo-sm);text-align:left;font:inherit;color:inherit;cursor:pointer}
+.tile:hover{box-shadow:var(--neo-sm-hi)}
+.tile:active{box-shadow:var(--neo-in)!important}
+.tile.on{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.shot{aspect-ratio:16/9;border-radius:10px;background:#2A2824;position:relative;overflow:hidden}
+.shot .win{position:absolute;inset:14% 10% 18% 10%;border-radius:3px;background:#3A3733}
+.shot .bar{position:absolute;left:10%;top:14%;height:6px;width:40%;border-radius:2px;background:#57534C}
+.shot.app{background:#3A3733}
+.shot.app .win{background:#4A463F;inset:16% 8% 12% 8%}
+.shot.memento{background:var(--surface-2);box-shadow:var(--neo-in-xs)}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column; position: relative">
+
+  <header aria-hidden="true" style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px">
+    <span style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); box-shadow: var(--neo-sm)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>Library</span>
+    <span style="width: 1px; height: 24px; background: var(--line)"></span>
+    <span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em; padding: 0 10px">Design review: library screen</span>
+    <span class="pill done">Meeting</span>
+  </header>
+
+  <main aria-hidden="true" style="flex: 1; padding: 32px 48px 40px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1344px; margin: 0 auto; display: flex; gap: 24px; align-items: flex-start">
+      <div style="flex: 1 1 300px; max-width: 340px; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+        <span class="lbl">Video</span>
+        <div style="display: flex; align-items: center; gap: 12px"><span class="tog on" style="display: inline-block; width: 40px; height: 22px; border-radius: 999px; background: var(--text)"></span><div style="display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Screen</span><span style="font-size: 12px; color: var(--text-2)">Choosing…</span></div></div>
+        <div style="display: flex; align-items: center; gap: 12px"><span class="tog on" style="display: inline-block; width: 40px; height: 22px; border-radius: 999px; background: var(--text)"></span><div style="display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Camera</span><span style="font-size: 12px; color: var(--text-2)">Logitech Brio · 1080p</span></div></div>
+      </div>
+      <div style="flex: 3 1 480px; min-width: 0; background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); padding: 32px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+        <span class="lbl">Ready to record</span>
+        <span class="mono" style="font-size: 64px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; color: var(--text-3)">00:00:00</span>
+        <span style="font-size: 13px; color: var(--text-2)">screen + camera + 3 audio tracks</span>
+      </div>
+    </div>
+  </main>
+
+  <div aria-hidden="true" style="position: absolute; inset: 60px 0 0 0; background: var(--scrim)"></div>
+
+  <aside role="dialog" aria-modal="true" aria-labelledby="pick-title" style="position: absolute; top: 60px; right: 0; bottom: 0; width: 600px; max-width: 100%; background: var(--surface); border-left: 1px solid var(--line); box-sizing: border-box; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line)">
+      <h1 id="pick-title" style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em">Choose what to capture</h1>
+      <a class="icon-btn" href="RecordVideo.dc.html" aria-label="Close" style="width: 32px; height: 32px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+    </div>
+
+    <div style="flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 18px">
+      <div role="tablist" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in); align-self: flex-start">
+        <sc-for list="{{modes}}" as="m" hint-placeholder-count="2"><button class="seg {{m.cls}}" type="button" role="tab" aria-selected="{{m.on}}" onClick="{{m.pick}}" style="height: 32px; padding: 0 16px">{{m.label}}</button></sc-for>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+        <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+        <button class="tile {{t.cls}}" type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" disabled="{{t.disabled}}">
+          <div class="shot {{t.shotCls}}" aria-hidden="true"><div class="win"></div><div class="bar"></div></div>
+          <div style="display: flex; flex-direction: column; gap: 1px">
+            <span style="font-size: 14px; font-weight: 600">{{t.name}}</span>
+            <span style="font-size: 12px; color: var(--text-2)">{{t.sub}}</span>
+          </div>
+        </button>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--bg); box-shadow: var(--neo-in-xs); font-size: 13px; color: var(--text-2)">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px; color: var(--text-3)"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5 M12 16h.01"></path></svg>
+        <span>{{note}}</span>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line)">
+      <span style="font-size: 12px; color: var(--text-3)">You can change this while recording; the track continues.</span>
+      <div style="display: flex; gap: 8px">
+        <a class="btn ghost" href="RecordVideo.dc.html" style="height: 36px; padding: 0 14px; border-radius: 14px; background: var(--surface); box-shadow: var(--neo-sm); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--text-2)">Cancel</a>
+        <a class="btn primary" href="RecordVideo.dc.html" style="height: 36px; padding: 0 16px; border-radius: 14px; background: var(--accent-grad); font-size: 13px; font-weight: 700; display: inline-flex; align-items: center">{{cta}}</a>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"dark","section":"Appearance"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { mode: 'screen', sel: 'd1' }; }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const displays = [
+      { id: 'd1', name: 'Display 1', sub: '2560 × 1440 · primary · this is where Memento is', shotCls: '' },
+      { id: 'd2', name: 'Display 2', sub: '1920 × 1080 · right of Display 1', shotCls: '' }
+    ];
+    const windows = [
+      { id: 'w1', name: 'Zoom Meeting', sub: 'Zoom · 1600 × 900', shotCls: 'app' },
+      { id: 'w2', name: 'Library — Figma', sub: 'Figma · 2000 × 1250', shotCls: 'app' },
+      { id: 'w3', name: 'DESIGN.md — Microsoft Edge', sub: 'Edge · 1440 × 1000', shotCls: 'app' },
+      { id: 'w4', name: 'Memento', sub: 'This app is excluded from capture', shotCls: 'memento', disabled: true }
+    ];
+    const list = st.mode === 'screen' ? displays : windows;
+    const tiles = list.map(t => ({ ...t, on: st.sel === t.id, cls: st.sel === t.id ? 'on' : '', disabled: !!t.disabled, pick: () => this.setState({ sel: t.id }) }));
+    const chosen = list.find(t => t.id === st.sel) || list[0];
+    return {
+      themeClass: theme === 'dark' ? 'dark' : '',
+      modes: [{ id: 'screen', label: 'Entire screen' }, { id: 'window', label: 'This window' }].map(m => ({ ...m, on: st.mode === m.id, cls: st.mode === m.id ? 'on' : '', pick: () => this.setState({ mode: m.id, sel: m.id === 'screen' ? 'd1' : 'w1' }) })),
+      tiles,
+      note: st.mode === 'screen'
+        ? 'Captures everything shown on the chosen display, including other windows and notifications that appear on it. Your other displays are not captured. The mouse pointer is included.'
+        : 'Captures only this window, even when other windows cover it. If it is minimised, the video pauses and resumes when it comes back; audio keeps recording.',
+      cta: 'Use ' + chosen.name
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -27,6 +27,14 @@ Everything a builder needs to implement the UI. Read `DESIGN.md` first; copy fro
 | `AgendaImport.dc.html` | Details sheet and agenda import (State tweak: parsed / drop) | §14 |
 | `ExportDialog.dc.html` | Export dialog | §15 |
 | `ErrorStates.dc.html` | Toasts, banners, dialogs, inline errors, footer variants | §17 |
+| `RecordVideo.dc.html` | Recording session with screen, camera, picture-in-picture, live preview and video lane | §18.1 |
+| `DisplayPicker.dc.html` | Display and window picker side sheet | §18.2 |
+| `ReviewVideo.dc.html` | Review with the video player, fullscreen and audio-only states (State tweak: present / removed) | §18.3 |
+| `ExportVideo.dc.html` | Export dialog with the Video row enabled | §18.4 |
+| `SettingsVideo.dc.html`, `SettingsStorageVideo.dc.html` | Settings › Recording video defaults; Settings › Storage remove-video row | §18.5 |
+| `ErrorStatesVideo.dc.html` | Video errors and recovery (both themes on one sheet) | §18.6 |
+| `ProcessingVideo.dc.html` | Processing card with a Video stage, Library rows and cards with video (both themes) | §18.7 |
+| `Features20.dc.html` | Known voices, match prompt, suggested chapters, selection mode, context menu (both themes) | §19 |
 
 The renders in this folder are the complete record of the design; the interactive canvas they came from was private to the design session.
 

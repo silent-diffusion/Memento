@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Memento Settings, video defaults</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.app{--bg:#EFEDE8;--surface:#EFEDE8;--surface-2:#E4E1DA;--line:rgba(29,28,26,.07);--line-strong:#C9C5BC;--text:#1D1C1A;--text-2:#5E5B55;--text-3:#7D7971;--accent:#C2410C;--accent-soft:#FBE9E0;--accent-text:#9A3412;--ok:#2F6B4F;--ok-soft:#E3EFE8;--focus:#2563EB;--danger:#B42318;--danger-soft:#F6E0DD;--neo-card:-8px -8px 18px rgba(255,255,255,.9),10px 10px 22px rgba(29,28,26,.14);--neo-sm:-4px -4px 10px rgba(255,255,255,.9),5px 5px 12px rgba(29,28,26,.14);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.95),7px 7px 16px rgba(29,28,26,.17);--neo-xs:-2px -2px 5px rgba(255,255,255,.9),3px 3px 6px rgba(29,28,26,.12);--neo-in:inset 4px 4px 9px rgba(29,28,26,.13),inset -4px -4px 9px rgba(255,255,255,.9);--neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);--neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);--neo-bar:0 8px 18px rgba(29,28,26,.08);--accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);--danger-grad:linear-gradient(145deg,#C43024,#9E1C12);--knob:linear-gradient(145deg,#FFFFFF,#E4E1DA)}
+.app.dark{--bg:#1F1E1B;--surface:#1F1E1B;--surface-2:#1A1917;--line:rgba(255,255,255,.06);--line-strong:#434039;--text:#EDEAE4;--text-2:#A8A49C;--text-3:#86827A;--accent:#F08A5C;--accent-soft:#3A2218;--accent-text:#F4A37E;--ok:#7FC7A3;--ok-soft:#1E2F27;--focus:#60A5FA;--danger:#F28B82;--danger-soft:#3A1F1C;--neo-card:-8px -8px 18px rgba(255,255,255,.035),10px 10px 22px rgba(0,0,0,.6);--neo-sm:-4px -4px 10px rgba(255,255,255,.04),5px 5px 12px rgba(0,0,0,.6);--neo-sm-hi:-6px -6px 14px rgba(255,255,255,.05),7px 7px 16px rgba(0,0,0,.65);--neo-xs:-2px -2px 5px rgba(255,255,255,.04),3px 3px 6px rgba(0,0,0,.55);--neo-in:inset 4px 4px 9px rgba(0,0,0,.6),inset -4px -4px 9px rgba(255,255,255,.04);--neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);--neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);--neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);--neo-bar:0 8px 18px rgba(0,0,0,.5);--accent-grad:linear-gradient(145deg,#F79A70,#E07848);--danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);--knob:linear-gradient(145deg,#34322E,#242320)}
+.app a{color:var(--text)}.app a:hover{color:var(--accent)}
+.app a.btn,.app a.btn:hover{color:inherit;text-decoration:none}
+.btn,.icon-btn,.nav,.seg,.tog{cursor:pointer;font:inherit;color:inherit}
+.btn:focus-visible,.icon-btn:focus-visible,.nav:focus-visible,.seg:focus-visible,.tog:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.icon-btn:hover,.ghost:hover,.nav:hover{background:var(--surface-2)}
+.nav{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 12px;border-radius:9px;border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-2);text-align:left;box-sizing:border-box}
+.nav.on{background:var(--surface-2);color:var(--text)}
+.field::placeholder{color:var(--text-3)}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+.mono{font-family:'JetBrains Mono',Consolas,monospace}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.seg{height:30px;padding:0 12px;border:none;background:transparent;border-radius:7px;font-size:13px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.tog{width:40px;height:22px;border-radius:999px;border:none;background:var(--line-strong);position:relative;padding:0;flex:none}
+.tog.on{background:var(--text)}
+.tog span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#FFFFFF;transition:left .15s}
+.tog.on span{left:21px;background:var(--bg)}
+.row+.row{border-top:1px solid var(--line)}
+.chk{accent-color:var(--text);width:16px;height:16px;margin:0}
+
+/* neumorphism: one matte ground, paired light/dark shadows, controls that depress */
+.pill{box-shadow:var(--neo-xs)}
+.pill.done{background:var(--surface)}
+.pill.queued,.pill.failed{box-shadow:none}
+.chip.on,.nav.on,.icon-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-in-xs)}
+.seg{border-radius:12px;transition:box-shadow .12s,transform .12s,background .12s}
+.seg.on{background:var(--surface);color:var(--text);box-shadow:var(--neo-xs)}
+.tog{box-shadow:var(--neo-in-xs);background:var(--surface-2);transition:background .18s}
+.tog.on{background:var(--text)}
+.tog span{background:var(--knob);box-shadow:2px 3px 6px rgba(29,28,26,.28),-1px -1px 2px rgba(255,255,255,.8);transition:left .22s cubic-bezier(.34,1.56,.64,1),width .1s}
+.tog.on span{background:var(--knob)}
+.app.dark .tog span{box-shadow:2px 3px 6px rgba(0,0,0,.6),-1px -1px 2px rgba(255,255,255,.08)}
+.tog:active span{width:20px}
+.tog.on:active span{left:17px}
+.primary{box-shadow:var(--neo-accent)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
+.ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.chip.on:hover,.nav.on:hover,.icon-btn.on:hover{box-shadow:var(--neo-in-xs)}
+.row:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.row:active{box-shadow:var(--neo-in)!important}
+.row.selected{box-shadow:var(--neo-in)}
+.mod{border-color:transparent;border-radius:20px;box-shadow:var(--neo-sm)}
+.mod:hover{box-shadow:var(--neo-sm-hi)}
+.mod.on{border-color:transparent;box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.paper{border:none;border-radius:12px;box-shadow:var(--neo-card)}
+.ver{border-color:transparent;border-radius:16px;box-shadow:var(--neo-sm)}
+.ver.cur{box-shadow:var(--neo-sm),0 0 0 2px var(--text)}
+.segm{border-radius:16px}
+.segm:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.segm.now{background:var(--surface);box-shadow:var(--neo-in)}
+.chap{border-radius:12px}
+.chap:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.chap.on{background:var(--surface);box-shadow:var(--neo-in)}
+.sw{box-shadow:var(--neo-xs)}
+.sw.on{box-shadow:var(--neo-xs),0 0 0 2px var(--text)}
+.drop{border:none;border-radius:24px;box-shadow:var(--neo-in)}
+.drop.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.dz.live{border:none;box-shadow:var(--neo-in)}
+.dz.live.hot{box-shadow:var(--neo-in),0 0 0 2px var(--accent)}
+.side.live{border:none;box-shadow:var(--neo-in)}
+.item{border-radius:14px}
+.item:hover{background:var(--surface);box-shadow:var(--neo-in-xs)}
+.g{border:none!important;background:var(--surface)!important;box-shadow:var(--neo-sm);border-radius:14px!important}
+.g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
+.p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
+.p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
+.chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
+.bar.live,.wb.played{background:var(--ok)}
+.search,.field,.input{transition:box-shadow .15s}
+.search:focus,.field:focus,.input:focus{box-shadow:var(--neo-in),0 0 0 2px var(--focus)!important;outline:none}
+.sw,.pal,.nav,.chip,.icon-btn,.ghost,.btn,.seg,.card,.row,.mod,.pill,.modhead,.chap,.segm,.item{transition:box-shadow .15s ease,transform .08s ease,background .15s ease}
+.btn:active,.icon-btn:active{transition-duration:.04s}
+</style>
+</helmet>
+<div class="app {{themeClass}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Manrope, 'Segoe UI Variable', system-ui, sans-serif; font-size: 15px; line-height: 1.45; display: flex; flex-direction: column">
+
+  <header style="min-height: 60px; box-sizing: border-box; padding: 0 16px 0 12px; background: var(--surface); box-shadow: var(--neo-bar); position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+    <a class="btn ghost" href="Main.dc.html" style="height: 36px; padding: 0 12px 0 8px; border-radius: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2)">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+      Library
+    </a>
+    <span aria-hidden="true" style="width: 1px; height: 24px; background: var(--line)"></span>
+    <span style="font-size: 16px; font-weight: 700; letter-spacing: -0.01em">Settings</span>
+  </header>
+
+  <main style="flex: 1; padding: 32px 48px 48px; box-sizing: border-box">
+    <div style="width: 100%; max-width: 1080px; margin: 0 auto; display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start">
+
+      <nav aria-label="Settings sections" style="flex: 0 1 240px; min-width: 200px; display: flex; flex-direction: column; gap: 2px">
+        <sc-for list="{{nav}}" as="n" hint-placeholder-count="8">
+        <button class="nav {{n.cls}}" type="button" onClick="{{n.pick}}" aria-current="{{n.on}}">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="{{n.icon}}"></path></svg>
+          {{n.label}}
+        </button>
+        </sc-for>
+      </nav>
+
+      <section aria-label="{{section.label}}" style="flex: 999 1 520px; min-width: 0; max-width: 760px; display: flex; flex-direction: column; gap: 28px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1">{{section.label}}</h1>
+          <p style="margin: 0; font-size: 14px; color: var(--text-2)">{{section.blurb}}</p>
+        </div>
+
+        <sc-for list="{{section.groups}}" as="g" hint-placeholder-count="2">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span class="lbl" style="padding-left: 2px">{{g.label}}</span>
+          <div style="background: var(--surface); border-radius: 24px; box-shadow: var(--neo-card); display: flex; flex-direction: column">
+            <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+            <div class="row" style="display: flex; align-items: center; gap: 24px; padding: 14px 20px; min-height: 64px; box-sizing: border-box; flex-wrap: wrap">
+              <div style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; min-width: 0">
+                <span style="font-size: 15px; font-weight: 600">{{r.label}}</span>
+                <span style="font-size: 13px; color: var(--text-2)">{{r.desc}}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; flex: 0 1 auto">
+                <sc-if value="{{r.isToggle}}" hint-placeholder-val="{{true}}">
+                <span style="font-size: 13px; color: var(--text-3)">{{r.state}}</span>
+                <button class="tog {{r.cls}}" type="button" role="switch" aria-checked="{{r.on}}" aria-label="{{r.label}}" onClick="{{r.toggle}}"><span></span></button>
+                </sc-if>
+                <sc-if value="{{r.isSeg}}" hint-placeholder-val="{{false}}">
+                <div role="group" aria-label="{{r.label}}" style="display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--surface-2); box-shadow: var(--neo-in)">
+                  <sc-for list="{{r.opts}}" as="o" hint-placeholder-count="3"><button class="seg {{o.cls}}" type="button" onClick="{{o.pick}}" aria-pressed="{{o.on}}">{{o.label}}</button></sc-for>
+                </div>
+                </sc-if>
+                <sc-if value="{{r.isSelect}}" hint-placeholder-val="{{false}}">
+                <button class="btn ghost" type="button" style="height: 34px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 8px; max-width: 320px">
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.value}}</span>
+                  <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-3); flex: none"><path d="M6 9l6 6 6-6"></path></svg>
+                </button>
+                </sc-if>
+                <sc-if value="{{r.isPath}}" hint-placeholder-val="{{false}}">
+                <span class="mono" style="font-size: 12px; color: var(--text-2); max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.value}}</span>
+                <button class="btn ghost" type="button" style="height: 34px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">Change</button>
+                </sc-if>
+                <sc-if value="{{r.isInfo}}" hint-placeholder-val="{{false}}">
+                <span style="font-size: 14px; font-weight: 600; color: var(--text-2)">{{r.value}}</span>
+                </sc-if>
+                <sc-if value="{{r.isButton}}" hint-placeholder-val="{{false}}">
+                <button class="btn ghost" type="button" style="height: 34px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">{{r.value}}</button>
+                </sc-if>
+                <sc-if value="{{r.isKey}}" hint-placeholder-val="{{false}}">
+                <label class="sr" for="{{r.id}}">{{r.label}}</label>
+                <input id="{{r.id}}" class="field" type="password" value="{{r.value}}" placeholder="Paste API key" style="width: 220px; height: 34px; box-sizing: border-box; padding: 0 12px; border-radius: 14px; border: none; background: var(--bg); box-shadow: var(--neo-in); color: var(--text); font: inherit; font-size: 13px">
+                <button class="btn ghost" type="button" style="height: 34px; padding: 0 12px; border-radius: 14px; border: none; background: var(--surface); box-shadow: var(--neo-sm); font-size: 13px; font-weight: 600; color: var(--text-2)">{{r.action}}</button>
+                </sc-if>
+              </div>
+              <sc-if value="{{r.isChecks}}" hint-placeholder-val="{{false}}">
+              <div style="flex: 1 1 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; padding-top: 4px">
+                <sc-for list="{{r.items}}" as="i" hint-placeholder-count="6">
+                <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: {{i.color}}">
+                  <input class="chk" type="checkbox" checked="{{i.on}}" disabled="{{i.locked}}" onChange="{{i.toggle}}">
+                  <span>{{i.name}}</span>
+                  <span style="font-size: 12px; color: var(--text-3)">{{i.note}}</span>
+                </label>
+                </sc-for>
+              </div>
+              </sc-if>
+            </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-for>
+      </section>
+
+    </div>
+  </main>
+
+  <footer style="min-height: 36px; box-sizing: border-box; padding: 0 24px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 12px; color: var(--text-3); flex-wrap: wrap">
+    <span>Changes save as you make them.</span>
+    <span>Memento 0.1 · library at D:\Memento Library</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Appearance"},"section":{"editor":"enum","options":["General","Recording","Transcription","Speakers","AI and privacy","Documents","Export","Storage and history"],"default":"Recording","section":"State"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { section: props.section ?? 'Recording', t: {}, s: {}, c: {} };
+  }
+  renderVals() {
+    const theme = this.props.theme ?? 'light';
+    const st = this.state;
+    const tog = (id, label, desc, def) => {
+      const on = st.t[id] === undefined ? def : st.t[id];
+      return { label, desc, isToggle: true, on, cls: on ? 'on' : '', state: on ? 'On' : 'Off', toggle: () => this.setState({ t: { ...st.t, [id]: !on } }) };
+    };
+    const seg = (id, label, desc, opts, def) => {
+      const cur = st.s[id] === undefined ? def : st.s[id];
+      return { label, desc, isSeg: true, opts: opts.map((o, i) => ({ label: o, on: i === cur, cls: i === cur ? 'on' : '', pick: () => this.setState({ s: { ...st.s, [id]: i } }) })) };
+    };
+    const sel = (label, desc, value) => ({ label, desc, isSelect: true, value });
+    const path = (label, desc, value) => ({ label, desc, isPath: true, value });
+    const info = (label, desc, value) => ({ label, desc, isInfo: true, value });
+    const btn = (label, desc, value) => ({ label, desc, isButton: true, value });
+    const key = (id, label, desc, value, action) => ({ id, label, desc, isKey: true, value, action });
+    const checks = (id, label, desc, items) => ({
+      label, desc, isChecks: true,
+      items: items.map((it, i) => {
+        const k = id + '.' + i;
+        const on = it.locked ? false : (st.c[k] === undefined ? it.on : st.c[k]);
+        return { name: it.name, note: it.note || '', on, locked: !!it.locked, color: it.locked ? 'var(--text-3)' : 'var(--text)', toggle: () => this.setState({ c: { ...st.c, [k]: !on } }) };
+      })
+    });
+    const sections = {
+      'General': { blurb: 'Appearance, startup and where your library lives.', groups: [
+        { label: 'Appearance', rows: [ seg('theme', 'Theme', 'Follows Windows by default.', ['System', 'Light', 'Dark'], 0), seg('density', 'List density', 'Row height in the library and transcript.', ['Comfortable', 'Compact'], 0) ] },
+        { label: 'Startup', rows: [ tog('autostart', 'Start Memento with Windows', 'Opens minimised so recording is one click away.', false), tog('tray', 'Keep running in the tray when closed', 'Lets scheduled transcription finish in the background.', true) ] },
+        { label: 'Library', rows: [ path('Library location', 'Recordings, transcripts and documents are stored here.', 'D:\\Memento Library'), sel('Language', 'Interface language.', 'English (United Kingdom)') ] }
+      ] },
+      'Recording': { blurb: 'What a new recording captures and how it is kept safe.', groups: [
+        { label: 'Defaults', rows: [ seg('mode', 'Recording mode', 'You can change this before each recording.', ['Audio only', 'Audio + video'], 1), sel('Audio sources', 'Pre-selected when a recording starts.', 'Microphone, System audio'), sel('Recording type', 'Decides which details and processing are offered.', 'Meeting') ] },
+        { label: 'Tracks and storage', rows: [ tog('tracks', 'Keep each source as its own track', 'Needed for the best transcription and speaker identification.', true), sel('After recording', 'Storage optimisation applied once processing is finished.', 'Lossless (recommended)'), sel('Save a checkpoint every', 'How much could be lost if the PC shuts down abruptly.', '30 seconds'), sel('Warn when free space is below', 'Recording continues until space actually runs out.', '10 GB') ] },
+        { label: 'Video defaults', rows: [ sel('Default video source', 'What Audio + video captures unless you change it in the session.', 'Screen + camera'), sel('Resolution', 'Recording at the display’s own resolution avoids scaling.', 'Match display (2560 × 1440)'), seg('fps', 'Frame rate', 'Higher is smoother and roughly doubles the file size.', ['24', '30', '60'], 1), seg('quality', 'Quality', 'Balanced is about 12 Mb/s at 1440p.', ['Smaller', 'Balanced', 'Best'], 1), sel('Default camera', 'Used when Camera is enabled.', 'Logitech Brio · 1080p'), sel('Picture-in-picture position', 'Where the camera sits on the screen recording.', 'Bottom right'), tog('hwenc', 'Hardware encoder', 'Uses the GPU to encode. Falls back to software automatically if it fails, with a notice.', true), tog('pointer', 'Include the mouse pointer', 'Clicks are not highlighted.', true) ] }
+      ] },
+      'Transcription': { blurb: 'Runs on this PC. Nothing is uploaded.', groups: [
+        { label: 'When', rows: [ tog('autotx', 'Transcribe automatically', 'Otherwise, transcribe from the recording page when you want it.', true), seg('when', 'Timing', 'Live transcription uses more of the GPU while recording.', ['During recording', 'After recording'], 0), tog('defer', 'Pause when the PC is busy', 'Recording is never paused, only transcription.', true) ] },
+        { label: 'Engine', rows: [ sel('Engine', 'Falls back to the CPU when no GPU is available.', 'Local · GPU (NVIDIA RTX 4070)'), sel('Model', 'Larger models are more accurate and slower.', 'Large v3 · 1.5 GB · installed'), sel('Language', 'Detected per recording when set to Auto.', 'Auto-detect'), tog('words', 'Keep word-level timestamps and confidence', 'Used to highlight uncertain words in the transcript.', true) ] }
+      ] },
+      'Speakers': { blurb: 'Who said what, worked out locally.', groups: [
+        { label: 'Identification', rows: [ tog('diar', 'Identify speakers', 'Segments are labelled Speaker 1, 2, 3 until you rename them.', true), sel('Expected speakers', 'Leave on Auto unless results are consistently wrong.', 'Auto'), tog('remember', 'Remember renamed speakers', 'Suggests names in future recordings based on voice.', true) ] }
+      ] },
+      'AI and privacy': { blurb: 'Optional. Memento records, transcribes and exports without any of this.', groups: [
+        { label: 'External AI', rows: [ tog('ai', 'Allow external AI services', 'Off by default. Turning it on enables document generation and other optional features.', true), tog('ask', 'Ask before every send', 'Shows exactly what will be sent and lets you remove items.', true), tog('log', 'Keep a record of what was sent', 'Listed in each recording\u2019s history.', true) ] },
+        { label: 'Providers', rows: [ key('k-claude', 'Claude (Anthropic)', 'Default provider for documents.', 'sk-ant-••••••••••••••••', 'Replace'), key('k-openai', 'ChatGPT (OpenAI)', 'Not configured.', '', 'Add') ] },
+        { label: 'What may be shared', rows: [ checks('share', 'Allowed data', 'Only ticked items can ever be sent. Audio and video never leave this PC.', [
+          { name: 'Transcript', on: true }, { name: 'Recording details', on: true, note: 'title, date, type' }, { name: 'Participants', on: true },
+          { name: 'Agenda and imported documents', on: true }, { name: 'Highlights and notes', on: true }, { name: 'Attachments', on: false },
+          { name: 'Audio', on: false, locked: true, note: 'never' }, { name: 'Video', on: false, locked: true, note: 'never' }
+        ]) ] }
+      ] },
+      'Documents': { blurb: 'Templates, styles and version history for generated documents.', groups: [
+        { label: 'Defaults', rows: [ sel('Default template', 'Used when you press Create document.', 'Meeting minutes · 9 modules'), sel('Default style', 'Fonts, colours and spacing. Does not change the content.', 'Corporate'), btn('Templates and styles', '4 templates, 3 styles.', 'Manage') ] },
+        { label: 'History', rows: [ tog('versions', 'Keep version history', 'Previous versions of transcripts and documents can be restored.', true), sel('Keep versions for', 'Older versions are removed to save space.', '90 days') ] }
+      ] },
+      'Export': { blurb: 'Copies saved outside Memento. The project inside Memento stays the original.', groups: [
+        { label: 'External copies', rows: [ tog('export', 'Save copies outside Memento', 'Off means nothing is written outside the library unless you export by hand.', false), path('Default folder', 'Used when you do not pick a destination.', 'C:\\Users\\you\\Documents\\Recordings'), tog('askwhere', 'Ask where to save each time', 'Otherwise the default folder is used silently.', true) ] },
+        { label: 'What to include by default', rows: [ checks('inc', 'Components', 'Untick anything you rarely need. You can still change this per export.', [
+          { name: 'Audio', on: true, note: 'mixed' }, { name: 'Individual tracks', on: false }, { name: 'Video', on: false },
+          { name: 'Transcript', on: true }, { name: 'Documents', on: true }, { name: 'Recording details', on: false }, { name: 'Attachments', on: false }
+        ]) ] },
+        { label: 'Formats', rows: [ seg('txfmt', 'Transcript', 'JSON keeps timestamps, speakers and confidence.', ['JSON', 'Markdown', 'Text'], 0), sel('Audio', 'FLAC is lossless; MP3 is smaller.', 'FLAC'), sel('Documents', 'Generated documents and notes.', 'Markdown + Word') ] }
+      ] },
+      'Storage and history': { blurb: 'How much space the library uses and how to get some back.', groups: [
+        { label: 'Usage', rows: [ info('Library size', '10 recordings · 10 h 48 min', '48.2 GB'), info('Free space', 'On the drive that holds the library.', '212 GB'), info('Largest recording', 'Town hall Q&A · audio + video', '9.1 GB') ] },
+        { label: 'Reclaim space', rows: [ sel('Downmix tracks older than', 'Keeps a single high-quality mix and removes separate tracks.', 'Never'), sel('Remove video older than', 'Would free 11.3 GB now, from 3 recordings. Audio tracks, transcript and documents are kept; the Library shows "Video removed".', '90 days'), btn('Review large recordings', 'Pick recordings to optimise or delete.', 'Review') ] }
+      ] }
+    };
+    const icons = {
+      'General': 'M12 3v2 M12 19v2 M3 12h2 M19 12h2 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+      'Recording': 'M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z M19 11a7 7 0 0 1-14 0 M12 18v4 M8 22h8',
+      'Transcription': 'M4 6h16 M4 12h10 M4 18h13',
+      'Speakers': 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+      'AI and privacy': 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z M9 12l2 2 4-4',
+      'Documents': 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
+      'Export': 'M12 3v12 M7 8l5-5 5 5 M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
+      'Storage and history': 'M4 6a8 3 0 1 0 16 0 8 3 0 1 0-16 0z M4 6v12a8 3 0 0 0 16 0V6 M4 12a8 3 0 0 0 16 0'
+    };
+    const nav = Object.keys(sections).map(k => ({ label: k, icon: icons[k], on: st.section === k, cls: st.section === k ? 'on' : '', pick: () => this.setState({ section: k }) }));
+    const section = { label: st.section, ...sections[st.section] };
+    return { themeClass: theme === 'dark' ? 'dark' : '', nav, section };
+  }
+}
+</script>
+</body>
+</html>
