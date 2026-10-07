@@ -438,6 +438,207 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task ALineTheEngineRepeatsIsDroppedAndHistorySaysSo()
+    {
+        InstallAll();
+        Windows["mic"] =
+        [
+            [
+                new WorkerSegment(0.2, 1.0, "We approve the marketing budget.", 0.8, []),
+                new WorkerSegment(1.0, 1.2, "Thank you.", 0.4, []),
+                new WorkerSegment(1.2, 1.4, "Thank you.", 0.4, []),
+                new WorkerSegment(1.4, 1.6, "Thank you.", 0.4, []),
+            ],
+        ];
+
+        var id = await RecordAndProcessAsync();
+
+        Assert.Equal(["We approve the marketing budget.", "Thank you."], (await TranscriptAsync(id)).Segments.Select(s => s.Text));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var dropped = Assert.Single(history, h => h.Stage == "transcript" && h.Event == "info" && h.Summary == "Dropped 2 repeated lines");
+        Assert.StartsWith("“Thank you.” 3 times in a row at 0:01–0:01 on ", dropped.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AResumedPassNeverKeepsAWindowTwiceEvenIfTheWorkerSendsItAgain()
+    {
+        InstallAll();
+        AfterWindow = sent => sent < 1;
+        var id = await RecordAndProcessAsync();
+        Assert.Single((await TranscriptAsync(id)).Segments);
+
+        // A worker that ignores the resume point and sends every window again.
+        AfterWindow = _ => true;
+        var inner = _host.Workers.Script;
+        _host.Workers.Script = (job, context, cancel) => inner(
+            job.Transcribe is { } transcribe ? job with { Transcribe = transcribe with { Tracks = transcribe.Tracks.Select(t => t with { StartWindow = 0 }).ToList() } } : job,
+            context,
+            cancel);
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "retry" }));
+        await IdleAsync();
+
+        var finished = await TranscriptAsync(id);
+        Assert.True(finished.Complete);
+        Assert.Equal(["We approve the marketing budget.", "And the marketing budget for Berlin."], finished.Segments.Select(s => s.Text));
+    }
+
+    [Fact]
+    public async Task AWorkerKilledInsideTheOnlyWindowStartsThatWindowAgainOnce()
+    {
+        InstallAll();
+        Windows["mic"] = [[new WorkerSegment(0.2, 1.0, "Short recording.", 0.8, [])]];
+        var killed = false;
+        _host.Workers.Script = async (job, context, cancel) =>
+        {
+            if (job.Kind == WorkerJobKinds.Transcribe && !killed)
+            {
+                killed = true;
+                context.Send(new WorkerReply { Type = WorkerMessageTypes.Track, Track = new WorkerTrackInfo("mic", 2, false, 0.1, [[0.2, 1.0]], 1) });
+                context.Send(new WorkerReply { Type = WorkerMessageTypes.Device, Device = Gpu });
+                // Within the window: the engine's own percentage, no segments yet; then the process dies.
+                context.Send(new WorkerReply { Type = WorkerMessageTypes.Progress, Percent = 40, TrackId = "mic" });
+                await Task.Delay(20, CancellationToken.None);
+                return unchecked((int)0xC0000409);
+            }
+
+            return await DefaultScript(job, context, cancel);
+        };
+
+        var id = await _host.RecordAsync("Short", 2, Mic);
+        await IdleAsync();
+        Assert.Equal(StageStates.Failed, Stage(await ManifestAsync(id), StageNames.Transcript).State);
+        Assert.Null(await _host.Transcripts.LoadAsync(id, CancellationToken.None));
+        // The engine's percentage within the window reached the stage.
+        await _host.Sink.WaitForAsync("processing.progress", p => p.GetProperty("stages").EnumerateArray().Any(s => s.GetProperty("stage").GetString() == "transcript" && s.GetProperty("percent").ValueKind == JsonValueKind.Number && s.GetProperty("percent").GetInt32() == 40));
+
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "cpu" }));
+        await IdleAsync();
+
+        Assert.Equal(0, Jobs(WorkerJobKinds.Transcribe)[^1].Transcribe!.Tracks.Single().StartWindow);
+        Assert.Equal(["Short recording."], (await TranscriptAsync(id)).Segments.Select(s => s.Text));
+    }
+
+    /// <summary>Speakers on two tracks: the worker reports each finished track, then (optionally) stops after the first.</summary>
+    private Func<WorkerJob, ScriptedWorkerContext, CancellationToken, Task<int>> TwoTrackDiarizer(Func<int, CancellationToken, Task<bool>> afterTrack) => async (job, context, cancel) =>
+    {
+        if (job.Kind != WorkerJobKinds.Diarize)
+        {
+            return await DefaultScript(job, context, cancel);
+        }
+
+        lock (_jobs)
+        {
+            _jobs.Add(job);
+        }
+
+        var finished = new List<DiarizedTrack>();
+        foreach (var track in job.Diarize!.Tracks)
+        {
+            cancel.ThrowIfCancellationRequested();
+            var axis = track.Id == "mic" ? 0 : 1;
+            var done = new DiarizedTrack(track.Id, [new SpeakerTurn(0, 1.1, 0, 0.7), new SpeakerTurn(1.1, 2, 1, 0.65)], [new SpeakerVoice(0, [1f, 0f, 0.1f * axis], 1), new SpeakerVoice(1, [0f, 1f, 0.1f * axis], 1)], 2);
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Diarized, TrackId = track.Id, Diarized = done });
+            finished.Add(done);
+            if (!await afterTrack(finished.Count, cancel))
+            {
+                return unchecked((int)0xC0000409);
+            }
+        }
+
+        context.Send(new WorkerReply { Type = WorkerMessageTypes.Result, Diarization = new DiarizeResult(finished, 4, 100) });
+        return 0;
+    };
+
+    private void SpeechOnBothTracks() => Windows["system"] =
+    [
+        [new WorkerSegment(0.3, 1.0, "Can everyone hear me?", 0.9, []), new WorkerSegment(1.3, 1.9, "Good, then let us start.", 0.9, [])],
+    ];
+
+    [Fact]
+    public async Task AStoppedSpeakerPassContinuesWithTheTracksItHadNotFinished()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        var stopAfterFirst = true;
+        _host.Workers.Script = TwoTrackDiarizer((n, _) => Task.FromResult(!(stopAfterFirst && n == 1)));
+
+        var id = await RecordAndProcessAsync();
+
+        var manifest = await ManifestAsync(id);
+        Assert.Equal(StageStates.Failed, Stage(manifest, StageNames.Speakers).State);
+        var failure = Assert.Single(manifest.Failures);
+        Assert.Equal("The transcript is kept without speakers; 1 track already done is kept, and trying again continues with the others.", failure.Kept);
+        var partial = await _host.Transcripts.LoadSpeakersPartialAsync(id, CancellationToken.None);
+        Assert.Equal(["mic"], partial!.Tracks.Select(t => t.TrackId));
+
+        stopAfterFirst = false;
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers", remedyId = "retry" }));
+        await IdleAsync();
+
+        var jobs = Jobs(WorkerJobKinds.Diarize);
+        Assert.Equal(["mic", "system"], jobs[0].Diarize!.Tracks.Select(t => t.Id));
+        Assert.Equal(["system"], jobs[^1].Diarize!.Tracks.Select(t => t.Id));
+        var transcript = await TranscriptAsync(id);
+        Assert.All(transcript.Segments, s => Assert.NotNull(s.Speaker));
+        Assert.Equal(4, transcript.Speakers.Count);
+        Assert.Null(await _host.Transcripts.LoadSpeakersPartialAsync(id, CancellationToken.None));
+        Assert.False(File.Exists(Path.Combine(_host.Store.GetProjectFolder(id), ProjectLayout.SpeakersPartialFile)));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == "speakers" && h.Event == "started" && h.Summary == "Identifying speakers (continuing where it stopped)");
+    }
+
+    [Fact]
+    public async Task ABusyPauseDuringSpeakersResumesAfterTheFinishedTrack()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        var paused = new TaskCompletionSource();
+        _host.Workers.Script = TwoTrackDiarizer(async (n, cancel) =>
+        {
+            if (n == 1 && !paused.Task.IsCompleted)
+            {
+                // Busy with the second track when the PC gets busy.
+                paused.TrySetResult();
+                await Task.Delay(TimeSpan.FromSeconds(30), cancel);
+            }
+
+            return true;
+        });
+
+        var id = await _host.RecordAsync("Busy speakers", 2, Mic, SystemAudio);
+        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        _host.Gate.SetManual(true);
+        await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Speakers).Label == "Paused · Paused by you", "speakers to pause");
+        _host.Gate.SetManual(false);
+        await IdleAsync();
+
+        var jobs = Jobs(WorkerJobKinds.Diarize);
+        Assert.Equal(["system"], jobs[^1].Diarize!.Tracks.Select(t => t.Id));
+        Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
+        Assert.All((await TranscriptAsync(id)).Segments, s => Assert.NotNull(s.Speaker));
+    }
+
+    [Fact]
+    public async Task WithAnExpectedCountVoicesOnSeveralTracksAreGroupedToThatCount()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        _host.Workers.Script = TwoTrackDiarizer((_, _) => Task.FromResult(true));
+        await _host.ResultAsync("settings.set", """{"speakers":{"expectedSpeakers":2}}""");
+
+        var id = await RecordAndProcessAsync();
+
+        // Per track the count is not applied (it says nothing about each track); across them, voices are grouped.
+        Assert.Equal(-1, Jobs(WorkerJobKinds.Diarize)[^1].Diarize!.NumClusters);
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(2, transcript.Speakers.Count);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var found = Assert.Single(history, h => h.Stage == "speakers" && h.Event == "completed");
+        Assert.Equal("Found 2 speakers", found.Summary);
+        Assert.Contains("grouped by sound into the 2 expected speakers", found.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TurningTranscriptionOffQueuesNothing()
     {
         InstallAll();

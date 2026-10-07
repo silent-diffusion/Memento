@@ -169,6 +169,30 @@ public sealed partial class TranscriptStore(IProjectStore projects, TimeProvider
         File.Delete(path + ".tmp");
     }
 
+    public async Task<SpeakersPartial?> LoadSpeakersPartialAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var partial = await AtomicJsonFile.ReadAsync(SpeakersPartialPath(recordingId), TranscriptJsonContext.Default.SpeakersPartial, cancellationToken);
+            return partial?.SchemaVersion == SpeakersPartial.CurrentSchemaVersion ? partial : null;
+        }
+        catch (JsonException ex)
+        {
+            LogUnreadable(ex, recordingId);
+            return null;
+        }
+    }
+
+    public Task SaveSpeakersPartialAsync(string recordingId, SpeakersPartial partial, CancellationToken cancellationToken) =>
+        AtomicJsonFile.WriteAsync(SpeakersPartialPath(recordingId), partial, TranscriptJsonContext.Default.SpeakersPartial, cancellationToken);
+
+    public void DeleteSpeakersPartial(string recordingId)
+    {
+        var path = SpeakersPartialPath(recordingId);
+        File.Delete(path);
+        File.Delete(path + ".tmp");
+    }
+
     private static bool IsVersionId(string versionId) =>
         DateTime.TryParseExact(versionId, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out _);
 
@@ -186,6 +210,8 @@ public sealed partial class TranscriptStore(IProjectStore projects, TimeProvider
     private string PathOf(string recordingId) => Path.Combine(projects.GetProjectFolder(recordingId), ProjectLayout.TranscriptFile);
 
     private string PartialPath(string recordingId) => Path.Combine(projects.GetProjectFolder(recordingId), ProjectLayout.TranscriptPartialFile);
+
+    private string SpeakersPartialPath(string recordingId) => Path.Combine(projects.GetProjectFolder(recordingId), ProjectLayout.SpeakersPartialFile);
 
     private string VersionsFolder(string recordingId) => Path.Combine(projects.GetProjectFolder(recordingId), ProjectLayout.VersionsFolder);
 
