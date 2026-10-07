@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "corporate",
+  "name": "Corporate",
+  "headingTypeface": "sans",
+  "bodyTypeface": "sans",
+  "baseSize": "normal",
+  "headingCase": "smallCaps",
+  "numberedHeadings": false,
+  "headingColor": "navy",
+  "tableHeaderFill": true,
+  "ruleUnderTitle": true,
+  "linesBetweenSections": false,
+  "spacing": "normal",
+  "paper": "letter",
+  "pageNumbers": true,
+  "runningHeader": true,
+  "builtIn": true
+}

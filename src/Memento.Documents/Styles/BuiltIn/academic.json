@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "academic",
+  "name": "Academic",
+  "headingTypeface": "serif",
+  "bodyTypeface": "serif",
+  "baseSize": "normal",
+  "headingCase": "normal",
+  "numberedHeadings": true,
+  "headingColor": "ink",
+  "tableHeaderFill": false,
+  "ruleUnderTitle": false,
+  "linesBetweenSections": false,
+  "spacing": "normal",
+  "paper": "letter",
+  "pageNumbers": true,
+  "runningHeader": true,
+  "builtIn": true
+}
