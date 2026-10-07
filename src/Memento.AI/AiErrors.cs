@@ -143,6 +143,11 @@ public static class AiErrors
     internal static string Duration(TimeSpan span)
     {
         var seconds = (int)Math.Ceiling(Math.Max(1, span.TotalSeconds));
+        if (seconds == 1)
+        {
+            return "1 second";
+        }
+
         if (seconds < 120)
         {
             return string.Create(CultureInfo.InvariantCulture, $"{seconds} seconds");
