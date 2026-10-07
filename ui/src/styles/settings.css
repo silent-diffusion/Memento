@@ -303,6 +303,13 @@
   font-weight: 600;
 }
 
+/* "Needed by the current settings": why Remove is off on this card. */
+.model-needed {
+  display: block;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
 .model-actions {
   display: flex;
   gap: 8px;

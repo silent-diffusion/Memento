@@ -3,7 +3,7 @@
 // the M2 blocks field by field).
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import type { EngineStatusResult, HistorySettings, SpeakerSettings, TranscriptionSettings, TranscriptionTiming } from '../../bridge/types';
+import type { EngineStatusResult, HistorySettings, ModelInfo, SpeakerSettings, TranscriptionSettings, TranscriptionTiming } from '../../bridge/types';
 import { Segmented, Toggle } from '../../components/Controls';
 import { SelectMenu } from '../../components/Menus';
 import { deviceWording } from '../../format/footer';
@@ -42,6 +42,27 @@ export function engineWording(status: EngineStatusResult | null): { value: strin
     return { value: 'No model installed', note: 'Install a model below' };
   }
   return { value: `Local · ${device}`, note: t.freeVramBytes === null ? null : `${formatSize(t.freeVramBytes)} video memory free` };
+}
+
+/**
+ * Transcription models the current settings rely on, with why Remove is off: the default (the
+ * radio already says so) and the model used without a graphics card.
+ */
+export function transcriptionKeep(t: TranscriptionSettings): Record<string, string> {
+  return {
+    [t.cpuFallbackModelId]: 'Used when there is no graphics card. Choose another model for that first.',
+    [t.modelId]: 'This is the default model. Choose another default first.',
+  };
+}
+
+/** The speech-segmentation model is needed for every speaker pass while Identify speakers is on. */
+export function segmentationKeep(sp: SpeakerSettings, models: readonly ModelInfo[]): Record<string, string> {
+  if (!sp.identify) {
+    return {};
+  }
+  return Object.fromEntries(
+    models.filter((m) => m.engine === 'speakers' && m.role === 'segmentation').map((m) => [m.id, 'Finds where each voice speaks while Identify speakers is on. Turn that off first.']),
+  );
 }
 
 function useEngineStatus(): EngineStatusResult | null {
@@ -142,7 +163,7 @@ export function TranscriptionSection(): JSX.Element {
               engine="transcription"
               defaultId={t.modelId}
               label="Default transcription model"
-              keep={{ [t.cpuFallbackModelId]: 'Used when there is no graphics card. Choose another model for that first.' }}
+              keep={transcriptionKeep(t)}
               onDefault={(modelId) => {
                 save({ modelId });
               }}
@@ -260,7 +281,18 @@ export function SpeakersSection(): JSX.Element {
         <SettingsRow
           label="Speech segmentation"
           description="Finds where each voice speaks. Needed together with a voice model."
-          below={<ModelCards api={models} engine="speakers" role="segmentation" selectable={false} defaultId="" label="Speech segmentation model" onDefault={() => undefined} />}
+          below={
+            <ModelCards
+              api={models}
+              engine="speakers"
+              role="segmentation"
+              selectable={false}
+              defaultId=""
+              label="Speech segmentation model"
+              onDefault={() => undefined}
+              keep={segmentationKeep(sp, models.state.models)}
+            />
+          }
         />
         <SettingsRow
           label="Voice model"

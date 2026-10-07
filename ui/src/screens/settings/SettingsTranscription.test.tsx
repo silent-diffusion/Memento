@@ -110,8 +110,13 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     expect(turbo?.querySelector('.model-tag')?.textContent).toBe('Recommended');
     expect(turbo?.querySelector<HTMLInputElement>('input[type="radio"]')?.checked).toBe(true);
     expect(button('Remove Large v3 Turbo').disabled).toBe(true);
-    // The CPU fallback cannot be removed either.
+    // The CPU fallback cannot be removed either; both say why on the card.
     expect(button('Remove Small').disabled).toBe(true);
+    const small = container.querySelector('[data-model-id="whisper-small"]');
+    expect(turbo?.querySelector('.model-needed')?.textContent).toBe('Needed by the current settings');
+    expect(small?.querySelector('.model-needed')?.textContent).toBe('Needed by the current settings');
+    expect(button('Remove Small').getAttribute('aria-describedby')).toBe(small?.querySelector('.model-needed')?.id);
+    expect(button('Remove Small').title).toBe('Used when there is no graphics card. Choose another model for that first.');
     const medium = container.querySelector('[data-model-id="whisper-medium"]');
     expect(medium?.querySelector<HTMLInputElement>('input[type="radio"]')?.disabled).toBe(true);
 
@@ -121,8 +126,12 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     expect(button('Install Base, 141 MB').disabled).toBe(true);
     await until(() => document.querySelector<HTMLButtonElement>('[aria-label="Remove Medium"]')?.disabled === false);
     expect(medium?.querySelector('[role="progressbar"]')).toBeNull();
+    expect(medium?.querySelector('.model-needed')).toBeNull();
     await click(medium?.querySelector('input[type="radio"]'));
     await until(() => store.settings.value?.transcription.modelId === 'whisper-medium');
+    // The new default is kept; the old one can go now.
+    await until(() => button('Remove Medium').disabled && !button('Remove Large v3 Turbo').disabled);
+    expect(turbo?.querySelector('.model-needed')).toBeNull();
     expect((await bridge.call('engine.status')).transcription.model).toBe('whisper-medium');
   });
 
@@ -165,11 +174,18 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     const segmentation = container.querySelector('[data-model-id="pyannote-segmentation-3-0"]');
     expect(segmentation?.querySelector('input[type="radio"]')).toBeNull();
     expect(segmentation?.querySelector('.model-facts')?.textContent).toMatch(/Installed · needed$/);
+    // Needed while Identify speakers is on, so it cannot be removed; the default voice model neither.
+    expect(segmentation?.querySelector('.model-needed')?.textContent).toBe('Needed by the current settings');
+    expect(button('Remove Speech segmentation (pyannote 3.0)').disabled).toBe(true);
+    expect(container.querySelector('[data-model-id="nemo-titanet-small"] .model-needed')?.textContent).toBe('Needed by the current settings');
     const voices = container.querySelector('[role="radiogroup"][aria-label="Default voice model"]');
     expect([...(voices?.querySelectorAll('.model-card') ?? [])].map((c) => c.getAttribute('data-model-id'))).toEqual(['nemo-titanet-small', '3dspeaker-eres2net-base']);
     await choose('Expected speakers', '4 people');
     await click(button('Identify speakers'));
     await until(() => store.settings.value?.speakers.identify === false);
+    // With speakers off the segmentation model is not needed any more.
+    await until(() => segmentation?.querySelector('.model-needed') === null);
+    expect(button('Remove Speech segmentation (pyannote 3.0)').disabled).toBe(false);
     expect((await bridge.call('settings.get')).speakers).toEqual({ identify: false, expectedSpeakers: 4, rememberRenamed: true, embeddingModelId: 'nemo-titanet-small' });
   });
 

@@ -109,6 +109,9 @@ function failureLead(model: ModelInfo, phase: Extract<ModelPhase, { kind: 'faile
   }
 }
 
+/** Under an installed model the current settings use: why Remove is off. */
+export const NEEDED_NOTE = 'Needed by the current settings';
+
 interface ModelCardProps {
   model: ModelInfo;
   phase: ModelPhase;
@@ -160,6 +163,11 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
           <span class="model-facts">
             {modelFacts(model)} · <span class={model.installed ? 'model-installed' : ''}>{status}</span>
           </span>
+          {model.installed && (isDefault || keepReason !== null) ? (
+            <span class="model-needed" id={`${radioId}-needed`}>
+              {NEEDED_NOTE}
+            </span>
+          ) : null}
         </div>
         <div class="model-actions">
           {model.installed ? (
@@ -168,6 +176,7 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
               type="button"
               aria-label={`Remove ${model.name}`}
               disabled={isDefault || keepReason !== null || phase.kind === 'removing'}
+              aria-describedby={isDefault || keepReason !== null ? `${radioId}-needed` : undefined}
               title={isDefault ? 'This is the default model. Choose another default first.' : (keepReason ?? undefined)}
               onClick={onRemove}
             >
