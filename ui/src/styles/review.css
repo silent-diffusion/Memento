@@ -520,6 +520,8 @@
 .facts dd {
   margin: 0;
   min-width: 0;
+  /* An imported track is named after its file ("long_file_name_64kb.mp3"): wrap it inside the pane. */
+  overflow-wrap: anywhere;
 }
 
 .fact-strong {
