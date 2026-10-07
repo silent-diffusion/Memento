@@ -37,6 +37,13 @@ internal static class AgendaErrors
             $"{DisplayName(options)} looks like {what} but could not be read; it may be damaged or incomplete. Nothing was imported. Open it in the app that made it and save it again, or paste the items as text.",
             inner);
 
+    /// <summary>A file whose structure no real document has (a DTD in a Word part, nesting thousands deep).</summary>
+    public static AgendaImportException Malformed(AgendaParseOptions options, string what, string why, Exception? inner = null) =>
+        new(
+            AgendaErrorCodes.Unreadable,
+            $"{DisplayName(options)} looks like {what} but {why}, which Word and Excel never write, so it was not read. Nothing was imported. Open it in the app that made it and save it again, or paste the items as text.",
+            inner);
+
     public static AgendaImportException Protected(AgendaParseOptions options, Exception? inner = null) =>
         new(
             AgendaErrorCodes.Protected,
