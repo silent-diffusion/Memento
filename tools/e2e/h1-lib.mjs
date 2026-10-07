@@ -233,8 +233,9 @@ export class Run {
  */
 export async function appSwitchName(page, pid, name) {
   return page.eval(`(async () => {
-    const id = 'h1-src-' + Math.random();
+    const id = 900000 + Math.floor(Math.random() * 90000); // the bridge answers numeric ids only
     const reply = await new Promise((done) => {
+      setTimeout(() => done({}), 5000);
       const on = (e) => {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
         if (data && data.id === id) { window.chrome.webview.removeEventListener('message', on); done(data); }
