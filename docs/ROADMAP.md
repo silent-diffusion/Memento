@@ -52,30 +52,59 @@ Acceptance: every agenda fixture in `tests/` parses to the expected items; expor
 
 Decided 2026-10-06: the first public release ships as soon as M3 is done, without AI documents, so that recording, transcription, review, agenda import and export are in people's hands while M4 is built. Its README and in-app copy say plainly that document generation arrives in a later version. The M5 hardening items that concern recording and transcription (device unplug, low disk, recovery, long recordings) are run before 0.5.0, not deferred to 1.0.
 
+## H1 — Recording-side hardening before 0.5.0
+
+Runs right after 0.4.0, because 0.5.0 is the first release people will rely on for real meetings.
+
+- **Soak**: a 4-hour real-device recording (mic + system + one app) with 30 s checkpoints; an 8-hour simulated three-track recording; memory and handle counts flat; file rollover at 3.5 GiB exercised with a small threshold.
+- **Device events**: unplug and replug a USB microphone mid-recording; change the default output device; a Bluetooth headset disconnecting; sleep and resume (modern standby) during recording and during transcription. Every case must keep the other tracks, report the exact time, and never crash.
+- **Storage**: low-space banner and transcription pause at the threshold; a drive that fills during recording stops cleanly with everything kept; library on a removable drive that disappears.
+- **Processing**: a 2-hour file transcribes end to end on GPU and on CPU; worker crash, cancel and busy-pause mid-window; interrupted model downloads resume; a corrupt model file is detected by hash and re-downloaded.
+- **Recovery**: kill at every stage (recording, finalizing, optimize, transcript, speakers, import) and relaunch; each case ends in a consistent project with a History entry and the designed dialog or card.
+- **Accessibility**: keyboard reach and names on every shipped screen; contrast check in both themes; reduced-motion run.
+- **Docs**: `docs/USER-GUIDE.md` (install, first recording, sources, review, agenda, export, settings, where data lives, how to back up); in-app About with version, library path and the bundled licenses from THIRD-PARTY.md.
+- **Security pass 1** (the parts of the audit below that touch shipped code: WebView2 and bridge hardening, parsers, downloads, updater, secrets, logs).
+- Tag **v0.5.0** as a full GitHub release (not a pre-release) with the installer and notes.
+
 ## M4 — AI, documents, styles (0.6.0 → 0.9.0)
 
-- Settings › AI and privacy: enable switch (off by default), ask-before-send, keep-record, provider keys in DPAPI, sharing checklist. A **Local** provider that needs no key and never sends anything: its model is downloaded and managed in Settings through the model manager like the transcription models.
-- `IAiProvider` with Anthropic, OpenAI and **Local** (an on-device LLM via llama.cpp with the Vulkan backend, model chosen by free VRAM; see ARCHITECTURE §8); payload composer; "Preview exactly what will be sent" (for Local it reads "stays on this PC").
-- **Chunked, per-module generation with verification**: the transcript is split into chunks that respect chapter, topic and speaker-turn boundaries and a token budget; each module is generated in its own pass (map over chunks, then reduce) with only the inputs it needs; a separate **verification pass** asks the model to check every claim and citation of the module against the cited transcript spans and to drop or flag what is not supported; then the deterministic grounding validator runs. This pipeline is the same for every provider; for the cloud providers the chunk budget is simply larger.
-- Document builder: palette, rows, drag and drop, keyboard fallbacks, module settings, live preview, inputs and output tab, save template, templates manager. Modules gain a **Text size** setting (Smaller / Normal / Larger, relative to the style's base size) that applies in the preview, the viewer and the Word and PDF exports. A **Full transcript** module places the entire transcript (speakers, timestamps, optional chapter headings) in the document as data, with no AI involved.
-- Generation with structured output per module, grounding validator, timestamp references, generation record in History (including which chunks and which verification results produced each module).
-- Document viewer with light editing, timestamp chips, How this was made, versions and restore, regenerate.
-- Style editor with live sample page; Corporate, Minimal, Academic presets; duplicate and reset.
-- Document export: Word (two-column rows, footnote timestamps), PDF via the viewer HTML, Markdown.
+Split so that agents can run in parallel, each ending in a build:
 
-Acceptance: a document generated from a reviewed transcript has every decision and action item traceable to a transcript moment; unsupported items read "not discussed"; the DOCX and PDF match the preview; the Local provider produces minutes for a 1-hour meeting on the reference laptop without exceeding its VRAM and with every claim verified; a Full transcript module round-trips the transcript exactly.
+- **M4a Providers and settings (0.6.0)**: `IAiProvider`; Anthropic and OpenAI clients (keys from DPAPI, TLS, retries, rate-limit handling, no key or content in logs); the **Local** provider as a `Memento.Worker` job (LLamaSharp Vulkan + CPU; catalog entries for Qwen3.5-4B and Ministral-3-3B with verified templates; VRAM budget, spill watch, warm-up, cancel, unload); Settings › AI and privacy fully live; the payload composer and "Preview exactly what will be sent".
+- **M4b Document model and exports (0.6.0)**: the block model with timestamp runs; templates and styles storage with the three presets; Word export via Open XML (two-column rows, footnote timestamps, per-module text size), PDF via the viewer HTML through WebView2 `PrintToPdfAsync`, Markdown; the Full transcript module as data; the Export dialog's Documents row.
+- **M4c Builder, Style editor and Document viewer UI (0.7.0)**: DESIGN §10, §12, §13 with drag and drop, rows, per-module instructions, length, text size and transcript linking, live preview skeletons, inputs and output tab, templates and styles manager, viewer with light editing, timestamp chips, "How this was made", versions.
+- **M4d Generation pipeline (0.8.0)**: segment → map (grammar-constrained JSON) → reduce in code with citation repair → verify per claim → grounding validator → record; per-module runs with progress and cancel; agenda alignment; "not discussed" handling; the generation record in History; regenerate after corrections.
+- **M4 integration (0.9.0)**: end to end with the Local provider on the reference laptop and with a cloud provider when the product owner supplies a key; quality checks on real recordings; copy and error states per §17.
 
 ## M5 — Hardening and 1.0.0
 
-- Soak tests: 8-hour recording, low-disk simulation, device unplug, sleep/resume.
-- Accessibility pass: keyboard reach, names, contrast, reduced motion.
-- Performance pass: Library with 1,000 recordings, transcript with 10,000 segments.
-- User documentation in `docs/`, in-app "About" with licenses of bundled components.
-- Release checklist, update channel verified end-to-end through Velopack.
+- Everything in H1 repeated on the full product, plus: document generation under low VRAM, provider failures (network down, invalid key, rate limit) with the designed inline cards, export of documents in every format, 1,000-recording Library and 10,000-segment transcript performance, templates with 20 modules.
+- **Security audit 1** (full; see below) with every finding fixed or accepted in writing.
+- Code signing: ask the product owner again before 1.0; wire Azure Trusted Signing or a certificate into `release.yml` if provided.
+- Release checklist in `docs/RELEASING.md`; update channel verified from 0.5.0 → 1.0.0 on a clean machine.
+- Tag **v1.0.0**.
 
-## Later (2.0+)
+## Security audit (before 1.0.0, repeated before 2.0.0)
 
-- Video capture: screen, window, camera; MP4 export.
-- Additional AI providers.
-- Remember speakers by voice across recordings.
-- Calendar integration for prefilled titles and participants.
+Scope: the whole repository and the shipped installer, as a local-first desktop app that may hold privileged recordings. Deliverables: `docs/SECURITY.md` (threat model, what the app promises, how to report issues) and `docs/audits/SECURITY-AUDIT-<date>.md` (findings with severity, status, and the commit that fixed each).
+
+1. **Threat model**: assets (recordings, transcripts, documents, keys), attackers (malicious files a user imports, a compromised model or update server, another local user, malware on the PC, a hostile transcript or agenda text aimed at the AI prompts), and what is out of scope.
+2. **WebView2 and bridge**: CSP, virtual-host scope (`app.memento` read-only app files; `library.memento` limited to projects), navigation and new-window blocking, message origin checks, size and depth limits, every method's parameter validation, no host objects, dev tools off in Release, no remote content ever.
+3. **File parsers and decoders**: DOCX/XLSX (zip bombs, external entities, macros ignored), PDF (malformed objects, huge pages), images (decompression bombs, EXIF), CSV (formula injection on export), media import (Media Foundation on hostile files), agenda text; size and time limits; fuzz the parsers with mutated fixtures.
+4. **Downloads and updates**: model catalog URLs pinned to known hosts, HTTPS only, SHA-256 verified before use, partial files never loaded; Velopack feed integrity and what an unsigned installer means (documented honestly until signing exists).
+5. **Secrets and privacy**: DPAPI usage, no keys in logs, exports, crash reports or settings; logs contain no transcript or document text; the "nothing leaves the PC" promise verified by capturing network traffic during a full session with AI off (expect none) and with AI on (only the chosen provider).
+6. **Local AI**: prompt-injection resistance of the map and verify prompts (transcript text cannot change instructions or exfiltrate), the worker's job object and lock, no shell or file access from model output.
+7. **Native interop**: review every P/Invoke and COM call (buffer sizes, lifetimes, error paths), worker protocol parsing, PE import scan of shipped DLLs.
+8. **Supply chain**: `dotnet list package --vulnerable`, `npm audit`, pinned versions and lockfiles, Dependabot, an SBOM (CycloneDX) attached to each release, license re-check.
+9. **Filesystem**: path handling for export and library move (no traversal, long paths, reserved names), atomic writes, permissions of the data root, safe deletion only through designed flows.
+10. **Process**: findings triaged by severity; high and critical fixed before the release; a regression test per fix where possible.
+
+## 2.0.0 — Video and the deferred features
+
+Start right after 1.0.0 ships. Design work comes first, as new artboards in `design/` following DESIGN.md §18.
+
+- **Video capture**: display and window capture via `Windows.Graphics.Capture`, camera via `Windows.Media.Capture`, H.264 + AAC into MP4 through the Media Foundation sink writer, written with the same checkpoint discipline as audio (fragmented MP4 so a crash keeps everything up to the last fragment), synchronized with the audio timeline, selectable per source in the Recording session's VIDEO section, picture-in-picture camera option, storage settings "remove video older than", video in the Review player, MP4 export and the Export dialog's Video row, Library grid video strips. Hardware encoder when available, software fallback, resolution and frame-rate settings.
+- **Deferred from 1.0**: live transcript during recording (small model, 10 s windows, never competing with the full pass), remember renamed speakers by voice (embedding enrolment and matching across recordings, opt-in), chapter suggestions from topics and silence, keep-only-mix storage option, keep running in tray and start with Windows, Tesseract OCR as the installable alternative engine with per-word confidence, multi-select and bulk export or delete, context menus, small-window layouts below 1024 px.
+- **AI**: additional providers behind the same interface; follow-up email module; "Preview what will be sent" as a full read-only sheet.
+- **Security audit 2** on the 2.0 surface (video pipeline, camera and screen permissions, new codecs).
+- Calendar integration for prefilled titles and participants is a 2.x candidate, not a 2.0 commitment.
