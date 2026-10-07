@@ -101,6 +101,21 @@ public sealed class SecurityAuditBridgeTests : IDisposable
         Assert.Contains("ZoneId=3", File.ReadAllText(copy + ":Zone.Identifier"), StringComparison.Ordinal);
     }
 
+    /// <summary>SA-27: an import that would not fit (or declares an absurd format) is refused before anything is written.</summary>
+    [Fact]
+    public async Task AnImportThatCannotFitIsRefusedBeforeDecoding()
+    {
+        var stereo = _m3.Directory.File("stereo.wav");
+        Memento.Core.Tests.Audio.WavTestFiles.Write(stereo, Memento.Core.Audio.PcmFormat.Pcm16(48_000, 2), 48_000, (f, c) => 0.1f);
+        _m3.Host.FreeSpace.FreeBytes = Memento.Core.Import.MediaImportService.ImportReserveBytes + 1024;
+        var full = await _m3.ErrorPickingAsync("library.importMedia", stereo, new { });
+
+        Assert.Equal(DomainErrorCodes.LibraryImportUnsupported, full.GetProperty("code").GetString());
+        Assert.Contains("free", full.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Empty((await _m3.ResultAsync("library.list", new { })).GetProperty("recordings").EnumerateArray());
+        Assert.Equal(48_000L * 2 * 3 * 22 / 10, Memento.Core.Import.MediaImportService.DecodedBytes(new Memento.Core.Import.MediaProbe(48_000, 2, 1_000, false)));
+    }
+
     /// <summary>SA-71: agenda copies a crashed Memento held in %TEMP% are removed by the next session.</summary>
     [Fact]
     public async Task HeldAgendaCopiesOfACrashedSessionAreRemoved()
