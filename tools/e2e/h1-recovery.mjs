@@ -145,7 +145,7 @@ async function caseStages(importedId) {
       run.check(`${stage}: the worker ended with Memento`, killed.orphanWorkers.length === 0, `orphans ${killed.orphanWorkers.join(',')}`);
     } catch (error) {
       // Topics is a few tens of milliseconds of text work (no worker): it can finish between two looks.
-      const ranMs = run.logLines(new RegExp(`stage ${stage} ran in (\d+) ms`)).map((l) => Number(/ran in (d+) ms/.exec(l)[1]))[0];
+      const ranMs = run.logLines(new RegExp(`stage ${stage} ran in \\d+ ms`)).map((l) => Number(/ran in (\d+) ms/.exec(l)[1]))[0];
       if (stage === 'topics' && stageOf(importedId, stage)?.state === 'done' && ranMs !== undefined && ranMs < 1000) {
         run.log(stage, `finished in ${ranMs} ms, before it could be caught; not interrupted`);
         results[stage] = { killedAt: 'not caught', ranMs };
