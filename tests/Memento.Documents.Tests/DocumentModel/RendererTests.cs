@@ -146,6 +146,20 @@ public sealed partial class RendererTests
     }
 
     [Fact]
+    public void OnPaperAFootnoteMarkerSitsOnTheWordBeforeIt()
+    {
+        var doc = SampleDocuments.AllShapes();
+        var paragraph = new Model.Blocks.ParagraphBlock { Runs = [Run.Plain("Despite the absence of such gatherings. "), Run.Timestamp(105), Run.Plain(" They met.")] };
+        var single = doc with { Rows = [DocumentRow.Of(doc.Rows[0].Modules[0] with { Blocks = [paragraph] })] };
+
+        var print = Renderer.RenderPrintHtml(single, BuiltInStyles.Corporate);
+        var viewer = Renderer.RenderViewer(single, BuiltInStyles.Corporate).Html;
+
+        Assert.Contains("gatherings.<sup class=\"fn\"", print, StringComparison.Ordinal);
+        Assert.Contains("gatherings. <a class=\"ts\"", viewer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ModuleWithoutATitleUsesTheCatalogName()
     {
         var doc = SampleDocuments.AllShapes();
