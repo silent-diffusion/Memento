@@ -3,6 +3,32 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 0.5.0
+
+The first public release. Memento records, transcribes on your PC, tells speakers apart, imports agendas and exports what you choose; everything from 0.2.0 to 0.4.0 is in it, and this release spent its time on making that dependable. Documents written with AI (minutes, summaries) come in a later version.
+
+**If you have 0.2, 0.3 or 0.4 installed**, download and run this Setup once: those versions never check for updates. From 0.5.0 on, Memento updates itself.
+
+New in this release:
+
+- **Updates.** Memento checks GitHub for a newer version when it starts and once a day, never while you record or while a recording is being processed, downloads it in the background (the status bar shows the progress) and offers **Restart to update**. Nothing is installed until you choose it, or until the next time Memento starts. Settings › General › Updates shows your version and the last check, has **Check now**, and lets you turn automatic checks off. A check sends nothing about you or your recordings.
+- **About** in Settings › General: the version, where your library is, and the licenses of every component inside Memento.
+- **A user guide** (docs/USER-GUIDE.md): installing, recording, review, speakers, agendas, export, settings, where your data lives and how to back it up, and what to do when something goes wrong.
+
+Hardening (each found by testing this release on a real PC, and fixed):
+
+- A library on a USB drive that is not plugged in no longer stops Memento from starting. Memento says which drive it is waiting for, does not create an empty library in its place, does not record until the drive is back, and opens the library by itself once it is. If the drive goes away while you record, Stop ends the recording, says so, and the next start with the drive connected saves everything.
+- The low-disk-space banner now shows on every screen, also on the Record screen, without a recording, and when Memento starts with a full drive.
+- Model files are checked against their published fingerprint before every use, not only after downloading. A damaged file is set aside, Review says so, and **Download … again** replaces it; transcription then continues by itself. An interrupted model download continues where it stopped.
+- An export cut short by a crash or power cut is cleaned up at the next start like a failed one, and the recording's History says so.
+- A recording whose saving was interrupted is now described as that in History, not as an interrupted recording.
+- Text and labels meet a 4.5:1 contrast in both themes, button labels on the orange buttons in the dark theme included. With Windows' animations turned off, buttons no longer shrink when pressed and the processing dot stops pulsing. Every control can be reached with the keyboard and has a name; two outputs or two microphones now have switches with different names.
+- Security: an agenda file that would unpack to gigabytes is refused; a scanned PDF page is never rendered larger than 10,000 pixels; attachments open with their app only when they are documents, images or media (anything else opens its folder) and keep Windows' "downloaded from the internet" mark; an export can never write outside its folder, whatever a recording's files say; the page cannot ask for any permission or start a download; saving one AI key while the key file is locked no longer loses the other; an import that would fill the drive is refused first.
+
+Tested for this release: a 4-hour recording of a microphone, the PC's sound and an app with checkpoints every 30 seconds; an 8-hour simulated three-track recording; tracks rolling over to a second and third file; a microphone disabled and enabled mid-recording; the default output switched mid-recording; Memento frozen for two minutes while recording and while transcribing; low and full disks; a library drive that disappears; a 2-hour recording transcribed on the graphics card and on the processor; transcription paused, cancelled and its engine killed mid-way; Memento killed while recording, saving, transcribing, identifying speakers, finding topics, making files smaller, importing, exporting and moving the library. The numbers are in docs/ROADMAP.md (H1).
+
+Still missing: documents and every AI feature (their settings are there and off), a live transcript while recording, video capture, keeping Memento in the tray, and a button to stop a running transcription (it pauses by itself while you record and continues where it stopped). The installer is not code-signed yet, so Windows SmartScreen may warn the first time.
+
 ## 0.4.0
 
 Agendas, attachments, importing and export (milestone M3). This release also contains everything listed under 0.3.0 below, which was not released on its own.
