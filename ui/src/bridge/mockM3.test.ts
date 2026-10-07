@@ -161,7 +161,20 @@ describe('browser-preview host: export (M3)', () => {
     const estimate = await bridge.call('export.estimate', { recordingId: DESIGN, selection: all });
     expect(new Set(estimate.items.map((i) => i.component))).toEqual(new Set(['audioMixed', 'tracks', 'transcript', 'details', 'attachments']));
     expect(estimate.items.filter((i) => i.component === 'tracks')).toHaveLength(3);
-    expect(estimate.unavailable).toEqual([{ component: 'documents', reason: 'Documents arrive in a later version' }]);
+    // The host's names; the totals add manifest.json to the items.
+    const base = exportFolderName('Design review: library screen', (await bridge.call('project.get', { recordingId: DESIGN })).summary.createdAt);
+    expect(estimate.items.find((i) => i.component === 'audioMixed')?.name).toBe(`${base}.flac`);
+    expect(estimate.items.filter((i) => i.component === 'transcript').map((i) => i.name)).toEqual(
+      DEFAULT_EXPORT_SELECTION.transcript.formats.map((f) => ({ json: `${base} - transcript.json`, srt: `${base}.srt`, markdown: `${base} - transcript.md`, text: `${base} - transcript.txt` })[f]),
+    );
+    expect(estimate.items.find((i) => i.component === 'details')?.name).toBe(`${base} - details.json`);
+    expect(estimate.items.filter((i) => i.component === 'attachments').every((i) => i.name.startsWith('Attachments/'))).toBe(true);
+    expect(estimate.files).toBe(estimate.items.length + 1);
+    expect(estimate.bytes).toBeGreaterThan(estimate.items.reduce((sum, i) => sum + i.bytes, 0));
+    expect(estimate.unavailable).toEqual([]);
+    // As the host, a reason comes only for a ticked row.
+    const withDocuments = await bridge.call('export.estimate', { recordingId: DESIGN, selection: { ...all, documents: { ...all.documents, on: true } } });
+    expect(withDocuments.unavailable).toEqual([{ component: 'documents', reason: 'Documents arrive in a later version' }]);
     const mp3 = await bridge.call('export.estimate', {
       recordingId: DESIGN,
       selection: { ...all, audioMixed: { on: true, format: 'mp3', bitrateKbps: 192 } },
@@ -189,7 +202,8 @@ describe('browser-preview host: export (M3)', () => {
     const last = events.at(-1);
     expect(last?.state).toBe('done');
     expect(last?.outputFolder).toBe(`E:\\Exports\\${exportFolderName('Design review: library screen', (await bridge.call('project.get', { recordingId: DESIGN })).summary.createdAt)}`);
-    expect(last?.files).toBe(2);
+    // The mix, the transcript formats, and manifest.json.
+    expect(last?.files).toBe(DEFAULT_EXPORT_SELECTION.transcript.formats.length + 2);
     expect(events.some((e) => e.state === 'running' && e.percent > 0 && e.percent < 100)).toBe(true);
     expect(footers).toContain('Design review: library screen');
     expect((await bridge.call('settings.get')).export.defaultFolder).toBe('E:\\Exports');

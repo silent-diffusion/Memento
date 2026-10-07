@@ -1,7 +1,7 @@
 // The browser-preview host's export (BRIDGE.md M3): sizes per component and format, a simulated job
 // that reports export.progress and the footer, and the manifest it would write beside the files.
 // `?export=fail` breaks the job part-way; `?export=unwritable` refuses the destination up front.
-import { exportFolderName, joinWindowsPath, MP3_EXPORT_KBPS } from '../format/export';
+import { exportFileNames, exportFolderName, joinWindowsPath, MP3_EXPORT_KBPS } from '../format/export';
 import { isoWithOffset, type MockProject } from './mockData';
 import { MockHostError } from './mockSession';
 import type {
@@ -28,14 +28,23 @@ export type ExportFlag = 'ok' | 'fail' | 'unwritable';
 /** Bytes per second of one stereo 48 kHz channel pair, roughly as the host's encoders write them. */
 const AUDIO_BYTES_PER_SECOND: Record<Exclude<AudioExportFormat, 'mp3'>, number> = { flac: 110_000, wav: 192_000 };
 const TRANSCRIPT_BYTES_PER_SEGMENT: Record<TranscriptExportFormat, number> = { json: 420, markdown: 120, text: 96, srt: 140 };
-const TRANSCRIPT_EXTENSIONS: Record<TranscriptExportFormat, string> = { json: 'json', markdown: 'md', text: 'txt', srt: 'srt' };
 
+/** manifest.json beside the exported files, as the host writes it (BRIDGE.md M3 integration clarification 17). */
 export interface ExportManifest {
   schemaVersion: 1;
+  app: 'Memento';
   mementoVersion: string;
   recordingId: string;
+  title: string;
   exportedAt: string;
-  files: { path: string; bytes: number; sha256: string }[];
+  algorithm: 'sha256';
+  /** Paths relative to the export folder, with forward slashes: "Attachments/agenda.docx". */
+  files: { name: string; bytes: number; sha256: string }[];
+}
+
+/** Roughly what the host's manifest.json takes: a fixed part and one entry per file. */
+export function manifestBytes(files: readonly { name: string }[]): number {
+  return 260 + files.reduce((sum, f) => sum + 120 + f.name.length, 0);
 }
 
 export interface MockExportEnvironment {
@@ -105,7 +114,7 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
   const plan = (project: MockProject, selection: ExportSelection): { items: ExportEstimateItem[]; unavailable: ExportUnavailable[] } => {
     const { summary } = project;
     const seconds = summary.durationMs / 1000;
-    const base = exportFolderName(summary.title, summary.createdAt).replace(/ \d{4}-\d{2}-\d{2}$/, '');
+    const base = exportFolderName(summary.title, summary.createdAt);
     const items: ExportEstimateItem[] = [];
     const unavailable: ExportUnavailable[] = [];
     const add = (component: ExportComponent, name: string, bytes: number): void => {
@@ -118,13 +127,13 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
       unavailable.push({ component: 'tracks', reason: 'Still being stored' });
     } else {
       if (selection.audioMixed.on) {
-        add('audioMixed', `${base}.${selection.audioMixed.format}`, audioBytes(seconds, selection.audioMixed.format, selection.audioMixed.bitrateKbps, 2));
+        add('audioMixed', exportFileNames.mix(base, selection.audioMixed.format), audioBytes(seconds, selection.audioMixed.format, selection.audioMixed.bitrateKbps, 2));
       }
       if (selection.tracks.on) {
-        tracks.forEach((track, index) => {
+        tracks.forEach((track) => {
           add(
             'tracks',
-            `Tracks\\${String(index + 1).padStart(2, '0')} ${track.name}.${selection.tracks.format}`,
+            exportFileNames.track(base, track.name, track.id, selection.tracks.format),
             audioBytes(track.durationMs / 1000, selection.tracks.format, selection.tracks.bitrateKbps, Math.max(1, track.channels)),
           );
         });
@@ -135,19 +144,22 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
       unavailable.push({ component: 'transcript', reason: 'Not transcribed yet' });
     } else if (selection.transcript.on) {
       for (const format of selection.transcript.formats) {
-        add('transcript', `${base} transcript.${TRANSCRIPT_EXTENSIONS[format]}`, Math.max(512, segments * TRANSCRIPT_BYTES_PER_SEGMENT[format]));
+        add('transcript', exportFileNames.transcript(base, format), Math.max(512, segments * TRANSCRIPT_BYTES_PER_SEGMENT[format]));
       }
     }
-    unavailable.push({ component: 'documents', reason: 'Documents arrive in a later version' });
+    // As the host: a ticked Documents row has nothing to write in this version.
+    if (selection.documents.on) {
+      unavailable.push({ component: 'documents', reason: 'Documents arrive in a later version' });
+    }
     if (selection.details.on) {
-      add('details', 'Recording details.json', 1_800 + project.details.agenda.items.length * 90 + project.details.participants.length * 40);
+      add('details', exportFileNames.details(base), 1_800 + project.details.agenda.items.length * 90 + project.details.participants.length * 40);
     }
     const attachments = env.attachments(summary.id);
     if (attachments.length === 0) {
       unavailable.push({ component: 'attachments', reason: 'No attachments' });
     } else if (selection.attachments.on) {
       for (const attachment of attachments) {
-        add('attachments', `Attachments\\${attachment.name}`, attachment.sizeBytes);
+        add('attachments', exportFileNames.attachment(attachment.name), attachment.sizeBytes);
       }
     }
     return { items, unavailable };
@@ -163,8 +175,9 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
       state: job.state,
       message,
       outputFolder: done ? job.folder : null,
-      files: done ? job.items.length : Math.floor((job.items.length * job.percent) / 100),
-      bytes: done ? job.items.reduce((sum, i) => sum + i.bytes, 0) : 0,
+      // Done: every file and the manifest, as the host counts them.
+      files: done ? job.items.length + 1 : Math.floor((job.items.length * job.percent) / 100),
+      bytes: done ? job.items.reduce((sum, i) => sum + i.bytes, 0) + manifestBytes(job.items) : 0,
     });
     env.setFooterExport(
       job.state === 'running' ? { active: true, percent: job.percent, title: job.title } : { active: false, percent: null, title: null },
@@ -182,7 +195,9 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
   return {
     estimate(recordingId, selection) {
       const { items, unavailable } = plan(env.find(recordingId), selection);
-      return { files: items.length, bytes: items.reduce((sum, i) => sum + i.bytes, 0), items, unavailable };
+      // As the host: the totals include manifest.json whenever anything is written.
+      const manifest = items.length === 0 ? { files: 0, bytes: 0 } : { files: 1, bytes: manifestBytes(items) };
+      return { files: items.length + manifest.files, bytes: items.reduce((sum, i) => sum + i.bytes, 0) + manifest.bytes, items, unavailable };
     },
     run(params) {
       const project = env.find(params.recordingId);
@@ -243,10 +258,13 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
           }
           manifests.set(job.jobId, {
             schemaVersion: 1,
+            app: 'Memento',
             mementoVersion: env.version,
             recordingId: job.recordingId,
+            title: job.title,
             exportedAt: isoWithOffset(new Date(env.now())),
-            files: items.map((i) => ({ path: i.name, bytes: i.bytes, sha256: fakeHash(`${job.recordingId}/${i.name}`) })),
+            algorithm: 'sha256',
+            files: items.map((i) => ({ name: i.name, bytes: i.bytes, sha256: fakeHash(`${job.recordingId}/${i.name}`) })),
           });
           report(job, null, null);
           return;

@@ -43,7 +43,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         {
             if (stored && manifest.Mix is { } mix && File.Exists(Full(folder, mix.File)))
             {
-                items.Add(AudioItem(ExportComponents.AudioMixed, baseName + ExportNaming.AudioExtension(selection.AudioMixed.Format), Full(folder, mix.File), mix.Codec, mix.SampleRate, mix.Channels, mix.DurationMs, selection.AudioMixed));
+                items.Add(AudioItem(ExportComponents.AudioMixed, ExportNaming.MixFile(baseName, selection.AudioMixed.Format), Full(folder, mix.File), mix.Codec, mix.SampleRate, mix.Channels, mix.DurationMs, selection.AudioMixed));
             }
             else
             {
@@ -61,7 +61,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
             foreach (var track in tracks)
             {
-                var name = $"{baseName} - {FileNames.Sanitize(track.Name, track.Id)}{ExportNaming.AudioExtension(selection.Tracks.Format)}";
+                var name = ExportNaming.TrackFile(baseName, track.Name, track.Id, selection.Tracks.Format);
                 items.Add(AudioItem(ExportComponents.Tracks, name, Full(folder, track.File), track.Codec, track.SampleRate, track.Channels, track.DurationMs, selection.Tracks));
             }
         }
@@ -78,7 +78,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
         if (selection.Details.On)
         {
-            items.Add(TextItem(ExportComponents.Details, baseName + " - details.json", null, DetailsJson(project, manifest, exportedAt)));
+            items.Add(TextItem(ExportComponents.Details, ExportNaming.DetailsFile(baseName), null, DetailsJson(project, manifest, exportedAt)));
         }
 
         if (selection.Attachments.On)
@@ -220,7 +220,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
                 ExportRules.Srt => SrtWriter.Write(transcript),
                 _ => TranscriptJson(await File.ReadAllTextAsync(Path.Combine(folder, ProjectLayout.TranscriptFile), cancellationToken), project, exportedAt),
             };
-            items.Add(TextItem(ExportComponents.Transcript, baseName + ExportNaming.TranscriptSuffix(format), null, content));
+            items.Add(TextItem(ExportComponents.Transcript, ExportNaming.TranscriptFile(baseName, format), null, content));
         }
     }
 }

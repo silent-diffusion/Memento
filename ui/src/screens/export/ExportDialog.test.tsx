@@ -63,19 +63,19 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(row('exp-tracks').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(true);
     expect(row('exp-audio').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(false);
     expect(row('exp-audio').querySelector('.export-row-size')?.textContent).toMatch(/^\d+ MB$/);
-    expect(summary()).toMatch(/^2 files · about \d+ MB$/);
+    expect(summary()).toMatch(/^3 files · about \d+ MB$/);
   });
 
   it('asks for every size once after a pause in changes and sums the ticked rows', async () => {
     await open();
     const before = h.callsOf('export.estimate').length;
     expect(before).toBe(1);
-    // Ticks change nothing the host is asked: the summary is summed locally.
+    // Ticks change nothing the host is asked: the summary is summed locally (plus manifest.json).
     await click(dialog().querySelector('#exp-tracks'));
-    expect(summary()).toMatch(/^5 files · about /);
+    expect(summary()).toMatch(/^6 files · about /);
     expect(row('exp-tracks').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(false);
     await click(dialog().querySelector('#exp-details'));
-    expect(summary()).toMatch(/^6 files · about /);
+    expect(summary()).toMatch(/^7 files · about /);
     // Three quick format changes make one estimate.
     await choose('Format for Audio (mixed)', 'WAV');
     await choose('Format for Audio (mixed)', 'MP3');
@@ -171,7 +171,8 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(transcript?.checked).toBe(false);
     expect(row('exp-transcript').classList.contains('export-row--unavailable')).toBe(true);
     expect(row('exp-transcript').textContent).toContain('Not transcribed yet');
-    expect(summary()).toMatch(/^1 file · about /);
+    // The mix and manifest.json.
+    expect(summary()).toMatch(/^2 files · about /);
   });
 
   it('moves through the dialog with the keyboard and Esc cancels', async () => {

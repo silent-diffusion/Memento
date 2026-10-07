@@ -1,0 +1,33 @@
+{
+  "about": "Export names both sides must produce (BRIDGE.md M3 clarification 4 and M3 integration clarification 16). Read by ui/src/format/export.test.ts and tests/Memento.Core.Tests/M3/ExportNamingSharedCasesTests.cs.",
+  "folders": [
+    { "title": "Design review: library screen", "createdAt": "2026-10-05T14:30:00+02:00", "expected": "Design review - library screen 2026-10-05" },
+    { "title": "Q3 planning sync", "createdAt": "2026-10-06T10:00:00+01:00", "expected": "Q3 planning sync 2026-10-06" },
+    { "title": "  a/b\\c  ", "createdAt": "2026-01-02T08:00:00-05:00", "expected": "a - b - c 2026-01-02" },
+    { "title": "What? Who * when <now> | \"quote\"", "createdAt": "2026-03-04T00:00:00+00:00", "expected": "What - Who - when - now - - quote 2026-03-04" },
+    { "title": "Trailing dots...", "createdAt": "2026-03-04T23:59:59+09:00", "expected": "Trailing dots 2026-03-04" },
+    { "title": "...", "createdAt": "2026-03-04T12:00:00+00:00", "expected": "Recording 2026-03-04" },
+    { "title": "", "createdAt": "2026-03-04T12:00:00+00:00", "expected": "Recording 2026-03-04" },
+    { "title": "Tab\tand\nnew line", "createdAt": "2026-12-31T23:00:00-08:00", "expected": "Tab - and - new line 2026-12-31" },
+    {
+      "title": "A very long title that goes on and on about the quarterly planning session for the whole team",
+      "createdAt": "2026-10-06T10:00:00+01:00",
+      "expected": "A very long title that goes on and on about the quarterly planning session for t 2026-10-06"
+    }
+  ],
+  "files": [
+    { "kind": "mix", "base": "Q3 planning sync 2026-10-06", "format": "flac", "expected": "Q3 planning sync 2026-10-06.flac" },
+    { "kind": "mix", "base": "Q3 planning sync 2026-10-06", "format": "mp3", "expected": "Q3 planning sync 2026-10-06.mp3" },
+    { "kind": "track", "base": "Q3 planning sync 2026-10-06", "trackName": "Shure MV7", "trackId": "mic", "format": "wav", "expected": "Q3 planning sync 2026-10-06 - Shure MV7.wav" },
+    { "kind": "track", "base": "Q3 planning sync 2026-10-06", "trackName": "Everything this PC plays", "trackId": "system", "format": "flac", "expected": "Q3 planning sync 2026-10-06 - Everything this PC plays.flac" },
+    { "kind": "track", "base": "B 2026-10-06", "trackName": "Zoom: Meeting / Room 2", "trackId": "app", "format": "flac", "expected": "B 2026-10-06 - Zoom Meeting Room 2.flac" },
+    { "kind": "track", "base": "B 2026-10-06", "trackName": " ...", "trackId": "app", "format": "flac", "expected": "B 2026-10-06 - app.flac" },
+    { "kind": "track", "base": "B 2026-10-06", "trackName": "con", "trackId": "app", "format": "flac", "expected": "B 2026-10-06 - _con.flac" },
+    { "kind": "transcript", "base": "B 2026-10-06", "format": "json", "expected": "B 2026-10-06 - transcript.json" },
+    { "kind": "transcript", "base": "B 2026-10-06", "format": "markdown", "expected": "B 2026-10-06 - transcript.md" },
+    { "kind": "transcript", "base": "B 2026-10-06", "format": "text", "expected": "B 2026-10-06 - transcript.txt" },
+    { "kind": "transcript", "base": "B 2026-10-06", "format": "srt", "expected": "B 2026-10-06.srt" },
+    { "kind": "details", "base": "B 2026-10-06", "expected": "B 2026-10-06 - details.json" },
+    { "kind": "attachment", "name": "agenda.docx", "expected": "Attachments/agenda.docx" }
+  ]
+}
