@@ -9,6 +9,7 @@ import { useServices } from '../state/context';
 import type { DialogRequest } from '../state/dialogs';
 import { Dialog } from './Overlay';
 import { RestoreVersionDialog, RetranscribeDialog } from './TranscriptDialogs';
+import { RemoveAttachmentDialog } from './attachments/RemoveAttachmentDialog';
 
 function DialogError({ message }: { message: string | null }): JSX.Element | null {
   return message === null ? null : (
@@ -305,6 +306,9 @@ export function DialogHost(): JSX.Element | null {
         return <RetranscribeDialog key={request.recordingId} request={request} close={close} />;
       case 'restoreVersion':
         return <RestoreVersionDialog key={request.version.id} request={request} close={close} />;
+      // M3
+      case 'removeAttachment':
+        return <RemoveAttachmentDialog key={request.attachment.id} recordingId={request.recordingId} attachment={request.attachment} close={close} />;
     }
   }
   const recovered = store.recoveryQueue.value[0];

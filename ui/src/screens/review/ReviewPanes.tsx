@@ -4,6 +4,7 @@ import { Fragment, type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Chapter, Highlight, HistoryEntry, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
 import { TagEditor } from '../../components/DetailsSheet';
+import { AttachmentsSection } from '../../components/attachments/AttachmentsSection';
 import { DocumentIcon, MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
 import { ActionMenu } from '../../components/Menus';
@@ -508,6 +509,8 @@ interface DetailsPaneProps {
   versions: TranscriptVersion[] | null;
   currentVersion: { version: number; engine: string; segments: number } | null;
   onRestore: (version: TranscriptVersion, when: string) => void;
+  /** M3: the agenda caption's Replace link. */
+  onReplaceAgenda?: () => void;
 }
 
 export function DetailsPane({
@@ -523,6 +526,7 @@ export function DetailsPane({
   versions,
   currentVersion,
   onRestore,
+  onReplaceAgenda,
 }: DetailsPaneProps): JSX.Element {
   const { details, summary, tracks } = project;
   const agenda = details.agenda;
@@ -600,6 +604,14 @@ export function DetailsPane({
                 {agenda.items.length === 0 ? null : (
                   <span class="detail-caption">
                     {agenda.source ?? 'Pasted text'} · {agenda.parsedLocally ? 'parsed locally' : 'extracted with AI'}
+                    {onReplaceAgenda === undefined ? null : (
+                      <>
+                        {' · '}
+                        <button class="btn link-btn" type="button" aria-haspopup="dialog" onClick={onReplaceAgenda}>
+                          Replace
+                        </button>
+                      </>
+                    )}
                   </span>
                 )}
               </div>
@@ -620,6 +632,7 @@ export function DetailsPane({
               <span class="lbl">Tags</span>
               <TagEditor tags={details.tags} onChange={onTags} />
             </div>
+            <AttachmentsSection recordingId={summary.id} variant="review" />
             {history?.keepVersions === true && currentVersion !== null ? (
               <VersionsCard versions={versions} current={currentVersion} keepDays={history.keepDays} now={now} onRestore={onRestore} />
             ) : null}

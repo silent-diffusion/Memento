@@ -320,7 +320,23 @@ export function RecordScreen(): JSX.Element {
 
   const toggleAgenda = (item: AgendaItem): void => {
     const agenda = saver.details.value.agenda;
-    saver.update({ agenda: { ...agenda, items: agenda.items.map((i) => (i.id === item.id ? { ...i, covered: !i.covered } : i)) } });
+    const toggled = { ...agenda, items: agenda.items.map((i) => (i.id === item.id ? { ...i, covered: !i.covered } : i)) };
+    const recordingId = saver.recordingId.value;
+    if (recordingId === null) {
+      saver.update({ agenda: toggled });
+      return;
+    }
+    // M3: agenda.setCovered marks one item; the mark shows at once and the host's answer confirms it.
+    saver.receive({ agenda: toggled });
+    bridge
+      .call('agenda.setCovered', { recordingId, itemId: item.id, covered: !item.covered })
+      .then((result) => {
+        saver.receive({ agenda: result.agenda });
+      })
+      .catch((error: unknown) => {
+        saver.receive({ agenda });
+        store.toasts.show({ tone: 'warning', title: `"${item.text}" was not marked`, body: messageOf(error, 'Memento did not answer.') });
+      });
   };
 
   // Space pauses or resumes, Ctrl+M marks a highlight, Esc does nothing (DESIGN.md §8).

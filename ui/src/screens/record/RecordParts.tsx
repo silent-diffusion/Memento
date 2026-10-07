@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AgendaItem, AudioSource, FooterStatusPayload, Highlight, LiveTranscriptSegment, RecordingDetails, TranscriptionTiming } from '../../bridge/types';
 import { Toggle } from '../../components/Controls';
 import { CheckIcon, FlagIcon, PauseIcon, PlayIcon, StopIcon } from '../../components/icons';
-import { agendaMarks } from '../../format/agenda';
+import { agendaMarks, PASTED_SOURCE } from '../../format/agenda';
 import { formatTimecode } from '../../format/duration';
 import type { ElapsedClock } from '../../format/elapsed';
 import type { TrackFormat } from '../../format/estimate';
@@ -384,7 +384,7 @@ export function AgendaCard({ details, onToggle, onOpenDetails }: AgendaCardProps
       <div class="rec-card-head">
         <span class="lbl">Agenda</span>
         {agenda.items.length === 0 ? null : (
-          <span class="rec-agenda-source">{agenda.source === null ? 'Pasted text' : `From ${agenda.source}`}</span>
+          <span class="rec-agenda-source">{agenda.source === null || agenda.source === PASTED_SOURCE ? 'Pasted text' : `From ${agenda.source}`}</span>
         )}
       </div>
       {agenda.items.length === 0 ? (
