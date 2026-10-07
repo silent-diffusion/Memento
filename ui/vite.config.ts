@@ -59,5 +59,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     restoreMocks: true,
+    // The screen tests drive the whole preview host in jsdom; under a full parallel run they need room.
+    testTimeout: 20_000,
   },
 });

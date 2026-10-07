@@ -95,7 +95,6 @@ const SEEDS: readonly Seed[] = [
       done('stored'),
       { stage: 'transcript', state: 'active', percent: 64, label: '64% · local GPU' },
       queued('speakers'),
-      queued('minutes'),
     ],
     tracks: ['microphone', 'system', 'application'],
     platform: 'Zoom',
@@ -438,6 +437,7 @@ export function sampleProjects(now: Date): MockProject[] {
       isProcessing: seed.stages.some((st) => st.state === 'active' || st.state === 'queued'),
       state: seed.state ?? 'ready',
       sizeBytes: 0,
+      matchSnippet: null,
     };
     summary.sizeBytes = estimateSizeBytes(summary, seed.tracks.length);
     const details: RecordingDetails = {

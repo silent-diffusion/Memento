@@ -5,7 +5,7 @@ import { agoWording, recordStatusLine, recordStorageLine } from './recordFooter'
 
 const GIB = 1024 ** 3;
 const status = (overrides: Partial<FooterStatusPayload> = {}): FooterStatusPayload => ({
-  engine: { ready: true, device: 'GPU' },
+  engine: { ready: true, device: 'GPU', detail: { ready: true, device: 'GPU', gpuName: null, freeVramBytes: null, model: 'large-v3', paused: null } },
   storage: { freeBytes: 212 * GIB, lowSpace: false },
   recording: { active: true, lastCheckpointAt: null, lostSource: null },
   processingPaused: null,

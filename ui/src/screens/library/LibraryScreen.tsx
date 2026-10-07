@@ -8,7 +8,7 @@ import { GridIcon, ListIcon } from '../../components/icons';
 import { LibraryHeader, SEARCH_PLACEHOLDER, SEARCH_PLACEHOLDER_EMPTY } from '../../components/LibraryHeader';
 import { SelectMenu } from '../../components/Menus';
 import { StatusFooter } from '../../components/StatusFooter';
-import { summaryLine } from '../../format/recording';
+import { stageName, summaryLine } from '../../format/recording';
 import { openRecord, openRecording, openSettings, reloadLibrary, requestDelete } from '../../state/actions';
 import { useServices, type AppServices } from '../../state/context';
 import { updateLibraryView } from '../../state/data';
@@ -47,6 +47,16 @@ function itemHandlers(services: AppServices): ItemHandlers {
     },
     remove: (recording) => {
       void requestDelete(services, recording.id);
+    },
+    retry: (recording, stage) => {
+      select(recording);
+      services.bridge.call('processing.retry', { recordingId: recording.id, stage }).catch((error: unknown) => {
+        store.toasts.show({
+          tone: 'warning',
+          title: `${stageName(stage)} was not retried`,
+          body: `${error instanceof Error ? error.message : 'Memento did not answer.'} The recording itself is safe.`,
+        });
+      });
     },
   };
 }
@@ -229,6 +239,7 @@ export function LibraryScreen(): JSX.Element {
                         selected={view.selectedId === recording.id}
                         now={now}
                         handlers={handlers}
+                        query={view.query}
                       />
                     ))}
                   </ul>
@@ -241,6 +252,7 @@ export function LibraryScreen(): JSX.Element {
                         selected={view.selectedId === recording.id}
                         now={now}
                         handlers={handlers}
+                        query={view.query}
                       />
                     ))}
                   </ul>

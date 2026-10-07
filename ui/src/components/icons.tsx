@@ -83,6 +83,23 @@ export function ChevronDownIcon(props: IconProps): JSX.Element {
   );
 }
 
+/** Two lines joining into one: merge a speaker into another. */
+export function MergeIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke {...props}>
+      <path d="M8 6l4-4 4 4 M12 2v10.3a4 4 0 0 1-1.17 2.87L4 22 M20 22l-5-5" />
+    </Stroke>
+  );
+}
+
+export function ChevronUpIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke strokeWidth={2} {...props}>
+      <path d="M6 15l6-6 6 6" />
+    </Stroke>
+  );
+}
+
 export function ChevronRightIcon(props: IconProps): JSX.Element {
   return (
     <Stroke strokeWidth={2} {...props}>

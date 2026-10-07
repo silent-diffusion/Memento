@@ -2,7 +2,7 @@
 // the stage, highlights, live transcript and agenda, and the footer.
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { AgendaItem, AudioSource, FooterStatusPayload, Highlight, RecordingDetails } from '../../bridge/types';
+import type { AgendaItem, AudioSource, FooterStatusPayload, Highlight, LiveTranscriptSegment, RecordingDetails, TranscriptionTiming } from '../../bridge/types';
 import { Toggle } from '../../components/Controls';
 import { CheckIcon, FlagIcon, PauseIcon, PlayIcon, StopIcon } from '../../components/icons';
 import { agendaMarks } from '../../format/agenda';
@@ -308,17 +308,64 @@ export function HighlightsCard({ highlights, focusId, onFocused, onNote }: Highl
 // Right column
 // ---------------------------------------------------------------------------------------------
 
-export function LiveTranscriptCard({ engine }: { engine: FooterStatusPayload['engine'] | null }): JSX.Element {
+/** How long a recording runs without a draft before the card says live transcription is unavailable. */
+export const LIVE_DRAFT_GRACE_MS = 8_000;
+
+/** The newest rough segments shown in the card. */
+const LIVE_LINES = 4;
+
+interface LiveTranscriptCardProps {
+  engine: FooterStatusPayload['engine'] | null;
+  /** The draft for this session, or null when none has arrived. */
+  segments: readonly LiveTranscriptSegment[] | null;
+  /** Settings › Transcription › Timing; null until settings are read. */
+  timing: TranscriptionTiming | null;
+  phase: RecordPhase;
+  elapsedMs: number;
+}
+
+/** What the card says when there is no draft to show (DESIGN.md §8). */
+export function liveTranscriptCopy(timing: TranscriptionTiming | null, phase: RecordPhase, elapsedMs: number): string {
+  const live = phase === 'recording' || phase === 'paused';
+  if (timing !== 'during') {
+    return 'Live transcription is off. The full transcript is made on this PC after you stop. For a rough draft here while recording, set Timing to During recording in Settings › Transcription.';
+  }
+  if (!live) {
+    return 'Words appear here a few seconds behind the recording. Turn this off in Settings if you prefer to transcribe afterwards.';
+  }
+  if (elapsedMs < LIVE_DRAFT_GRACE_MS) {
+    return 'Listening. Words appear here a few seconds behind the recording.';
+  }
+  return 'Live transcription is not available in this version of Memento. Every track is kept in full, and the transcript is made on this PC after you stop.';
+}
+
+export function LiveTranscriptCard({ engine, segments, timing, phase, elapsedMs }: LiveTranscriptCardProps): JSX.Element {
+  const device = engine?.detail.device ?? engine?.device ?? null;
+  const shown = (segments ?? []).slice(-LIVE_LINES);
   return (
     <section class="rec-card rec-side-card" aria-label="Live transcript">
       <div class="rec-card-head">
         <span class="lbl">Live transcript</span>
-        {engine?.ready === true ? <span class="pill done">{engine.device === null ? 'Local' : `Local · ${engine.device}`}</span> : null}
+        {engine?.ready === true && timing === 'during' ? <span class="pill done">{device === null ? 'Local' : `Local · ${device}`}</span> : null}
       </div>
-      <p class="rec-side-text">
-        Words will appear here a few seconds behind the recording once live transcription arrives in a later version. Until then
-        every track is kept in full, ready to transcribe afterwards.
-      </p>
+      {shown.length === 0 ? (
+        <p class="rec-side-text">{liveTranscriptCopy(timing, phase, elapsedMs)}</p>
+      ) : (
+        <>
+          <ol class="rec-live" aria-live="off">
+            {shown.map((segment, i) => (
+              <li key={`${segment.start}-${i}`} class="rec-live-line">
+                <span class="mono rec-live-at">{formatTimecode(segment.start * 1000)}</span>
+                <span class="rec-live-text">
+                  {segment.text}
+                  {i === shown.length - 1 && (phase === 'recording' || phase === 'paused') ? <span class="rec-live-more"> …</span> : null}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p class="rec-side-text rec-live-foot">Rough draft. Speaker names and corrections happen in Review.</p>
+        </>
+      )}
     </section>
   );
 }

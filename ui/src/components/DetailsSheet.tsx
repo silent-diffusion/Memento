@@ -108,7 +108,18 @@ function PillWell({ id, label, values, placeholder, onChange }: PillWellProps): 
 }
 
 /** Tags: raised pills plus a dashed "+ Add" that turns into an input. */
-export function TagEditor({ tags, onChange, noun = 'tag' }: { tags: string[]; onChange: (tags: string[]) => void; noun?: string }): JSX.Element {
+export function TagEditor({
+  tags,
+  onChange,
+  noun = 'tag',
+  locked = [],
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  noun?: string;
+  /** Shown first as plain pills without a remove button (topics Memento found locally). */
+  locked?: readonly string[];
+}): JSX.Element {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
   const input = useRef<HTMLInputElement | null>(null);
@@ -119,7 +130,7 @@ export function TagEditor({ tags, onChange, noun = 'tag' }: { tags: string[]; on
   }, [adding]);
   const commit = (): void => {
     const tag = draft.trim();
-    if (tag !== '' && !tags.includes(tag)) {
+    if (tag !== '' && !tags.includes(tag) && !locked.includes(tag)) {
       onChange([...tags, tag]);
     }
     setDraft('');
@@ -127,6 +138,11 @@ export function TagEditor({ tags, onChange, noun = 'tag' }: { tags: string[]; on
   };
   return (
     <div class="tag-row">
+      {locked.map((tag) => (
+        <span key={`locked-${tag}`} class="pill done">
+          {tag}
+        </span>
+      ))}
       {tags.map((tag) => (
         <span key={tag} class="pill done sheet-pill">
           {tag}

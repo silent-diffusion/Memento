@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { FooterStatusPayload } from '../bridge/types';
+import type { EngineStatusDetail, FooterStatusPayload } from '../bridge/types';
 import { engineLine, footerStorageLine, statusLine, storageLine } from './footer';
 import { formatFreeSpace } from './storage';
 
 const GIB = 1024 ** 3;
+const DETAIL: EngineStatusDetail = { ready: true, device: 'GPU', gpuName: 'RTX 3060', freeVramBytes: null, model: 'large-v3', paused: null };
 
 describe('formatFreeSpace', () => {
   it.each([
@@ -29,11 +30,14 @@ describe('footer lines', () => {
   });
 
   it('says plainly when no engine is set up', () => {
-    expect(engineLine({ ready: false, device: null })).toEqual({ text: 'Local transcription is not set up yet', tone: 'neutral' });
+    expect(engineLine({ ready: false, device: null, detail: { ...DETAIL, ready: false, device: null, model: 'large-v3' } })).toEqual({
+      text: 'Local transcription is not set up yet',
+      tone: 'neutral',
+    });
   });
 
   it('matches the design copy when an engine is ready', () => {
-    expect(engineLine({ ready: true, device: 'GPU' })).toEqual({ text: 'Local transcription ready · GPU', tone: 'ok' });
+    expect(engineLine({ ready: true, device: 'GPU', detail: { ...DETAIL, gpuName: null } })).toEqual({ text: 'Local transcription ready · GPU', tone: 'ok' });
   });
 
   it('states free space when known', () => {
@@ -54,7 +58,7 @@ describe('footer lines', () => {
 
 describe('footer variants (DESIGN.md §17)', () => {
   const status = (overrides: Partial<FooterStatusPayload> = {}): FooterStatusPayload => ({
-    engine: { ready: true, device: 'GPU' },
+    engine: { ready: true, device: 'GPU', detail: { ...DETAIL, gpuName: null } },
     storage: { freeBytes: 212 * GIB, lowSpace: false },
     recording: { active: false, lastCheckpointAt: null, lostSource: null },
     processingPaused: null,

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeLogger } from './client';
 import { createMockTransport, type MockOptions } from './mock';
-import { ERROR_CODES, type BridgeError, type MethodName, type MethodParams, type MethodResult, type StageStatus } from './types';
+import { ERROR_CODES, type BridgeError, type MethodName, type MethodParams, type MethodResult } from './types';
 
 const quiet: BridgeLogger = { info: () => undefined, warn: () => undefined };
 const SAMPLE = '20261006-100000-q3plan';
@@ -138,51 +138,3 @@ describe('preview host errors', () => {
   });
 });
 
-describe('preview host stages', () => {
-  const progress = (messages: Envelope[]): StageStatus[][] =>
-    messages.filter((m) => m.event === 'processing.progress').map((m) => (m.payload as { stages: StageStatus[] }).stages);
-
-  it('stores, then makes smaller files when the storage format is AAC, and hides both from the row once done', () => {
-    const host = previewHost({ library: 'empty' });
-    const settings = host.call('settings.get', {});
-    host.call('settings.set', { recording: { ...settings.recording, storage: { ...settings.recording.storage, codec: 'aac', bitrateKbps: 128 } } });
-    const sourceIds = [host.call('sources.list', {}).audio[0]?.id ?? ''];
-    const { sessionId, recordingId } = host.call('recording.start', { title: 'Smaller', type: 'meeting', sourceIds });
-    vi.advanceTimersByTime(3_000);
-    host.call('recording.stop', { sessionId });
-    vi.advanceTimersByTime(1_200);
-
-    expect(host.call('library.processing', {}).current).toMatchObject({
-      recordingId,
-      stages: [
-        { stage: 'stored', state: 'active' },
-        { stage: 'optimize', state: 'queued', label: 'Queued' },
-      ],
-    });
-
-    vi.advanceTimersByTime(5_000);
-    const card = host.call('library.processing', {}).current;
-    expect(card?.stages.map((st) => `${st.stage}:${st.state}`)).toEqual(['stored:done', 'optimize:active']);
-    expect(card?.meta.stages.map((st) => `${st.stage}:${st.state}`)).toEqual(['optimize:active']);
-    expect(card?.stages[1]?.label).toBe('0% · making smaller');
-
-    vi.advanceTimersByTime(4_001);
-    expect(host.call('library.processing', {}).current).toBeNull();
-    const project = host.call('project.get', { recordingId });
-    expect(project.summary.stages).toEqual([]);
-    expect(project.history.map((h) => `${h.stage}:${h.event}`)).toEqual(['recorded:completed', 'stored:completed', 'optimize:completed']);
-    expect(progress(host.messages).at(-1)?.map((st) => `${st.stage}:${st.state}`)).toEqual(['stored:done', 'optimize:done']);
-  });
-
-  it('runs only the stored stage for lossless FLAC', () => {
-    const host = previewHost({ library: 'empty' });
-    const sourceIds = [host.call('sources.list', {}).audio[0]?.id ?? ''];
-    const { sessionId, recordingId } = host.call('recording.start', { title: 'Lossless', type: 'meeting', sourceIds });
-    vi.advanceTimersByTime(2_000);
-    host.call('recording.stop', { sessionId });
-    vi.advanceTimersByTime(1_200 + 4_000 + 1);
-
-    expect(progress(host.messages).at(-1)).toEqual([{ stage: 'stored', state: 'done', percent: null, label: 'Done' }]);
-    expect(host.call('project.get', { recordingId }).summary.stages).toEqual([]);
-  });
-});

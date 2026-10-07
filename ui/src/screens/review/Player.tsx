@@ -3,10 +3,13 @@
 // Highlight. The real <audio> element plays the host's mixUrl.
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { BackTenIcon, FlagIcon, ForwardTenIcon, PauseIcon, PlayIcon, SearchIcon } from '../../components/icons';
+import type { TranscriptSearchMatch } from '../../bridge/types';
+import { BackTenIcon, ChevronDownIcon, ChevronUpIcon, FlagIcon, ForwardTenIcon, PauseIcon, PlayIcon, SearchIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
 import { formatDuration } from '../../format/duration';
 import { parsePeaks, PLAYBACK_RATES, rateLabel, resamplePeaks, scrubKeyTarget, waveBarHeight } from '../../format/player';
+import { matchCountText } from '../../format/transcript';
+import type { SearchApi } from './useTranscript';
 
 export const WAVE_BARS = 160;
 
@@ -165,6 +168,9 @@ interface PlayerStripProps {
   peaks: PeaksState;
   hasMedia: boolean;
   onHighlight: () => void;
+  /** Null until there is a transcript to search. */
+  search: SearchApi | null;
+  onJump: (match: TranscriptSearchMatch) => void;
 }
 
 function Waveform({ player, peaks }: { player: PlayerApi; peaks: PeaksState }): JSX.Element {
@@ -245,7 +251,81 @@ function Scrubber({ player }: { player: PlayerApi }): JSX.Element {
   );
 }
 
-export function PlayerStrip({ player, peaks, hasMedia, onHighlight }: PlayerStripProps): JSX.Element {
+/**
+ * The transcript search in the player strip: live results with a count, Enter for the next match and
+ * Shift+Enter for the previous one, Esc clears. Without a transcript it says why it is off.
+ */
+function TranscriptSearchField({ search, onJump }: { search: SearchApi | null; onJump: (match: TranscriptSearchMatch) => void }): JSX.Element {
+  const step = (direction: 1 | -1): void => {
+    const match = search?.step(direction) ?? null;
+    if (match !== null) {
+      onJump(match);
+    }
+  };
+  const active = search !== null && search.query.trim() !== '';
+  return (
+    <div class="player-search" role="search">
+      <label class="sr" for="tx-search">
+        Search transcript
+      </label>
+      <SearchIcon size={16} class="player-search-icon" />
+      <input
+        id="tx-search"
+        class={active ? 'field player-search-field player-search-field--counted' : 'field player-search-field'}
+        type="search"
+        placeholder={search === null ? 'No transcript to search yet' : 'Search transcript'}
+        disabled={search === null}
+        value={search?.query ?? ''}
+        autocomplete="off"
+        aria-describedby={active ? 'tx-search-count' : undefined}
+        onInput={(event) => {
+          search?.setQuery(event.currentTarget.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            step(event.shiftKey ? -1 : 1);
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            search?.clear();
+          }
+        }}
+      />
+      {active ? (
+        <span class="player-search-tools">
+          <span id="tx-search-count" class="player-search-count" aria-live="polite">
+            {search.answered ? matchCountText(search.current, search.matches.length) : 'Searching…'}
+          </span>
+          <button
+            class="icon-btn player-search-step"
+            type="button"
+            aria-label="Previous match (Shift+Enter)"
+            disabled={search.matches.length === 0}
+            onClick={() => {
+              step(-1);
+            }}
+          >
+            <ChevronUpIcon size={14} />
+          </button>
+          <button
+            class="icon-btn player-search-step"
+            type="button"
+            aria-label="Next match (Enter)"
+            disabled={search.matches.length === 0}
+            onClick={() => {
+              step(1);
+            }}
+          >
+            <ChevronDownIcon size={14} />
+          </button>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump }: PlayerStripProps): JSX.Element {
   return (
     <div class="player">
       <Waveform player={player} peaks={peaks} />
@@ -297,13 +377,7 @@ export function PlayerStrip({ player, peaks, hasMedia, onHighlight }: PlayerStri
           />
         </div>
         <span class="player-spacer" />
-        <div class="player-search">
-          <label class="sr" for="tx-search">
-            Search transcript
-          </label>
-          <SearchIcon size={16} class="player-search-icon" />
-          <input id="tx-search" class="field player-search-field" type="search" placeholder="Search arrives with transcription" disabled />
-        </div>
+        <TranscriptSearchField search={search} onJump={onJump} />
         <button class="btn ghost spoke-ghost" type="button" onClick={onHighlight}>
           <FlagIcon size={16} />
           Highlight

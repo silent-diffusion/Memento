@@ -703,6 +703,512 @@
   font-size: 12px;
 }
 
+/* ------------------------------------------------------------------------------------------- */
+/* M2: the transcript (DESIGN.md §5.12, §9) and its states (§17).                                */
+/* ------------------------------------------------------------------------------------------- */
+
+.spoke-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.spoke-meta-pill {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.transcript-head-end {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.transcript-hint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tx-reviewed {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tx-loading {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.tx-transcribe {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: var(--accent-grad);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.tx-progress {
+  width: 100%;
+  max-width: 420px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in-xs);
+  overflow: hidden;
+}
+
+.tx-progress .bar {
+  flex: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* The failed-stage card (renders/ErrorStates.dc.html, "Processing card · a stage failed"). */
+.tx-failed {
+  margin: 4px 16px 12px;
+  padding: 18px 22px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.tx-failed-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.tx-failed-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.tx-failed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.tx-failed-body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.tx-failed-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tx-partial {
+  margin: 0;
+  padding: 4px 16px 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tx-running {
+  margin: 0 16px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--accent-text);
+}
+
+.tx-running-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+/* Segments: grid 132px | 1fr, 16 px gap, 12 x 16 padding (radius, hover and current in tokens.css). */
+.segm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.segm {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.segm:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.segm--editing,
+.segm--editing:hover {
+  cursor: default;
+  background: var(--surface);
+  box-shadow: var(--neo-in);
+}
+
+.segm-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.segm-speaker-root {
+  max-width: 100%;
+}
+
+.segm-speaker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+button.segm-speaker:hover .segm-speaker-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.segm-speaker:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.segm-speaker-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.segm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* An uncertain speaker assignment: a dotted ring around the dot. */
+.segm-dot--uncertain {
+  outline: 1.5px dotted var(--text-3);
+  outline-offset: 2px;
+}
+
+.segm-at {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.segm-edited {
+  font-size: 11px;
+  color: var(--text-3);
+  text-decoration: underline dotted var(--line-strong);
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+.segm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.segm-text {
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* Low-confidence words: 1.5 px dotted underline in text-3, 3 px offset. */
+.lowc {
+  text-decoration: underline dotted var(--text-3);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+/* Highlighted phrase and search matches: accent-soft, radius 3, 2 px horizontal padding. */
+.hl {
+  background: var(--accent-soft);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.hl-current {
+  color: var(--accent-text);
+  box-shadow: 0 0 0 1.5px var(--accent-text);
+}
+
+.segm-editor {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  margin: -6px -10px;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Notes attach under the text: a bg box with a 1 px line, 8 x 12 padding, note icon, author bold. */
+.segm-note {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.segm-note-icon {
+  margin-top: 3px;
+  flex: none;
+}
+
+.segm-note-by {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* The speaker menu. */
+.segm-menu {
+  left: 0;
+  right: auto;
+  top: calc(100% + 6px);
+  min-width: 230px;
+}
+
+.menu-label {
+  display: block;
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.menu-sep {
+  display: block;
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--line);
+}
+
+.segm-menu .menu-item {
+  padding-left: 8px;
+}
+
+.segm-menu .menu-item[aria-checked='true'] {
+  color: var(--text);
+}
+
+.segm-menu-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 6px 6px;
+}
+
+.segm-menu-input {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.segm-menu-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.segm-menu-btn {
+  height: 32px;
+}
+
+/* Group headings inside a menu (Reprocess › …). */
+.menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-group-label {
+  padding: 8px 12px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.popover--menu .menu-item--sub {
+  padding-left: 22px;
+}
+
+/* The player strip's live search. */
+.player-search-field--counted {
+  padding-right: 118px;
+}
+
+/* Esc clears; the count and arrows sit where the browser's clear button would. */
+.player-search-field--counted::-webkit-search-cancel-button {
+  display: none;
+}
+
+.player-search-tools {
+  position: absolute;
+  right: 6px;
+  top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.player-search-count {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.player-search-step {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 10px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+
+.player-search-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* People from the transcript. */
+.outline-sub {
+  padding: 10px 10px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.person .menu-root .popover {
+  right: -8px;
+  min-width: 200px;
+}
+
+.person-merge:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Transcript versions (Details tab). */
+.versions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  background: var(--surface);
+  flex-direction: row;
+}
+
+.version-card.cur {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.version-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.version-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.version-meta {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.version-restore {
+  height: 30px;
+  flex: none;
+}
+
 /* Small windows (DESIGN.md §9, §18): the panes stack. */
 @media (max-width: 1023px) {
   .review-panes {

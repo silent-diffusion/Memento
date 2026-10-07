@@ -22,7 +22,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     });
   };
 
-  const until = async (check: () => boolean, timeoutMs = 3000): Promise<void> => {
+  const until = async (check: () => boolean, timeoutMs = 8000): Promise<void> => {
     const started = Date.now();
     while (!check()) {
       if (Date.now() - started > timeoutMs) {
@@ -96,7 +96,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     document.body.innerHTML = '';
   });
 
-  it('shows the header meta, outline, the not-yet-transcribed state and the details facts', async () => {
+  it('shows the header meta, outline, the transcript and the details facts', async () => {
     await open();
     expect(container.querySelector('.spoke-title')?.textContent).toBe('Design review: library screen');
     expect(container.querySelector('.spoke-meta')?.textContent).toBe('Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · audio + video');
@@ -109,17 +109,34 @@ describe('Review and transcript (against the browser-preview host)', () => {
       '1:01:20Owners and next steps',
     ]);
     expect(container.textContent).toContain('Highlights · 3');
-    expect(container.textContent).toContain('Not transcribed yet');
-    expect(container.querySelector('.segm')).toBeNull();
-    expect(container.querySelector<HTMLInputElement>('#tx-search')?.disabled).toBe(true);
-    expect(container.querySelector<HTMLInputElement>('#tx-search')?.placeholder).toBe('Search arrives with transcription');
+    await until(() => container.querySelector('.segm') !== null);
+    expect(container.querySelector('.segm .segm-speaker-name')?.textContent).toBe('Sam Okafor');
+    expect(container.querySelector('.segm .segm-at')?.textContent).toBe('00:00:02');
+    expect(container.querySelector('.transcript-hint')?.textContent).toBe('Click a line to play it · double-click to edit');
+    expect(container.querySelector<HTMLInputElement>('#tx-search')?.disabled).toBe(false);
     // The preview host's peaks.json (a blob URL) is fetched and drawn as 160 bars.
     await until(() => container.querySelectorAll('.wave-bar').length === 160);
     const facts = [...container.querySelectorAll('.facts dt')].map((dt) => dt.textContent);
     expect(facts).toEqual(['Type', 'Recorded', 'Duration', 'Platform', 'Tracks', 'Purpose']);
     expect(container.querySelector('.fact-mono')?.textContent).toBe('1:10:02');
     expect(container.querySelector('.detail-caption')?.textContent).toBe('agenda.docx · parsed locally');
-    expect([...container.querySelectorAll('.person-share')].map((s) => s.textContent.trim())).toEqual(['—', '—', '—', '—']);
+    // People are the transcript's speakers with talk-time shares, then the participant they do not name.
+    const people = [...container.querySelectorAll('.person')].map((p) => [p.querySelector('.person-name')?.textContent, p.querySelector('.person-share')?.textContent.trim()]);
+    expect(people.map(([name]) => name)).toEqual(['Sam Okafor', 'Aiko Tanaka', 'Lena Fischer', 'Speaker 4', 'Jonah Berg']);
+    expect(people.slice(0, 4).every(([, share]) => /^\d+%$/.test(share ?? ''))).toBe(true);
+    expect(people[4]?.[1]).toBe('—');
+    expect(container.textContent).toContain('Also listed as participants');
+  });
+
+  it('says plainly when a recording has no transcript and starts one on request', async () => {
+    await open('20260909-143000-retro');
+    await until(() => container.textContent.includes('Not transcribed yet'));
+    expect(container.querySelector('.segm')).toBeNull();
+    expect(container.querySelector<HTMLInputElement>('#tx-search')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('#tx-search')?.placeholder).toBe('No transcript to search yet');
+    expect([...container.querySelectorAll('.person-share')].map((s) => s.textContent.trim())).toEqual(['—', '—', '—']);
+    await click(button('Transcribe now'));
+    await until(() => container.textContent.includes('Waiting to transcribe') || container.textContent.includes('Transcribing'));
   });
 
   it('adds a chapter at the playhead in time order', async () => {
@@ -160,7 +177,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await open();
     await click(button('34:00Dark theme scope'));
     expect(container.querySelector('.scrubber')?.getAttribute('aria-valuetext')).toBe('34:00 of 1:10:02');
-    expect(container.querySelector('.transcript-head')?.textContent).toBe('Dark theme scope');
+    expect(container.querySelector('.transcript-head .lbl')?.textContent).toBe('Dark theme scope');
 
     await click(button('Highlight'));
     await until(() => container.textContent.includes('Highlights · 4'));
@@ -188,7 +205,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
 
   it('switches Details, Documents and History with the arrow keys and colours history dots', async () => {
     await open('20260930-130500-onbrd');
-    const details = button('Details');
+    const details = container.querySelector<HTMLButtonElement>('#review-tab-details') ?? button('Details');
     details.focus();
     await press(details, 'ArrowRight');
     expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Documents');
@@ -198,7 +215,11 @@ describe('Review and transcript (against the browser-preview host)', () => {
     expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('History');
     const dots = [...container.querySelectorAll('.history-dot')].map((d) => d.className.replace('history-dot history-dot--', ''));
     expect(dots).toEqual(['ok', 'ok', 'failed']);
-    expect(button('Retry').disabled).toBe(true);
+    // Retry is live now: it queues the transcript stage again.
+    const retry = button('Retry: Transcription failed');
+    expect(retry.disabled).toBe(false);
+    await click(retry);
+    await until(() => !container.textContent.includes('Transcription failed') || container.textContent.includes('Transcribing'));
   });
 
   it('keeps Export and Create document real and says their features arrive later', async () => {
@@ -212,12 +233,15 @@ describe('Review and transcript (against the browser-preview host)', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('offers Reprocess as not yet available and deletes back to the Library', async () => {
+  it('offers Reprocess as a submenu and deletes back to the Library', async () => {
     await open();
+    await until(() => container.querySelector('.segm') !== null);
     await click(button('More actions'));
-    const reprocess = [...document.querySelectorAll('[role="menuitem"]')].find((m) => m.textContent.startsWith('Reprocess'));
-    expect(reprocess?.getAttribute('aria-disabled')).toBe('true');
-    expect(reprocess?.textContent).toBe('ReprocessAvailable in a later version');
+    const group = document.querySelector('[role="group"][aria-label="Reprocess"]');
+    expect([...(group?.querySelectorAll('[role="menuitem"]') ?? [])].map((m) => [m.textContent, m.getAttribute('aria-disabled')])).toEqual([
+      ['Transcribe again…', null],
+      ['Identify speakers again', null],
+    ]);
     const remove = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'Delete');
     if (remove === undefined) {
       throw new Error('no Delete');

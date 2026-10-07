@@ -69,49 +69,81 @@ export function summaryLine(count: number, totalDurationMs: number): string {
 export interface Pill {
   kind: StageStatus['state'];
   label: string;
+  /** The stage the pill stands for (a failed pill's Retry acts on it). */
+  stage: StageName;
 }
 
-const DONE_NAMES: Record<StageName, string> = {
+/**
+ * Pipeline stages the UI can name: the host's StageName, plus `topics`, which the M2 contract writes
+ * to History and which a later host may report as a stage of its own. Unknown names fall back to a
+ * capitalised form, so a newer host never breaks the row.
+ */
+export type PipelineStage = StageName | 'topics';
+
+const DONE_NAMES: Record<PipelineStage, string> = {
   stored: 'Stored',
   transcript: 'Transcript',
   speakers: 'Speakers',
+  topics: 'Topics',
   minutes: 'Minutes',
   optimize: 'Smaller files',
 };
 
-const ACTIVE_NAMES: Record<StageName, string> = {
+const ACTIVE_NAMES: Record<PipelineStage, string> = {
   stored: 'Storing',
   transcript: 'Transcribing',
   speakers: 'Speakers',
+  topics: 'Topics',
   minutes: 'Minutes',
   optimize: 'Making smaller',
 };
 
 /** The processing card's column names (DESIGN.md §4). */
-export const CARD_STAGE_NAMES: Record<StageName, string> = {
+export const CARD_STAGE_NAMES: Record<PipelineStage, string> = {
   stored: 'Stored',
   transcript: 'Transcribing',
   speakers: 'Speakers',
+  topics: 'Topics',
   minutes: 'Minutes',
   optimize: 'Smaller files',
 };
 
+function named(names: Record<PipelineStage, string>, stage: string): string {
+  return (names as Record<string, string | undefined>)[stage] ?? `${stage.charAt(0).toLocaleUpperCase()}${stage.slice(1)}`;
+}
+
+/** The processing card's column name for any stage the host reports. */
+export function cardStageName(stage: string): string {
+  return named(CARD_STAGE_NAMES, stage);
+}
+
+/** "Transcript", "Speakers": the stage's name in a done or queued pill, and in "… failed". */
+export function stageName(stage: string): string {
+  return named(DONE_NAMES, stage);
+}
+
 /** Stages that only keep the audio safe or small: a finished one is the normal state, not news. */
-const HOUSEKEEPING: ReadonlySet<StageName> = new Set<StageName>(['stored', 'optimize']);
+const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'optimize']);
 
 function pillFor(stage: StageStatus): Pill {
+  const base = { stage: stage.stage };
   switch (stage.state) {
     case 'done':
-      return { kind: 'done', label: DONE_NAMES[stage.stage] };
+      return { ...base, kind: 'done', label: named(DONE_NAMES, stage.stage) };
     case 'active':
+      // A stage waiting for a busy PC is not running; it reads as waiting, with its reason in the card.
+      if (stage.label !== null && /^paused\b/i.test(stage.label)) {
+        return { ...base, kind: 'queued', label: `${named(DONE_NAMES, stage.stage)} paused` };
+      }
       return {
+        ...base,
         kind: 'active',
-        label: stage.percent === null ? ACTIVE_NAMES[stage.stage] : `${ACTIVE_NAMES[stage.stage]} ${Math.round(stage.percent)}%`,
+        label: stage.percent === null ? named(ACTIVE_NAMES, stage.stage) : `${named(ACTIVE_NAMES, stage.stage)} ${Math.round(stage.percent)}%`,
       };
     case 'queued':
-      return { kind: 'queued', label: DONE_NAMES[stage.stage] };
+      return { ...base, kind: 'queued', label: named(DONE_NAMES, stage.stage) };
     case 'failed':
-      return { kind: 'failed', label: `${DONE_NAMES[stage.stage]} failed · Retry` };
+      return { ...base, kind: 'failed', label: `${named(DONE_NAMES, stage.stage)} failed · Retry` };
   }
 }
 
@@ -126,6 +158,11 @@ export function stagePills(stages: readonly StageStatus[]): Pill[] {
   const rest = stages
     .filter((s) => s.state !== 'failed' && (!HOUSEKEEPING.has(s.stage) || s.state !== 'done' || anyFailed))
     .map(pillFor);
+  // A row's stages leave a finished Stored out (BRIDGE.md, Stages); beside a failure it is put back,
+  // because "the recording itself is safe" is the point (DESIGN.md §17).
+  if (anyFailed && !stages.some((s) => s.stage === 'stored')) {
+    rest.unshift({ kind: 'done', label: named(DONE_NAMES, 'stored'), stage: 'stored' });
+  }
   return [...failed, ...rest];
 }
 

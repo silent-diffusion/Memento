@@ -196,6 +196,35 @@ export interface MenuAction {
   /** Listed but not offered yet; `note` says why ("Available in a later version"). */
   disabled?: boolean;
   note?: string;
+  /**
+   * A small submenu: the label becomes a group heading and these items follow it, indented, in
+   * the same menu (so arrow keys reach them directly). `run` of the parent is not used.
+   */
+  children?: readonly MenuAction[];
+}
+
+function MenuItemButton({ action, sub, close }: { action: MenuAction; sub: boolean; close: () => void }): JSX.Element {
+  const classes = ['item', 'menu-item', action.note === undefined ? '' : 'menu-item--noted', sub ? 'menu-item--sub' : ''].filter((c) => c !== '').join(' ');
+  return (
+    <button
+      class={classes}
+      type="button"
+      role="menuitem"
+      tabIndex={-1}
+      aria-disabled={action.disabled === true ? true : undefined}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (action.disabled === true) {
+          return;
+        }
+        close();
+        action.run();
+      }}
+    >
+      <span class="menu-item-label">{action.label}</span>
+      {action.note === undefined ? null : <span class="menu-item-note">{action.note}</span>}
+    </button>
+  );
 }
 
 interface ActionMenuProps {
@@ -246,27 +275,34 @@ export function ActionMenu({ label, triggerClass, children, actions }: ActionMen
             popKeyDown(event, pop.popRef.current, '[role="menuitem"]', pop.close);
           }}
         >
-          {actions.map((action) => (
-            <button
-              key={action.label}
-              class={action.note === undefined ? 'item menu-item' : 'item menu-item menu-item--noted'}
-              type="button"
-              role="menuitem"
-              tabIndex={-1}
-              aria-disabled={action.disabled === true ? true : undefined}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (action.disabled === true) {
-                  return;
-                }
-                pop.close(true);
-                action.run();
-              }}
-            >
-              <span class="menu-item-label">{action.label}</span>
-              {action.note === undefined ? null : <span class="menu-item-note">{action.note}</span>}
-            </button>
-          ))}
+          {actions.map((action) =>
+            action.children === undefined ? (
+              <MenuItemButton
+                key={action.label}
+                action={action}
+                sub={false}
+                close={() => {
+                  pop.close(true);
+                }}
+              />
+            ) : (
+              <div key={action.label} class="menu-group" role="group" aria-label={action.label}>
+                <span class="menu-group-label" aria-hidden="true">
+                  {action.label}
+                </span>
+                {action.children.map((child) => (
+                  <MenuItemButton
+                    key={child.label}
+                    action={child}
+                    sub
+                    close={() => {
+                      pop.close(true);
+                    }}
+                  />
+                ))}
+              </div>
+            ),
+          )}
         </div>
       ) : null}
     </div>

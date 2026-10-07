@@ -7,6 +7,7 @@ import { goToLibrary } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { SETTINGS_SECTIONS, type SettingsSection } from '../../state/router';
 import { GeneralSection, RecordingSection, StorageSection } from './sections';
+import { DocumentsSection, SpeakersSection, TranscriptionSection } from './TranscriptionSections';
 import { LaterCard } from './SettingsParts';
 
 interface SectionInfo {
@@ -19,14 +20,14 @@ interface SectionInfo {
 export const SECTIONS: Record<SettingsSection, SectionInfo> = {
   general: { label: 'General', blurb: 'Appearance, startup and where your library lives.', Body: GeneralSection },
   recording: { label: 'Recording', blurb: 'What a new recording captures and how it is kept safe.', Body: RecordingSection },
-  transcription: { label: 'Transcription', blurb: 'Runs on this PC. Nothing is uploaded.', Body: LaterCard },
-  speakers: { label: 'Speakers', blurb: 'Who said what, worked out locally.', Body: LaterCard },
+  transcription: { label: 'Transcription', blurb: 'Runs on this PC. Nothing is uploaded.', Body: TranscriptionSection },
+  speakers: { label: 'Speakers', blurb: 'Who said what, worked out locally.', Body: SpeakersSection },
   'ai-privacy': {
     label: 'AI and privacy',
     blurb: 'Optional. Memento records, transcribes and exports without any of this.',
     Body: LaterCard,
   },
-  documents: { label: 'Documents', blurb: 'Templates, styles and version history for generated documents.', Body: LaterCard },
+  documents: { label: 'Documents', blurb: 'Templates, styles and version history for transcripts and documents.', Body: DocumentsSection },
   export: { label: 'Export', blurb: 'Copies saved outside Memento. The project inside Memento stays the original.', Body: LaterCard },
   storage: { label: 'Storage and history', blurb: 'How much space the library uses and how to get some back.', Body: StorageSection },
 };

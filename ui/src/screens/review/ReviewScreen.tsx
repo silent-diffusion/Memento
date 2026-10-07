@@ -1,11 +1,11 @@
 // Review and transcript (DESIGN.md §9), transcribed from renders/Review.dc.html: outline, player and
-// transcript, details. Transcription arrives in M2, so the transcript area says so plainly and the
-// audio, chapters, highlights, topics, people and details all work now.
+// transcript, details. The transcript comes from transcript.get and follows the playhead; speakers,
+// topics, history and transcript versions come with it (M2).
 import type { JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Project, RecordingDetails } from '../../bridge/types';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { Project, RecordingDetails, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
 import { DetailsSheet } from '../../components/DetailsSheet';
-import { DocumentPlusIcon, MoreIcon, TranscriptLinesIcon } from '../../components/icons';
+import { CheckIcon, DocumentPlusIcon, MoreIcon } from '../../components/icons';
 import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
 import { formatDuration } from '../../format/duration';
@@ -17,6 +17,8 @@ import { useServices } from '../../state/context';
 import { createDetailsSaver, type DetailsSaver } from '../../state/detailsSaver';
 import { PlayerStrip, usePeaks, usePlayer } from './Player';
 import { DetailsPane, OutlinePane, type DetailsTab } from './ReviewPanes';
+import { TranscriptPane } from './TranscriptPane';
+import { useTranscript, useTranscriptSearch } from './useTranscript';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -40,13 +42,13 @@ export function reviewMeta(project: Project, now: Date): string {
 const EXPORT_NOTICE = {
   kind: 'notice' as const,
   title: 'Export arrives in a later version',
-  body: 'Copies of the audio, the separate tracks and the details will be written to a folder you choose. Until then the recording stays complete and safe inside Memento on this PC.',
+  body: 'Copies of the audio, the separate tracks, the transcript and the details will be written to a folder you choose. Until then the recording stays complete and safe inside Memento on this PC.',
 };
 
 const DOCUMENT_NOTICE = {
   kind: 'notice' as const,
   title: 'Documents arrive in a later version',
-  body: 'Minutes, summaries and other documents are built from the transcript, and transcription arrives in a later version. The recording is complete and ready for it.',
+  body: 'Minutes, summaries and other documents are built from the transcript in a later version of Memento. The transcript is ready for them.',
 };
 
 export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Element {
@@ -58,6 +60,8 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
   const [tab, setTab] = useState<DetailsTab>('details');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reload, setReload] = useState(0);
+  const [versions, setVersions] = useState<TranscriptVersion[] | null>(null);
+  const revealRef = useRef<((segmentId: string) => void) | null>(null);
 
   // Read the project, and again whenever the host says it changed (finalize, rename, details).
   useEffect(() => {
@@ -90,6 +94,47 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
     [bridge, recordingId],
   );
 
+  const transcriptApi = useTranscript(bridge, recordingId, project?.summary.stages ?? null);
+  const transcript = transcriptApi.result?.transcript ?? null;
+  const search = useTranscriptSearch(bridge, recordingId, transcript?.version ?? null);
+  const historySettings = store.settings.value?.history ?? null;
+
+  // Transcript versions for the Details tab, while version history is on.
+  useEffect(() => {
+    if (historySettings?.keepVersions !== true || transcript === null) {
+      setVersions(null);
+      return undefined;
+    }
+    let live = true;
+    bridge
+      .call('transcript.versions', { recordingId })
+      .then(({ versions: list }) => {
+        if (live) {
+          setVersions(list);
+        }
+      })
+      .catch((e: unknown) => {
+        console.warn('[review] transcript.versions failed', e);
+        if (live) {
+          setVersions([]);
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [bridge, recordingId, transcript?.version, historySettings?.keepVersions, transcript === null]);
+
+  // Speaker renames and new passes change the history; the project read brings it.
+  useEffect(
+    () =>
+      bridge.on('transcript.changed', (payload) => {
+        if (payload.recordingId === recordingId) {
+          setReload((n) => n + 1);
+        }
+      }),
+    [bridge, recordingId],
+  );
+
   const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0);
   const peaks = usePeaks(project?.peaksUrl ?? null);
   // One saver for the sheet, created with the first project read; Edit details re-adopts the latest.
@@ -105,8 +150,16 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
     [],
   );
 
+  const warn = (title: string, message: string): void => {
+    store.toasts.show({ tone: 'warning', title, body: `${message} Nothing else changed.` });
+  };
   const fail = (title: string) => (e: unknown): void => {
-    store.toasts.show({ tone: 'warning', title, body: `${messageOf(e, 'Memento did not answer.')} Nothing else changed.` });
+    warn(title, messageOf(e, 'Memento did not answer.'));
+  };
+  const report = (title: string) => (message: string | null): void => {
+    if (message !== null) {
+      warn(title, message);
+    }
   };
 
   const patch = (changes: Partial<Project>): void => {
@@ -131,12 +184,25 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
       .catch(fail('The highlight was not added'));
   };
 
+  const jump = (match: TranscriptSearchMatch): void => {
+    player.seek(match.start * 1000);
+    revealRef.current?.(match.segmentId);
+  };
+
   const title = project?.summary.title ?? known?.title ?? 'Recording';
   const now = services.now();
   const meta = project === null ? undefined : reviewMeta(project, now);
   const inProgress = project !== null && (project.summary.state === 'recording' || project.summary.state === 'finalizing');
   const chapterIndex = project === null ? -1 : activeChapterIndex(project.chapters, player.positionMs);
   const chapterName = project?.chapters[chapterIndex]?.title ?? 'Transcript';
+  const speakersIdentified = transcript !== null && transcript.speakers.length > 0;
+  const currentVersion = useMemo(
+    () =>
+      transcript === null
+        ? null
+        : { version: transcript.version, engine: `${transcript.engine.model} · ${transcript.engine.device}`, segments: transcript.segments.length },
+    [transcript],
+  );
 
   return (
     <>
@@ -147,6 +213,14 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
         }}
         title={title}
         {...(meta === undefined ? {} : { meta })}
+        metaExtra={
+          transcript?.reviewed === true ? (
+            <span class="pill done spoke-meta-pill">
+              <CheckIcon size={11} />
+              Reviewed
+            </span>
+          ) : null
+        }
         actions={
           <>
             <button
@@ -184,7 +258,28 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
                     store.dialog.value = { kind: 'changeType', recordingId, title, type: project?.details.type ?? known?.type ?? 'meeting' };
                   },
                 },
-                { label: 'Reprocess', run: () => undefined, disabled: true, note: 'Available in a later version' },
+                {
+                  label: 'Reprocess',
+                  run: () => undefined,
+                  children: [
+                    {
+                      label: 'Transcribe again…',
+                      disabled: inProgress || project === null,
+                      ...(inProgress ? { note: 'Once the recording is stored' } : {}),
+                      run: () => {
+                        store.dialog.value = { kind: 'retranscribe', recordingId, title, hasTranscript: transcript !== null };
+                      },
+                    },
+                    {
+                      label: 'Identify speakers again',
+                      disabled: transcript === null,
+                      ...(transcript === null ? { note: 'Needs a transcript first' } : {}),
+                      run: () => {
+                        void transcriptApi.retry('speakers').then(report('Speakers were not identified again'));
+                      },
+                    },
+                  ],
+                },
                 {
                   label: 'Delete',
                   run: () => {
@@ -220,6 +315,7 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
             project={project}
             positionMs={player.positionMs}
             onSeek={player.seek}
+            speakers={speakersIdentified ? transcript.speakers : null}
             onAddChapter={(atMs, chapterTitle) => {
               bridge
                 .call('annotations.addChapter', { recordingId, chapter: { atMs, title: chapterTitle } })
@@ -248,45 +344,40 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
               const participants = project.details.participants.map((p, i) => (i === index ? name : p));
               updateDetails({ participants }, 'The name was not changed');
             }}
+            onRenameSpeaker={(speaker, name) => {
+              void transcriptApi.renameSpeaker(speaker.id, name).then(report(`${speaker.name} was not renamed`));
+            }}
+            onMergeSpeakers={(from, into) => {
+              void transcriptApi.mergeSpeakers(from.id, into.id).then(report(`${from.name} was not merged into ${into.name}`));
+            }}
           />
 
           <section class="review-centre" aria-label="Player and transcript">
-            <PlayerStrip player={player} peaks={peaks} hasMedia={project.mixUrl !== null} onHighlight={addHighlight} />
-            <div class="transcript">
-              <div class="transcript-head">
-                <span class="lbl">{chapterName}</span>
-              </div>
-              {inProgress ? (
-                <div class="tx-empty">
-                  <span class="tx-empty-tile" aria-hidden="true">
-                    <TranscriptLinesIcon size={20} />
-                  </span>
-                  <h2 class="tx-empty-title">This recording is still in progress</h2>
-                  <p class="tx-empty-text">It opens here once it has stopped and its tracks are stored on this PC.</p>
-                  <button
-                    class="btn ghost spoke-ghost"
-                    type="button"
-                    onClick={() => {
-                      openRecord(services);
-                    }}
-                  >
-                    Back to the recording
-                  </button>
-                </div>
-              ) : (
-                <div class="tx-empty">
-                  <span class="tx-empty-tile" aria-hidden="true">
-                    <TranscriptLinesIcon size={20} />
-                  </span>
-                  <h2 class="tx-empty-title">Not transcribed yet</h2>
-                  <p class="tx-empty-text">
-                    Transcription arrives in a later version of Memento. The audio is complete:{' '}
-                    {project.tracks.length} {project.tracks.length === 1 ? 'track' : 'tracks'}, {formatDuration(project.summary.durationMs)}, stored on
-                    this PC. You can listen, add chapters and highlights now; the transcript will line up with them later.
-                  </p>
-                </div>
-              )}
-            </div>
+            <PlayerStrip
+              player={player}
+              peaks={peaks}
+              hasMedia={project.mixUrl !== null}
+              onHighlight={addHighlight}
+              search={transcript !== null && transcript.segments.length > 0 ? search : null}
+              onJump={jump}
+            />
+            <TranscriptPane
+              project={project}
+              api={transcriptApi}
+              search={search}
+              player={player}
+              chapterName={chapterName}
+              inProgress={inProgress}
+              revealRef={revealRef}
+              onBackToRecording={() => {
+                openRecord(services);
+              }}
+              onShowHistory={() => {
+                setTab('history');
+                document.getElementById('review-tab-history')?.focus();
+              }}
+              onError={warn}
+            />
           </section>
 
           <DetailsPane
@@ -294,6 +385,15 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
             tab={tab}
             onTab={setTab}
             now={now}
+            history={historySettings}
+            versions={versions}
+            currentVersion={currentVersion}
+            onRestore={(version, when) => {
+              store.dialog.value = { kind: 'restoreVersion', recordingId, version, when };
+            }}
+            onRetry={(stage) => {
+              void transcriptApi.retry(stage).then(report('The stage was not retried'));
+            }}
             onEditDetails={() => {
               saver?.adopt(recordingId, project.details);
               setSheetOpen(true);

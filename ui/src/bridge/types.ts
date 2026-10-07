@@ -56,6 +56,16 @@ export const ERROR_CODES = [
   'recording.noSession',
   'recording.diskFull',
   'recording.alreadyActive',
+  // M2
+  'transcript.none',
+  'transcript.segmentNotFound',
+  'transcript.speakerNotFound',
+  'transcript.versionNotFound',
+  'models.notFound',
+  'models.inUse',
+  'models.downloadFailed',
+  'models.noSpace',
+  'engine.unavailable',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -121,6 +131,12 @@ export interface RecordingSummary {
   state: RecordingLifecycle;
   /** Size of the project folder on disk, kept in the index. */
   sizeBytes: number;
+  /**
+   * M2: for a library.list `query` that matched transcript text, a short plain-text excerpt around
+   * the match; null for title and people matches and when there is no query. The UI bolds the
+   * query words itself.
+   */
+  matchSnippet: string | null;
 }
 
 export type AudioSourceKind = 'microphone' | 'system' | 'application';
@@ -206,8 +222,8 @@ export interface Topic {
   origin: AnnotationOrigin;
 }
 
-/** Values the host writes (BRIDGE.md, History): stored and optimize in M1, the other stages from M2. */
-export type HistoryStage = StageName | 'recorded' | 'recovered' | 'edited';
+/** Values the host writes (BRIDGE.md, History): stored and optimize in M1; transcript, speakers and topics from M2. */
+export type HistoryStage = StageName | 'topics' | 'recorded' | 'recovered' | 'edited';
 
 export type HistoryEvent = 'started' | 'completed' | 'failed' | 'info';
 
@@ -240,6 +256,265 @@ export interface Project {
   history: HistoryEntry[];
   integrity: ProjectIntegrity;
   sizeBytes: number;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Transcripts, speakers and models (M2)
+// ---------------------------------------------------------------------------------------------
+
+/** One word with its timing in seconds and the engine's confidence 0..1. */
+export interface TranscriptWord {
+  w: string;
+  s: number;
+  e: number;
+  c: number;
+}
+
+export interface SegmentEdit {
+  /** ISO 8601 with offset: the first edit. */
+  at: string;
+  /** The engine's text before the first edit; later edits keep it. */
+  original: string;
+}
+
+export interface TranscriptSegment {
+  id: string;
+  /** Seconds from the start of the recording. */
+  start: number;
+  end: number;
+  /** Track id the words came from. */
+  track: string | null;
+  /** Speaker id; null when speakers were not identified. */
+  speaker: string | null;
+  speakerConfidence: number | null;
+  text: string;
+  /** The lowest word confidence. */
+  confidence: number;
+  /** [] when word timestamps are off. */
+  words: TranscriptWord[];
+  edited: SegmentEdit | null;
+}
+
+/** Speaker colours sp1..sp4, assigned in order of first appearance and cycled (DESIGN.md §2.1). */
+export type SpeakerColour = 1 | 2 | 3 | 4;
+
+export interface Speaker {
+  id: string;
+  name: string;
+  /** Named by the user rather than "Speaker 2". */
+  renamed: boolean;
+  color: SpeakerColour;
+  talkTimeMs: number;
+}
+
+export interface TranscriptEngine {
+  name: string;
+  model: string;
+  device: string;
+  version: string;
+  durationMs: number;
+}
+
+export interface Transcript {
+  schemaVersion: 1;
+  /** BCP-47 primary subtag. */
+  language: string;
+  languageDetected: boolean;
+  engine: TranscriptEngine;
+  speakers: Speaker[];
+  segments: TranscriptSegment[];
+  reviewed: boolean;
+  /** Increments on every write. */
+  version: number;
+  /** From Settings when the transcript was made; words below it are marked. */
+  lowConfidenceThreshold: number;
+}
+
+export type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
+
+export interface StageRemedy {
+  /** Passed back as processing.retry's remedyId ("cpu", "model:medium"). */
+  id: string;
+  label: string;
+}
+
+/** DESIGN.md §17 copy for a failed stage: what failed, what was kept, the most specific fix first. */
+export interface StageFailure {
+  stage: StageName;
+  message: string;
+  kept: string;
+  remedies: StageRemedy[];
+}
+
+export type ModelEngine = 'transcription' | 'speakers' | 'ocr';
+
+export interface ModelInstalling {
+  percent: number;
+  bytesDone: number;
+}
+
+export interface ModelInfo {
+  id: string;
+  engine: ModelEngine;
+  name: string;
+  description: string;
+  sizeBytes: number;
+  license: string;
+  installed: boolean;
+  /** Set while a download runs. */
+  installing: ModelInstalling | null;
+  recommended: boolean;
+  runsOn: 'gpu' | 'cpu' | 'either';
+  minVramBytes: number | null;
+  /** "Most accurate", "Fast on CPU". */
+  accuracyNote: string;
+}
+
+export interface EngineStatusDetail {
+  ready: boolean;
+  /** "GPU" or "CPU"; null when nothing can run. */
+  device: string | null;
+  gpuName: string | null;
+  /** Null on CPU-only machines. */
+  freeVramBytes: number | null;
+  /** The model id in use. */
+  model: string | null;
+  /** Why processing is paused, in words ("PC is busy"), or null. */
+  paused: string | null;
+}
+
+export interface TranscriptGetResult {
+  /** Null until the first pass completes; a failed pass may still return a partial transcript. */
+  transcript: Transcript | null;
+  status: TranscriptStatus;
+  failure: StageFailure | null;
+}
+
+export interface TranscriptEditSegmentParams {
+  recordingId: string;
+  segmentId: string;
+  text: string;
+}
+
+export interface TranscriptEditSegmentResult {
+  segment: TranscriptSegment;
+  version: number;
+}
+
+export interface TranscriptSetSegmentSpeakerParams {
+  recordingId: string;
+  segmentId: string;
+  /** Null clears the assignment. Ignored when `newSpeakerName` is given. */
+  speakerId: string | null;
+  /** Creates a speaker with this name and assigns it. */
+  newSpeakerName?: string;
+}
+
+export interface TranscriptSetSegmentSpeakerResult {
+  segment: TranscriptSegment;
+  speakers: Speaker[];
+}
+
+export interface TranscriptRenameSpeakerParams {
+  recordingId: string;
+  speakerId: string;
+  name: string;
+}
+
+export interface SpeakersResult {
+  speakers: Speaker[];
+}
+
+export interface TranscriptMergeSpeakersParams {
+  recordingId: string;
+  fromSpeakerId: string;
+  intoSpeakerId: string;
+}
+
+export interface TranscriptMergeSpeakersResult {
+  speakers: Speaker[];
+  segmentsChanged: number;
+}
+
+export interface TranscriptMarkReviewedParams {
+  recordingId: string;
+  reviewed: boolean;
+}
+
+export interface TranscriptMarkReviewedResult {
+  reviewed: boolean;
+}
+
+export interface TranscriptSearchParams {
+  recordingId: string;
+  query: string;
+}
+
+export interface TranscriptSearchMatch {
+  segmentId: string;
+  /** Seconds. */
+  start: number;
+  /** Plain text around the match; the UI bolds the query words. */
+  snippet: string;
+}
+
+export interface TranscriptSearchResult {
+  matches: TranscriptSearchMatch[];
+}
+
+export interface TranscriptRetranscribeParams {
+  recordingId: string;
+  modelId?: string;
+  language?: string;
+}
+
+export type TranscriptVersionReason = 'transcribed' | 'edited' | 'restored' | 'retranscribed';
+
+export interface TranscriptVersion {
+  id: string;
+  at: string;
+  reason: TranscriptVersionReason;
+  engine: string | null;
+  segments: number;
+}
+
+export interface TranscriptVersionsResult {
+  /** Empty when version history is off. */
+  versions: TranscriptVersion[];
+}
+
+export interface TranscriptRestoreVersionParams {
+  recordingId: string;
+  versionId: string;
+}
+
+export interface TranscriptRestoreVersionResult {
+  transcript: Transcript;
+}
+
+export interface ProcessingRetryParams {
+  recordingId: string;
+  stage: StageName;
+  /** From StageFailure.remedies ("cpu", "model:small"). */
+  remedyId?: string;
+}
+
+export interface ProcessingStageParams {
+  recordingId: string;
+  stage: StageName;
+}
+
+export interface ModelsListResult {
+  models: ModelInfo[];
+}
+
+export interface ModelIdParams {
+  modelId: string;
+}
+
+export interface EngineStatusResult {
+  transcription: EngineStatusDetail;
+  speakers: EngineStatusDetail;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -288,12 +563,52 @@ export interface RecordingSettings {
   lowSpaceGb: number;
 }
 
+export type TranscriptionTiming = 'after' | 'during';
+
+/** M2 (BRIDGE.md, Settings snapshot M2 additions). */
+export interface TranscriptionSettings {
+  /** Transcribe automatically after recording (true). */
+  auto: boolean;
+  /** 'during' adds the live draft; the authoritative pass still runs after. */
+  timing: TranscriptionTiming;
+  /** true */
+  pauseWhenBusy: boolean;
+  /** Default: the recommended model that fits the hardware. */
+  modelId: string;
+  /** Default: small. */
+  cpuFallbackModelId: string;
+  /** 'auto' or a BCP-47 primary subtag. */
+  language: string;
+  /** true */
+  keepWordTimestamps: boolean;
+  /** 0.5 */
+  lowConfidenceThreshold: number;
+}
+
+export interface SpeakerSettings {
+  identify: boolean;
+  expectedSpeakers: 'auto' | number;
+  rememberRenamed: boolean;
+  embeddingModelId: string;
+}
+
+export interface HistorySettings {
+  /** true */
+  keepVersions: boolean;
+  /** 90 */
+  keepDays: number;
+}
+
 export interface SettingsSnapshot {
   theme: ThemePreference;
   /** The library folder in effect. */
   libraryPath: string;
   listDensity: ListDensity;
   recording: RecordingSettings;
+  /** M2 */
+  transcription: TranscriptionSettings;
+  speakers: SpeakerSettings;
+  history: HistorySettings;
 }
 
 /**
@@ -307,6 +622,10 @@ export interface SettingsSetParams {
   libraryPath?: string | null;
   listDensity?: ListDensity | null;
   recording?: RecordingSettings | null;
+  /** M2: like `recording`, each block is replaced whole and the UI sends it whole. */
+  transcription?: TranscriptionSettings | null;
+  speakers?: SpeakerSettings | null;
+  history?: HistorySettings | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -522,6 +841,8 @@ export interface EngineStatus {
   ready: boolean;
   /** GPU or CPU; null when no engine is ready. */
   device: string | null;
+  /** M2: the transcription engine's probe result, for the footer's left side. */
+  detail: EngineStatusDetail;
 }
 
 export interface StorageStatus {
@@ -592,6 +913,38 @@ export interface ProcessingProgressPayload {
   stages: StageStatus[];
 }
 
+export type TranscriptChangeReason = 'transcribed' | 'edited' | 'speakers' | 'restored' | 'topics';
+
+export interface TranscriptChangedPayload {
+  recordingId: string;
+  version: number;
+  reason: TranscriptChangeReason;
+}
+
+export type ModelProgressState = 'downloading' | 'verifying' | 'done' | 'failed';
+
+export interface ModelsProgressPayload {
+  modelId: string;
+  percent: number;
+  bytesDone: number;
+  bytesTotal: number;
+  state: ModelProgressState;
+  message: string | null;
+}
+
+/** A rough draft segment, seconds from the start of the session. */
+export interface LiveTranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface RecordingLiveTranscriptPayload {
+  sessionId: string;
+  /** The draft so far; each event replaces the last, and the full pass replaces it entirely. */
+  segments: LiveTranscriptSegment[];
+}
+
 export interface StorageLowSpacePayload {
   freeBytes: number;
   thresholdBytes: number;
@@ -637,6 +990,25 @@ export interface BridgeMethods {
   'recovery.acknowledge': { params: RecordingIdParams; result: EmptyResult };
   'dialog.pickFolder': { params: PickFolderParams; result: PickFolderResult };
   'status.get': { params: EmptyParams; result: FooterStatusPayload };
+  'transcript.get': { params: RecordingIdParams; result: TranscriptGetResult };
+  'transcript.editSegment': { params: TranscriptEditSegmentParams; result: TranscriptEditSegmentResult };
+  'transcript.setSegmentSpeaker': { params: TranscriptSetSegmentSpeakerParams; result: TranscriptSetSegmentSpeakerResult };
+  'transcript.renameSpeaker': { params: TranscriptRenameSpeakerParams; result: SpeakersResult };
+  'transcript.mergeSpeakers': { params: TranscriptMergeSpeakersParams; result: TranscriptMergeSpeakersResult };
+  'transcript.markReviewed': { params: TranscriptMarkReviewedParams; result: TranscriptMarkReviewedResult };
+  'transcript.search': { params: TranscriptSearchParams; result: TranscriptSearchResult };
+  'transcript.retranscribe': { params: TranscriptRetranscribeParams; result: EmptyResult };
+  'transcript.versions': { params: RecordingIdParams; result: TranscriptVersionsResult };
+  'transcript.restoreVersion': { params: TranscriptRestoreVersionParams; result: TranscriptRestoreVersionResult };
+  'processing.retry': { params: ProcessingRetryParams; result: EmptyResult };
+  'processing.cancel': { params: ProcessingStageParams; result: EmptyResult };
+  'processing.pause': { params: EmptyParams; result: EmptyResult };
+  'processing.resume': { params: EmptyParams; result: EmptyResult };
+  'models.list': { params: EmptyParams; result: ModelsListResult };
+  'models.install': { params: ModelIdParams; result: EmptyResult };
+  'models.cancelInstall': { params: ModelIdParams; result: EmptyResult };
+  'models.remove': { params: ModelIdParams; result: EmptyResult };
+  'engine.status': { params: EmptyParams; result: EngineStatusResult };
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -650,6 +1022,9 @@ export interface BridgeEvents {
   'library.changed': LibraryChangedPayload;
   'processing.progress': ProcessingProgressPayload;
   'storage.lowSpace': StorageLowSpacePayload;
+  'transcript.changed': TranscriptChangedPayload;
+  'models.progress': ModelsProgressPayload;
+  'recording.liveTranscript': RecordingLiveTranscriptPayload;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -691,6 +1066,25 @@ export const METHOD_NAMES = [
   'recovery.acknowledge',
   'dialog.pickFolder',
   'status.get',
+  'transcript.get',
+  'transcript.editSegment',
+  'transcript.setSegmentSpeaker',
+  'transcript.renameSpeaker',
+  'transcript.mergeSpeakers',
+  'transcript.markReviewed',
+  'transcript.search',
+  'transcript.retranscribe',
+  'transcript.versions',
+  'transcript.restoreVersion',
+  'processing.retry',
+  'processing.cancel',
+  'processing.pause',
+  'processing.resume',
+  'models.list',
+  'models.install',
+  'models.cancelInstall',
+  'models.remove',
+  'engine.status',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -703,4 +1097,7 @@ export const EVENT_NAMES = [
   'library.changed',
   'processing.progress',
   'storage.lowSpace',
+  'transcript.changed',
+  'models.progress',
+  'recording.liveTranscript',
 ] as const satisfies readonly EventName[];

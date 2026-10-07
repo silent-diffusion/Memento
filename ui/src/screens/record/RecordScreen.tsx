@@ -473,7 +473,13 @@ export function RecordScreen(): JSX.Element {
           </section>
 
           <section class="rec-side" aria-label="Live transcript and agenda">
-            <LiveTranscriptCard engine={store.footer.value?.engine ?? null} />
+            <LiveTranscriptCard
+              engine={store.footer.value?.engine ?? null}
+              segments={own !== null && store.liveTranscript.value?.sessionId === own.sessionId ? store.liveTranscript.value.segments : null}
+              timing={store.settings.value?.transcription.timing ?? null}
+              phase={phase}
+              elapsedMs={own?.elapsedMs ?? 0}
+            />
             <AgendaCard
               details={details}
               onToggle={toggleAgenda}

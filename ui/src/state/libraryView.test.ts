@@ -23,6 +23,7 @@ const rec = (id: string, createdAt: Date, extra: Partial<RecordingSummary> = {})
   isProcessing: false,
   state: 'ready',
   sizeBytes: 0,
+  matchSnippet: null,
   ...extra,
 });
 
