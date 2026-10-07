@@ -498,9 +498,10 @@ public sealed partial class TranscriptStage(
                         if (reply.WindowsDone is { } windowsDone)
                         {
                             Tracks[trackId] = track with { WindowsDone = Math.Max(track.WindowsDone, windowsDone) };
+                            return true;
                         }
 
-                        return true;
+                        return reply.Segments is { Count: > 0 };
                     }
 
                     return false;

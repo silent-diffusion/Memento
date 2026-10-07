@@ -33,6 +33,7 @@ public static partial class TopicExtractor
         we've well went were weren't what what's whatever when where where's whether which while who who's whole whom whose why will
         with within without won't work would wouldn't yeah yes yet you you'd you'll you're you've your yours yourself yourselves
         actually basically literally probably definitely course anyway hmm mm mhm hey hi hello bye alright gonna wanna kinda guess
+        pretty ago quite rather soon already around maybe enough else instead anyone stuff bit lot okay sorry please oh
         """.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries),
         StringComparer.Ordinal);
 

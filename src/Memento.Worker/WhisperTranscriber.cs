@@ -79,16 +79,30 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
         var (factory, device) = LoadFactory(job);
         using var factoryScope = factory;
         output.Send(new WorkerReply { Type = WorkerMessageTypes.Device, Device = device });
+        // Within a window the engine reports its own percentage; it is passed on (throttled) so a short recording
+        // in a single window still shows progress.
+        double done = 0;
+        var windowLength = 0.0;
+        var lastSent = -1.0;
+        string? currentTrack = null;
         var builder = factory.CreateBuilder()
             .WithThreads(device.Runtime == TranscriptionDefaults.RuntimeCpu ? Math.Max(1, job.Threads) : GpuThreads)
             .WithTokenTimestamps()
             .WithProbabilities()
             .WithPrompt(job.Prompt)
-            .WithLanguage(string.IsNullOrWhiteSpace(job.Language) ? "auto" : job.Language);
+            .WithLanguage(string.IsNullOrWhiteSpace(job.Language) ? "auto" : job.Language)
+            .WithProgressHandler(progress =>
+            {
+                var percent = Math.Round(Math.Min(99.9, 100 * (done + (windowLength * progress / 100.0)) / work), 1);
+                if (percent - lastSent >= 2)
+                {
+                    lastSent = percent;
+                    output.Send(new WorkerReply { Type = WorkerMessageTypes.Progress, Percent = percent, TrackId = currentTrack });
+                }
+            });
         await using var processor = builder.Build();
 
         string? language = job.Language == "auto" ? null : job.Language;
-        double done = 0;
         foreach (var plan in plans.Where(p => !p.Silent))
         {
             TranscriptWord? lastWord = null;
@@ -99,6 +113,8 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
                 cancellationToken.ThrowIfCancellationRequested();
                 var window = plan.Windows[i];
                 var samples = reader.Read(window.Start, window.End);
+                currentTrack = plan.Track.Id;
+                windowLength = window.End - window.Start;
                 var segments = new List<WorkerSegment>();
                 if (SpeechEnergy.HasSpeech(plan.Regions, window.Start, window.End))
                 {
