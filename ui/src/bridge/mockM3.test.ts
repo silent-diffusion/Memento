@@ -3,7 +3,8 @@ import { exportFolderName, exportPathPreview } from '../format/export';
 import { createBridgeClient, type BridgeClient } from './client';
 import type { MockOptions } from './mock';
 import { CONTINUES_REASON, DUPLICATE_REASON, MERGED_REASON, parseAgendaText } from './mockAgenda';
-import { DEFAULT_EXPORT_SELECTION } from './mockLibraryExtra';
+import { DEFAULT_EXPORT_SELECTION, M3_METHODS } from './mockLibraryExtra';
+import { ERROR_CODES, EVENT_NAMES, METHOD_NAMES } from './types';
 import type { BridgeError, EventName, EventPayload, ExportProgressPayload } from './types';
 
 const quiet = { info: () => undefined, warn: () => undefined };
@@ -35,6 +36,37 @@ function waitFor<E extends EventName>(bridge: BridgeClient, event: E, done: (pay
     });
   });
 }
+
+describe('M3 contract names', () => {
+  it('lists every M3 method, event and error code in types.ts', () => {
+    for (const method of M3_METHODS) {
+      expect(METHOD_NAMES, method).toContain(method);
+    }
+    expect(EVENT_NAMES).toEqual(expect.arrayContaining(['export.progress', 'library.moveProgress', 'storage.reclaimProgress']));
+    // BRIDGE.md › Error codes (M3), in the order the contract lists them.
+    const m3Codes = [
+      'agenda.fileTooLarge',
+      'agenda.imageTooLarge',
+      'agenda.unsupportedFormat',
+      'agenda.unreadable',
+      'agenda.protected',
+      'agenda.noText',
+      'agenda.noItems',
+      'agenda.ocrUnavailable',
+      'agenda.itemTooLong',
+      'agenda.tooManyItems',
+      'agenda.dropUnavailable',
+      'attachments.tooLarge',
+      'attachments.notFound',
+      'library.importUnsupported',
+      'library.busy',
+      'export.destinationUnwritable',
+      'export.nothingSelected',
+      'export.notFound',
+    ];
+    expect(ERROR_CODES.slice(-m3Codes.length)).toEqual(m3Codes);
+  });
+});
 
 describe('browser-preview host: agenda import (M3)', () => {
   it('parses pasted text: numbering and bullets go, indentation becomes a level, doubts carry a reason', () => {

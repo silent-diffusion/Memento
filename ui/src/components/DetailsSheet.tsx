@@ -217,7 +217,8 @@ export function DetailsSheet({ saver, onClose, agendaMode = null }: DetailsSheet
     // sheet stays open with the reason shown.
     void agenda.finish().then((ok) => {
       if (!ok) {
-        document.querySelector<HTMLElement>('.agenda-limit, .agenda-error')?.scrollIntoView({ block: 'nearest' });
+        // Focus goes to the first item to fix (or the reason the host gave), which also scrolls it into view.
+        document.querySelector<HTMLElement>('.agenda-item--too-long .ii, .agenda-error .btn')?.focus();
         return;
       }
       void saver.flush();

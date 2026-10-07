@@ -1,7 +1,6 @@
 // Export wording and the folder an export is written to (DESIGN.md §15, BRIDGE.md M3). The host
 // names the subfolder the same way; the dialog only previews it.
 import type { AudioExportFormat, ExportComponent, ExportEstimate, ExportSelection, TranscriptExportFormat } from '../bridge/types';
-import { formatSize } from './storage';
 
 // Characters Windows does not allow in a file name, and control characters.
 // eslint-disable-next-line no-control-regex
@@ -93,9 +92,4 @@ export function summarise(estimate: ExportEstimate, selection: ExportSelection):
 /** "1 file", "4 files". */
 export function fileCount(files: number): string {
   return `${files} ${files === 1 ? 'file' : 'files'}`;
-}
-
-/** "about 420 MB". */
-export function aboutSize(bytes: number): string {
-  return `about ${formatSize(bytes)}`;
 }

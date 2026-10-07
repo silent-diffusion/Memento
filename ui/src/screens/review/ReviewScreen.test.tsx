@@ -226,7 +226,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await open();
     await click(button('Export'));
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Export copies');
-    await click(document.querySelector('.export-foot .btn.g'));
+    await click(document.querySelector<HTMLElement>('.export-foot .btn.g') ?? document.body);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click(button('Create document'));
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Documents arrive in a later version');
