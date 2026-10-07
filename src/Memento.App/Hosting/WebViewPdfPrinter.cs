@@ -55,7 +55,7 @@ internal sealed class WebViewPdfPrinter : IPdfPrinter
     {
         var window = application.MainWindow ?? throw new InvalidOperationException("PDF export needs the Memento window.");
         var handle = new WindowInteropHelper(window).EnsureHandle();
-        var environment = await CoreWebView2Environment.CreateAsync(browserExecutableFolder: null, userDataFolder: AppPaths.WebView2UserData);
+        var environment = await WebViewEnvironmentFactory.CreateAsync();
         var controller = await environment.CreateCoreWebView2ControllerAsync(handle);
         try
         {

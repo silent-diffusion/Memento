@@ -148,8 +148,7 @@ internal sealed partial class MainWindow : Window
 
         try
         {
-            var environment = await CoreWebView2Environment.CreateAsync(
-                browserExecutableFolder: null, userDataFolder: AppPaths.WebView2UserData);
+            var environment = await WebViewEnvironmentFactory.CreateAsync();
             await WebView.EnsureCoreWebView2Async(environment);
         }
         catch (WebView2RuntimeNotFoundException ex)
