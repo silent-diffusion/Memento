@@ -4,13 +4,14 @@ namespace Memento.Core.Transcripts;
 
 /// <summary>
 /// Flags stretches where a track has speech energy but the transcript has nothing (ENGINE-NOTES.md §D: Whisper
-/// sometimes drops 15 s of real speech). Speech pieces not covered by a segment of that track are joined when they are
-/// at most <see cref="JoinSeconds"/> apart; a joined stretch longer than <see cref="MinGapSeconds"/> that is at least
-/// half speech is a gap.
+/// sometimes drops 15 s of real speech; large-v3-turbo did so twice in testing). Speech pieces not covered by a segment
+/// of that track are joined when they are at most <see cref="JoinSeconds"/> apart; a joined stretch of at least
+/// <see cref="MinGapSeconds"/> that is at least half speech is a gap.
 /// </summary>
 public static class CoverageCheck
 {
-    public const double MinGapSeconds = 20;
+    /// <summary>10 s: low enough to catch the 15-second passages turbo dropped, long enough to ignore a missed phrase.</summary>
+    public const double MinGapSeconds = 10;
     public const double JoinSeconds = 2;
     private const double SegmentSlack = 0.5;
 
@@ -57,7 +58,7 @@ public static class CoverageCheck
         var start = run[0].Start;
         var end = run[^1].End;
         var speech = run.Sum(r => r.End - r.Start);
-        if (end - start > minGapSeconds && speech >= (end - start) / 2)
+        if (end - start >= minGapSeconds && speech >= (end - start) / 2)
         {
             gaps.Add(new CoverageGap(Math.Round(start, 2), Math.Round(end, 2), track));
         }

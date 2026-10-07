@@ -5,7 +5,7 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="LanguageDetected">The engine chose the language (Settings said "auto").</param>
 /// <param name="Version">Increments on every write.</param>
 /// <param name="LowConfidenceThreshold">Words below it are marked; from Settings when the transcript was made.</param>
-/// <param name="CoverageGaps">Speech with no transcript, for the "may be missing" marks (proposed for BRIDGE.md).</param>
+/// <param name="CoverageGaps">Speech with no transcript, shown as a notice at its place in Review (BRIDGE.md, Shared types (M2)).</param>
 public sealed record Transcript(
     int SchemaVersion,
     string Language,
