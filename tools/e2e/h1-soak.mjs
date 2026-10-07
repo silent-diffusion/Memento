@@ -18,6 +18,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { App, repoRoot } from './app.mjs';
 import { sleep } from './cdp.mjs';
+import { appSwitchName } from './h1-lib.mjs';
 
 const run = promisify(execFile);
 const args = process.argv.slice(2);
@@ -134,7 +135,12 @@ try {
     await page.click({ name: 'Add a source: look again for microphones and apps' });
     await hasText(appSource, 20_000);
   });
-  await page.click({ name: appSource });
+  let appSwitch = null;
+  for (let i = 0; i < 40 && !appSwitch; i++) {
+    appSwitch = await appSwitchName(page, playback.pid, appSource);
+    if (!appSwitch) await sleep(500);
+  }
+  await page.click({ name: appSwitch ?? appSource });
   await hasText('3 audio sources selected');
   await page.screenshot(join(out, 'soak-00-sources.png'));
   await page.click({ name: 'Start recording' });

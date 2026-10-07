@@ -11,7 +11,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { Run, option, repoRoot, sleep } from './h1-lib.mjs';
+import { Run, appSwitchName, option, repoRoot, sleep } from './h1-lib.mjs';
 
 const args = process.argv.slice(2);
 const dataRoot = resolve(option(args, '--data', join(repoRoot, 'artifacts', 'e2e-data-h1-devices')));
@@ -47,8 +47,9 @@ async function record(title, appSource = 'Windows PowerShell') {
     await run.page.click({ name: 'Add a source: look again for microphones and apps' });
     await run.hasText(appSource, 20_000);
   });
-  const appOn = await run.page.eval(`[...document.querySelectorAll('[role=switch]')].find((s) => s.getAttribute('aria-label') === ${JSON.stringify(appSource)})?.getAttribute('aria-checked')`);
-  if (appOn !== 'true') await run.page.click({ role: 'switch', name: appSource });
+  const appSwitch = await run.until(() => appSwitchName(run.page, playback.pid, appSource), `the switch of ${appSource} pid ${playback.pid}`, 20_000, 500);
+  const appOn = await run.page.eval(`[...document.querySelectorAll('[role=switch]')].find((s) => s.getAttribute('aria-label') === ${JSON.stringify(appSwitch)})?.getAttribute('aria-checked')`);
+  if (appOn !== 'true') await run.page.click({ role: 'switch', name: appSwitch });
   await run.hasText('3 audio sources selected');
   await run.page.click({ name: 'Start recording' });
   await run.hasText('RECORDING');

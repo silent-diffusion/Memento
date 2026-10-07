@@ -225,6 +225,32 @@ export class Run {
   }
 }
 
+/**
+ * The accessible name of the Record screen switch for the application source with process id `pid` (the test's own
+ * player). Other PowerShell processes on the PC (another check playing audio) give the same app name; the switches
+ * are then named "Windows PowerShell: Only this app (1)", "(2)" in the order of sources.list, so the player's own one
+ * is picked by its process id. Returns `name` when the name is not repeated.
+ */
+export async function appSwitchName(page, pid, name) {
+  return page.eval(`(async () => {
+    const id = 'h1-src-' + Math.random();
+    const reply = await new Promise((done) => {
+      const on = (e) => {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data && data.id === id) { window.chrome.webview.removeEventListener('message', on); done(data); }
+      };
+      window.chrome.webview.addEventListener('message', on);
+      window.chrome.webview.postMessage({ id, method: 'sources.list', params: {} });
+    });
+    const same = (reply.result?.audio ?? []).filter((s) => s.kind === 'application' && s.name === ${JSON.stringify(name)});
+    const index = same.findIndex((s) => s.processId === ${pid});
+    const switches = [...document.querySelectorAll('[role=switch]')].map((s) => s.getAttribute('aria-label') ?? '')
+      .filter((l) => l === ${JSON.stringify(name)} || l.startsWith(${JSON.stringify(name + ':')}) || l.startsWith(${JSON.stringify(name + ' (')}));
+    if (switches.length <= 1) return switches[0] ?? ${JSON.stringify(name)};
+    return switches[index] ?? null;
+  })()`);
+}
+
 export const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 
 export function filesOf(folder, prefix = '') {

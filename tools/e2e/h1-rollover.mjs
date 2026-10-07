@@ -6,7 +6,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { Run, option, repoRoot, sha256, sleep } from './h1-lib.mjs';
+import { Run, appSwitchName, option, repoRoot, sha256, sleep } from './h1-lib.mjs';
 
 const args = process.argv.slice(2);
 const minutes = Number(option(args, '--minutes', '9'));
@@ -31,7 +31,7 @@ try {
   await run.start([`--rollover-bytes=${ROLLOVER}`, '--update-feed=off']);
   await run.newRecording('H1 rollover');
   await run.page.waitFor(`document.body.innerText.includes('Windows PowerShell')`, 'the app source', 30_000);
-  await run.page.click({ role: 'switch', name: 'Windows PowerShell' });
+  await run.page.click({ role: 'switch', name: await run.until(() => appSwitchName(run.page, player.pid, 'Windows PowerShell'), 'the player switch', 20_000, 500) });
   await run.hasText('3 audio sources selected');
   await run.page.click({ role: 'switch', name: 'Microphone' }); // off: the room mic is not needed here
   await run.hasText('2 audio sources selected');
