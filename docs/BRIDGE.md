@@ -287,3 +287,14 @@ history: { keepVersions: boolean; keepDays: number }     // true, 90
 ## Error codes (M2)
 
 `transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
+
+## Clarifications (M2, decided after the UI landed)
+
+1. `StageName` gains `topics` (a short local stage after `speakers`; rows omit it when done, like `stored`).
+2. `matchSnippet` and `transcript.search` snippets are plain text; the UI emphasises the query words itself.
+3. A transcript version is kept (when history is on) on the first edit after a pass or a restore, on retranscribe, and on restore; `reason` says how the saved copy came about.
+4. A stage waiting for a busy PC stays `active`, keeps its `percent`, and its label reads `Paused · <reason>`; `processing.resume` releases the busy pause for the current stage until the next busy detection.
+5. Once a transcript exists, every highlight carries a non-null `segmentId` (the host attaches highlights to the segment at their time when a transcript is produced).
+6. `models.install` while another download is running answers `models.busy` (detail: the running model id).
+7. `settings.set` with a `modelId` / `cpuFallbackModelId` / `embeddingModelId` that is not installed answers `settings.invalidValue` naming the field.
+8. Catalog model ids are fixed strings both sides use: `whisper-large-v3-turbo`, `whisper-medium`, `whisper-small`, `whisper-base`, `pyannote-segmentation-3-0`, `nemo-titanet-small`, `tesseract-eng`.
