@@ -82,7 +82,7 @@
   height: 32px;
 }
 .btn.p.small-btn {
-  color: #ffffff;
+  color: var(--on-accent);
 }
 .agenda-error {
   display: flex;

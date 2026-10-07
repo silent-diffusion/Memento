@@ -9,7 +9,7 @@
   background: var(--accent-grad);
   font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--on-accent);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -352,6 +352,12 @@
   transform: translateY(1px) scale(0.985);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .player-play:active {
+    transform: none;
+  }
+}
+
 .player-play:disabled {
   opacity: 0.45;
   cursor: default;
@@ -641,7 +647,7 @@
   background: var(--accent-grad);
   font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .docs-note {
@@ -757,7 +763,7 @@
   padding: 0 16px;
   border-radius: 14px;
   background: var(--accent-grad);
-  color: #ffffff;
+  color: var(--on-accent);
   font-size: 13px;
   font-weight: 700;
   margin-top: 4px;

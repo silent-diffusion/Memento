@@ -116,7 +116,7 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .rec-dot {
@@ -274,6 +274,36 @@
   .nav.is-pressed,
   .card.is-pressed {
     transform: none;
+  }
+
+  /*
+   * DESIGN.md §2.4: drop the press scale for every control and keep the shadow inversion. tokens.css tries this for
+   * .primary, .ghost, .icon-btn, .chip and .row, but its reduced-motion block comes before the neumorphism block
+   * that sets the scale, so it never wins; and it leaves out the other controls (found by tools/e2e/h1-a11y.mjs with
+   * reduced motion emulated). This file loads after tokens.css.
+   */
+  .primary:active,
+  .ghost:active,
+  .icon-btn:active,
+  .chip:active,
+  .row:active,
+  .p:active,
+  .d:active,
+  .g:active,
+  .seg:active,
+  .nav:active,
+  .card:active,
+  .pal:active,
+  .sw:active,
+  .modhead:active,
+  .chap:active,
+  .segm:active {
+    transform: none;
+  }
+
+  /* DESIGN.md §2.4: the processing indicator is a static dot under reduced motion (tokens.css pulses it). */
+  .pulse {
+    animation: none;
   }
 }
 

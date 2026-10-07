@@ -69,7 +69,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .rec-dot-lg {
