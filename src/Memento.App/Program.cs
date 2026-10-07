@@ -120,7 +120,16 @@ internal static class Program
         builder.Services.AddSingleton<ISettingsStore>(services =>
             new JsonSettingsStore(AppPaths.SettingsFile, services.GetRequiredService<ILogger<JsonSettingsStore>>()));
         builder.Services.AddSingleton<IAppInfo, AppInfo>();
-        builder.Services.AddSingleton<IFreeSpaceProbe, DriveFreeSpaceProbe>();
+        if (options.FreeSpaceOverride is { } freeSpace)
+        {
+            Log.Warning("Free space is overridden for testing: {Override}", freeSpace);
+            builder.Services.AddSingleton<IFreeSpaceProbe>(new OverrideFreeSpaceProbe(freeSpace, new DriveFreeSpaceProbe()));
+        }
+        else
+        {
+            builder.Services.AddSingleton<IFreeSpaceProbe, DriveFreeSpaceProbe>();
+        }
+
         builder.Services.AddSingleton<IExternalLauncher, ExternalLauncher>();
         builder.Services.AddSingleton<UiLifecycle>();
         builder.Services.AddSingleton<IUiLifecycle>(services => services.GetRequiredService<UiLifecycle>());
@@ -143,7 +152,14 @@ internal static class Program
         builder.Services.AddSimulatedAudio(options.SimulateAudio ?? new SimulatedEngineOptions());
         if (options.SimulateAudio is null)
         {
-            builder.Services.AddWasapiAudio();
+            WasapiEngineOptions? engine = null;
+            if (options.RolloverBytes is { } rollover)
+            {
+                Log.Warning("Capture tracks roll over at {Bytes} bytes for testing", rollover);
+                engine = new WasapiEngineOptions { RolloverBytes = rollover };
+            }
+
+            builder.Services.AddWasapiAudio(engine);
         }
 
         builder.Services.AddMediaFoundationStorage();
