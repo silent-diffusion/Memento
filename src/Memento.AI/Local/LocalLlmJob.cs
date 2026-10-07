@@ -9,7 +9,7 @@ public sealed record LocalLlmJob
     /// <summary>The installed GGUF file.</summary>
     public required string ModelPath { get; init; }
 
-    /// <summary>Catalog id (<c>qwen3.5-4b-q4</c>).</summary>
+    /// <summary>Catalog id (<c>qwen3-5-4b-q4</c>).</summary>
     public required string ModelId { get; init; }
 
     /// <summary>The name the interface uses ("Qwen3.5 4B"), for error copy.</summary>

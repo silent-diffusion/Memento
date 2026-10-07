@@ -9,7 +9,6 @@ namespace Memento.AI.Local;
     WriteIndented = false)]
 [JsonSerializable(typeof(LocalLlmWorkerCommand))]
 [JsonSerializable(typeof(LocalLlmWorkerReply))]
-[JsonSerializable(typeof(LocalModelCatalogDocument))]
 [JsonSerializable(typeof(LocalLlmJob))]
 [JsonSerializable(typeof(LocalLlmResult))]
 [JsonSerializable(typeof(LocalLlmDeviceInfo))]

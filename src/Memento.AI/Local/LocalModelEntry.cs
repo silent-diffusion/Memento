@@ -1,8 +1,8 @@
 namespace Memento.AI.Local;
 
 /// <summary>
-/// A local LLM in <c>local-models.json</c>: the fields of Core's <c>ModelCatalogEntry</c> (so the integration can
-/// merge the file into Core's catalog; <c>llm</c> lands in its extension data) plus <see cref="Llm"/>.
+/// A local LLM: the fields of its <c>kind: "llm"</c> entry in Core's <c>catalog.json</c> plus <see cref="Llm"/>, read from
+/// the entry's <c>llm</c> block (<see cref="LocalModelCatalog.ToLocal"/>).
 /// </summary>
 public sealed record LocalModelEntry
 {

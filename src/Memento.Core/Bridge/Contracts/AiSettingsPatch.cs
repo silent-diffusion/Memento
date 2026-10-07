@@ -1,3 +1,4 @@
+using System.Text.Json;
 
 namespace Memento.Core.Bridge.Contracts;
 
@@ -12,5 +13,12 @@ public sealed record AiSettingsPatch
 
     public AiSharePatch? Share { get; init; }
 
-    // No providers: keys change only through ai.setKey and ai.clearKey (M3 clarification 5).
+    /// <summary>M4: <c>"anthropic"</c>, <c>"openai"</c>, <c>"local"</c>, or <c>null</c> to clear; omitted keeps it.</summary>
+    public JsonElement DefaultProviderId { get; init; }
+
+    /// <summary>M4: an installed local model's catalog id, or <c>null</c> to go back to the one the hardware suits.</summary>
+    public JsonElement LocalModelId { get; init; }
+
+    /// <summary>M4: the model per cloud provider. Keys still change only through <c>ai.setKey</c> and <c>ai.clearKey</c>.</summary>
+    public AiProvidersPatch? Providers { get; init; }
 }
