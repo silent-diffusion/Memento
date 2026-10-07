@@ -180,7 +180,9 @@ async function caseImport() {
   const before = new Set(run.projectIds());
   const started = run.bridge('library.importMedia', { path: longAudio, title: 'H1 import killed' }).catch((e) => e);
   const id = await run.until(() => run.projectIds().find((p) => !before.has(p)), 'the import project', 30_000, 50);
-  await run.until(() => stageOf(id, 'stored')?.state === 'active' && (stageOf(id, 'stored')?.percent ?? 0) >= 20, 'the import at 20%', 120_000, 50).catch(() => null);
+  // project.json does not always carry the import's percent: kill 20% in, or 1.5 s after the store started.
+  const activeSince = await run.until(() => (stageOf(id, 'stored')?.state === 'active' ? Date.now() : null), 'the import to start', 60_000, 50);
+  await run.until(() => (stageOf(id, 'stored')?.percent ?? 0) >= 20 || Date.now() - activeSince > 1500, 'the import under way', 30_000, 50);
   const seen = stageOf(id, 'stored');
   void started;
   await run.killApp();
@@ -234,6 +236,8 @@ async function caseExport(id) {
 
 async function caseMove() {
   const name = 'library move';
+  // A library is moved only when nothing is being processed (library.busy otherwise).
+  await run.until(async () => (await run.bridge('library.processing')).current === null, 'processing to finish before the move', 20 * 60_000, 2000);
   const from = (await run.bridge('settings.get')).libraryPath;
   const target = join(dataRoot, 'moved-library');
   rmSync(target, { recursive: true, force: true });
@@ -272,6 +276,8 @@ try {
     importedId = run.projectIds().find((p) => !before.has(p));
     await caseStages(importedId);
   }
+  // The 2-hour import is about the import only: no transcript for it, so the library move after it is not refused as busy.
+  await run.bridge('settings.set', { transcription: { ...(await run.bridge('settings.get')).transcription, auto: false } });
   if (!only || only.includes('import')) await caseImport();
   if ((!only || only.includes('export')) && importedId) await caseExport(importedId);
   if (!only || only.includes('move')) await caseMove();
