@@ -63,7 +63,7 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
         }
 
         long total = 0;
-        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 }))
+        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint }))
         {
             total += file.Length;
         }

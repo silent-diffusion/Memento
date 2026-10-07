@@ -209,17 +209,8 @@ public sealed partial class ProjectStore : IProjectStore
                 throw new ProjectBusyException(recordingId);
             }
 
-            // Finalized tracks are read-only; clear that first or Windows refuses the delete.
-            foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
-            {
-                var attributes = File.GetAttributes(file);
-                if ((attributes & FileAttributes.ReadOnly) != 0)
-                {
-                    File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
-                }
-            }
-
-            Directory.Delete(folder, recursive: true);
+            // Finalized tracks are read-only (cleared first or Windows refuses the delete); a junction is removed as a link.
+            LinkSafeFiles.DeleteTree(folder);
             LogDeleted(recordingId);
         }
         finally
@@ -237,7 +228,7 @@ public sealed partial class ProjectStore : IProjectStore
         }
 
         long total = 0;
-        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories))
+        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", LinkSafeFiles.Recursive))
         {
             total += file.Length;
         }

@@ -365,7 +365,7 @@ public sealed partial class ProjectService(
     }
 
     private static int CountFiles(string folder) =>
-        Directory.Exists(folder) ? Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Count() : 0;
+        Directory.Exists(folder) ? Directory.EnumerateFiles(folder, "*", LinkSafeFiles.Recursive).Count() : 0;
 
     private async Task<ProjectManifest> LoadAsync(string recordingId, CancellationToken cancellationToken)
     {
