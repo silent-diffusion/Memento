@@ -552,17 +552,35 @@ public static partial class HtmlToBlocks
     /// <summary>Joins neighbouring runs of the same kind and emphasis.</summary>
     private static List<Run> Merge(List<Run> runs)
     {
+        // Neighbours are gathered and joined once: appending one by one copied the text per run, quadratic in the
+        // number of text nodes (a comment between every letter makes one per letter).
         var result = new List<Run>(runs.Count);
+        var text = new StringBuilder();
+        Run? pending = null;
         foreach (var run in runs)
         {
-            if (result.Count > 0 && run.Kind != RunKind.Timestamp && result[^1].Kind == run.Kind && result[^1].Style == run.Style && result[^1].ExtensionData is null && run.ExtensionData is null)
+            if (pending is not null && run.Kind != RunKind.Timestamp && pending.Kind == run.Kind && pending.Style == run.Style && pending.ExtensionData is null && run.ExtensionData is null)
             {
-                result[^1] = result[^1] with { Text = result[^1].Text + run.Text };
+                text.Append(run.Text);
+                continue;
             }
-            else
+
+            if (pending is not null)
+            {
+                result.Add(pending with { Text = text.ToString() });
+            }
+
+            pending = run.Kind == RunKind.Timestamp ? null : run;
+            text.Clear().Append(run.Text);
+            if (pending is null)
             {
                 result.Add(run);
             }
+        }
+
+        if (pending is not null)
+        {
+            result.Add(pending with { Text = text.ToString() });
         }
 
         return result;
