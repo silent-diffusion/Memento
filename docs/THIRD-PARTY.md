@@ -24,6 +24,16 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | SQLitePCLRaw.bundle_e_sqlite3, SQLitePCLRaw.core, SQLitePCLRaw.provider.e_sqlite3 (Microsoft.Data.Sqlite dependencies) | Apache-2.0 | SQLite bindings and the bundled native `e_sqlite3` library |
 | SQLite (inside `e_sqlite3`, with FTS5) | Public domain | Database engine and full-text search for the library index |
 
+Shipped in the `worker\` folder beside the app (`Memento.Worker.exe`, M2; published self-contained there with its own copy of the .NET runtime, MIT):
+
+| Component | License | Used for |
+|---|---|---|
+| Whisper.net, Whisper.net.Runtime, Whisper.net.Runtime.Vulkan (1.9.1) | MIT | Transcription; the runtimes carry whisper.cpp and ggml (MIT) for the CPU and Vulkan. No CUDA package. Only `runtimes/win-x64` and `runtimes/vulkan/win-x64` are kept. |
+| Microsoft.Extensions.AI.Abstractions, System.Text.Json 10, System.Memory, System.IO.Pipelines, System.Text.Encodings.Web (Whisper.net dependencies) | MIT | Pulled in by Whisper.net; isolated in the worker folder so the app keeps its own .NET 8 assemblies |
+| org.k2fsa.sherpa.onnx, org.k2fsa.sherpa.onnx.runtime.win-x64 (1.13.8) | Apache-2.0 | Speaker identification (offline diarization); `sherpa-onnx-c-api.dll` |
+| ONNX Runtime (`onnxruntime.dll`, inside the sherpa-onnx runtime package) | MIT | Inference for the speaker models |
+| NtvLibs.MSVCP.vcruntime140 / vcruntime140_1 / msvcp140 / vcomp140 `.runtime.win-x64` (14.42.34430) | Packaging: MIT (nietras). The DLLs: Microsoft Visual C++ 2015–2022 Runtime, under the [Microsoft Visual Studio 2022 C runtime license terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/), which permit app-local redistribution | `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll`, `vcomp140.dll`, which every Whisper.net native library imports; shipped beside the worker so no Visual C++ Redistributable install is needed. These are Microsoft redistributable files, not open-source code: the product owner should confirm this is acceptable under the "permissive only" rule (the alternative is to require the redistributable). |
+
 Build, test and packaging tools (not shipped in the installer):
 
 | Component | License | Used for |
@@ -39,4 +49,12 @@ Build, test and packaging tools (not shipped in the installer):
 | @types/node | MIT | Types for the build scripts |
 | lightningcss (Vite dependency) | MPL-2.0 | CSS processing during the UI build only; nothing from it is bundled |
 
-Models downloaded at runtime through the model manager are listed in the in-app catalog with their own licenses; they are not part of this repository.
+Models downloaded at runtime through the model manager are listed in the in-app catalog (`src/Memento.Core/Models/catalog.json`) with their own licenses; they are not part of this repository or the installer:
+
+| Model | License | Source |
+|---|---|---|
+| Whisper large-v3-turbo, medium, small, base (ggml) | MIT | huggingface.co/ggerganov/whisper.cpp |
+| pyannote segmentation-3.0 (sherpa-onnx export) | MIT | huggingface.co/csukuangfj/sherpa-onnx-pyannote-segmentation-3-0 |
+| NeMo TitaNet small (English) | CC-BY-4.0 (attribution: NVIDIA NeMo) | github.com/k2-fsa/sherpa-onnx releases |
+| 3D-Speaker ERes2Net base (optional) | Apache-2.0 | github.com/k2-fsa/sherpa-onnx releases |
+| Tesseract English (tessdata_fast) | Apache-2.0 | github.com/tesseract-ocr/tessdata_fast |
