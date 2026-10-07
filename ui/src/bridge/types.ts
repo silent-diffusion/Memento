@@ -1178,7 +1178,7 @@ export interface LibraryUsage {
 export interface AgendaImportFileParams {
   /** Null while the recording does not exist yet (M3 clarification 2); parsing does not need it. */
   recordingId: string | null;
-  /** Without a path the host shows the file picker. */
+  /** Never sent: the host shows its file picker and refuses a path (bridge.invalidParams). */
   path?: string;
 }
 
@@ -1241,7 +1241,7 @@ export interface AttachmentsListResult {
 
 export interface AttachmentsAddParams {
   recordingId: string;
-  /** Without a path the host shows the file picker. 100 MB per file (attachments.tooLarge). */
+  /** Never sent: the host shows its file picker and refuses a path (bridge.invalidParams). 100 MB per file (attachments.tooLarge). */
   path?: string;
 }
 
@@ -1256,7 +1256,7 @@ export interface AttachmentIdParams {
 }
 
 export interface LibraryImportMediaParams {
-  /** Without a path the host shows the file picker. */
+  /** Never sent: the host shows its file picker and refuses a path (bridge.invalidParams). */
   path?: string;
   title?: string;
   type?: RecordingType;

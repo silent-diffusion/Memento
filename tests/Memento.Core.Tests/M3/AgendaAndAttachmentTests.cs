@@ -41,7 +41,7 @@ public sealed class AgendaAndAttachmentTests : IDisposable
     {
         var id = await _m3.RecordAsync();
         var file = _m3.WriteFile("agenda.docx", "Welcome\nBudget review\nClose");
-        var preview = (await _m3.ResultAsync("agenda.importFile", new { recordingId = id, path = file })).GetProperty("preview");
+        var preview = (await _m3.ResultPickingAsync("agenda.importFile", file, new { recordingId = id })).GetProperty("preview");
         var token = preview.GetProperty("attachmentToken").GetString();
         File.WriteAllText(file, "changed after the import");
         _m3.Sink.Clear();
@@ -108,9 +108,9 @@ public sealed class AgendaAndAttachmentTests : IDisposable
         var id = await _m3.RecordAsync();
         var unreadable = _m3.WriteFile("broken.txt", "ERR");
 
-        var error = await _m3.ErrorAsync("agenda.importFile", new { recordingId = id, path = unreadable });
-        var missing = await _m3.ErrorAsync("agenda.importFile", new { recordingId = id, path = _m3.Directory.File("gone.docx") });
-        var relative = await _m3.ErrorAsync("agenda.importFile", new { recordingId = id, path = "agenda.docx" });
+        var error = await _m3.ErrorPickingAsync("agenda.importFile", unreadable, new { recordingId = id });
+        var missing = await _m3.ErrorPickingAsync("agenda.importFile", _m3.Directory.File("gone.docx"), new { recordingId = id });
+        var relative = await _m3.ErrorPickingAsync("agenda.importFile", "agenda.docx", new { recordingId = id });
         var noProject = await _m3.ErrorAsync("agenda.parseText", new { recordingId = "20260101-000000-aaaaaa", text = "x" });
 
         Assert.Equal(DomainErrorCodes.AgendaUnreadable, error.GetProperty("code").GetString());
@@ -157,7 +157,7 @@ public sealed class AgendaAndAttachmentTests : IDisposable
     [Fact]
     public async Task APreviewCanBeMadeBeforeTheRecordingExists()
     {
-        var preview = (await _m3.ResultAsync("agenda.importFile", new { recordingId = (string?)null, path = _m3.WriteFile("early.txt", "One\nTwo") })).GetProperty("preview");
+        var preview = (await _m3.ResultPickingAsync("agenda.importFile", _m3.WriteFile("early.txt", "One\nTwo"), new { recordingId = (string?)null })).GetProperty("preview");
         var pasted = (await _m3.ResultAsync("agenda.parseText", new { recordingId = (string?)null, text = "Alpha\nBeta" })).GetProperty("preview");
         var id = await _m3.RecordAsync();
         var items = preview.GetProperty("items").EnumerateArray().Select(i => new { text = i.GetProperty("text").GetString(), uncertain = false }).ToArray();
@@ -178,7 +178,7 @@ public sealed class AgendaAndAttachmentTests : IDisposable
     public async Task DiscardForgetsTheHeldFile()
     {
         var id = await _m3.RecordAsync();
-        var preview = (await _m3.ResultAsync("agenda.importFile", new { recordingId = id, path = _m3.WriteFile("a.txt", "One") })).GetProperty("preview");
+        var preview = (await _m3.ResultPickingAsync("agenda.importFile", _m3.WriteFile("a.txt", "One"), new { recordingId = id })).GetProperty("preview");
         Assert.Equal(1, _m3.Get<PendingAgendaFiles>().Count);
 
         Assert.Equal("{}", (await _m3.ResultAsync("agenda.discard", new { attachmentToken = preview.GetProperty("attachmentToken").GetString() })).GetRawText());
@@ -238,8 +238,8 @@ public sealed class AgendaAndAttachmentTests : IDisposable
         var before = (await _m3.ResultAsync("project.get", new { recordingId = id })).GetProperty("sizeBytes").GetInt64();
         var source = _m3.WriteFile("Slides: final?.pdf", new string('p', 5000));
 
-        var first = (await _m3.ResultAsync("attachments.add", new { recordingId = id, path = source })).GetProperty("attachment");
-        var second = (await _m3.ResultAsync("attachments.add", new { recordingId = id, path = source })).GetProperty("attachment");
+        var first = (await _m3.ResultPickingAsync("attachments.add", source, new { recordingId = id })).GetProperty("attachment");
+        var second = (await _m3.ResultPickingAsync("attachments.add", source, new { recordingId = id })).GetProperty("attachment");
 
         Assert.Equal("id,name,sizeBytes,addedAt,kind,contentType", string.Join(",", first.EnumerateObject().Select(p => p.Name)));
         Assert.Equal("Slides final.pdf", first.GetProperty("name").GetString());
@@ -280,7 +280,7 @@ public sealed class AgendaAndAttachmentTests : IDisposable
             stream.SetLength(AttachmentService.MaxBytes + 1);
         }
 
-        var error = await _m3.ErrorAsync("attachments.add", new { recordingId = id, path = big });
+        var error = await _m3.ErrorPickingAsync("attachments.add", big, new { recordingId = id });
 
         Assert.Equal(DomainErrorCodes.AttachmentsTooLarge, error.GetProperty("code").GetString());
         Assert.Contains("100 MB", error.GetProperty("message").GetString(), StringComparison.Ordinal);
@@ -291,8 +291,8 @@ public sealed class AgendaAndAttachmentTests : IDisposable
     public async Task OpenUsesTheDefaultAppButNeverRunsPrograms()
     {
         var id = await _m3.RecordAsync();
-        var doc = (await _m3.ResultAsync("attachments.add", new { recordingId = id, path = _m3.WriteFile("notes.txt", "n") })).GetProperty("attachment").GetProperty("id").GetString();
-        var exe = (await _m3.ResultAsync("attachments.add", new { recordingId = id, path = _m3.WriteFile("setup.exe", "MZ") })).GetProperty("attachment").GetProperty("id").GetString();
+        var doc = (await _m3.ResultPickingAsync("attachments.add", _m3.WriteFile("notes.txt", "n"), new { recordingId = id })).GetProperty("attachment").GetProperty("id").GetString();
+        var exe = (await _m3.ResultPickingAsync("attachments.add", _m3.WriteFile("setup.exe", "MZ"), new { recordingId = id })).GetProperty("attachment").GetProperty("id").GetString();
         _m3.Picker.Answer = null;
 
         await _m3.ResultAsync("attachments.open", new { recordingId = id, attachmentId = doc });

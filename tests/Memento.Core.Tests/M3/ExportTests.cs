@@ -61,7 +61,7 @@ public sealed class ExportTests : IDisposable
     {
         var id = await _m3.RecordAsync();
         _m3.WriteTranscript(id);
-        await _m3.ResultAsync("attachments.add", new { recordingId = id, path = _m3.WriteFile("agenda.pdf", "%PDF-agenda") });
+        await _m3.ResultPickingAsync("attachments.add", _m3.WriteFile("agenda.pdf", "%PDF-agenda"), new { recordingId = id });
         var before = Snapshot(id);
 
         var payload = await RunAsync(id, Everything(), createSubfolder: true);

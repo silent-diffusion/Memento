@@ -13,6 +13,9 @@ public sealed class AgendaImportFileMethod(AgendaService agenda) : BridgeMethod<
 
     public override JsonTypeInfo<AgendaImportResult> ResultTypeInfo => M3BridgeJsonContext.Default.AgendaImportResult;
 
-    public override Task<AgendaImportResult> InvokeAsync(AgendaImportFileParams parameters, CancellationToken cancellationToken) =>
-        agenda.ImportFileAsync(parameters.RecordingId, parameters.Path, cancellationToken);
+    public override Task<AgendaImportResult> InvokeAsync(AgendaImportFileParams parameters, CancellationToken cancellationToken)
+    {
+        PickedFilesOnly.Require(Name, parameters.Path);
+        return agenda.ImportFileAsync(parameters.RecordingId, null, cancellationToken);
+    }
 }

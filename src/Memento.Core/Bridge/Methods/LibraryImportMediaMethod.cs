@@ -13,6 +13,9 @@ public sealed class LibraryImportMediaMethod(MediaImportService imports) : Bridg
 
     public override JsonTypeInfo<LibraryImportMediaResult> ResultTypeInfo => M3BridgeJsonContext.Default.LibraryImportMediaResult;
 
-    public override Task<LibraryImportMediaResult> InvokeAsync(LibraryImportMediaParams parameters, CancellationToken cancellationToken) =>
-        imports.ImportAsync(parameters, cancellationToken);
+    public override Task<LibraryImportMediaResult> InvokeAsync(LibraryImportMediaParams parameters, CancellationToken cancellationToken)
+    {
+        PickedFilesOnly.Require(Name, parameters.Path);
+        return imports.ImportAsync(parameters, cancellationToken);
+    }
 }

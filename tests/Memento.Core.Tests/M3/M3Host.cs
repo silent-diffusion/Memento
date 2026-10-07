@@ -75,6 +75,20 @@ internal sealed class M3Host : IDisposable
 
     public Task<JsonElement> ResultAsync(string method, object parameters) => Host.ResultAsync(method, JsonSerializer.Serialize(parameters, Web));
 
+    /// <summary>Calls a picker method (agenda.importFile, attachments.add, library.importMedia) with the picker answering <paramref name="path"/>.</summary>
+    public Task<JsonElement> ResultPickingAsync(string method, string path, object parameters)
+    {
+        Picker.Answer = path;
+        return ResultAsync(method, parameters);
+    }
+
+    /// <summary>As <see cref="ResultPickingAsync"/>, expecting an error.</summary>
+    public Task<JsonElement> ErrorPickingAsync(string method, string path, object parameters)
+    {
+        Picker.Answer = path;
+        return ErrorAsync(method, parameters);
+    }
+
     /// <summary>The error code of a call that must fail.</summary>
     public async Task<JsonElement> ErrorAsync(string method, object parameters)
     {
