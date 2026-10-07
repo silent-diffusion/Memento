@@ -169,8 +169,6 @@ internal sealed partial class MainWindow : Window
         core.SetVirtualHostNameToFolderMapping(
             WebViewBridge.VirtualHost, uiFolder, CoreWebView2HostResourceAccessKind.DenyCors);
         MapLibrary(core);
-        core.AddWebResourceRequestedFilter(LibraryUrls.Origin + "*", CoreWebView2WebResourceContext.All);
-        core.WebResourceRequested += OnWebResourceRequested;
         core.NavigationStarting += OnNavigationStarting;
         core.FrameNavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
@@ -190,7 +188,10 @@ internal sealed partial class MainWindow : Window
     /// reachable: <c>library.db</c> sits in the library root, above the mapped folder, and the browser resolves
     /// <c>..</c> segments before the path reaches the folder. Media and fetches from there are sub-resources of the
     /// app page, not navigations, so <see cref="OnNavigationStarting"/> still allows only <c>app.memento</c>.
-    /// Remapped when the library moves.
+    /// Remapped when the library moves. WebView2 does not raise <c>WebResourceRequested</c> for a mapped host (verified
+    /// in the 2026-10-07 security audit), so the mapping cannot be narrowed to the mix and peaks: every file under
+    /// <c>projects</c>, and anything a junction there points at, is readable by the page (SA-02, accepted; the page
+    /// can already read the same project data through the bridge).
     /// </summary>
     private void MapLibrary(CoreWebView2? core)
     {
@@ -235,26 +236,6 @@ internal sealed partial class MainWindow : Window
         // send page addresses to Microsoft (nothing leaves the PC without an explicit action). It applies to every
         // WebView2 on this user data folder, so the PDF printer turns it off too.
         settings.IsReputationCheckingRequired = false;
-    }
-
-    /// <summary>
-    /// Answers only the library files the page uses (a project's mix and peaks, <see cref="LibraryResourcePolicy"/>);
-    /// anything else under <c>library.memento</c>, including a file reached through a junction, gets a 404 before
-    /// WebView2 reads the disk.
-    /// </summary>
-    private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
-    {
-        if (!Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Host, LibraryUrls.VirtualHost, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (_mappedLibrary is null || LibraryResourcePolicy.ServableFile(_mappedLibrary, uri) is null)
-        {
-            e.Response = WebView.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", string.Empty);
-            LogLibraryRequestRefused(uri.AbsolutePath);
-        }
     }
 
     /// <summary>The page never downloads anything; exports are written by the host.</summary>
@@ -405,9 +386,6 @@ internal sealed partial class MainWindow : Window
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Blocked navigation to {Target}")]
     private partial void LogNavigationBlockedTo(string target);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a library request for {Path}")]
-    private partial void LogLibraryRequestRefused(string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a browser permission request: {Kind}")]
     private partial void LogPermissionRefused(string kind);
