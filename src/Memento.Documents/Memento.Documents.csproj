@@ -1,12 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- Windows.Media.Ocr and Windows.Graphics.Imaging (agenda photos) come from the Windows SDK projection of this TFM. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <RootNamespace>Memento.Documents</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Memento.Documents.Tests" />
   </ItemGroup>
 
 </Project>
