@@ -23,7 +23,7 @@ public sealed class M3SettingsTests : IDisposable
     {
         var result = await _m3.ResultAsync("settings.get", new { });
 
-        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en"}""", result.GetProperty("general").GetRawText());
+        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true}""", result.GetProperty("general").GetRawText());
         Assert.Equal(
             """{"saveCopiesOutside":false,"defaultFolder":null,"askWhereEachTime":true,"createSubfolder":true,"defaults":{"audioMixed":{"on":true,"format":"flac","bitrateKbps":null},"tracks":{"on":false,"format":"flac","bitrateKbps":null},"transcript":{"on":true,"formats":["json","markdown"]},"documents":{"on":false,"documentIds":[],"format":"docx"},"details":{"on":false},"attachments":{"on":false}}}""",
             result.GetProperty("export").GetRawText());
@@ -115,7 +115,7 @@ public sealed class M3SettingsTests : IDisposable
     [Fact]
     public async Task UnknownFieldsInAnM3BlockAreRejected()
     {
-        var response = await _m3.Host.CallAsync("settings.set", """{"general":{"autoUpdate":true}}""");
+        var response = await _m3.Host.CallAsync("settings.set", """{"general":{"checkHourly":true}}""");
 
         Assert.Equal(BridgeErrorCodes.InvalidParams, response.GetProperty("error").GetProperty("code").GetString());
 

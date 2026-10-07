@@ -246,6 +246,7 @@ public sealed class BridgeRouterTests
             "ai.clearKey", "ai.setKey", "app.setStartup", "attachments.add", "attachments.list", "attachments.open", "attachments.remove",
             "export.cancel", "export.estimate", "export.openFolder", "export.run", "library.importMedia", "library.move",
             "library.rebuildIndex", "library.usage", "project.changeType", "storage.reclaim",
+            "updates.apply", "updates.check", "updates.status",
         ];
 
         Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));

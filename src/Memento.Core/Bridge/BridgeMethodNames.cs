@@ -80,4 +80,7 @@ public static class BridgeMethodNames
     public const string AiSetKey = "ai.setKey";
     public const string AiClearKey = "ai.clearKey";
     public const string AppSetStartup = "app.setStartup";
+    public const string UpdatesStatus = "updates.status";
+    public const string UpdatesCheck = "updates.check";
+    public const string UpdatesApply = "updates.apply";
 }

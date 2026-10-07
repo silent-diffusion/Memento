@@ -116,4 +116,13 @@ public static class DomainErrorCodes
 
     /// <summary>Windows could not store or remove an API key with DPAPI; nothing was changed.</summary>
     public const string AiKeyWriteFailed = "ai.keyWriteFailed";
+
+    /// <summary>This copy was not installed with Setup (a build folder, the portable zip), so it cannot update itself.</summary>
+    public const string UpdatesUnavailable = "updates.unavailable";
+
+    /// <summary><c>updates.apply</c> with no update downloaded.</summary>
+    public const string UpdatesNotReady = "updates.notReady";
+
+    /// <summary><c>updates.apply</c> while a recording runs; it is never interrupted for an update.</summary>
+    public const string UpdatesBusy = "updates.busy";
 }

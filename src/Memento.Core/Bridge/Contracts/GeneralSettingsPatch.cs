@@ -9,4 +9,6 @@ public sealed record GeneralSettingsPatch
     public bool? KeepRunningInTray { get; init; }
 
     public string? Language { get; init; }
+
+    public bool? AutoUpdate { get; init; }
 }

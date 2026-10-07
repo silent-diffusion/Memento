@@ -167,6 +167,13 @@ internal static class Program
         builder.Services.AddSingleton<LibraryStartup>();
         builder.Services.AddHostedService<RecordingLifetime>();
         builder.Services.AddHostedService<FooterStatusLoop>();
+
+        // Self-update from the GitHub releases (a screenshot run never checks).
+        builder.Services.AddSingleton<Core.Updates.IUpdateClient>(services => new VelopackUpdateClient(
+            options.IsScreenshotRun ? VelopackUpdateClient.FeedOff : options.UpdateFeed,
+            services.GetRequiredService<IAppInfo>().Version,
+            services.GetRequiredService<ILogger<VelopackUpdateClient>>()));
+        builder.Services.AddHostedService<UpdateLoop>();
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();
     }

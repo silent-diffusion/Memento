@@ -456,3 +456,36 @@ Decided at the M3 integration (0.4.0), from the host's notes:
 19. Export jobs run one at a time in the order `export.run` was called; a waiting job sends no `export.progress` until it starts. On cancel or failure the files written so far are removed and the last `export.progress` has `files: 0, bytes: 0`; on success `files` and `bytes` count the manifest too.
 20. "Pause when the PC is busy" no longer pauses a transcription pass on the graphics card for a busy processor (the pass barely uses it); a recording in progress still pauses it while the setting is on, and low disk space and `processing.pause` always do. Passes on the processor, and the speaker pass, pause as before. The footer's `processingPaused` follows the stage that runs or waits.
 21. Settings › Transcription and Speakers keep Remove off, with the note "Needed by the current settings", for the default transcription model, the model used without a graphics card, the default voice model and, while Identify speakers is on, the speech-segmentation model. `models.remove` itself still refuses only a model in use (`models.inUse`).
+
+## Updates (H1)
+
+Memento updates itself from the project's GitHub releases (Velopack's `releases.win.json` feed). The host checks once the page has sent `ui.ready` and then every 24 hours while it runs, never while a recording or a processing stage is queued, waiting or running (it waits until both are idle), downloads in the background and then offers a restart. Nothing installs until the person chooses "Restart to update", or the next time Memento starts. A pre-release is offered only to a pre-release build (a SemVer suffix, or a version before 0.5.0); from 0.5.0 on only full releases count. With `general.autoUpdate` off nothing is checked automatically; `updates.check` still works. A copy not installed with Setup (a build folder) never checks.
+
+```ts
+interface UpdateStatus {
+  currentVersion: string;
+  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';   // failed: only after updates.check
+  availableVersion: string | null;   // while downloading or ready, and while a download is deferred
+  percent: number | null;            // while downloading
+  lastCheckedAt: string | null;      // ISO 8601, when the feed last answered
+  message: string | null;            // after updates.check: "Memento 0.5.0 is the newest version.", why it failed, or that the download waits
+  deferred: boolean;                 // a newer version waits to download until no recording or processing runs
+}
+```
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `updates.status` | `{}` | `UpdateStatus` | |
+| `updates.check` | `{}` | `UpdateStatus` | "Check now": answers once the feed did; a newer version then downloads in the background (once idle). A failed check is not an error: `state: 'failed'` with the reason in `message`. `updates.unavailable` for a copy that cannot update itself. |
+| `updates.apply` | `{}` | `{}` | "Restart to update": Memento closes normally, the update installs and Memento starts again. `updates.notReady` when nothing is downloaded, `updates.busy` while recording. |
+
+| Event | Payload |
+|---|---|
+| `updates.progress` | `UpdateStatus`, on every change (state, percent). The UI shows a toast "Restart to update to {version}" when `state` becomes `ready`. |
+| `status.footer` | adds `update?: { downloading: boolean, percent: number \| null, version: string \| null }` (the footer shows "Downloading Memento {version} · 42%"). |
+
+Settings snapshot: `general` adds `autoUpdate: boolean` (default `true`), merged like the other `general` fields.
+
+## Error codes (H1)
+
+`updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).

@@ -13,14 +13,17 @@ namespace Memento.App;
 /// <c>--free-space-override=&lt;bytes|file&gt;</c> (hidden, tests) makes every drive report that many free bytes, or the
 /// number written in that file, read again on every check;
 /// <c>--rollover-bytes=&lt;n&gt;</c> (hidden, tests) rolls capture tracks over to their next <c>.partN.wav</c> at
-/// <c>n</c> bytes instead of 3.5 GiB.
+/// <c>n</c> bytes instead of 3.5 GiB;
+/// <c>--update-feed=&lt;url|folder|off&gt;</c> (hidden, tests) checks a local Velopack feed instead of the GitHub
+/// releases, or turns update checks off for the run.
 /// </summary>
 internal sealed record CommandLineOptions(
     string? ScreenshotPath,
     string? ForcedTheme,
     SimulatedEngineOptions? SimulateAudio,
     string? FreeSpaceOverride = null,
-    long? RolloverBytes = null)
+    long? RolloverBytes = null,
+    string? UpdateFeed = null)
 {
     /// <summary>Smallest rollover a test may ask for: one second of int24 stereo at 48 kHz.</summary>
     public const long MinRolloverBytes = 288_000;
@@ -38,6 +41,7 @@ internal sealed record CommandLineOptions(
         SimulatedEngineOptions? simulate = null;
         string? freeSpace = null;
         long? rollover = null;
+        string? updateFeed = null;
         for (var i = 0; i < args.Count; i++)
         {
             var (name, inline) = Split(args[i]);
@@ -78,13 +82,16 @@ internal sealed record CommandLineOptions(
 
                     rollover = bytes;
                     break;
+                case "--update-feed":
+                    updateFeed = inline ?? ValueAfter(args, ref i, "--update-feed needs a feed URL, a folder, or 'off'.");
+                    break;
                 default:
                     // Unknown switches are ignored (Velopack and Windows may pass their own).
                     break;
             }
         }
 
-        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover);
+        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed);
     }
 
     /// <summary><c>--name=value</c> → (<c>--name</c>, <c>value</c>); anything else → (argument, null).</summary>

@@ -21,4 +21,5 @@ public static class BridgeEventNames
     public const string ExportProgress = "export.progress";
     public const string LibraryMoveProgress = "library.moveProgress";
     public const string StorageReclaimProgress = "storage.reclaimProgress";
+    public const string UpdatesProgress = "updates.progress";
 }
