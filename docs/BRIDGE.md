@@ -298,3 +298,93 @@ history: { keepVersions: boolean; keepDays: number }     // true, 90
 6. `models.install` while another download is running answers `models.busy` (detail: the running model id).
 7. `settings.set` with a `modelId` / `cpuFallbackModelId` / `embeddingModelId` that is not installed answers `settings.invalidValue` naming the field.
 8. Catalog model ids are fixed strings both sides use: `whisper-large-v3-turbo`, `whisper-medium`, `whisper-small`, `whisper-base`, `pyannote-segmentation-3-0`, `nemo-titanet-small`, `tesseract-eng`.
+
+---
+
+# M3 — Agenda import, attachments, media import, export, remaining Settings (contract; to be implemented)
+
+Additive. The parsing library exists in `src/Memento.Documents/Agenda` (`AgendaImporter`); M3 wires it to these methods.
+
+## Shared types (M3)
+
+```ts
+type AgendaSourceKind = 'text' | 'pastedText' | 'markdown' | 'csv' | 'tsv' | 'docx' | 'xlsx' | 'pdf' | 'image';
+interface AgendaParsedItem { text: string; uncertain: boolean; uncertainReason: string | null; level: number; location: string | null }   // location like "page 2, line 14"
+interface AgendaParsePreview {
+  source: string;                       // file name, or "Pasted text"
+  sourceKind: AgendaSourceKind; title: string | null;
+  items: AgendaParsedItem[]; warnings: { code: string; message: string }[];
+  ocrEngine: string | null;             // "Windows OCR" when an image was read
+  attachmentToken: string | null;       // handle the host keeps for the original file until `agenda.apply` or discard
+}
+interface Attachment { id: string; name: string; sizeBytes: number; addedAt: string; kind: 'agenda' | 'file'; contentType: string | null }
+type AudioExportFormat = 'flac' | 'wav' | 'mp3';
+type TranscriptExportFormat = 'json' | 'markdown' | 'text' | 'srt';
+interface ExportSelection {
+  audioMixed: { on: boolean; format: AudioExportFormat; bitrateKbps: number | null };
+  tracks:     { on: boolean; format: AudioExportFormat; bitrateKbps: number | null };
+  transcript: { on: boolean; formats: TranscriptExportFormat[] };
+  documents:  { on: boolean; documentIds: string[]; format: 'docx' | 'pdf' | 'markdown' };   // M4 fills this; M3 exports nothing here and the row is disabled with "Documents arrive in a later version"
+  details:    { on: boolean };
+  attachments:{ on: boolean };
+}
+interface ExportEstimate { files: number; bytes: number; items: { name: string; bytes: number }[]; unavailable: string[] }   // e.g. "Transcript (not transcribed yet)"
+interface ExportDestination { folder: string; createSubfolder: boolean }                   // subfolder named after the recording (sanitised title + date)
+interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; largest: { recordingId: string; title: string; sizeBytes: number } | null }
+```
+
+`RecordingDetails.agenda.source` carries the `AgendaParsePreview.source` and `parsedLocally` stays true; `RecordingSummary.type` may change through `project.changeType`.
+
+## Methods (M3)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `agenda.importFile` | `{ recordingId, path?: string }` | `{ preview: AgendaParsePreview \| null, cancelled: boolean }` | Without `path` the host shows the file picker (filters: Word, PDF, Excel, CSV, Markdown, text, images). Parsing happens on this PC. Errors use the `agenda.*` codes below. |
+| `agenda.importDropped` | `{ recordingId, paths: string[] }` | as above | For a drop onto the drop zone (the host receives the real paths from WebView2's drop; the UI passes what it gets from the `File` objects' names and the host matches the pending drop). If the host cannot resolve a dropped path it answers `agenda.dropUnavailable` and the UI falls back to the picker. |
+| `agenda.parseText` | `{ recordingId, text }` | `{ preview }` | Pasted text. |
+| `agenda.apply` | `{ recordingId, items: { text, uncertain, uncertainReason }[], source, sourceKind, attachmentToken: string \| null }` | `Project` | Stores the agenda (ids assigned, `covered: false`), copies the original file into `attachments/` as kind `agenda` when a token is given, appends History. Items longer than 200 characters are refused with `agenda.itemTooLong` naming the item; more than 200 items with `agenda.tooManyItems`. |
+| `agenda.discard` | `{ attachmentToken }` | `{}` | Drops a pending original file. |
+| `agenda.setCovered` | `{ recordingId, itemId, covered }` | `{ agenda }` | Works during recording. |
+| `attachments.list` | `{ recordingId }` | `{ attachments: Attachment[] }` | |
+| `attachments.add` | `{ recordingId, path?: string }` | `{ attachment: Attachment \| null, cancelled }` | Picker without `path`. 100 MB limit per file (`attachments.tooLarge`). |
+| `attachments.remove` | `{ recordingId, attachmentId }` | `{}` | Confirmation is the UI's job. |
+| `attachments.open` | `{ recordingId, attachmentId }` | `{}` | Opens with the Windows default app. |
+| `library.importMedia` | `{ path?: string, title?: string, type?: RecordingType }` | `{ recordingId: string \| null, cancelled }` | Imports an existing audio file (wav, flac, mp3, m4a, wma, ogg/opus where Media Foundation can decode them; video containers are accepted for their audio track only in 1.0, with a warning) as a project with one track `imported`, then runs the normal stages. Progress through `processing.progress` (`stored`). `library.importUnsupported` when it cannot be decoded. |
+| `project.changeType` | `{ recordingId, type }` | `Project` | Custom types are any non-empty string ≤ 40 chars. |
+| `export.estimate` | `{ recordingId, selection }` | `ExportEstimate` | Fast; sizes for lossy formats are estimates. |
+| `export.run` | `{ recordingId, selection, destination, remember: boolean }` | `{ jobId }` | Writes in the background; `remember` stores selection and destination as the Settings › Export defaults. Writes a `manifest.json` (files, bytes, SHA-256, Memento version, recording id, exported at) beside the files. Never modifies the project. Refused with `export.destinationUnwritable` (detail: why) before anything is written. |
+| `export.cancel` | `{ jobId }` | `{}` | Partial files are removed. |
+| `export.openFolder` | `{ jobId }` | `{}` | Opens the destination in Explorer. |
+| `library.usage` | `{}` | `LibraryUsage` | |
+| `library.rebuildIndex` | `{}` | `{ recordings: number }` | |
+| `library.move` | `{ newPath }` | `{ jobId }` | Copy, verify hashes, switch, then delete the old folder; refused while recording or processing (`library.busy`). Progress via `library.moveProgress`. |
+| `storage.reclaim` | `{ recordingIds: string[] \| null, downmixMono: boolean, codec: 'aac' \| 'mp3', bitrateKbps }` | `{ jobId }` | Runs the optimize stage on the given (or all older than `settings.storage.reclaimOlderThanDays`) recordings. Transcripts are never touched. |
+| `ai.setKey` / `ai.clearKey` | `{ provider: 'anthropic' \| 'openai', key }` / `{ provider }` | `{ hasKey: boolean }` | DPAPI; the key is never returned. M3 stores keys so Settings is complete; M4 uses them. |
+| `app.setStartup` | `{ startWithWindows: boolean }` | `{ startWithWindows }` | Registry `Run` key for the current user. |
+
+## Events (M3)
+
+| Event | Payload |
+|---|---|
+| `export.progress` | `{ jobId, recordingId, percent, currentFile: string \| null, state: 'running' \| 'done' \| 'failed' \| 'cancelled', message: string \| null, outputFolder: string \| null, files: number, bytes: number }` |
+| `library.moveProgress` | `{ jobId, percent, state, message, newPath }` |
+| `storage.reclaimProgress` | `{ jobId, percent, state, message, recordingsDone, bytesFreed }` |
+| `status.footer` | adds `export: { active: boolean, percent: number \| null, title: string \| null }` (the footer shows "Exporting {title} · 42%") |
+
+## Settings snapshot (M3 additions)
+
+```ts
+general:  { startWithWindows: boolean; keepRunningInTray: boolean; language: 'en' }   // tray: stored; applied in M5
+export:   { saveCopiesOutside: boolean; defaultFolder: string | null; askWhereEachTime: boolean; createSubfolder: boolean; defaults: ExportSelection }
+ai:       { enabled: false; askBeforeSend: true; keepRecord: true; share: { transcript: true; details: true; participants: true; agenda: true; highlights: true; attachments: false } }
+          // read side also reports providers: { anthropic: { hasKey }, openai: { hasKey } } in the snapshot (never keys)
+storage:  { reclaimOlderThanDays: number | null }
+```
+
+## Error codes (M3)
+
+`agenda.fileTooLarge`, `agenda.imageTooLarge`, `agenda.unsupportedFormat`, `agenda.unreadable`, `agenda.protected`, `agenda.noText`, `agenda.noItems`, `agenda.ocrUnavailable` (detail: how to install the OCR language in Windows Settings), `agenda.itemTooLong`, `agenda.tooManyItems`, `agenda.dropUnavailable`, `attachments.tooLarge`, `attachments.notFound`, `library.importUnsupported`, `library.busy`, `export.destinationUnwritable`, `export.nothingSelected`, `export.notFound` (job).
+
+## Design references
+
+Export dialog: DESIGN §15 and `ExportDialog.dc.html`. Details sheet and agenda import: §14 and `AgendaImport.dc.html` (parsed state, uncertain items with the `accent-soft` notice and reasons, Replace, the AI fallback card disabled with the Settings pointer until M4). Settings: §11 for General, Export, Storage and history, AI and privacy (keys masked, Replace/Add), Documents (defaults rows disabled with "Available in a later version"; History rows live). Library first-run "Import audio or video" becomes live. Review › Details tab: Agenda with its source caption and a Replace link; Attachments list with open/remove.
