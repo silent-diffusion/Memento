@@ -15,6 +15,9 @@ export const PAPER_TAGS: ReadonlySet<string> = new Set([
 /** Dropped with everything inside them. */
 const DROPPED: ReadonlySet<string> = new Set(['script', 'style', 'template', 'iframe', 'object', 'embed', 'link', 'meta', 'title', 'noscript', 'svg', 'math', 'img', 'video', 'audio', 'form', 'input', 'button', 'textarea', 'select']);
 
+/** Where an element's inline style travels between the host's HTML and the CSSOM. */
+const STYLE_CARRIER = 'data-paper-style';
+
 const ATTRIBUTES: ReadonlySet<string> = new Set(['class', 'href', 'colspan', 'rowspan', 'contenteditable', 'aria-hidden', 'aria-label']);
 
 function allowedAttribute(name: string, value: string): boolean {
@@ -49,7 +52,10 @@ function copy(source: Node, into: Node, doc: Document): void {
     const element = doc.createElement(tag);
     for (const attribute of Array.from(child.attributes)) {
       const name = attribute.name.toLowerCase();
-      if (name === 'style') {
+      if (name === STYLE_CARRIER) {
+        element.style.cssText = attribute.value;
+      } else if (name === 'style') {
+        // Never set as an attribute: the CSP refuses inline style attributes.
         element.style.cssText = attribute.value;
       } else if (allowedAttribute(name, attribute.value)) {
         element.setAttribute(name, attribute.value);
@@ -62,7 +68,9 @@ function copy(source: Node, into: Node, doc: Document): void {
 
 /** The host's paper HTML (a page or a fragment) as a live `article.paper`, or null when there is none. */
 export function importPaper(html: string, doc: Document = document): HTMLElement | null {
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  // The renderer escapes quotes in text, so ` style="` only ever starts an attribute. Renamed before
+  // parsing, the parser never applies (and the CSP never reports) an inline style.
+  const parsed = new DOMParser().parseFromString(html.replace(/\sstyle="/g, ` ${STYLE_CARRIER}="`), 'text/html');
   const article = parsed.querySelector('article.paper');
   if (article === null) {
     return null;
