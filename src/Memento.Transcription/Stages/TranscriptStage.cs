@@ -92,7 +92,9 @@ public sealed partial class TranscriptStage(
         var device = selector.SelectDevice(modelId, request.ForceCpu);
         var language = request.Language ?? current.Language;
         var keepWords = current.KeepWordTimestamps;
-        var signature = string.Join('|', modelId, language, device.Kind, keepWords ? "words" : "nowords");
+        // Windows already finished with the same model and language are kept, whichever device made them, so a pass
+        // that crashed on the graphics card continues on the processor where it stopped.
+        var signature = string.Join('|', modelId, language, keepWords ? "words" : "nowords");
         var partial = await writer.Store.LoadPartialAsync(recordingId, cancellationToken);
         var resuming = partial is not null && partial.Signature == signature && (partial.Segments.Count > 0 || partial.Tracks.Any(t => t.WindowsDone > 0));
         if (!resuming)

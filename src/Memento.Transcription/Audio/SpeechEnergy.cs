@@ -54,7 +54,8 @@ public sealed class SpeechEnergy(int sampleRate = 16_000)
             return [];
         }
 
-        var sorted = frames.Where(f => f > 0).OrderBy(f => f).ToList();
+        // Every frame counts, digital silence included (loopback tracks are padded with zeros).
+        var sorted = frames.OrderBy(f => f).ToList();
         var noise = sorted.Count == 0 ? 0 : sorted[(int)(sorted.Count * 0.1)];
         var threshold = Math.Max(AbsoluteFloor, noise * 3);
         var regions = new List<(double Start, double End)>();
