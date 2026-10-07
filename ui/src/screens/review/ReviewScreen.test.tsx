@@ -119,7 +119,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     const facts = [...container.querySelectorAll('.facts dt')].map((dt) => dt.textContent);
     expect(facts).toEqual(['Type', 'Recorded', 'Duration', 'Platform', 'Tracks', 'Purpose']);
     expect(container.querySelector('.fact-mono')?.textContent).toBe('1:10:02');
-    expect(container.querySelector('.detail-caption')?.textContent).toBe('agenda.docx · parsed locally');
+    expect(container.querySelector('.detail-caption')?.textContent).toBe('agenda.docx · parsed locally · Replace');
     // People are the transcript's speakers with talk-time shares, then the participant they do not name.
     const people = [...container.querySelectorAll('.person')].map((p) => [p.querySelector('.person-name')?.textContent, p.querySelector('.person-share')?.textContent.trim()]);
     expect(people.map(([name]) => name)).toEqual(['Sam Okafor', 'Aiko Tanaka', 'Lena Fischer', 'Speaker 4', 'Jonah Berg']);
@@ -222,11 +222,12 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await until(() => !container.textContent.includes('Transcription failed') || container.textContent.includes('Transcribing'));
   });
 
-  it('keeps Export and Create document real and says their features arrive later', async () => {
+  it('opens Export copies (M3) and keeps Create document real, saying documents arrive later', async () => {
     await open();
     await click(button('Export'));
-    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Export arrives in a later version');
-    await click(button('OK'));
+    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Export copies');
+    await click(document.querySelector('.export-foot .btn.g'));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click(button('Create document'));
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Documents arrive in a later version');
     await click(button('OK'));

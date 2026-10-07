@@ -10,6 +10,7 @@ import type { DialogRequest } from '../state/dialogs';
 import { Dialog } from './Overlay';
 import { RestoreVersionDialog, RetranscribeDialog } from './TranscriptDialogs';
 import { RemoveAttachmentDialog } from './attachments/RemoveAttachmentDialog';
+import { ExportDialog } from '../screens/export/ExportDialog';
 
 function DialogError({ message }: { message: string | null }): JSX.Element | null {
   return message === null ? null : (
@@ -309,6 +310,8 @@ export function DialogHost(): JSX.Element | null {
       // M3
       case 'removeAttachment':
         return <RemoveAttachmentDialog key={request.attachment.id} recordingId={request.recordingId} attachment={request.attachment} close={close} />;
+      case 'export':
+        return <ExportDialog key={`${request.recordingId}-${request.retry?.message ?? ''}`} request={request} close={close} />;
     }
   }
   const recovered = store.recoveryQueue.value[0];
