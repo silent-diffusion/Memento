@@ -129,7 +129,10 @@ export class Page {
       if (!el) return null;
       el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2, name: nameOf(el), disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true' };
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      // A toast (bottom right) can lie over a dialog's buttons; a click there would land on the toast.
+      const underToast = !el.closest('.toast-stack') && !!document.elementFromPoint(x, y)?.closest('.toast-stack');
+      return { x, y, name: nameOf(el), disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true', underToast };
     })()`);
     return found;
   }
@@ -138,13 +141,16 @@ export class Page {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const at = await this.locate(target);
-      if (at && (!at.disabled || allowDisabled)) {
+      if (at?.underToast) {
+        // Toasts pause while the pointer is over them: move it away and wait for the toast to go (6 s).
+        await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+      } else if (at && (!at.disabled || allowDisabled)) {
         await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
         await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 });
         await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1 });
         return at;
       }
-      if (Date.now() > deadline) throw new Error(`Nothing clickable for ${JSON.stringify(target)}${at ? ' (disabled)' : ''}`);
+      if (Date.now() > deadline) throw new Error(`Nothing clickable for ${JSON.stringify(target)}${at?.underToast ? ' (under a toast)' : at ? ' (disabled)' : ''}`);
       await sleep(150);
     }
   }
@@ -163,9 +169,9 @@ export class Page {
     await this.send('Input.insertText', { text });
   }
 
-  /** Presses a key: 'Enter', 'Escape', 'Space', 'Tab', 'Backspace', a letter, with optional modifiers ['ctrl'|'shift'|'alt']. */
+  /** Presses a key: 'Enter', 'Escape', 'Space', 'Tab', 'Backspace', an arrow, 'Home', 'End', a letter, with optional modifiers ['ctrl'|'shift'|'alt']. */
   async key(key, modifiers = []) {
-    const codes = { Enter: [13, 'Enter', '\r'], Escape: [27, 'Escape'], Space: [32, 'Space', ' '], Tab: [9, 'Tab'], Backspace: [8, 'Backspace'], ArrowLeft: [37, 'ArrowLeft'], ArrowRight: [39, 'ArrowRight'] };
+    const codes = { Enter: [13, 'Enter', '\r'], Escape: [27, 'Escape'], Space: [32, 'Space', ' '], Tab: [9, 'Tab'], Backspace: [8, 'Backspace'], ArrowLeft: [37, 'ArrowLeft'], ArrowRight: [39, 'ArrowRight'], Home: [36, 'Home'], End: [35, 'End'] };
     const [vk, code, text] = codes[key] ?? [key.toUpperCase().charCodeAt(0), `Key${key.toUpperCase()}`, key];
     const keyName = key === 'Space' ? ' ' : key;
     const mask = (modifiers.includes('alt') ? 1 : 0) | (modifiers.includes('ctrl') ? 2 : 0) | (modifiers.includes('shift') ? 8 : 0);
