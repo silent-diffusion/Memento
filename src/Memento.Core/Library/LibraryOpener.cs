@@ -15,7 +15,8 @@ public sealed partial class LibraryOpener(
     ILibraryIndex index,
     RecoveryService recovery,
     ProcessingOrchestrator processing,
-    ILogger<LibraryOpener> logger) : IDisposable
+    ILogger<LibraryOpener> logger,
+    Export.InterruptedExports? exports = null) : IDisposable
 {
     private readonly ILogger<LibraryOpener> _logger = logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -37,6 +38,11 @@ public sealed partial class LibraryOpener(
 
             await index.InitializeAsync(cancellationToken);
             var recovered = await recovery.RunAsync(cancellationToken);
+            if (exports is not null)
+            {
+                // An export cut short by the crash is cleaned up like a failed one.
+                await exports.CleanUpAsync(cancellationToken);
+            }
 
             // Stages that were queued or running when Memento closed continue in the background.
             var resumed = await processing.ResumePendingAsync(cancellationToken);

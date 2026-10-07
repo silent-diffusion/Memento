@@ -165,6 +165,49 @@ public sealed class ExportTests : IDisposable
     }
 
     [Fact]
+    public async Task ARunningExportIsJournalledAndForgottenWhenItFinishes()
+    {
+        var id = await _m3.RecordAsync();
+        _m3.Mp3.Gate = new TaskCompletionSource();
+        var selection = new ExportSelection { Details = new ExportToggle { On = true }, AudioMixed = new ExportAudioChoice { On = true, Format = "mp3", BitrateKbps = 128 } };
+        var journal = _m3.Host.Get<ExportJournal>();
+
+        var jobId = (await _m3.ResultAsync("export.run", Run(id, selection, createSubfolder: true))).GetProperty("jobId").GetString();
+        await TestRecordings.WaitUntilAsync(() => _m3.Mp3.Calls > 0, "the MP3 encode to start");
+
+        var entry = Assert.Single(journal.Entries);
+        Assert.Equal(jobId, entry.JobId);
+        Assert.Equal(id, entry.RecordingId);
+        Assert.StartsWith(Destination, entry.OutputFolder, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(entry.Work);
+        _m3.Mp3.Gate.SetResult();
+        await FinishedAsync(jobId!);
+        Assert.Empty(journal.Entries);
+    }
+
+    [Fact]
+    public async Task AnExportCutShortByACrashIsCleanedUpAtTheNextLaunch()
+    {
+        var id = await _m3.RecordAsync();
+        var output = Path.Combine(Destination, "Weekly sync 2026-10-06");
+        var work = Path.Combine(output, ".memento-export-xdead");
+        Directory.CreateDirectory(work);
+        File.WriteAllText(Path.Combine(work, "abc.part.wav"), "half");
+        var written = Path.Combine(output, "Weekly sync 2026-10-06.wav");
+        File.WriteAllText(written, "complete file of an incomplete export");
+        _m3.Host.Get<ExportJournal>().Set(new ExportJournalEntry("xdead", id, "Weekly sync", DateTimeOffset.Now, output, work, [written], [output]));
+
+        var cleaned = await _m3.Host.Get<InterruptedExports>().CleanUpAsync(CancellationToken.None);
+
+        Assert.Equal(1, cleaned);
+        Assert.False(Directory.Exists(output));
+        Assert.Empty(_m3.Host.Get<ExportJournal>().Entries);
+        var history = await _m3.Host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var line = Assert.Single(history, h => h.Summary == "Export interrupted");
+        Assert.Equal($"Memento closed while exporting to {output}. The 1 file it had written there was removed; nothing inside Memento was changed. Export again from Review.", line.Detail);
+    }
+
+    [Fact]
     public async Task AFailedFileIsNamedAndTheRestRemoved()
     {
         var id = await _m3.RecordAsync();
