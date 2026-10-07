@@ -9,13 +9,15 @@ namespace Memento.Core.Transcripts;
 /// <param name="Signature">Model, language and device kind; a pass with another signature starts over.</param>
 /// <param name="Segments">Final segments, per track in time order.</param>
 /// <param name="ElapsedMs">Processing time spent so far across attempts.</param>
+/// <param name="Device">Where the finished windows were transcribed (kept when a resumed pass has nothing left to do).</param>
 public sealed record TranscriptPartial(
     int SchemaVersion,
     string Signature,
     IReadOnlyList<TranscriptPartialTrack> Tracks,
     IReadOnlyList<TranscriptSegment> Segments,
     string? Language,
-    long ElapsedMs)
+    long ElapsedMs,
+    Workers.WorkerDevice? Device = null)
 {
     public const int CurrentSchemaVersion = 1;
 

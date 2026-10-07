@@ -220,6 +220,12 @@ public sealed partial class TranscriptStage(
         long elapsedMs,
         IReadOnlyList<ProjectTrack> tracks)
     {
+        // A resumed pass with nothing left reports no device; the windows were made where the partial says.
+        if (result.Device.Runtime == "none" && state.Device is { } earlier)
+        {
+            result = result with { Device = earlier };
+        }
+
         var segments = TranscriptMerger.Merge(state.Segments);
         var speech = state.Tracks.Values.ToDictionary(
             t => t.TrackId,
@@ -445,6 +451,7 @@ public sealed partial class TranscriptStage(
             Tracks = partial.Tracks.ToDictionary(t => t.TrackId, StringComparer.Ordinal);
             Language = partial.Language;
             ElapsedBeforeMs = partial.ElapsedMs;
+            Device = partial.Device;
         }
 
         public List<TranscriptSegment> Segments { get; }
@@ -467,8 +474,8 @@ public sealed partial class TranscriptStage(
             switch (reply.Type)
             {
                 case WorkerMessageTypes.Device:
-                    Device = reply.Device;
-                    return false;
+                    Device = reply.Device ?? Device;
+                    return true;
                 case WorkerMessageTypes.Track when reply.Track is { } info:
                     var done = WindowsDone(info.TrackId);
                     Tracks[info.TrackId] = new TranscriptPartialTrack(info.TrackId, info.Silent ? info.Windows : done, info.Windows, info.Silent, info.DurationSeconds, info.Speech);
@@ -498,6 +505,6 @@ public sealed partial class TranscriptStage(
         }
 
         public TranscriptPartial ToPartial(long elapsedMs) =>
-            new(TranscriptPartial.CurrentSchemaVersion, _signature, Tracks.Values.ToList(), Segments, Language, ElapsedBeforeMs + elapsedMs);
+            new(TranscriptPartial.CurrentSchemaVersion, _signature, Tracks.Values.ToList(), Segments, Language, ElapsedBeforeMs + elapsedMs, Device);
     }
 }
