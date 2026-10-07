@@ -8,11 +8,11 @@ public sealed record AiSettings
 {
     public bool Enabled { get; init; }
 
-    public bool AskBeforeSend { get; init; } = true;
+    public bool AskBeforeSend { get; set; } = true;
 
-    public bool KeepRecord { get; init; } = true;
+    public bool KeepRecord { get; set; } = true;
 
-    public AiShareSettings Share { get; init; } = new();
+    public AiShareSettings Share { get; set; } = new();
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

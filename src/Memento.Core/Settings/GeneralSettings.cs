@@ -16,7 +16,7 @@ public sealed record GeneralSettings
     /// <summary>Stored; applied in M5.</summary>
     public bool KeepRunningInTray { get; init; }
 
-    public string Language { get; init; } = English;
+    public string Language { get; set; } = English;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

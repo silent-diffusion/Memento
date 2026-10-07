@@ -6,15 +6,15 @@ namespace Memento.Core.Settings;
 /// <summary>What external AI may receive when it is on (DESIGN.md §11). Audio and video are never sent.</summary>
 public sealed record AiShareSettings
 {
-    public bool Transcript { get; init; } = true;
+    public bool Transcript { get; set; } = true;
 
-    public bool Details { get; init; } = true;
+    public bool Details { get; set; } = true;
 
-    public bool Participants { get; init; } = true;
+    public bool Participants { get; set; } = true;
 
-    public bool Agenda { get; init; } = true;
+    public bool Agenda { get; set; } = true;
 
-    public bool Highlights { get; init; } = true;
+    public bool Highlights { get; set; } = true;
 
     public bool Attachments { get; init; }
 

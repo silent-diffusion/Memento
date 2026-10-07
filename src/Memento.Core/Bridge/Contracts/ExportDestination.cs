@@ -5,5 +5,5 @@ public sealed record ExportDestination
 {
     public required string Folder { get; init; }
 
-    public bool CreateSubfolder { get; init; } = true;
+    public bool CreateSubfolder { get; set; } = true;
 }

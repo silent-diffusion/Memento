@@ -14,11 +14,11 @@ public sealed record ExportSettings
     /// <summary>A full path, or <c>null</c> when none was chosen.</summary>
     public string? DefaultFolder { get; init; }
 
-    public bool AskWhereEachTime { get; init; } = true;
+    public bool AskWhereEachTime { get; set; } = true;
 
-    public bool CreateSubfolder { get; init; } = true;
+    public bool CreateSubfolder { get; set; } = true;
 
-    public ExportSelection Defaults { get; init; } = ExportSelection.Default;
+    public ExportSelection Defaults { get; set; } = ExportSelection.Default;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

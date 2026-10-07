@@ -7,21 +7,21 @@ public sealed record ExportSelection
     /// Settings › Export defaults (DESIGN.md §11, PRODUCT-SPEC "External Export"): the mixed audio as FLAC and the
     /// transcript as JSON and Markdown; nothing else.
     /// </summary>
-    public static ExportSelection Default { get; } = new()
+    public static ExportSelection Default => new()
     {
         AudioMixed = new ExportAudioChoice { On = true, Format = "flac" },
         Transcript = new ExportTranscriptChoice { On = true, Formats = ["json", "markdown"] },
     };
 
-    public ExportAudioChoice AudioMixed { get; init; } = new();
+    public ExportAudioChoice AudioMixed { get; set; } = new();
 
-    public ExportAudioChoice Tracks { get; init; } = new();
+    public ExportAudioChoice Tracks { get; set; } = new();
 
-    public ExportTranscriptChoice Transcript { get; init; } = new();
+    public ExportTranscriptChoice Transcript { get; set; } = new();
 
-    public ExportDocumentsChoice Documents { get; init; } = new();
+    public ExportDocumentsChoice Documents { get; set; } = new();
 
-    public ExportToggle Details { get; init; } = new();
+    public ExportToggle Details { get; set; } = new();
 
-    public ExportToggle Attachments { get; init; } = new();
+    public ExportToggle Attachments { get; set; } = new();
 }

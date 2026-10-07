@@ -6,7 +6,7 @@ public sealed record ExportAudioChoice
     public bool On { get; init; }
 
     /// <summary><c>flac</c>, <c>wav</c> or <c>mp3</c>.</summary>
-    public string Format { get; init; } = "flac";
+    public string Format { get; set; } = "flac";
 
     /// <summary>MP3 only (96–320); <c>null</c> uses 192 kbps.</summary>
     public int? BitrateKbps { get; init; }

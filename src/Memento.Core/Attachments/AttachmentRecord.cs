@@ -27,7 +27,7 @@ public sealed record AttachmentRecord
     public DateTimeOffset AddedAt { get; init; }
 
     /// <summary><see cref="AgendaKind"/> or <see cref="FileKind"/>.</summary>
-    public string Kind { get; init; } = FileKind;
+    public string Kind { get; set; } = FileKind;
 
     public string? ContentType { get; init; }
 

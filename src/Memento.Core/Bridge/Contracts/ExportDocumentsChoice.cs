@@ -5,8 +5,8 @@ public sealed record ExportDocumentsChoice
 {
     public bool On { get; init; }
 
-    public IReadOnlyList<string> DocumentIds { get; init; } = [];
+    public IReadOnlyList<string> DocumentIds { get; set; } = [];
 
     /// <summary><c>docx</c>, <c>pdf</c> or <c>markdown</c>.</summary>
-    public string Format { get; init; } = "docx";
+    public string Format { get; set; } = "docx";
 }
