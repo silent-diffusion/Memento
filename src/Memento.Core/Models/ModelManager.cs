@@ -4,10 +4,12 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Host;
+using Memento.Core.Projects;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Models;
@@ -30,6 +32,10 @@ public sealed partial class ModelManager : IModelManager, IDisposable
     private readonly SemaphoreSlim _downloadGate = new(1, 1);
     private readonly ConcurrentDictionary<string, Download> _downloads = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, int> _inUse = new(StringComparer.Ordinal);
+
+    // One background check per model file state (id, size, last write): a file that could not be verified is not hashed
+    // again on every IsInstalled call, but a file that changed is.
+    private readonly ConcurrentDictionary<string, Task> _verifications = new(StringComparer.Ordinal);
 
     public ModelManager(
         ModelCatalog catalog,
@@ -70,7 +76,7 @@ public sealed partial class ModelManager : IModelManager, IDisposable
     public async Task InstallAsync(string modelId, CancellationToken cancellationToken)
     {
         var entry = Find(modelId);
-        if (IsInstalled(entry))
+        if (Check(entry).Integrity == Integrity.Verified)
         {
             Publish(entry, StateDone, entry.SizeBytes, null);
             return;
@@ -166,8 +172,21 @@ public sealed partial class ModelManager : IModelManager, IDisposable
             LogRemoved(entry.Id);
         }
 
+        DeleteStamp(path);
+        DeleteSetAside(entry);
         DeletePart(entry);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Hashes the installed file now (on a pool thread) unless it is already verified: a match is recorded beside it, a
+    /// mismatch is set aside as <c>&lt;file&gt;.corrupt-&lt;time&gt;</c> so it is never loaded.
+    /// </summary>
+    /// <returns>Whether the model is installed and matches its catalog SHA-256.</returns>
+    public Task<bool> VerifyAsync(string modelId, CancellationToken cancellationToken)
+    {
+        var entry = Find(modelId);
+        return Task.Run(async () => await VerifyFileAsync(entry, cancellationToken) == Integrity.Verified, cancellationToken);
     }
 
     public IDisposable Use(string modelId)
@@ -194,10 +213,188 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         _ => exception.Message.TrimEnd('.'),
     };
 
+    /// <summary>
+    /// Installed means the file is there at the catalog size and its stamp says it hashed to the catalog SHA-256 at
+    /// its current size and last-write time. A file without a valid stamp (installed by an older version, or changed
+    /// since) is hashed once in the background and does not count until it matched; this call never hashes.
+    /// </summary>
     private bool IsInstalled(ModelCatalogEntry entry)
     {
+        var (integrity, info) = Check(entry);
+        if (integrity == Integrity.Unverified)
+        {
+            StartVerification(entry, info!);
+        }
+
+        return integrity == Integrity.Verified;
+    }
+
+    private (Integrity Integrity, FileInfo? Info) Check(ModelCatalogEntry entry)
+    {
         var path = PathOf(entry);
-        return File.Exists(path) && new FileInfo(path).Length == entry.SizeBytes;
+        var info = new FileInfo(path);
+        if (!info.Exists || info.Length != entry.SizeBytes)
+        {
+            return (Integrity.Missing, null);
+        }
+
+        var stamp = ReadStamp(path);
+        if (stamp is null || stamp.SizeBytes != info.Length || stamp.LastWriteUtc != info.LastWriteTimeUtc)
+        {
+            return (Integrity.Unverified, info);
+        }
+
+        // The file is the one that was hashed; if that hash is not the catalog's, it is another model (the catalog changed).
+        return (string.Equals(stamp.Sha256, entry.Sha256, StringComparison.Ordinal) ? Integrity.Verified : Integrity.Different, info);
+    }
+
+    private ModelVerifiedStamp? ReadStamp(string modelPath)
+    {
+        var path = modelPath + ModelVerifiedStamp.Suffix;
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var stamp = JsonSerializer.Deserialize(File.ReadAllBytes(path), ModelJsonContext.Default.ModelVerifiedStamp);
+            return stamp is { SchemaVersion: ModelVerifiedStamp.CurrentSchemaVersion } ? stamp : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            LogStampUnreadable(ex, path);
+            return null;
+        }
+    }
+
+    private static async Task WriteStampAsync(string modelPath, string sha256, CancellationToken cancellationToken)
+    {
+        var info = new FileInfo(modelPath);
+        var stamp = new ModelVerifiedStamp { Sha256 = sha256, SizeBytes = info.Length, LastWriteUtc = info.LastWriteTimeUtc };
+        await AtomicJsonFile.WriteAsync(modelPath + ModelVerifiedStamp.Suffix, stamp, ModelJsonContext.Default.ModelVerifiedStamp, cancellationToken);
+    }
+
+    private void DeleteStamp(string modelPath)
+    {
+        try
+        {
+            File.Delete(modelPath + ModelVerifiedStamp.Suffix);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogPartNotRemoved(ex, modelPath + ModelVerifiedStamp.Suffix);
+        }
+    }
+
+    private void StartVerification(ModelCatalogEntry entry, FileInfo info)
+    {
+        if (_downloads.ContainsKey(entry.Id))
+        {
+            return; // The download replaces the file and stamps it.
+        }
+
+        var key = string.Create(CultureInfo.InvariantCulture, $"{entry.Id}|{info.Length}|{info.LastWriteTimeUtc.Ticks}");
+        _verifications.GetOrAdd(key, _ => Task.Run(() => VerifyInBackgroundAsync(entry), CancellationToken.None));
+    }
+
+    private async Task VerifyInBackgroundAsync(ModelCatalogEntry entry)
+    {
+        try
+        {
+            switch (await VerifyFileAsync(entry, CancellationToken.None))
+            {
+                case Integrity.Verified:
+                    Publish(entry, StateDone, entry.SizeBytes, null);
+                    Installed?.Invoke(this, entry.Id);
+                    break;
+                case Integrity.Different:
+                    Publish(entry, StateFailed, 0, $"The installed file of {entry.Name} did not match its published checksum, so Memento set it aside and will not use it. Your recordings are not affected. Install the model again in Settings.");
+                    break;
+            }
+        }
+#pragma warning disable CA1031 // A background check must never take the app down; it is logged and the model reads as not installed.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogVerifyFailed(ex, entry.Id);
+        }
+    }
+
+    /// <summary>
+    /// Hashes the installed file unless its stamp already vouches for it; stamps a match, sets a mismatch aside.
+    /// </summary>
+    /// <returns><see cref="Integrity.Verified"/>, <see cref="Integrity.Missing"/>, <see cref="Integrity.Different"/>
+    /// (a stamped other file, or a mismatch now set aside) or <see cref="Integrity.Unverified"/> (it changed while it
+    /// was hashed).</returns>
+    private async Task<Integrity> VerifyFileAsync(ModelCatalogEntry entry, CancellationToken cancellationToken)
+    {
+        var (integrity, before) = Check(entry);
+        if (integrity != Integrity.Unverified)
+        {
+            return integrity;
+        }
+
+        var path = PathOf(entry);
+        string hash;
+        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true))
+        {
+            hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
+        }
+
+        var after = new FileInfo(path);
+        if (!after.Exists || after.Length != before!.Length || after.LastWriteTimeUtc != before.LastWriteTimeUtc)
+        {
+            return Integrity.Unverified; // Changed while it was being hashed; the next look starts over.
+        }
+
+        if (string.Equals(hash, entry.Sha256, StringComparison.Ordinal))
+        {
+            await WriteStampAsync(path, hash, cancellationToken);
+            LogVerified(entry.Id, hash);
+            return Integrity.Verified;
+        }
+
+        SetAside(entry, path, hash);
+        return Integrity.Different;
+    }
+
+    private void SetAside(ModelCatalogEntry entry, string path, string hash)
+    {
+        var aside = path + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        try
+        {
+            File.Move(path, aside, overwrite: true);
+            LogSetAside(entry.Id, hash, aside);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogNotSetAside(ex, entry.Id, hash);
+        }
+
+        DeleteStamp(path);
+    }
+
+    private void DeleteSetAside(ModelCatalogEntry entry)
+    {
+        var path = PathOf(entry);
+        var folder = Path.GetDirectoryName(path)!;
+        if (!Directory.Exists(folder))
+        {
+            return;
+        }
+
+        foreach (var aside in Directory.EnumerateFiles(folder, entry.FileName + ".corrupt-*"))
+        {
+            try
+            {
+                File.Delete(aside);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LogPartNotRemoved(ex, aside);
+            }
+        }
     }
 
     private ModelCatalogEntry Find(string modelId) =>
@@ -228,8 +425,21 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         {
             await _downloadGate.WaitAsync(token);
             gateTaken = true;
-            await DownloadAsync(download, token);
-            await VerifyAndMoveAsync(download, token);
+
+            // A file already in place without a valid stamp (an older version installed it) is hashed before anything
+            // is downloaded: a match needs no download, a mismatch is set aside and downloaded again.
+            if (Check(entry).Integrity == Integrity.Unverified)
+            {
+                download.Connected.TrySetResult(null);
+                Publish(entry, StateVerifying, entry.SizeBytes, null);
+            }
+
+            if (await VerifyFileAsync(entry, token) != Integrity.Verified)
+            {
+                await DownloadAsync(download, token);
+                await VerifyAndMoveAsync(download, token);
+            }
+
             Publish(entry, StateDone, entry.SizeBytes, null);
             LogInstalled(entry.Id, entry.SizeBytes);
             _downloads.TryRemove(entry.Id, out _);
@@ -392,6 +602,8 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         }
 
         File.Move(part, target, overwrite: true);
+        await WriteStampAsync(target, hash, cancellationToken);
+        DeleteSetAside(entry);
         LogVerified(entry.Id, hash);
     }
 
@@ -420,6 +632,34 @@ public sealed partial class ModelManager : IModelManager, IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Partial download {Path} could not be removed")]
     private partial void LogPartNotRemoved(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Model stamp {Path} could not be read; the model is hashed again")]
+    private partial void LogStampUnreadable(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Installed model {ModelId} hashed to {Hash}, not its catalog SHA-256; set aside as {Path}")]
+    private partial void LogSetAside(string modelId, string hash, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Installed model {ModelId} hashed to {Hash}, not its catalog SHA-256, and could not be set aside")]
+    private partial void LogNotSetAside(Exception exception, string modelId, string hash);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Installed model {ModelId} could not be verified")]
+    private partial void LogVerifyFailed(Exception exception, string modelId);
+
+    /// <summary>What is on disk for a model, from the cheapest look that can tell.</summary>
+    private enum Integrity
+    {
+        /// <summary>No file, or not the catalog size.</summary>
+        Missing,
+
+        /// <summary>Its stamp matches the file and the catalog SHA-256.</summary>
+        Verified,
+
+        /// <summary>The right size but no valid stamp: it has to be hashed.</summary>
+        Unverified,
+
+        /// <summary>Its stamp matches the file but not the catalog SHA-256, or it was hashed and did not match.</summary>
+        Different,
+    }
 
     private sealed class Download(ModelCatalogEntry entry)
     {

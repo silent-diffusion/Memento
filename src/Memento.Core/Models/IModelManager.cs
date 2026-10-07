@@ -15,9 +15,14 @@ public interface IModelManager
     /// <summary>Every catalog model with its state, read from disk now.</summary>
     IReadOnlyList<ModelState> List();
 
+    /// <summary>
+    /// Whether the model's file is in place and verified: its <c>&lt;file&gt;.verified.json</c> stamp records the
+    /// catalog SHA-256 for the file's current size and last-write time. A file without a valid stamp is hashed once in
+    /// the background (never on the caller's thread) and counts only once it matched.
+    /// </summary>
     bool IsInstalled(string modelId);
 
-    /// <summary>The installed file, or <c>null</c> when the model is unknown or not installed.</summary>
+    /// <summary>The installed, verified file (see <see cref="IsInstalled"/>), or <c>null</c> when the model is unknown or not installed.</summary>
     string? Resolve(string modelId);
 
     /// <summary>

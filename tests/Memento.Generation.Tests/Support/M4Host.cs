@@ -62,6 +62,10 @@ internal sealed class M4Host : IDisposable
         var path = Host.Models.PathOf(entry);
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, new byte[entry.SizeBytes]);
+        if (!Host.Models.VerifyAsync(id, CancellationToken.None).GetAwaiter().GetResult())
+        {
+            throw new InvalidOperationException($"The test model {id} did not verify.");
+        }
     }
 
     /// <summary>A stored recording of the synthetic meeting: its details and agenda, and transcript.json written directly.</summary>
@@ -134,7 +138,8 @@ internal sealed class M4Host : IDisposable
         var json = JsonSerializer.Serialize(new
         {
             schemaVersion = 1,
-            models = ModelCatalog.Default.Entries.Select(e => e.Kind == ModelKinds.Llm ? e with { SizeBytes = 4 } : e).ToList(),
+            // The SHA-256 of the four zero bytes InstallLocalModel writes.
+            models = ModelCatalog.Default.Entries.Select(e => e.Kind == ModelKinds.Llm ? e with { SizeBytes = 4, Sha256 = "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119" } : e).ToList(),
         }, Web);
         return ModelCatalog.Parse(json);
     }

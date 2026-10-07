@@ -221,6 +221,114 @@ public sealed class ModelManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task AnInstalledModelIsStampedWithItsHash()
+    {
+        var manager = Create();
+
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+
+        var stamp = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(ModelPath + ".verified.json")).RootElement;
+        Assert.Equal(1, stamp.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(_content)).ToLowerInvariant(), stamp.GetProperty("sha256").GetString());
+        Assert.Equal(_content.Length, stamp.GetProperty("sizeBytes").GetInt64());
+    }
+
+    [Fact]
+    public async Task AFlippedByteOfTheSameLengthIsNotInstalledAndIsSetAside()
+    {
+        var manager = Create();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+        _sink.Clear();
+
+        var damaged = (byte[])_content.Clone();
+        damaged[damaged.Length / 2] ^= 0x01;
+        await File.WriteAllBytesAsync(ModelPath, damaged);
+
+        Assert.False(manager.IsInstalled("test"));
+        Assert.Null(manager.Resolve("test"));
+        var failed = await FinishedAsync();
+        Assert.Equal("failed", failed.GetProperty("state").GetString());
+        Assert.Contains("did not match its published checksum", failed.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.False(File.Exists(ModelPath));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(ModelPath)!, "ggml-test.bin.corrupt-*"));
+        Assert.False(manager.IsInstalled("test"));
+
+        // Installing again downloads a good copy and clears the one set aside.
+        _sink.Clear();
+        await manager.InstallAsync("test", CancellationToken.None);
+        Assert.Equal("done", (await FinishedAsync()).GetProperty("state").GetString());
+        Assert.True(manager.IsInstalled("test"));
+        Assert.Equal(_content, await File.ReadAllBytesAsync(ModelPath));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(ModelPath)!, "ggml-test.bin.corrupt-*"));
+    }
+
+    [Fact]
+    public async Task AFlippedByteIsCaughtByAnExplicitVerify()
+    {
+        var manager = Create();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+
+        var damaged = (byte[])_content.Clone();
+        damaged[0] ^= 0x80;
+        await File.WriteAllBytesAsync(ModelPath, damaged);
+
+        Assert.False(await manager.VerifyAsync("test", CancellationToken.None));
+        Assert.False(manager.IsInstalled("test"));
+        Assert.False(File.Exists(ModelPath + ".verified.json"));
+    }
+
+    [Fact]
+    public async Task AModelFromAnOlderVersionIsHashedOnceInTheBackgroundAndThenCounts()
+    {
+        var manager = Create();
+        var installed = new TaskCompletionSource<string>();
+        manager.Installed += (_, id) => installed.TrySetResult(id);
+        Directory.CreateDirectory(Path.GetDirectoryName(ModelPath)!);
+        await File.WriteAllBytesAsync(ModelPath, _content);
+
+        // The first look does not hash on the caller's thread: not installed yet.
+        Assert.False(manager.IsInstalled("test"));
+
+        Assert.Equal("test", await installed.Task.WaitAsync(TimeSpan.FromSeconds(20)));
+        Assert.True(manager.IsInstalled("test"));
+        Assert.Equal(ModelPath, manager.Resolve("test"));
+        Assert.True(File.Exists(ModelPath + ".verified.json"));
+        Assert.Empty(_server.Requests);
+    }
+
+    [Fact]
+    public async Task InstallingAModelFromAnOlderVersionHashesItInsteadOfDownloading()
+    {
+        var manager = Create();
+        Directory.CreateDirectory(Path.GetDirectoryName(ModelPath)!);
+        await File.WriteAllBytesAsync(ModelPath, _content);
+
+        await manager.InstallAsync("test", CancellationToken.None);
+
+        Assert.Equal("done", (await FinishedAsync()).GetProperty("state").GetString());
+        Assert.Empty(_server.Requests);
+        Assert.True(manager.IsInstalled("test"));
+    }
+
+    [Fact]
+    public async Task ANewCatalogHashForTheSameFileNameAndSizeIsNotInstalled()
+    {
+        var manager = Create();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+        manager.Dispose();
+
+        var changed = Create(sha: new string('a', 64));
+
+        Assert.False(changed.IsInstalled("test"));
+        Assert.Null(changed.Resolve("test"));
+        Assert.True(File.Exists(ModelPath)); // Not hashed again or set aside: the stamp already says what it is.
+    }
+
+    [Fact]
     public async Task AFileOfTheWrongSizeDoesNotCountAsInstalled()
     {
         var manager = Create();

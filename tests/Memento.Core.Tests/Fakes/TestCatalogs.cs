@@ -5,7 +5,8 @@ namespace Memento.Core.Tests.Fakes;
 /// <summary>A catalog with the real ids and 4-byte files, so tests can "install" a model by writing it.</summary>
 internal static class TestCatalogs
 {
-    private const string Zero = "0000000000000000000000000000000000000000000000000000000000000000";
+    // SHA-256 of the four zero bytes Install writes.
+    private const string Zero = "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119";
 
     public static readonly ModelCatalog Tiny = ModelCatalog.Parse($$"""
         { "schemaVersion": 1, "models": [
@@ -17,7 +18,7 @@ internal static class TestCatalogs
         ] }
         """);
 
-    /// <summary>Writes the model files so the host's model manager sees them as installed.</summary>
+    /// <summary>Writes the model files and verifies them, so the host's model manager sees them as installed.</summary>
     public static void Install(BridgeTestHost host, params string[] ids)
     {
         foreach (var id in ids)
@@ -26,6 +27,10 @@ internal static class TestCatalogs
             var path = host.Models.PathOf(entry);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllBytes(path, new byte[entry.SizeBytes]);
+            if (!host.Models.VerifyAsync(id, CancellationToken.None).GetAwaiter().GetResult())
+            {
+                throw new InvalidOperationException($"The test model {id} did not verify.");
+            }
         }
     }
 }
