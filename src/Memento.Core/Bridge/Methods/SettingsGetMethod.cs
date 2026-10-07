@@ -7,7 +7,7 @@ using Memento.Core.Settings;
 namespace Memento.Core.Bridge.Methods;
 
 /// <summary><c>settings.get</c> → <see cref="SettingsSnapshot"/>. An unset transcription model reads as the recommended one for this PC.</summary>
-public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selector) : BridgeMethod<EmptyParams, SettingsSnapshot>
+public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selector, SettingsExtras? extras = null) : BridgeMethod<EmptyParams, SettingsSnapshot>
 {
     public override string Name => BridgeMethodNames.SettingsGet;
 
@@ -16,15 +16,15 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
     public override JsonTypeInfo<SettingsSnapshot> ResultTypeInfo => BridgeJsonContext.Default.SettingsSnapshot;
 
     public override Task<SettingsSnapshot> InvokeAsync(EmptyParams parameters, CancellationToken cancellationToken) =>
-        Task.FromResult(ToSnapshot(store.Current, selector.EffectiveModelId(store.Current.Transcription)));
+        Task.FromResult(ToSnapshot(store.Current, selector.EffectiveModelId(store.Current.Transcription), extras));
 
-    internal static SettingsSnapshot ToSnapshot(AppSettings settings, string effectiveModelId)
+    internal static SettingsSnapshot ToSnapshot(AppSettings settings, string effectiveModelId, SettingsExtras? extras = null)
     {
         var recording = settings.Recording;
         var storage = recording.Storage;
         var transcription = settings.Transcription;
         var speakers = settings.Speakers;
-        return new SettingsSnapshot(
+        var snapshot = new SettingsSnapshot(
             settings.Theme,
             settings.EffectiveLibraryPath,
             settings.ListDensity,
@@ -50,6 +50,7 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
                 speakers.RememberRenamed,
                 speakers.EmbeddingModelId),
             new HistorySettingsSnapshot(settings.History.KeepVersions, settings.History.KeepDays));
+        return M3SettingsBlocks.Complete(snapshot, settings, extras);
     }
 
     /// <summary>The bridge form of the expected speaker count: the string <c>auto</c> or a number.</summary>

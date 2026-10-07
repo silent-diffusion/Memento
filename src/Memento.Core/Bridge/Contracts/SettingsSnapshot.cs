@@ -11,4 +11,17 @@ public sealed record SettingsSnapshot(
     RecordingSettingsSnapshot Recording,
     TranscriptionSettingsSnapshot Transcription,
     SpeakersSettingsSnapshot Speakers,
-    HistorySettingsSnapshot History);
+    HistorySettingsSnapshot History)
+{
+    /// <summary>Settings › General (M3).</summary>
+    public GeneralSettingsSnapshot General { get; init; } = new(false, false, "en");
+
+    /// <summary>Settings › Export (M3).</summary>
+    public ExportSettingsSnapshot Export { get; init; } = new(false, null, true, true, ExportSelection.Default);
+
+    /// <summary>Settings › AI and privacy (M3), with which providers have a saved key (never the keys).</summary>
+    public AiSettingsSnapshot Ai { get; init; } = new(false, true, true, new(true, true, true, true, true, false), new(new(false), new(false)));
+
+    /// <summary>Settings › Storage and history (M3).</summary>
+    public LibraryStorageSettingsSnapshot Storage { get; init; } = new(null);
+}
