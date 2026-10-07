@@ -55,6 +55,7 @@ describe('M3 contract names', () => {
       'agenda.ocrUnavailable',
       'agenda.itemTooLong',
       'agenda.tooManyItems',
+      'agenda.itemNotFound',
       'agenda.dropUnavailable',
       'attachments.tooLarge',
       'attachments.notFound',
@@ -63,6 +64,10 @@ describe('M3 contract names', () => {
       'export.destinationUnwritable',
       'export.nothingSelected',
       'export.notFound',
+      'library.moveRefused',
+      'storage.nothingToReclaim',
+      'app.startupRefused',
+      'ai.keyWriteFailed',
     ];
     expect(ERROR_CODES.slice(-m3Codes.length)).toEqual(m3Codes);
   });
@@ -156,7 +161,20 @@ describe('browser-preview host: export (M3)', () => {
     const estimate = await bridge.call('export.estimate', { recordingId: DESIGN, selection: all });
     expect(new Set(estimate.items.map((i) => i.component))).toEqual(new Set(['audioMixed', 'tracks', 'transcript', 'details', 'attachments']));
     expect(estimate.items.filter((i) => i.component === 'tracks')).toHaveLength(3);
-    expect(estimate.unavailable).toEqual([{ component: 'documents', reason: 'Documents arrive in a later version' }]);
+    // The host's names; the totals add manifest.json to the items.
+    const base = exportFolderName('Design review: library screen', (await bridge.call('project.get', { recordingId: DESIGN })).summary.createdAt);
+    expect(estimate.items.find((i) => i.component === 'audioMixed')?.name).toBe(`${base}.flac`);
+    expect(estimate.items.filter((i) => i.component === 'transcript').map((i) => i.name)).toEqual(
+      DEFAULT_EXPORT_SELECTION.transcript.formats.map((f) => ({ json: `${base} - transcript.json`, srt: `${base}.srt`, markdown: `${base} - transcript.md`, text: `${base} - transcript.txt` })[f]),
+    );
+    expect(estimate.items.find((i) => i.component === 'details')?.name).toBe(`${base} - details.json`);
+    expect(estimate.items.filter((i) => i.component === 'attachments').every((i) => i.name.startsWith('Attachments/'))).toBe(true);
+    expect(estimate.files).toBe(estimate.items.length + 1);
+    expect(estimate.bytes).toBeGreaterThan(estimate.items.reduce((sum, i) => sum + i.bytes, 0));
+    expect(estimate.unavailable).toEqual([]);
+    // As the host, a reason comes only for a ticked row.
+    const withDocuments = await bridge.call('export.estimate', { recordingId: DESIGN, selection: { ...all, documents: { ...all.documents, on: true } } });
+    expect(withDocuments.unavailable).toEqual([{ component: 'documents', reason: 'Documents arrive in a later version' }]);
     const mp3 = await bridge.call('export.estimate', {
       recordingId: DESIGN,
       selection: { ...all, audioMixed: { on: true, format: 'mp3', bitrateKbps: 192 } },
@@ -184,7 +202,8 @@ describe('browser-preview host: export (M3)', () => {
     const last = events.at(-1);
     expect(last?.state).toBe('done');
     expect(last?.outputFolder).toBe(`E:\\Exports\\${exportFolderName('Design review: library screen', (await bridge.call('project.get', { recordingId: DESIGN })).summary.createdAt)}`);
-    expect(last?.files).toBe(2);
+    // The mix, the transcript formats, and manifest.json.
+    expect(last?.files).toBe(DEFAULT_EXPORT_SELECTION.transcript.formats.length + 2);
     expect(events.some((e) => e.state === 'running' && e.percent > 0 && e.percent < 100)).toBe(true);
     expect(footers).toContain('Design review: library screen');
     expect((await bridge.call('settings.get')).export.defaultFolder).toBe('E:\\Exports');
@@ -252,10 +271,17 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
     expect(bySize.recordings.map((r) => r.sizeBytes)).toEqual([...bySize.recordings.map((r) => r.sizeBytes)].sort((a, b) => b - a));
     const moved = waitFor(bridge, 'library.moveProgress', (p) => p.state === 'done');
     await bridge.call('library.move', { newPath: 'E:\\Memento Library' });
+    // No recording starts while the library is being copied.
+    const sources = (await bridge.call('sources.list')).audio.map((s) => s.id).slice(0, 1);
+    const refused = await failure(bridge.call('recording.start', { title: 'During the move', type: 'meeting', sourceIds: sources }));
+    expect([refused.code, refused.detail]).toEqual(['library.busy', 'move']);
     const events = await moved;
     expect(events.length).toBeGreaterThan(2);
     expect((await bridge.call('settings.get')).libraryPath).toBe('E:\\Memento Library');
     expect((await failure(client({ m3: { move: 'busy' } }).call('library.move', { newPath: 'F:\\Lib' }))).code).toBe('library.busy');
+    // Checked before anything is copied: the host's own code, with the folder as detail.
+    const same = await failure(bridge.call('library.move', { newPath: 'E:\\Memento Library' }));
+    expect([same.code, same.detail]).toEqual(['library.moveRefused', 'E:\\Memento Library']);
     expect((await bridge.call('library.rebuildIndex')).recordings).toBe(14);
   });
 
@@ -278,6 +304,14 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
     const last = (await reclaimed).at(-1);
     expect(last?.recordingsDone).toBeGreaterThan(0);
     expect(last?.bytesFreed).toBeGreaterThan(0);
+    // Nothing chosen and nothing old enough are refused before a job starts.
+    expect((await failure(bridge.call('storage.reclaim', { recordingIds: [], downmixMono: true, codec: 'aac' }))).code).toBe('storage.nothingToReclaim');
+    await bridge.call('settings.set', { storage: { reclaimOlderThanDays: 3650 } });
+    const young = await failure(bridge.call('storage.reclaim', { recordingIds: null, downmixMono: true, codec: 'aac' }));
+    expect([young.code, young.message]).toEqual(['storage.nothingToReclaim', 'No recording is older than 3650 days, so there is nothing to make smaller yet. Nothing was changed.']);
+    // Keys are 8 to 500 characters.
+    expect(await bridge.call('ai.setKey', { provider: 'openai', key: 'k'.repeat(8) })).toEqual({ hasKey: true });
+    expect((await failure(bridge.call('ai.setKey', { provider: 'openai', key: 'k'.repeat(501) }))).code).toBe('bridge.invalidParams');
   });
 
   it('adds, opens and removes attachments, refusing files over 100 MB', async () => {

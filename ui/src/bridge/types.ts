@@ -64,6 +64,7 @@ export const ERROR_CODES = [
   'models.notFound',
   'models.inUse',
   'models.downloadFailed',
+  'models.busy',
   'models.noSpace',
   'engine.unavailable',
   // M3
@@ -77,6 +78,7 @@ export const ERROR_CODES = [
   'agenda.ocrUnavailable',
   'agenda.itemTooLong',
   'agenda.tooManyItems',
+  'agenda.itemNotFound',
   'agenda.dropUnavailable',
   'attachments.tooLarge',
   'attachments.notFound',
@@ -85,6 +87,10 @@ export const ERROR_CODES = [
   'export.destinationUnwritable',
   'export.nothingSelected',
   'export.notFound',
+  'library.moveRefused',
+  'storage.nothingToReclaim',
+  'app.startupRefused',
+  'ai.keyWriteFailed',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -110,8 +116,12 @@ export type BuiltInRecordingType =
 /** A built-in type, or any other string as the name of a custom type. */
 export type RecordingType = BuiltInRecordingType | (string & Record<never, never>);
 
-/** Pipeline order. `optimize` converts the lossless files to the smaller AAC/MP3 choice, after every other stage. */
-export type StageName = 'stored' | 'transcript' | 'speakers' | 'minutes' | 'optimize';
+/**
+ * Pipeline order. `topics` is the short local keyword stage after `speakers` (a finished one is left
+ * out of rows, like `stored`); `optimize` converts the lossless files to the smaller AAC/MP3 choice,
+ * after every other stage.
+ */
+export type StageName = 'stored' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize';
 
 export type StageState = 'done' | 'active' | 'queued' | 'failed';
 
@@ -158,7 +168,8 @@ export interface RecordingSummary {
   matchSnippet: string | null;
 }
 
-export type AudioSourceKind = 'microphone' | 'system' | 'application';
+/** `imported` (M3): the one track of a recording made with library.importMedia (`sourceId: 'imported'`). */
+export type AudioSourceKind = 'microphone' | 'system' | 'application' | 'imported';
 
 export interface AudioSource {
   /** Stable within a session: "mic:<endpointId>", "system:<endpointId>", "app:<pid>". */
@@ -242,7 +253,7 @@ export interface Topic {
 }
 
 /** Values the host writes (BRIDGE.md, History): stored and optimize in M1; transcript, speakers and topics from M2. */
-export type HistoryStage = StageName | 'topics' | 'recorded' | 'recovered' | 'edited';
+export type HistoryStage = StageName | 'recorded' | 'recovered' | 'edited';
 
 export type HistoryEvent = 'started' | 'completed' | 'failed' | 'info';
 
@@ -347,12 +358,22 @@ export interface Transcript {
   version: number;
   /** From Settings when the transcript was made; words below it are marked. */
   lowConfidenceThreshold: number;
+  /** Stretches of 10 s or more with speech on a track but no transcript; [] when none. */
+  coverageGaps: CoverageGap[];
+}
+
+/** Speech the engine wrote nothing for (Whisper sometimes drops a passage). Seconds on the timeline. */
+export interface CoverageGap {
+  start: number;
+  end: number;
+  /** The track it was found on. */
+  track: string | null;
 }
 
 export type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
 
 export interface StageRemedy {
-  /** Passed back as processing.retry's remedyId ("cpu", "model:medium"). */
+  /** Passed back as processing.retry's remedyId: "retry", "cpu" or "model:<catalog id>". */
   id: string;
   label: string;
 }
@@ -387,7 +408,14 @@ export interface ModelInfo {
   minVramBytes: number | null;
   /** "Most accurate", "Fast on CPU". */
   accuracyNote: string;
+  /**
+   * Speaker models: `segmentation` is always needed (not a choice), `embedding` is a voice model
+   * Settings › Speakers chooses between. Null for transcription and OCR models.
+   */
+  role: ModelRole | null;
 }
+
+export type ModelRole = 'segmentation' | 'embedding';
 
 export interface EngineStatusDetail {
   ready: boolean;
@@ -396,10 +424,10 @@ export interface EngineStatusDetail {
   gpuName: string | null;
   /** Null on CPU-only machines. */
   freeVramBytes: number | null;
-  /** The model id in use. */
+  /** The catalog id the engine would use, named even while it is not installed (`ready` is then false). */
   model: string | null;
   /** Why processing is paused, in words ("PC is busy"), or null. */
-  paused: string | null;
+  paused: ProcessingPausedReason | null;
 }
 
 export interface TranscriptGetResult {
@@ -514,7 +542,7 @@ export interface TranscriptRestoreVersionResult {
 export interface ProcessingRetryParams {
   recordingId: string;
   stage: StageName;
-  /** From StageFailure.remedies ("cpu", "model:small"). */
+  /** From StageFailure.remedies: "retry", "cpu" or "model:<catalog id>" ("model:whisper-small"). */
   remedyId?: string;
 }
 
@@ -606,6 +634,7 @@ export interface TranscriptionSettings {
 
 export interface SpeakerSettings {
   identify: boolean;
+  /** "auto" or a whole number from 1 to 20; applied when one track has speech. */
   expectedSpeakers: 'auto' | number;
   rememberRenamed: boolean;
   embeddingModelId: string;
@@ -636,9 +665,9 @@ export interface SettingsSnapshot {
 }
 
 /**
- * Partial update; omitted or null fields keep their value. The UI always sends the whole
- * `recording` block when it changes any part of it, so a shallow or a deep merge on the host
- * gives the same result.
+ * Partial update; omitted or null fields keep their value. The `recording` block is replaced whole
+ * (the UI always sends all of it); the M2 blocks merge field by field, so they may carry only the
+ * fields that change.
  */
 export interface SettingsSetParams {
   theme?: ThemePreference | null;
@@ -646,22 +675,34 @@ export interface SettingsSetParams {
   libraryPath?: string | null;
   listDensity?: ListDensity | null;
   recording?: RecordingSettings | null;
-  /** M2: like `recording`, each block is replaced whole and the UI sends it whole. */
-  transcription?: TranscriptionSettings | null;
-  speakers?: SpeakerSettings | null;
-  history?: HistorySettings | null;
-  /** M3: each block is replaced whole and the UI sends it whole. */
-  general?: GeneralSettings | null;
-  export?: ExportSettings | null;
-  ai?: AiSettingsInput | null;
-  storage?: StorageReclaimSettings | null;
+  /** M2: merged field by field on the host. */
+  transcription?: Partial<TranscriptionSettings> | null;
+  speakers?: Partial<SpeakerSettings> | null;
+  history?: Partial<HistorySettings> | null;
+  /**
+   * M3: merged field by field on the host (`export.defaults` replaces whole). A missing or null
+   * field keeps its value, except `export.defaultFolder: null` and `storage.reclaimOlderThanDays:
+   * null`, which clear it.
+   */
+  general?: Partial<GeneralSettings> | null;
+  export?: Partial<ExportSettings> | null;
+  ai?: AiSettingsPatch | null;
+  storage?: Partial<StorageReclaimSettings> | null;
+}
+
+/** settings.set's `ai` block: each field optional, `share` merged field by field; never `providers`. */
+export interface AiSettingsPatch {
+  enabled?: boolean;
+  askBeforeSend?: boolean;
+  keepRecord?: boolean;
+  share?: Partial<AiShareSettings>;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Library and projects
 // ---------------------------------------------------------------------------------------------
 
-/** `size` (largest first) is proposed for M3: Settings › Storage › Review large recordings. */
+/** `size` (M3): largest first, for Settings › Storage › Review large recordings. */
 export type LibrarySort = 'newest' | 'oldest' | 'longest' | 'title' | 'size';
 
 export interface LibraryListParams {
@@ -889,12 +930,18 @@ export interface FooterRecordingStatus {
   lostSource: string | null;
 }
 
+/**
+ * Why heavy processing waits: free space below the threshold, a recording or a busy processor
+ * (while "Pause when busy" is on), or processing.pause.
+ */
+export type ProcessingPausedReason = 'Low disk space' | 'PC is busy' | 'Paused by you';
+
 export interface FooterStatusPayload {
   engine: EngineStatus;
   storage: StorageStatus;
   recording: FooterRecordingStatus;
-  /** Why processing is paused, in words, or null. M1 hosts send only "Low disk space". */
-  processingPaused: string | null;
+  /** Why processing is paused, in words, or null. */
+  processingPaused: ProcessingPausedReason | null;
   /** M3: the running export, if any. Hosts before M3 leave it out. */
   export?: FooterExportStatus;
 }
@@ -1053,14 +1100,14 @@ export interface ExportSelection {
 export type ExportComponent = keyof ExportSelection;
 
 export interface ExportEstimateItem {
-  /** Proposed for M3 (not yet in BRIDGE.md): which row of the dialog the file belongs to. */
+  /** Which row of the dialog the file belongs to (BRIDGE.md M3 clarification 1). */
   component: ExportComponent;
   /** The file name as it will be written. */
   name: string;
   bytes: number;
 }
 
-/** Proposed for M3: BRIDGE.md has plain strings ("Transcript (not transcribed yet)"). */
+/** A ticked row that has nothing to write, and why. */
 export interface ExportUnavailable {
   component: ExportComponent;
   /** "Not transcribed yet", "No attachments". */
@@ -1095,7 +1142,7 @@ export interface LibraryUsage {
 }
 
 export interface AgendaImportFileParams {
-  /** Proposed for M3: null while the recording does not exist yet; parsing does not need it. */
+  /** Null while the recording does not exist yet (M3 clarification 2); parsing does not need it. */
   recordingId: string | null;
   /** Without a path the host shows the file picker. */
   path?: string;
@@ -1228,7 +1275,8 @@ export interface StorageReclaimParams {
   recordingIds: string[] | null;
   downmixMono: boolean;
   codec: ReclaimCodec;
-  bitrateKbps: number;
+  /** Null or left out: the default for the codec (192 kbps). */
+  bitrateKbps?: number | null;
 }
 
 export type AiProvider = 'anthropic' | 'openai';
@@ -1268,6 +1316,7 @@ export interface ExportProgressPayload {
 export interface LibraryMoveProgressPayload {
   jobId: string;
   percent: number;
+  /** running, done or failed: moves and reclaims cannot be cancelled. */
   state: JobState;
   message: string | null;
   newPath: string;
@@ -1276,6 +1325,7 @@ export interface LibraryMoveProgressPayload {
 export interface StorageReclaimProgressPayload {
   jobId: string;
   percent: number;
+  /** running, done or failed: moves and reclaims cannot be cancelled. */
   state: JobState;
   message: string | null;
   recordingsDone: number;

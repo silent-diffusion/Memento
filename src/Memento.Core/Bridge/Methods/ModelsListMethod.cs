@@ -30,7 +30,8 @@ public sealed class ModelsListMethod(IModelManager models, EngineSelector select
                 selector.IsRecommended(m.Entry, snapshot),
                 m.Entry.RunsOn,
                 m.Entry.MinVramBytes,
-                m.Entry.AccuracyNote))
+                m.Entry.AccuracyNote,
+                m.Entry.Role))
             .ToList();
         return Task.FromResult(new ModelsListResult(list));
     }

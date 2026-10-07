@@ -6,7 +6,7 @@ namespace Memento.Core.Projects;
 /// <summary>
 /// Brings an older <c>project.json</c> up to the current schema before it is deserialized. Each step upgrades
 /// one version (<c>steps[v]</c> turns v into v + 1) and works on the raw JSON, so unknown fields survive.
-/// Only schema v1 exists today, so <see cref="Default"/> has no steps; the hook is here so v2 is one entry.
+/// <see cref="Default"/> has one step: v1 → v2 (<see cref="AttachmentsMigration"/>).
 /// A manifest from a newer Memento is read as it is and must not be written back (see <see cref="ProjectStore"/>).
 /// </summary>
 public sealed class ProjectManifestMigrator
@@ -22,7 +22,10 @@ public sealed class ProjectManifestMigrator
     }
 
     public static ProjectManifestMigrator Default { get; } =
-        new(ProjectManifest.CurrentSchemaVersion, new Dictionary<int, Func<JsonObject, JsonObject>>());
+        new(ProjectManifest.CurrentSchemaVersion, new Dictionary<int, Func<JsonObject, JsonObject>>
+        {
+            [1] = AttachmentsMigration.Upgrade,
+        });
 
     public int CurrentVersion { get; }
 

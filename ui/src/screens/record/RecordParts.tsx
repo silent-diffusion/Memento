@@ -36,6 +36,8 @@ function sourceSubline(source: AudioSource): string {
       return source.name;
     case 'application':
       return source.detail;
+    case 'imported':
+      return source.name;
   }
 }
 
@@ -47,6 +49,7 @@ export function sourceName(source: Pick<AudioSource, 'kind' | 'name'>): string {
     case 'system':
       return 'System audio';
     case 'application':
+    case 'imported':
       return source.name;
   }
 }

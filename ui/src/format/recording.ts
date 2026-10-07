@@ -74,11 +74,10 @@ export interface Pill {
 }
 
 /**
- * Pipeline stages the UI can name: the host's StageName, plus `topics`, which the M2 contract writes
- * to History and which a later host may report as a stage of its own. Unknown names fall back to a
- * capitalised form, so a newer host never breaks the row.
+ * Pipeline stages the UI can name: the host's StageName. Unknown names fall back to a capitalised
+ * form, so a newer host never breaks the row.
  */
-export type PipelineStage = StageName | 'topics';
+export type PipelineStage = StageName;
 
 const DONE_NAMES: Record<PipelineStage, string> = {
   stored: 'Stored',
@@ -122,8 +121,11 @@ export function stageName(stage: string): string {
   return named(DONE_NAMES, stage);
 }
 
-/** Stages that only keep the audio safe or small: a finished one is the normal state, not news. */
-const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'optimize']);
+/**
+ * Stages whose finished state is the normal state, not news: keeping the audio safe or small, and
+ * the quick local topics pass after speakers (the host leaves a finished one out of rows too).
+ */
+const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'topics', 'optimize']);
 
 function pillFor(stage: StageStatus): Pill {
   const base = { stage: stage.stage };
@@ -143,8 +145,29 @@ function pillFor(stage: StageStatus): Pill {
     case 'queued':
       return { ...base, kind: 'queued', label: named(DONE_NAMES, stage.stage) };
     case 'failed':
+      // Waiting for a model to be installed is not a failure; it starts by itself once there is one.
+      if (stage.label === 'Waiting for a model') {
+        return { ...base, kind: 'queued', label: `${named(DONE_NAMES, stage.stage)} · needs a model` };
+      }
+      // An import cut short (Memento closed while it decoded) is offered again from the same file.
+      if (isInterruptedImport(stage)) {
+        return { ...base, kind: 'failed', label: `${stage.label ?? 'Import interrupted'} · Import again` };
+      }
       return { ...base, kind: 'failed', label: `${named(DONE_NAMES, stage.stage)} failed · Retry` };
   }
+}
+
+/**
+ * The host's failed `stored` stage of an import that stopped (BRIDGE.md M3 integration):
+ * processing.retry with the remedy `importAgain` imports the same file again.
+ */
+export function isInterruptedImport(stage: StageStatus): boolean {
+  return stage.stage === 'stored' && stage.state === 'failed' && stage.label !== null && /^import\b/i.test(stage.label);
+}
+
+/** The remedy for processing.retry from a row: "Import again" for a stopped import, else a plain retry. */
+export function retryRemedy(stage: StageStatus | undefined): string | undefined {
+  return stage !== undefined && isInterruptedImport(stage) ? 'importAgain' : undefined;
 }
 
 /**
@@ -153,10 +176,11 @@ function pillFor(stage: StageStatus): Pill {
  * it says the recording itself is safe. An empty list means "Audio only".
  */
 export function stagePills(stages: readonly StageStatus[]): Pill[] {
-  const anyFailed = stages.some((s) => s.state === 'failed');
-  const failed = stages.filter((s) => s.state === 'failed').map(pillFor);
+  const broken = (s: StageStatus): boolean => s.state === 'failed' && s.label !== 'Waiting for a model';
+  const anyFailed = stages.some(broken);
+  const failed = stages.filter(broken).map(pillFor);
   const rest = stages
-    .filter((s) => s.state !== 'failed' && (!HOUSEKEEPING.has(s.stage) || s.state !== 'done' || anyFailed))
+    .filter((s) => !broken(s) && (!HOUSEKEEPING.has(s.stage) || s.state !== 'done' || anyFailed))
     .map(pillFor);
   // A row's stages leave a finished Stored out (BRIDGE.md, Stages); beside a failure it is put back,
   // because "the recording itself is safe" is the point (DESIGN.md §17).

@@ -10,11 +10,14 @@ namespace Memento.Audio.Adapters;
 /// <summary>
 /// Core's <see cref="IMediaDecoder"/> with Media Foundation: any file Windows plays (WAV, FLAC, MP3, M4A/AAC, WMA,
 /// and Ogg/Opus where the codec is installed; video containers give their first audio stream). Decodes to 24-bit PCM
-/// at the file's own rate and channel count through <see cref="RollingWavWriter"/>, so a long file splits at 3.5 GiB
+/// with the file's channel count, at its own rate from 44.1 kHz up (lower rates are resampled, see <see cref="StoredSampleRate"/>), through <see cref="RollingWavWriter"/>, so a long file splits at 3.5 GiB
 /// like a recording.
 /// </summary>
 public sealed class MediaFoundationMediaDecoder : IMediaDecoder
 {
+    /// <summary>Lowest sample rate the FLAC encoder (and so the stored tracks) take.</summary>
+    public const int MinStoredSampleRate = 44_100;
+
     /// <summary><c>MF_SOURCE_READER_FIRST_VIDEO_STREAM</c>.</summary>
     private const int FirstVideoStream = unchecked((int)0xFFFFFFFC);
 
@@ -45,6 +48,13 @@ public sealed class MediaFoundationMediaDecoder : IMediaDecoder
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return Task.Run(() => Decode(path, directory, stem, progress, cancellationToken), cancellationToken);
     }
+
+    /// <summary>
+    /// The rate a decoded file is written at: its own from 44.1 kHz up; below that 44.1 kHz when it divides evenly
+    /// (11.025, 22.05 kHz), otherwise 48 kHz (8, 16, 24, 32 kHz).
+    /// </summary>
+    public static int StoredSampleRate(int sourceRate) =>
+        sourceRate >= MinStoredSampleRate || sourceRate <= 0 ? sourceRate : MinStoredSampleRate % sourceRate == 0 ? MinStoredSampleRate : 48_000;
 
     /// <summary>Whether the file has a video stream (only its audio is imported).</summary>
     public static bool HasVideoStream(string path)
@@ -86,6 +96,14 @@ public sealed class MediaFoundationMediaDecoder : IMediaDecoder
         catch (Exception ex) when (IsDecodeFailure(ex))
         {
             throw new InvalidDataException(Describe(ex), ex);
+        }
+
+        // The Windows FLAC encoder takes 44.1 kHz and up; a 22.05 kHz MP3 (common for speech) is resampled here, once,
+        // so it is stored losslessly like a recording.
+        var rate = StoredSampleRate(audio.SampleRate);
+        if (rate != audio.SampleRate)
+        {
+            audio = MediaFoundationDecoder.Resample(audio, rate);
         }
 
         using (audio)

@@ -42,36 +42,50 @@ public sealed partial class LibraryMoveService(
     public string StartMove(string newPath)
     {
         var target = ValidateTarget(newPath, out var source);
-        if (Busy() is { } why)
-        {
-            throw new BridgeException(
-                DomainErrorCodes.LibraryBusy,
-                $"The library can't be moved while {why}. Nothing was changed. Try again when it has finished.",
-                why);
-        }
 
-        var size = LibraryUsageService.FolderSize(source);
-        if (freeSpace.GetFreeBytes(target) is { } free && free < size + ExportService.SpaceMarginBytes)
-        {
-            throw M3Errors.Invalid($"The drive of {target} has {HumanFormat.Bytes(free)} free and the library needs {HumanFormat.Bytes(size)}. Nothing was changed. Free up space or choose another drive.");
-        }
-
-        var created = !Directory.Exists(target);
+        // Marked as moving before the checks: recording.start marks itself starting before it checks for a move, so
+        // whichever of the two comes second sees the other (LibraryActivity's lock orders them).
+        var busy = activity.Begin(LibraryActivity.Move);
         try
         {
-            Directory.CreateDirectory(target);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
-        {
-            throw M3Errors.Invalid($"Memento can't create {target}: {M3Errors.Reason(ex)}. Nothing was changed. Choose another folder.");
-        }
+            if (Busy() is { } why)
+            {
+                throw new BridgeException(
+                    DomainErrorCodes.LibraryBusy,
+                    $"The library can't be moved while {why}. Nothing was changed. Try again when it has finished.",
+                    why);
+            }
 
-        var jobId = "m" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
-        var busy = activity.Begin(LibraryActivity.Move);
-        _running = Task.Run(() => RunAsync(jobId, source, target, created, size, busy), CancellationToken.None);
-        LogStarted(jobId, size);
-        return jobId;
+            var size = LibraryUsageService.FolderSize(source);
+            if (freeSpace.GetFreeBytes(target) is { } free && free < size + ExportService.SpaceMarginBytes)
+            {
+                throw Refused($"The drive of {target} has {HumanFormat.Bytes(free)} free and the library needs {HumanFormat.Bytes(size)}. Nothing was changed. Free up space or choose another drive.", target);
+            }
+
+            var created = !Directory.Exists(target);
+            try
+            {
+                Directory.CreateDirectory(target);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+            {
+                throw Refused($"Memento can't create {target}: {M3Errors.Reason(ex)}. Nothing was changed. Choose another folder.", target);
+            }
+
+            var jobId = "m" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+            _running = Task.Run(() => RunAsync(jobId, source, target, created, size, busy), CancellationToken.None);
+            LogStarted(jobId, size);
+            return jobId;
+        }
+        catch
+        {
+            busy.Dispose();
+            throw;
+        }
     }
+
+    /// <summary><c>library.moveRefused</c>: the target was checked and nothing was copied.</summary>
+    private static BridgeException Refused(string message, string target) => new(DomainErrorCodes.LibraryMoveRefused, message, target);
 
     public Task WhenIdleAsync() => _running;
 
@@ -150,24 +164,24 @@ public sealed partial class LibraryMoveService(
     {
         if (string.IsNullOrWhiteSpace(newPath) || !Path.IsPathFullyQualified(newPath))
         {
-            throw M3Errors.Invalid("The new library location needs a full folder path such as D:\\Memento Library. Nothing was changed.");
+            throw Refused("The new library location needs a full folder path such as D:\\Memento Library. Nothing was changed.", newPath);
         }
 
         source = Normalize(library.Root);
         var target = Normalize(newPath);
         if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase))
         {
-            throw M3Errors.Invalid($"The library is already in {target}. Nothing was changed.");
+            throw Refused($"The library is already in {target}. Nothing was changed.", target);
         }
 
         if (IsInside(target, source) || IsInside(source, target))
         {
-            throw M3Errors.Invalid($"{target} is inside the library or contains it, so the library can't move there. Nothing was changed. Choose a folder elsewhere.");
+            throw Refused($"{target} is inside the library or contains it, so the library can't move there. Nothing was changed. Choose a folder elsewhere.", target);
         }
 
         if (Directory.Exists(target) && Directory.EnumerateFileSystemEntries(target).Any())
         {
-            throw M3Errors.Invalid($"{target} already has files in it. Nothing was changed. Choose an empty or new folder for the library.");
+            throw Refused($"{target} already has files in it. Nothing was changed. Choose an empty or new folder for the library.", target);
         }
 
         return target;
@@ -176,7 +190,7 @@ public sealed partial class LibraryMoveService(
     /// <summary>What keeps the library busy, in words, or <c>null</c>.</summary>
     private string? Busy()
     {
-        if (recordings.Current is not null)
+        if (recordings.Current is not null || activity.IsStartingRecording)
         {
             return "a recording is in progress";
         }
@@ -186,7 +200,8 @@ public sealed partial class LibraryMoveService(
             return "recordings are being processed";
         }
 
-        return IsBusy ? "the library is already being moved" : activity.Describe();
+        // This move has already marked itself; another one counts.
+        return IsBusy ? "the library is already being moved" : activity.Describe(except: LibraryActivity.Move);
     }
 
     private async Task RunAsync(string jobId, string source, string target, bool createdTarget, long totalBytes, IDisposable busy)

@@ -8,7 +8,7 @@ import { GridIcon, ListIcon } from '../../components/icons';
 import { LibraryHeader, SEARCH_PLACEHOLDER, SEARCH_PLACEHOLDER_EMPTY } from '../../components/LibraryHeader';
 import { SelectMenu } from '../../components/Menus';
 import { StatusFooter } from '../../components/StatusFooter';
-import { stageName, summaryLine } from '../../format/recording';
+import { retryRemedy, stageName, summaryLine } from '../../format/recording';
 import { openRecord, openRecording, openSettings, reloadLibrary, requestDelete } from '../../state/actions';
 import { useServices, type AppServices } from '../../state/context';
 import { updateLibraryView } from '../../state/data';
@@ -46,10 +46,11 @@ function itemHandlers(services: AppServices): ItemHandlers {
     },
     retry: (recording, stage) => {
       select(recording);
-      services.bridge.call('processing.retry', { recordingId: recording.id, stage }).catch((error: unknown) => {
+      const remedyId = retryRemedy(recording.stages.find((s) => s.stage === stage));
+      services.bridge.call('processing.retry', { recordingId: recording.id, stage, ...(remedyId === undefined ? {} : { remedyId }) }).catch((error: unknown) => {
         store.toasts.show({
           tone: 'warning',
-          title: `${stageName(stage)} was not retried`,
+          title: remedyId === 'importAgain' ? 'The file was not imported again' : `${stageName(stage)} was not retried`,
           body: `${error instanceof Error ? error.message : 'Memento did not answer.'} The recording itself is safe.`,
         });
       });

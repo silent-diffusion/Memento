@@ -79,6 +79,19 @@ function Write-VersionNotes([string] $version, [string] $destination) {
     if ($lines[$i] -match '^##\s') { $end = $i; break }
   }
   $section = $lines[($start + 1)..($end - 1)] -join [Environment]::NewLine
+  # A version that was not released on its own ("## 0.3.0 (not released on its own; ships in 0.4.0)") goes into the
+  # notes of the release that ships it, under its own heading.
+  for ($i = $end; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match "^##\s+(\S+).*ships in $([regex]::Escape($version))\)") {
+      $shipped = $Matches[1]
+      $next = $lines.Count
+      for ($j = $i + 1; $j -lt $lines.Count; $j++) {
+        if ($lines[$j] -match '^##\s') { $next = $j; break }
+      }
+      $section += [Environment]::NewLine + [Environment]::NewLine + "### Also in this release: $shipped" + [Environment]::NewLine
+      $section += ($lines[($i + 1)..($next - 1)] -join [Environment]::NewLine)
+    }
+  }
   Set-Content -Path $destination -Value $section.Trim() -Encoding utf8
 }
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Memento.Core.Bridge;
 using Memento.Core.Maintenance;
 using Memento.Core.Secrets;
+using Memento.Core.Tests.Fakes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
 
@@ -167,6 +168,40 @@ public sealed class M3SettingsTests : IDisposable
         Assert.False(File.Exists(_m3.Directory.File("secrets.bin")));
     }
 
+    [Theory]
+    [InlineData(8, true)]
+    [InlineData(500, true)]
+    [InlineData(7, false)]
+    [InlineData(501, false)]
+    public async Task KeysAreEightToFiveHundredCharacters(int length, bool accepted)
+    {
+        var key = new string('k', length);
+
+        if (accepted)
+        {
+            Assert.True((await _m3.ResultAsync("ai.setKey", new { provider = "openai", key })).GetProperty("hasKey").GetBoolean());
+        }
+        else
+        {
+            Assert.Equal(BridgeErrorCodes.InvalidParams, (await _m3.ErrorAsync("ai.setKey", new { provider = "openai", key })).GetProperty("code").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task AKeyWindowsCannotStoreOrRemoveAnswersKeyWriteFailed()
+    {
+        var store = new RefusingSecretStore();
+
+        var set = await Assert.ThrowsAsync<BridgeException>(() => new Memento.Core.Bridge.Methods.AiSetKeyMethod(store).InvokeAsync(new() { Provider = "anthropic", Key = "sk-test-0123456789" }, CancellationToken.None));
+        var clear = await Assert.ThrowsAsync<BridgeException>(() => new Memento.Core.Bridge.Methods.AiClearKeyMethod(store).InvokeAsync(new() { Provider = "anthropic" }, CancellationToken.None));
+
+        Assert.Equal(DomainErrorCodes.AiKeyWriteFailed, set.Code);
+        Assert.Contains("Nothing was saved", set.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("sk-test", set.Message, StringComparison.Ordinal);
+        Assert.Equal(DomainErrorCodes.AiKeyWriteFailed, clear.Code);
+        Assert.Contains("It is still saved", clear.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ADamagedSecretsFileReadsAsNoKeys()
     {
@@ -201,9 +236,9 @@ public sealed class M3SettingsTests : IDisposable
         var error = await _m3.ErrorAsync("app.setStartup", new { startWithWindows = true });
         var viaSettings = await _m3.ErrorAsync("settings.set", new { general = new { startWithWindows = true } });
 
-        Assert.Equal(BridgeErrorCodes.Internal, error.GetProperty("code").GetString());
+        Assert.Equal(DomainErrorCodes.AppStartupRefused, error.GetProperty("code").GetString());
         Assert.Contains("Nothing was changed", error.GetProperty("message").GetString(), StringComparison.Ordinal);
-        Assert.Equal(BridgeErrorCodes.Internal, viaSettings.GetProperty("code").GetString());
+        Assert.Equal(DomainErrorCodes.AppStartupRefused, viaSettings.GetProperty("code").GetString());
         Assert.False(_m3.Host.Settings.Current.General.StartWithWindows);
     }
 

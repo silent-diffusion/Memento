@@ -90,12 +90,13 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
         const before = stagesRef.current;
         stagesRef.current = payload.stages;
         setStages(payload.stages);
-        // A transcript stage that started, stopped or paused changes what transcript.get answers.
+        // A transcript stage that started, stopped or paused changes what transcript.get answers, and so
+        // does a speakers stage that failed or recovered (its failure is the fallback).
         const was = (s: StageStatus[], name: StageName): string => {
           const stage = s.find((st) => st.stage === name);
           return stage === undefined ? 'none' : `${stage.state}:${isPausedLabel(stage.label) ? 'paused' : ''}`;
         };
-        if (was(before, 'transcript') !== was(payload.stages, 'transcript')) {
+        if (was(before, 'transcript') !== was(payload.stages, 'transcript') || was(before, 'speakers') !== was(payload.stages, 'speakers')) {
           setReload((n) => n + 1);
         }
       }),

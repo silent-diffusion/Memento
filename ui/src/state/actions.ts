@@ -1,6 +1,7 @@
 // User intents that touch the host. Each returns the host's message on failure so the caller can
 // show it inline (dialogs, settings rows); nothing here invents an error text of its own.
-import type { RecordingType, RecoveredRecording, SettingsSetParams, SettingsSnapshot } from '../bridge/types';
+import type { RecordingType, RecoveredRecording, SettingsSetParams } from '../bridge/types';
+import { mergeSettings } from '../bridge/settingsMerge';
 import type { AppServices } from './context';
 import { refreshLibrary } from './data';
 import type { SettingsSection } from './router';
@@ -102,28 +103,15 @@ export function resolveRecovery(services: AppServices, item: RecoveredRecording,
 }
 
 /**
- * Saves a settings change. The store updates first so the control answers at once; on failure it
- * returns to the host's value and the host's message comes back for the row to show.
+ * Saves a settings change. The store updates first so the control answers at once (merged the way
+ * the host merges it); on failure it returns to the host's value and the host's message comes back
+ * for the row to show.
  */
 export async function updateSettings(services: AppServices, patch: SettingsSetParams): Promise<string | null> {
   const { bridge, store } = services;
   const before = store.settings.value;
   if (before !== null) {
-    const optimistic: SettingsSnapshot = {
-      ...before,
-      theme: patch.theme ?? before.theme,
-      listDensity: patch.listDensity ?? before.listDensity,
-      recording: patch.recording ?? before.recording,
-      transcription: patch.transcription ?? before.transcription,
-      speakers: patch.speakers ?? before.speakers,
-      history: patch.history ?? before.history,
-      // M3
-      general: patch.general ?? before.general,
-      export: patch.export ?? before.export,
-      ai: patch.ai == null ? before.ai : { ...patch.ai, providers: before.ai.providers },
-      storage: patch.storage ?? before.storage,
-    };
-    store.settings.value = optimistic;
+    store.settings.value = mergeSettings(before, patch);
   }
   try {
     store.settings.value = await bridge.call('settings.set', patch);

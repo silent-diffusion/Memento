@@ -3,6 +3,35 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 0.4.0
+
+Agendas, attachments, importing and export (milestone M3). This release also contains everything listed under 0.3.0 below, which was not released on its own.
+
+- **Import an agenda** in the Details sheet: drop a file on it, choose one, or paste the text. Word, PDF, Excel, CSV, Markdown and plain text are read on this PC, and so is a photo or scan of a printed agenda (with Windows' own text recognition). Items Memento is unsure of are marked with the reason, for example a heading that may have run into the next item; fix them in the list, reorder them, then press Done. The agenda shows in Review › Details with where it came from, and you can tick items off while recording.
+- **Attachments**: the original agenda file is kept with the recording, and you can add other files (up to 100 MB each), open them and remove them from Review › Details.
+- **Import existing audio or video** from the Library: WAV, FLAC, MP3, M4A, WMA, OGG and more, and the sound of a video file. The file becomes a recording that is stored, transcribed and given speakers like any other; the original file is not copied or changed. If Memento closes while it imports, the Library says "Import interrupted" and offers Import again.
+- **Export copies** from Review: the mixed audio and each track as FLAC, WAV or MP3, the transcript as JSON, Markdown, text and SRT subtitles (several at once), the recording details and the attachments, in a folder named after the recording. A `manifest.json` beside the files lists each file with its size and SHA-256 fingerprint. Progress shows in the status bar, and a message offers Open folder when it is done. A folder Memento cannot write to is refused before anything is written, and the recording inside Memento is never changed.
+- **Move the library** to another folder or drive from Settings › General: every file is copied, checked against its fingerprint, and only then removed from the old place. Recording waits while the library moves, and the move waits while you record.
+- **Settings are complete**: General (start with Windows, library location), AI and privacy (external AI stays off; keys you add are stored encrypted for your Windows account and shown only as dots), Export (default folder and what to include), Storage and history (how much space the library uses, the largest recordings, making older recordings smaller, rebuilding the library list).
+- Transcription on the graphics card no longer waits when the processor is busy with other programs (it still waits while you record, if you asked it to). Models the current settings need can no longer be removed by mistake; their cards say "Needed by the current settings".
+
+Not in this version yet: documents and minutes, and every AI feature (the settings for them are there, off); a live transcript while recording; video capture; keeping Memento in the tray.
+
+## 0.3.0 (not released on its own; ships in 0.4.0)
+
+Transcription and speakers (milestone M2). Memento now writes down what was said, on your PC.
+
+- After you stop, each recording is transcribed on this PC: on the graphics card when there is one (Vulkan), on the processor otherwise. Nothing is uploaded. Every word keeps its timing and how sure the engine was, and words it was unsure of get a dotted underline.
+- Speakers are told apart and labelled Speaker 1, 2, 3. Rename a speaker once and every line updates; move a line to another speaker, add a new one, or merge two. If you know how many people spoke, set it in Settings › Speakers and Memento groups the voices to that number, even when the microphone also picked up the loudspeakers.
+- Review shows the transcript beside the player and follows the playhead. Click a line to play it, double-click to correct it (the original is kept), search it, and mark it as reviewed. Highlights you mark while recording are attached to their lines, and topics are suggested from the words.
+- Where a track had speech but the transcript has nothing for ten seconds or more, Review says so at that place and offers to transcribe it again with another model. Lines the engine repeats in a loop are dropped, and History says what was dropped.
+- Transcribe again with another model or language whenever you like. With version history on, the earlier transcript is kept, and you can restore any kept version from Details.
+- The Library search now finds words in transcripts and shows the words around the match.
+- Download transcription and speaker models in Settings › Transcription and Settings › Speakers, with their size shown first, progress while they download, and a check that the file is exactly the one published. Recordings made before a model was installed are transcribed as soon as it is.
+- Transcription waits while you record or the PC is busy, and continues where it stopped; it never slows down a recording. If it fails, Review says what happened, what was kept, and offers the most specific fix first, such as Retry on CPU.
+
+Not in this version yet: importing agenda files, export, documents and minutes, AI features, a live transcript while recording, and video capture.
+
 ## 0.2.0
 
 Recording and the Library (milestone M1). Memento now records for real.

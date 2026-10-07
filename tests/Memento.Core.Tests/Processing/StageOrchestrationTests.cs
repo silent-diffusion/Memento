@@ -150,6 +150,30 @@ public sealed class StageOrchestrationTests : IDisposable
     }
 
     [Fact]
+    public async Task EachHeavyStageTellsTheGateWhetherItRunsOnTheGraphicsCard()
+    {
+        // The gate exempts a GPU pass from the busy-processor pause (ProcessingGateTests): the orchestrator says which
+        // kind of stage is about to run before it asks the gate.
+        Transcript.OnGpu = true;
+        var seen = new List<(string Stage, bool OnGpu)>();
+        Transcript.Behaviour = async (run, token) =>
+        {
+            seen.Add((StageNames.Transcript, _host.Gate.HeavyOnGpu));
+            await _host.Get<StageStatusWriter>().SetAsync(run.RecordingId, new StageStatus(StageNames.Transcript, StageStates.Done, null, "Done"), token);
+        };
+        Speakers.Behaviour = async (run, token) =>
+        {
+            seen.Add((StageNames.Speakers, _host.Gate.HeavyOnGpu));
+            await _host.Get<StageStatusWriter>().SetAsync(run.RecordingId, new StageStatus(StageNames.Speakers, StageStates.Done, null, "Done"), token);
+        };
+
+        await _host.RecordAsync("Devices", 1, Mic);
+        await WaitIdleAsync();
+
+        Assert.Equal([(StageNames.Transcript, true), (StageNames.Speakers, false)], seen);
+    }
+
+    [Fact]
     public async Task ARunningHeavyStageIsInterruptedByAPauseAndRunsAgainAfterwards()
     {
         var runs = 0;

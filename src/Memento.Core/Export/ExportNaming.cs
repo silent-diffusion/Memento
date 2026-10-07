@@ -41,6 +41,25 @@ public static partial class ExportNaming
         _ => " - transcript.json",
     };
 
+    // The names of the exported files (BRIDGE.md M3 integration clarification 16). The UI's exportFileNames builds
+    // the same strings; ui/src/format/export-naming.cases.json holds the cases both sides are tested against.
+
+    /// <summary>The mixed audio: <c>{base}.{format}</c>.</summary>
+    public static string MixFile(string baseName, string format) => baseName + AudioExtension(format);
+
+    /// <summary>One track: <c>{base} - {track name}.{format}</c>, the name made safe for Windows (the id when nothing is left).</summary>
+    public static string TrackFile(string baseName, string trackName, string trackId, string format) =>
+        $"{baseName} - {Attachments.FileNames.Sanitize(trackName, trackId)}{AudioExtension(format)}";
+
+    /// <summary><c>{base} - transcript.json</c> / <c>.md</c> / <c>.txt</c>, and <c>{base}.srt</c>.</summary>
+    public static string TranscriptFile(string baseName, string format) => baseName + TranscriptSuffix(format);
+
+    /// <summary>The recording details: <c>{base} - details.json</c>.</summary>
+    public static string DetailsFile(string baseName) => baseName + " - details.json";
+
+    /// <summary>An attachment as the estimate and the manifest name it: <c>Attachments/{name}</c>.</summary>
+    public static string AttachmentEntry(string name) => AttachmentsFolder + "/" + name;
+
     [GeneratedRegex("[<>:\"/\\\\|?*\\u0000-\\u001f]")]
     private static partial Regex Invalid();
 

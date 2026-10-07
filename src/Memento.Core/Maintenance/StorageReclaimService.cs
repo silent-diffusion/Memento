@@ -94,7 +94,7 @@ public sealed partial class StorageReclaimService(
         {
             if (recordingIds.Count == 0)
             {
-                throw M3Errors.Invalid("Choose at least one recording to make smaller.");
+                throw NothingToReclaim("No recording was chosen, so there is nothing to make smaller. Nothing was changed. Choose at least one recording.");
             }
 
             var missing = recordingIds.FirstOrDefault(id => !store.Exists(id));
@@ -103,7 +103,7 @@ public sealed partial class StorageReclaimService(
 
         if (settings.Current.Storage.ReclaimOlderThanDays is not { } days)
         {
-            throw M3Errors.Invalid("Choose the recordings to make smaller, or set \"older than\" in Settings › Storage and history first.");
+            throw NothingToReclaim("No age is set for making recordings smaller, so none were chosen. Nothing was changed. Choose an age for \"Downmix tracks older than\" in Settings › Storage and history first.");
         }
 
         var cutoff = time.GetUtcNow().AddDays(-days);
@@ -124,8 +124,12 @@ public sealed partial class StorageReclaimService(
             }
         }
 
-        return selected;
+        return selected.Count > 0
+            ? selected
+            : throw NothingToReclaim(string.Create(CultureInfo.InvariantCulture, $"No recording is older than {days} {(days == 1 ? "day" : "days")}, so there is nothing to make smaller yet. Nothing was changed."));
     }
+
+    private static BridgeException NothingToReclaim(string message) => new(DomainErrorCodes.StorageNothingToReclaim, message);
 
     private async Task RunAsync(string jobId, List<string> ids, StorageSettings storage, IDisposable busy)
     {

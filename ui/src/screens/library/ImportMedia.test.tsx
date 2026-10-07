@@ -42,6 +42,24 @@ describe('Import audio or video (against the browser-preview host)', () => {
     expect(document.querySelector('.import-error')).toBeNull();
   });
 
+  it('offers Import again on an import that stopped, and imports the same file into the same recording', async () => {
+    h = await mountApp({ name: 'library' }, { library: 'empty', m3: { import: 'interrupted' } });
+    await until(() => document.querySelector('.empty-title') !== null);
+    await click(button('Import audio or video'));
+    await until(() => (document.querySelector('.pill.failed')?.textContent ?? '') === 'Import interrupted · Import again', 10_000);
+    const id = h.store.library.value?.recordings[0]?.id ?? '';
+    await until(() => h.store.library.value?.recordings[0]?.state === 'failed');
+    expect(document.querySelector('.pill.failed')?.getAttribute('title')).toBe('Import the same file again');
+
+    await click(document.querySelector('.pill.failed'));
+    await until(() => h.callsOf('processing.retry').length === 1);
+    expect(h.callsOf('processing.retry')[0]).toEqual({ recordingId: id, stage: 'stored', remedyId: 'importAgain' });
+    await until(() => h.store.processing.value?.current?.stages.some((s) => s.stage === 'transcript') === true, 10_000);
+    expect(h.store.library.value?.recordings.map((r) => r.id)).toEqual([id]);
+    const project = await h.bridge.call('project.get', { recordingId: id });
+    expect(project.history.map((e) => e.summary)).toEqual(expect.arrayContaining(['Import interrupted', 'Importing again']));
+  });
+
   it('offers Import in the Library header menu', async () => {
     h = await mountApp({ name: 'library' });
     await until(() => document.querySelector('.lib-title') !== null);

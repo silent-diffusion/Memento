@@ -271,10 +271,10 @@ function DropZone({ controller }: { controller: AgendaImportController }): JSX.E
         if (transfer === null) {
           return;
         }
-        const names = [...transfer.files].map((file) => file.name);
+        const files = [...transfer.files];
         const text = transfer.getData('text/plain');
-        if (names.length > 0) {
-          void controller.drop(names);
+        if (files.length > 0) {
+          void controller.drop(files);
         } else if (text.trim() !== '') {
           void controller.parseText(text);
         }

@@ -142,7 +142,7 @@ public sealed partial class AgendaService(
         }
         else if (parameters.AttachmentToken is not null)
         {
-            detail += " · the original file was not attached because it was imported more than an hour ago; import it again to keep it with the recording";
+            detail += " · the original file was not attached: Memento no longer holds it (it was read more than an hour ago, or for another recording); import it again to keep it with the recording";
         }
 
         await AppendHistoryAsync(parameters.RecordingId, new HistoryEntry(time.GetLocalNow(), "edited", "info", "Agenda imported", detail), cancellationToken);

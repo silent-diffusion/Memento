@@ -6,14 +6,43 @@ namespace Memento.Core.Workers;
 
 /// <summary>
 /// Starts <c>Memento.Worker.exe</c> with redirected stdin/stdout (the protocol) and stderr (diagnostics, kept as a
-/// short tail), below-normal priority and no window. The worker exits when its stdin closes, so it never outlives the app.
+/// short tail), below-normal priority and no window. Every worker is put in a kill-on-close job object, so Windows ends
+/// it when Memento exits however it exits (closed, crashed or killed); the worker also stops when its stdin closes.
 /// </summary>
-public sealed partial class ProcessWorkerLauncher(WorkerLocation location, ILogger<ProcessWorkerLauncher> logger) : IWorkerLauncher
+public sealed partial class ProcessWorkerLauncher : IWorkerLauncher, IDisposable
 {
-    private readonly ILogger<ProcessWorkerLauncher> _logger = logger;
+    private readonly WorkerLocation _location;
+    private readonly ILogger<ProcessWorkerLauncher> _logger;
+    private readonly Interop.JobObject? _job;
+
+    public ProcessWorkerLauncher(WorkerLocation location, ILogger<ProcessWorkerLauncher> logger)
+    {
+        _location = location;
+        _logger = logger;
+        try
+        {
+            _job = new Interop.JobObject();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            // Workers still stop when their stdin closes; only a hard kill of Memento could leave one running.
+            LogNoJob(ex);
+        }
+    }
+
+    /// <summary>Whether the process <paramref name="pid"/> runs in the job that ends with Memento (tests).</summary>
+    internal bool IsInJob(int pid)
+    {
+        using var process = Process.GetProcessById(pid);
+        return _job?.Contains(process) ?? false;
+    }
+
+    /// <summary>Ends every worker still running (Windows does the same when Memento exits).</summary>
+    public void Dispose() => _job?.Dispose();
 
     public IWorkerProcess Start()
     {
+        var location = _location;
         if (!File.Exists(location.ExecutablePath))
         {
             throw new WorkerUnavailableException($"The transcription worker is missing from this installation ({location.ExecutablePath}).");
@@ -44,6 +73,15 @@ public sealed partial class ProcessWorkerLauncher(WorkerLocation location, ILogg
 
         try
         {
+            _job?.Assign(process);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            LogNotInJob(ex, process.Id);
+        }
+
+        try
+        {
             process.PriorityClass = ProcessPriorityClass.BelowNormal;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
@@ -57,6 +95,12 @@ public sealed partial class ProcessWorkerLauncher(WorkerLocation location, ILogg
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Worker process {Pid} started")]
     private partial void LogStarted(int pid);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No job object for the workers; a worker could outlive Memento if Memento is killed")]
+    private partial void LogNoJob(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker process {Pid} could not be put in the job object")]
+    private partial void LogNotInJob(Exception exception, int pid);
 
     private sealed class WorkerProcess : IWorkerProcess
     {

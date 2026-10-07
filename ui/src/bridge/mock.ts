@@ -3,7 +3,7 @@ import { formatSize } from '../format/storage';
 import { estimateSizeBytes, isoWithOffset, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
 import { advanceStages, processingOf, queryLibrary, visibleStages } from './mockLibrary';
 import { mockMediaUrls } from './mockMedia';
-import { createMockModels, engineDetail, type ModelFailureMode } from './mockModels';
+import { createMockModels, engineDetail, MODEL_IDS, type ModelFailureMode } from './mockModels';
 import { createMockSession, MockHostError } from './mockSession';
 import { createMockTranscription, type StageFlag } from './mockTranscription';
 import { LIVE_DRAFT_LINES } from './mockTranscripts';
@@ -24,7 +24,6 @@ import type {
   Project,
   RecordingSummary,
   RecoveredRecording,
-  SettingsSetParams,
   SettingsSnapshot,
   StageStatus,
   ThemePreference,
@@ -52,6 +51,8 @@ export interface MockOptions {
   liveTranscript?: boolean;
   /** How simulated model downloads end (`?models=nospace|fail`). */
   models?: ModelFailureMode;
+  /** `?models=empty`: no model installed yet, like a first run. */
+  modelsInstalled?: 'sample' | 'none';
   /** Milliseconds between steps of simulated passes and downloads (shorter in tests). */
   stepMs?: number;
   now?: () => number;
@@ -74,6 +75,7 @@ export function mockOptionsFromQuery(search: string): MockOptions {
     lostAfterMs: query.get('lost') === '1' ? 10_000 : null,
     liveTranscript: query.get('live') === '1',
     models: models === 'nospace' ? 'noSpace' : models === 'fail' ? 'network' : 'none',
+    modelsInstalled: models === 'empty' ? 'none' : 'sample',
     m3: m3FlagsFromQuery(query),
   };
   if (theme === 'dark' || theme === 'light' || theme === 'system') {
@@ -122,13 +124,13 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       auto: true,
       timing: (options.liveTranscript ?? false) ? 'during' : 'after',
       pauseWhenBusy: true,
-      modelId: 'large-v3',
-      cpuFallbackModelId: 'small',
+      modelId: MODEL_IDS.turbo,
+      cpuFallbackModelId: MODEL_IDS.small,
       language: 'auto',
       keepWordTimestamps: true,
       lowConfidenceThreshold: 0.5,
     },
-    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'voice-resnet34' },
+    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet },
     history: { keepVersions: true, keepDays: 90 },
     ...defaultM3Settings(),
   };
@@ -275,6 +277,12 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     freeBytes: () => footer.storage.freeBytes ?? 0,
     inUse: () => transcription.inUse(),
     failure: options.models ?? 'none',
+    installed: options.modelsInstalled ?? 'sample',
+    onInstalled: () => {
+      refreshEngine();
+      emitFooter();
+      transcription.modelInstalled();
+    },
     ...(options.stepMs === undefined ? {} : { stepMs: options.stepMs }),
   });
 
@@ -299,7 +307,11 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   const transcriptionDetail = () => engineDetail(models, settings.transcription.modelId, 'GPU', transcription.pausedReason());
   function refreshEngine(): void {
     const detail = transcriptionDetail();
-    footer = { ...footer, engine: { ready: detail.ready, device: detail.device, detail } };
+    footer = {
+      ...footer,
+      engine: { ready: detail.ready, device: detail.device, detail },
+      processingPaused: footer.storage.lowSpace ? 'Low disk space' : transcription.pausedReason(),
+    };
   }
   refreshEngine();
 
@@ -410,12 +422,13 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       project.trackSources = result.tracks.map((t) => t.sourceKind);
       // Finalize always stores lossless FLAC; a smaller format in Settings queues the optimize stage after it.
       const smaller = settings.recording.storage.codec !== 'flac';
-      // The transcript and speakers stages wait for the stored one (Settings › Transcription, Speakers).
+      // The transcript, speakers and topics stages wait for the stored one (Settings › Transcription, Speakers).
       const queuedStage = (stage: StageStatus['stage']): StageStatus => ({ stage, state: 'queued', percent: null, label: 'Queued' });
       const pipeline: StageStatus[] = [
         { stage: 'stored', state: 'active', percent: 0, label: 'Saving tracks' },
         ...(settings.transcription.auto ? [queuedStage('transcript')] : []),
         ...(settings.transcription.auto && settings.speakers.identify ? [queuedStage('speakers')] : []),
+        ...(settings.transcription.auto ? [queuedStage('topics')] : []),
         ...(smaller ? [queuedStage('optimize')] : []),
       ];
       project.stages = pipeline;
@@ -517,37 +530,53 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
 
   const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
 
-  /** The M2 blocks: a model must be installed for its engine, and values must be ones Settings offers. */
-  function validateM2Settings(params: SettingsSetParams): void {
-    const installedFor = (modelId: string, engine: 'transcription' | 'speakers'): boolean =>
-      models.list().some((m) => m.id === modelId && m.engine === engine && m.installed);
-    const t = params.transcription;
-    if (t != null) {
-      if (!installedFor(t.modelId, 'transcription') || !installedFor(t.cpuFallbackModelId, 'transcription')) {
-        throw settingsInvalid('That model is not installed yet. Install it first, then make it the default. Nothing was changed.', t.modelId);
-      }
-      if (!(t.lowConfidenceThreshold > 0 && t.lowConfidenceThreshold < 1) || !['after', 'during'].includes(t.timing)) {
-        throw settingsInvalid('That transcription setting is not available. Nothing was changed.', String(t.lowConfidenceThreshold));
+  /** Like the host: each field present (not null) replaces the stored one; the others keep their value. */
+  function mergeBlock<T extends object>(current: T, patch: Partial<T> | null | undefined): T {
+    if (patch == null) {
+      return current;
+    }
+    const merged = { ...current };
+    for (const key of Object.keys(patch) as (keyof T)[]) {
+      const value = patch[key];
+      if (value !== undefined && value !== null) {
+        merged[key] = value;
       }
     }
-    const sp = params.speakers;
-    if (sp != null) {
-      const expected = sp.expectedSpeakers;
-      if (expected !== 'auto' && !(Number.isInteger(expected) && expected >= 1 && expected <= 20)) {
-        throw settingsInvalid('Expected speakers is Auto or a number from 1 to 20. Nothing was changed.', String(expected));
-      }
-      if (!installedFor(sp.embeddingModelId, 'speakers')) {
-        throw settingsInvalid('That speaker model is not installed yet. Install it first. Nothing was changed.', sp.embeddingModelId);
-      }
+    return merged;
+  }
+
+  /**
+   * The M2 blocks after the merge: a model must be installed for its engine (one equal to the
+   * current setting is accepted as it is, so a whole block can be sent), and values must be ones
+   * Settings offers.
+   */
+  function validateM2Settings(next: Pick<SettingsSnapshot, 'transcription' | 'speakers' | 'history'>): void {
+    const usable = (modelId: string, current: string, engine: 'transcription' | 'speakers'): boolean =>
+      modelId === current ||
+      models.list().some((m) => m.id === modelId && m.engine === engine && m.installed && (engine !== 'speakers' || m.role === 'embedding'));
+    const t = next.transcription;
+    if (!usable(t.modelId, settings.transcription.modelId, 'transcription') || !usable(t.cpuFallbackModelId, settings.transcription.cpuFallbackModelId, 'transcription')) {
+      throw settingsInvalid('That model is not installed yet. Install it first, then make it the default. Nothing was changed.', t.modelId);
     }
-    const h = params.history;
-    if (h != null && !(Number.isInteger(h.keepDays) && h.keepDays > 0)) {
+    if (!(t.lowConfidenceThreshold > 0 && t.lowConfidenceThreshold < 1) || !['after', 'during'].includes(t.timing)) {
+      throw settingsInvalid('That transcription setting is not available. Nothing was changed.', String(t.lowConfidenceThreshold));
+    }
+    const sp = next.speakers;
+    const expected = sp.expectedSpeakers;
+    if (expected !== 'auto' && !(Number.isInteger(expected) && expected >= 1 && expected <= 20)) {
+      throw settingsInvalid('Expected speakers is Auto or a number from 1 to 20. Nothing was changed.', String(expected));
+    }
+    if (!usable(sp.embeddingModelId, settings.speakers.embeddingModelId, 'speakers')) {
+      throw settingsInvalid('That voice model is not installed yet. Install it first. Nothing was changed.', sp.embeddingModelId);
+    }
+    const h = next.history;
+    if (!(Number.isInteger(h.keepDays) && h.keepDays > 0)) {
       throw settingsInvalid('Versions are kept for a whole number of days. Nothing was changed.', String(h.keepDays));
     }
   }
 
   const handlers: Handlers = {
-    'app.version': () => ({ version: '0.2.0-dev', osVersion: 'Browser preview', isDarkTheme: isDark() }),
+    'app.version': () => ({ version: '0.3.0-dev', osVersion: 'Browser preview', isDarkTheme: isDark() }),
     'app.openExternal': (params) => {
       logger.info(`[bridge:mock] would open ${params.url}`);
       return { opened: false };
@@ -562,17 +591,21 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           params.libraryPath,
         );
       }
-      validateM2Settings(params);
+      const m2 = {
+        transcription: mergeBlock(settings.transcription, params.transcription),
+        speakers: mergeBlock(settings.speakers, params.speakers),
+        history: mergeBlock(settings.history, params.history),
+      };
+      validateM2Settings(m2);
       const themeBefore = isDark();
       const modelBefore = settings.transcription.modelId;
       settings = {
         ...settings,
         theme: params.theme ?? settings.theme,
         listDensity: params.listDensity ?? settings.listDensity,
+        // The recording block is replaced whole (the UI always sends all of it).
         recording: params.recording ?? settings.recording,
-        transcription: params.transcription ?? settings.transcription,
-        speakers: params.speakers ?? settings.speakers,
-        history: params.history ?? settings.history,
+        ...m2,
       };
       settings = m3.mergeSettings(settings, params);
       if (isDark() !== themeBefore) {
@@ -738,6 +771,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     'sources.list':() => ({ audio: [...SAMPLE_SOURCES], videoAvailable: false }),
     'recording.start': (params) => {
+      m3.throwIfMoving();
       const started = session.start(params);
       startLiveDraft(started.sessionId);
       return started;
@@ -781,6 +815,10 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     'transcript.versions': (params) => ({ versions: transcription.versions(params.recordingId) }),
     'transcript.restoreVersion': (params) => ({ transcript: transcription.restoreVersion(params.recordingId, params.versionId) }),
     'processing.retry': (params) => {
+      if (params.stage === 'stored') {
+        m3.importAgain(params.recordingId);
+        return {};
+      }
       transcription.retry(params);
       return {};
     },
@@ -871,6 +909,12 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     send: (request) => {
       logger.info(`[bridge:mock] ${request.method}`, request.params);
       deliver(answer(request));
+    },
+    // The real host reads the dropped files' paths from the message; here their names stand in for them.
+    sendWithFiles: (request, files) => {
+      logger.info(`[bridge:mock] ${request.method} with ${files.length} file(s)`, request.params);
+      const params = files.length > 0 ? { ...(request.params as object), paths: files.map((file) => file.name) } : request.params;
+      deliver(answer({ ...request, params } as typeof request));
     },
     subscribe: (listener) => {
       listeners.add(listener);

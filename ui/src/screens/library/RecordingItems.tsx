@@ -4,7 +4,7 @@
 import type { JSX } from 'preact';
 import type { RecordingSummary, StageName } from '../../bridge/types';
 import { formatDuration } from '../../format/duration';
-import { metaLine, stageName, stagePills, type Pill } from '../../format/recording';
+import { isInterruptedImport, metaLine, stageName, stagePills, type Pill } from '../../format/recording';
 import { snippetParts } from '../../format/transcript';
 import { waveformBars } from '../../format/waveform';
 import { ActionMenu, type MenuAction } from '../../components/Menus';
@@ -32,7 +32,7 @@ function Pills({ pills, onRetry }: { pills: Pill[]; onRetry: (stage: StageName) 
           <span
             key={pill.label}
             class="pill failed pill-retry"
-            title={`Retry: ${stageName(pill.stage)}`}
+            title={pill.label.endsWith('Import again') ? 'Import the same file again' : `Retry: ${stageName(pill.stage)}`}
             onClick={(event) => {
               event.stopPropagation();
               onRetry(pill.stage);
@@ -70,7 +70,7 @@ function actionsFor(recording: RecordingSummary, handlers: ItemHandlers): MenuAc
     { label: 'Rename', run: () => { handlers.rename(recording); } },
     { label: 'Change type', run: () => { handlers.changeType(recording); } },
     ...failed.map((s) => ({
-      label: `Retry ${stageName(s.stage).toLocaleLowerCase()}`,
+      label: isInterruptedImport(s) ? 'Import again' : `Retry ${stageName(s.stage).toLocaleLowerCase()}`,
       run: () => {
         handlers.retry(recording, s.stage);
       },

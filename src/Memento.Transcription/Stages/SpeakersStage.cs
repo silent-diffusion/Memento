@@ -95,40 +95,74 @@ public sealed partial class SpeakersStage(
         }
 
         var clusters = current.ExpectedSpeakers is { } expected && tracks.Count == 1 ? expected : -1;
-        var job = new DiarizeJob(tracks, segmentationPath, embeddingPath, clusters, TranscriptionDefaults.ClusteringThreshold, TranscriptionDefaults.DiarizationThreads);
-        var progress = new StageStatus(Name, StageStates.Active, 0, "0% · CPU");
+
+        // Tracks a stopped pass already finished (speakers.partial.json) are not diarized again.
+        var signature = string.Join('|', segmentation!.Id, embedding!.Id, current.ExpectedSpeakers?.ToString(CultureInfo.InvariantCulture) ?? "auto", TranscriptionDefaults.ClusteringThreshold.ToString(CultureInfo.InvariantCulture));
+        var partial = await writer.Store.LoadSpeakersPartialAsync(recordingId, cancellationToken);
+        if (partial is not null && partial.Signature != signature)
+        {
+            writer.Store.DeleteSpeakersPartial(recordingId);
+            partial = null;
+        }
+
+        var wanted = tracks.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+        var done = (partial?.Tracks ?? []).Where(t => wanted.Contains(t.TrackId)).ToList();
+        var elapsedBefore = partial?.ElapsedMs ?? 0;
+        var remaining = tracks.Where(t => done.All(d => d.TrackId != t.Id)).ToList();
+        var job = new DiarizeJob(remaining, segmentationPath, embeddingPath, clusters, TranscriptionDefaults.ClusteringThreshold, TranscriptionDefaults.DiarizationThreads);
+        var startPercent = (int)Math.Floor(100.0 * done.Count / tracks.Count);
+        var progress = new StageStatus(Name, StageStates.Active, startPercent, string.Create(CultureInfo.InvariantCulture, $"{startPercent}% · CPU"));
         manifest = await status.SetAsync(recordingId, progress, cancellationToken);
         await _history.AppendAsync(
             recordingId,
             Name,
             "started",
-            "Identifying speakers",
-            $"sherpa-onnx · {segmentation!.Name} + {embedding!.Name} · CPU, {TranscriptionDefaults.DiarizationThreads} threads · {HumanFormat.Count(tracks.Count, "track", "tracks")}"
-                + (clusters > 0 ? string.Create(CultureInfo.InvariantCulture, $" · {clusters} expected") : string.Empty));
+            done.Count > 0 ? "Identifying speakers (continuing where it stopped)" : "Identifying speakers",
+            $"sherpa-onnx · {segmentation.Name} + {embedding.Name} · CPU, {TranscriptionDefaults.DiarizationThreads} threads · {HumanFormat.Count(tracks.Count, "track", "tracks")}"
+                + (done.Count > 0 ? $" · {HumanFormat.Count(done.Count, "track", "tracks")} already done" : string.Empty)
+                + (current.ExpectedSpeakers is { } count ? string.Create(CultureInfo.InvariantCulture, $" · {count} expected") : string.Empty));
+        LogStarting(recordingId, tracks.Count, done.Count);
 
         var stopwatch = Stopwatch.StartNew();
-        WorkerReply result;
+        DiarizeResult diarization;
         using var leaseSegmentation = models.Use(segmentation.Id);
         using var leaseEmbedding = models.Use(embedding.Id);
         try
         {
-            result = await workers.RunAsync(
-                new WorkerJob(WorkerJobKinds.Diarize, Diarize: job),
-                reply =>
-                {
-                    if (reply.Type == WorkerMessageTypes.Progress && reply.Percent is { } percent)
+            if (remaining.Count == 0)
+            {
+                diarization = new DiarizeResult([], 0, 0);
+            }
+            else
+            {
+                var result = await workers.RunAsync(
+                    new WorkerJob(WorkerJobKinds.Diarize, Diarize: job),
+                    async reply =>
                     {
-                        var whole = (int)Math.Clamp(Math.Floor(percent), 0, 99);
-                        status.PublishProgress(manifest, progress with { Percent = whole, Label = string.Create(CultureInfo.InvariantCulture, $"{whole}% · CPU") });
-                    }
-
-                    return Task.CompletedTask;
-                },
-                cancellationToken);
+                        if (reply.Type == WorkerMessageTypes.Diarized && reply.Diarized is { } finished && done.All(d => d.TrackId != finished.TrackId))
+                        {
+                            done.Add(finished);
+                            await writer.Store.SaveSpeakersPartialAsync(
+                                recordingId,
+                                new SpeakersPartial(SpeakersPartial.CurrentSchemaVersion, signature, done.ToList(), elapsedBefore + stopwatch.ElapsedMilliseconds),
+                                CancellationToken.None);
+                        }
+                        else if (reply.Type == WorkerMessageTypes.Progress && reply.Percent is { } percent)
+                        {
+                            // The worker's percent covers the tracks it was given; the stage's covers every track.
+                            var already = tracks.Count - remaining.Count;
+                            var overall = 100.0 * (already + (percent / 100.0 * remaining.Count)) / tracks.Count;
+                            var whole = (int)Math.Clamp(Math.Floor(overall), 0, 99);
+                            status.PublishProgress(manifest, progress with { Percent = whole, Label = string.Create(CultureInfo.InvariantCulture, $"{whole}% · CPU") });
+                        }
+                    },
+                    cancellationToken);
+                diarization = result.Diarization!;
+            }
         }
         catch (OperationCanceledException) when (run.StopReason == StageStopReason.Cancelled)
         {
-            await FailAsync(recordingId, "Speaker identification was cancelled.", "The transcript is kept without speakers.", [new Remedy(Remedies.Retry, "Identify speakers")], ProjectStageFailure.CauseCancelled, "Cancelled", CancellationToken.None);
+            await FailAsync(recordingId, "Speaker identification was cancelled.", Kept(done.Count), [new Remedy(Remedies.Retry, "Identify speakers")], ProjectStageFailure.CauseCancelled, "Cancelled", CancellationToken.None);
             return;
         }
         catch (WorkerCrashedException crash)
@@ -136,7 +170,7 @@ public sealed partial class SpeakersStage(
             await FailAsync(
                 recordingId,
                 string.Create(CultureInfo.InvariantCulture, $"Speaker identification stopped: the engine closed unexpectedly (code 0x{crash.ExitCode:X8})."),
-                "The transcript is kept without speakers.",
+                Kept(done.Count),
                 [new Remedy(Remedies.Retry, "Try again")],
                 ProjectStageFailure.CauseCrashed,
                 "Speakers failed",
@@ -145,7 +179,7 @@ public sealed partial class SpeakersStage(
         }
         catch (WorkerJobException error)
         {
-            await FailAsync(recordingId, $"Speaker identification stopped: {error.Message.TrimEnd('.')}.", "The transcript is kept without speakers.", [new Remedy(Remedies.Retry, "Try again")], ProjectStageFailure.CauseEngine, "Speakers failed", CancellationToken.None);
+            await FailAsync(recordingId, $"Speaker identification stopped: {error.Message.TrimEnd('.')}.", Kept(done.Count), [new Remedy(Remedies.Retry, "Try again")], ProjectStageFailure.CauseEngine, "Speakers failed", CancellationToken.None);
             return;
         }
         catch (WorkerUnavailableException)
@@ -154,8 +188,11 @@ public sealed partial class SpeakersStage(
             return;
         }
 
-        var diarization = result.Diarization!;
+        // Every track: the ones finished before (and reported as they finished) and the job's result.
+        var all = done.Concat(diarization.Tracks.Where(t => done.All(d => d.TrackId != t.TrackId))).ToList();
+        var audioSeconds = all.Sum(t => t.AudioSeconds) is > 0 and var sum ? sum : diarization.AudioSeconds;
         IReadOnlyList<Speaker> speakers = [];
+        var merged = 0;
         var saved = await writer.UpdateAsync(
             recordingId,
             TranscriptChangeReasons.Speakers,
@@ -167,16 +204,18 @@ public sealed partial class SpeakersStage(
                 }
 
                 // Lines edited meanwhile keep their text; only speaker fields are written.
-                var assigned = SpeakerAssigner.Assign(latest.Segments, diarization.Tracks);
+                var assigned = SpeakerAssigner.Assign(latest.Segments, all, current.ExpectedSpeakers);
                 speakers = assigned.Speakers;
+                merged = assigned.MergedAcrossTracks;
                 return latest with { Segments = assigned.Segments, Speakers = assigned.Speakers };
             },
             CancellationToken.None);
+        writer.Store.DeleteSpeakersPartial(recordingId);
         await status.SetAsync(recordingId, new StageStatus(Name, StageStates.Done, null, "Done"), CancellationToken.None);
 
         var total = Math.Max(1, speakers.Sum(s => s.TalkTimeMs));
         var shares = string.Join(", ", speakers.Select(s => string.Create(CultureInfo.InvariantCulture, $"{s.Name} {100.0 * s.TalkTimeMs / total:0}%")));
-        var elapsed = stopwatch.Elapsed.TotalSeconds;
+        var elapsed = (elapsedBefore + stopwatch.ElapsedMilliseconds) / 1000.0;
         await _history.AppendAsync(
             recordingId,
             Name,
@@ -185,8 +224,9 @@ public sealed partial class SpeakersStage(
             string.Join(
                 " · ",
                 $"sherpa-onnx · {segmentation.Name} + {embedding.Name} · CPU",
-                string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Clock((long)(diarization.AudioSeconds * 1000))} of audio in {elapsed:0.0} s"),
-                "talk time: " + (speakers.Count == 0 ? "none" : shares)));
+                string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Clock((long)(audioSeconds * 1000))} of audio in {elapsed:0.0} s"),
+                "talk time: " + (speakers.Count == 0 ? "none" : shares))
+                + (merged > 0 ? string.Create(CultureInfo.InvariantCulture, $" · voices on {HumanFormat.Count(all.Count, "track", "tracks")} grouped by sound into the {current.ExpectedSpeakers} expected speakers") : string.Empty));
         if (current.RememberRenamed)
         {
             await _history.AppendAsync(
@@ -200,6 +240,11 @@ public sealed partial class SpeakersStage(
         LogCompleted(recordingId, speakers.Count, saved?.Version ?? 0);
     }
 
+    private static string Kept(int tracksDone) =>
+        tracksDone == 0
+            ? "The transcript is kept without speakers."
+            : $"The transcript is kept without speakers; {HumanFormat.Count(tracksDone, "track", "tracks")} already done {(tracksDone == 1 ? "is" : "are")} kept, and trying again continues with the others.";
+
     private async Task FailAsync(string recordingId, string message, string kept, IReadOnlyList<Remedy> remedies, string cause, string label, CancellationToken cancellationToken)
     {
         var failure = new ProjectStageFailure(Name, message, kept, remedies, cause, time.GetLocalNow());
@@ -209,4 +254,7 @@ public sealed partial class SpeakersStage(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId}: {Speakers} speakers identified (transcript version {Version})")]
     private partial void LogCompleted(string recordingId, int speakers, int version);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId}: identifying speakers on {Tracks} tracks ({Done} already done)")]
+    private partial void LogStarting(string recordingId, int tracks, int done);
 }

@@ -1,8 +1,9 @@
 // Settings › Transcription, Speakers and Documents (DESIGN.md §11, renders/Settings.dc.html), M2.
-// Every control saves at once through settings.set; each M2 block is sent whole.
+// Every control saves at once through settings.set with only the field it changes (the host merges
+// the M2 blocks field by field).
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import type { EngineStatusResult, HistorySettings, SpeakerSettings, TranscriptionSettings, TranscriptionTiming } from '../../bridge/types';
+import type { EngineStatusResult, HistorySettings, ModelInfo, SpeakerSettings, TranscriptionSettings, TranscriptionTiming } from '../../bridge/types';
 import { Segmented, Toggle } from '../../components/Controls';
 import { SelectMenu } from '../../components/Menus';
 import { deviceWording } from '../../format/footer';
@@ -23,7 +24,8 @@ function InlineMessage({ message }: { message: string | null }): JSX.Element | n
 
 /** The threshold choices for marking low-confidence words. */
 export const THRESHOLDS = [0.4, 0.5, 0.6, 0.7] as const;
-const EXPECTED_SPEAKERS = ['auto', '2', '3', '4', '5', '6', '7', '8'] as const;
+/** Auto, or 1–20 (the host's range); the menu offers the common counts and keeps any other saved one. */
+const EXPECTED_SPEAKERS: readonly string[] = ['auto', '1', '2', '3', '4', '5', '6', '7', '8', '10', '12', '15', '20'];
 const KEEP_DAYS = [30, 90, 365] as const;
 
 /** "Local · GPU (NVIDIA GeForce RTX 4070)" for the Engine row, from engine.status. */
@@ -37,9 +39,30 @@ export function engineWording(status: EngineStatusResult | null): { value: strin
   }
   const device = deviceWording(t);
   if (!t.ready || device === null) {
-    return { value: 'Not ready', note: 'Install a model below' };
+    return { value: 'No model installed', note: 'Install a model below' };
   }
   return { value: `Local · ${device}`, note: t.freeVramBytes === null ? null : `${formatSize(t.freeVramBytes)} video memory free` };
+}
+
+/**
+ * Transcription models the current settings rely on, with why Remove is off: the default (the
+ * radio already says so) and the model used without a graphics card.
+ */
+export function transcriptionKeep(t: TranscriptionSettings): Record<string, string> {
+  return {
+    [t.cpuFallbackModelId]: 'Used when there is no graphics card. Choose another model for that first.',
+    [t.modelId]: 'This is the default model. Choose another default first.',
+  };
+}
+
+/** The speech-segmentation model is needed for every speaker pass while Identify speakers is on. */
+export function segmentationKeep(sp: SpeakerSettings, models: readonly ModelInfo[]): Record<string, string> {
+  if (!sp.identify) {
+    return {};
+  }
+  return Object.fromEntries(
+    models.filter((m) => m.engine === 'speakers' && m.role === 'segmentation').map((m) => [m.id, 'Finds where each voice speaks while Identify speakers is on. Turn that off first.']),
+  );
 }
 
 function useEngineStatus(): EngineStatusResult | null {
@@ -78,7 +101,7 @@ export function TranscriptionSection(): JSX.Element {
   }
   const t = settings.transcription;
   const save = (next: Partial<TranscriptionSettings>): void => {
-    void updateSettings(services, { transcription: { ...t, ...next } }).then(setError);
+    void updateSettings(services, { transcription: next }).then(setError);
   };
   const cpuModels = models.state.models.filter((m) => m.engine === 'transcription' && m.installed && m.runsOn !== 'gpu');
   const engineText = engineWording(engine);
@@ -140,7 +163,7 @@ export function TranscriptionSection(): JSX.Element {
               engine="transcription"
               defaultId={t.modelId}
               label="Default transcription model"
-              keep={{ [t.cpuFallbackModelId]: 'Used when there is no graphics card. Choose another model for that first.' }}
+              keep={transcriptionKeep(t)}
               onDefault={(modelId) => {
                 save({ modelId });
               }}
@@ -153,7 +176,7 @@ export function TranscriptionSection(): JSX.Element {
             value={t.cpuFallbackModelId}
             options={
               cpuModels.length === 0
-                ? [{ value: t.cpuFallbackModelId, label: t.cpuFallbackModelId }]
+                ? [{ value: t.cpuFallbackModelId, label: `${models.state.models.find((m) => m.id === t.cpuFallbackModelId)?.name ?? t.cpuFallbackModelId} · not installed` }]
                 : cpuModels.map((m) => ({ value: m.id, label: `${m.name} · ${m.accuracyNote}` }))
             }
             onChange={(cpuFallbackModelId) => {
@@ -211,7 +234,7 @@ export function SpeakersSection(): JSX.Element {
   }
   const sp = settings.speakers;
   const save = (next: Partial<SpeakerSettings>): void => {
-    void updateSettings(services, { speakers: { ...sp, ...next } }).then(setError);
+    void updateSettings(services, { speakers: next }).then(setError);
   };
   return (
     <>
@@ -226,11 +249,14 @@ export function SpeakersSection(): JSX.Element {
             }}
           />
         </SettingsRow>
-        <SettingsRow label="Expected speakers" description="Leave on Auto unless results are consistently wrong.">
+        <SettingsRow label="Expected speakers" description="Leave on Auto unless results are consistently wrong. Used when one track has speech.">
           <SelectMenu<string>
             label="Expected speakers"
             value={String(sp.expectedSpeakers)}
-            options={EXPECTED_SPEAKERS.map((v) => ({ value: v, label: v === 'auto' ? 'Auto' : `${v} people` }))}
+            options={(EXPECTED_SPEAKERS.includes(String(sp.expectedSpeakers)) ? EXPECTED_SPEAKERS : [...EXPECTED_SPEAKERS, String(sp.expectedSpeakers)]).map((v) => ({
+              value: v,
+              label: v === 'auto' ? 'Auto' : v === '1' ? '1 person' : `${v} people`,
+            }))}
             onChange={(value) => {
               save({ expectedSpeakers: value === 'auto' ? 'auto' : Number(value) });
             }}
@@ -253,14 +279,31 @@ export function SpeakersSection(): JSX.Element {
       </SettingsGroup>
       <SettingsGroup label="Speaker models">
         <SettingsRow
+          label="Speech segmentation"
+          description="Finds where each voice speaks. Needed together with a voice model."
+          below={
+            <ModelCards
+              api={models}
+              engine="speakers"
+              role="segmentation"
+              selectable={false}
+              defaultId=""
+              label="Speech segmentation model"
+              onDefault={() => undefined}
+              keep={segmentationKeep(sp, models.state.models)}
+            />
+          }
+        />
+        <SettingsRow
           label="Voice model"
           description="Tells voices apart. Runs on this PC; voices are never uploaded."
           below={
             <ModelCards
               api={models}
               engine="speakers"
+              role="embedding"
               defaultId={sp.embeddingModelId}
-              label="Default speaker model"
+              label="Default voice model"
               onDefault={(embeddingModelId) => {
                 save({ embeddingModelId });
               }}
@@ -281,7 +324,7 @@ export function DocumentsSection(): JSX.Element {
   }
   const h = settings.history;
   const save = (next: Partial<HistorySettings>): void => {
-    void updateSettings(services, { history: { ...h, ...next } }).then(setError);
+    void updateSettings(services, { history: next }).then(setError);
   };
   const dayOptions = (KEEP_DAYS as readonly number[]).includes(h.keepDays) ? KEEP_DAYS : [...KEEP_DAYS, h.keepDays];
   return (

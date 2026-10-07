@@ -17,7 +17,8 @@ namespace Memento.Worker;
 /// The transcription job (ENGINE-NOTES.md §D): a speech-energy pass over every track first (silent tracks are skipped
 /// and windows without speech are not sent to the engine), then each track in overlapping windows through Whisper.net
 /// with runtime order Vulkan, CPU (never CUDA), the discrete GPU chosen by name, token timestamps and probabilities on,
-/// a short punctuated prompt, and DTW off. Each window's kept segments are sent as soon as it finishes.
+/// a short punctuated prompt, and DTW off. Each window's kept segments are sent as soon as it finishes. A job that may
+/// use the graphics card first takes the machine-wide GPU lock (<see cref="GpuLock"/>).
 /// </summary>
 internal sealed partial class WhisperTranscriber(ProtocolWriter output)
 {
@@ -27,6 +28,9 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
     public async Task<TranscribeResult> RunAsync(TranscribeJob job, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
+
+        // A job that may use the graphics card holds the machine-wide GPU lock for its whole run.
+        using var gpuLock = job.Runtimes.Contains(TranscriptionDefaults.RuntimeVulkan) ? GpuLock.Acquire(output, cancellationToken) : null;
         if (!File.Exists(job.ModelPath))
         {
             throw new WorkerFailure(WorkerErrorCodes.ModelLoad, $"the model file {Path.GetFileName(job.ModelPath)} is missing");
@@ -90,6 +94,9 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
             .WithTokenTimestamps()
             .WithProbabilities()
             .WithPrompt(job.Prompt)
+            // whisper.cpp asks before each 30-second encoder run; answering false ends the window at once, so a
+            // cancel (a busy pause, Cancel, closing Memento) stops within seconds instead of after the whole window.
+            .WithEncoderBeginHandler(_ => !cancellationToken.IsCancellationRequested)
             .WithLanguage(string.IsNullOrWhiteSpace(job.Language) ? "auto" : job.Language)
             .WithProgressHandler(progress =>
             {
@@ -127,6 +134,14 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
                             language ??= string.IsNullOrWhiteSpace(segment.Language) ? null : segment.Language;
                             raw.Add(WordBuilder.ToSegment(ToRaw(segment), offset, keepWords: true));
                         }
+
+                        // A window ended early by a cancel is never reported as finished.
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException and not WorkerFailure && cancellationToken.IsCancellationRequested)
+                    {
+                        // The encoder-begin handler ended the window because the job was cancelled.
+                        throw new OperationCanceledException("Cancelled during a window.", ex, cancellationToken);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException and not WorkerFailure)
                     {
@@ -258,7 +273,8 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
 
         if (level <= WhisperLogLevel.Warning || message.Contains("vulkan", StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.Write(message);
+            // Whisper.net's own messages have no line end; the host keeps stderr by lines for the crash report.
+            Console.Error.Write(message.EndsWith('\n') ? message : message + Environment.NewLine);
         }
     }
 

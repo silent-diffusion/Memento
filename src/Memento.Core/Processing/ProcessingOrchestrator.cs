@@ -168,8 +168,16 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             ?? throw new BridgeException(BridgeErrorCodes.InvalidParams, $"There is no '{stage}' stage to retry in this version.");
         var manifest = await _store.LoadAsync(recordingId, cancellationToken);
         var current = StageList.Find(manifest.Stages, stage);
-        if (current is { State: StageStates.Active or StageStates.Queued })
+        if (RunningStage(recordingId) == stage)
         {
+            // Running now with the settings it started with (Identify speakers again after changing the expected
+            // count): stop it and run it again from the start of the queue, with the settings as they are now.
+            await CancelStageAsync(recordingId, stage, StageStopReason.Requeued);
+            manifest = await _store.LoadAsync(recordingId, cancellationToken);
+        }
+        else if (current is { State: StageStates.Active or StageStates.Queued })
+        {
+            // Waiting its turn: it reads the settings when it starts.
             Schedule(recordingId);
             return;
         }
@@ -288,6 +296,9 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             await _shutdown.CancelAsync();
         }
 
+        // The stage's work is cancelled (it is queued again for the next launch); its worker need not finish the
+        // native step it is in, which can take longer than the host's stop timeout.
+        _workers?.KillAll();
         await _worker;
         await _sampler;
     }
@@ -566,6 +577,12 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (stage.IsHeavy)
+                {
+                    // A pass on the graphics card does not wait for a busy processor (it still waits for a recording).
+                    _gate.SetHeavyOnGpu(await UsesGpuQuietlyAsync(stage, running.RecordingId, cancellationToken));
+                }
+
                 if (stage.IsHeavy && _gate.Reason is { } reason)
                 {
                     // BRIDGE.md M2 clarification 4: a waiting stage stays active and keeps its percentage.
@@ -655,6 +672,20 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
                     stageDone.TrySetResult();
                 }
             }
+        }
+    }
+
+    private async Task<bool> UsesGpuQuietlyAsync(IProcessingStage stage, string recordingId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await stage.UsesGpuAsync(recordingId, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException or ProjectSchemaException)
+        {
+            // The stage reads the project itself and reports the problem; until then it counts as a processor stage.
+            LogStageFailed(ex, recordingId);
+            return false;
         }
     }
 

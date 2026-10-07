@@ -3,7 +3,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 function toneWav(seconds, rate = 48_000) {
@@ -33,7 +33,10 @@ function toneWav(seconds, rate = 48_000) {
 /** Starts playing; returns { pid, stop() }. */
 export async function playTone(directory, seconds) {
   const wav = join(directory, `tone440-${seconds}s.wav`);
-  if (!existsSync(wav)) await writeFile(wav, toneWav(seconds));
+  if (!existsSync(wav)) {
+    await mkdir(directory, { recursive: true });
+    await writeFile(wav, toneWav(seconds));
+  }
   const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `(New-Object Media.SoundPlayer '${wav}').PlaySync()`], {
     stdio: 'ignore',
     windowsHide: true,

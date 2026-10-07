@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memento.Core.Bridge.Contracts;
 
-namespace Memento.Core.Attachments;
+namespace Memento.Core.Projects;
 
 /// <summary>
 /// One entry of the manifest's <c>attachments</c> index (<c>project.json</c>): what the bridge shows plus where the

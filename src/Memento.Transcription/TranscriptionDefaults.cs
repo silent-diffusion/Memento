@@ -6,8 +6,8 @@ public static class TranscriptionDefaults
     /// <summary>large-v3-turbo returns lower-case unpunctuated text without a prompt; this short one fixes it.</summary>
     public const string Prompt = "Hello, and welcome. This is a recording of a conversation, with punctuation.";
 
-    public const string RuntimeVulkan = "vulkan";
-    public const string RuntimeCpu = "cpu";
+    public const string RuntimeVulkan = Core.Workers.WorkerRuntimes.Vulkan;
+    public const string RuntimeCpu = Core.Workers.WorkerRuntimes.Cpu;
 
     /// <summary>sherpa-onnx clustering threshold: 0.8 separated two readers exactly and kept one reader whole.</summary>
     public const float ClusteringThreshold = 0.8f;

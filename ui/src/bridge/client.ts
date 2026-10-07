@@ -13,6 +13,11 @@ import type {
 /** Moves bridge messages between the page and the host. */
 export interface BridgeTransport {
   send(request: BridgeRequest): void;
+  /**
+   * Sends a request together with dropped `File` objects, so the host learns their real paths
+   * (WebView2: `postMessageWithAdditionalObjects`). Transports without it send the request alone.
+   */
+  sendWithFiles?(request: BridgeRequest, files: readonly File[]): void;
   /** Subscribes to every message from the host; returns the unsubscribe function. */
   subscribe(listener: (message: unknown) => void): () => void;
 }
@@ -44,6 +49,11 @@ type ParamsArgument<M extends MethodName> = EmptyParams extends MethodParams<M>
 export interface BridgeClient {
   /** Calls a host method; resolves with its result or rejects with a {@link BridgeCallError}. */
   call<M extends MethodName>(method: M, ...params: ParamsArgument<M>): Promise<MethodResult<M>>;
+  /**
+   * Like {@link call}, with dropped files attached to the message (BRIDGE.md M3, drag and drop):
+   * the host matches the names in `params` against the paths WebView2 hands it with the files.
+   */
+  callWithFiles<M extends MethodName>(method: M, params: MethodParams<M>, files: readonly File[]): Promise<MethodResult<M>>;
   /** Subscribes to a host event; returns the unsubscribe function. */
   on<E extends EventName>(event: E, handler: (payload: EventPayload<E>) => void): () => void;
   /** True inside the Memento window; false in a plain browser (npm run dev), where mock data answers. */
@@ -64,6 +74,8 @@ export const DEFAULT_TIMEOUT_MS = 10_000;
 /** The messaging surface WebView2 exposes as window.chrome.webview. */
 export interface WebViewMessaging {
   postMessage(message: unknown): void;
+  /** Posts the message with DOM objects; the host receives `File`s as CoreWebView2File with their paths. */
+  postMessageWithAdditionalObjects?(message: unknown, additionalObjects: ArrayLike<unknown>): void;
   addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
   removeEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
 }
@@ -78,6 +90,13 @@ export function webViewTransport(webview: WebViewMessaging): BridgeTransport {
   return {
     send: (request) => {
       webview.postMessage(request);
+    },
+    sendWithFiles: (request, files) => {
+      if (files.length > 0 && typeof webview.postMessageWithAdditionalObjects === 'function') {
+        webview.postMessageWithAdditionalObjects(request, [...files]);
+      } else {
+        webview.postMessage(request);
+      }
     },
     subscribe: (listener) => {
       const handler = (event: { data: unknown }): void => {
@@ -170,42 +189,53 @@ export function createBridgeClient(options: BridgeClientOptions = {}): BridgeCli
     settle(message);
   });
 
+  const invoke = <M extends MethodName>(method: M, params: MethodParams<M>, files: readonly File[] | null): Promise<MethodResult<M>> => {
+    const id = nextId++;
+    return new Promise<MethodResult<M>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(
+          new BridgeCallError(method, {
+            code: 'bridge.timeout',
+            message: `Memento did not answer '${method}' within ${Math.round(timeoutMs / 1000)} s.`,
+            detail: null,
+          }),
+        );
+      }, timeoutMs);
+      pending.set(id, {
+        method,
+        resolve: resolve as (result: unknown) => void,
+        reject,
+        timer,
+      });
+      try {
+        const request: BridgeRequest = { id, method, params };
+        if (files !== null && transport.sendWithFiles !== undefined) {
+          transport.sendWithFiles(request, files);
+        } else {
+          transport.send(request);
+        }
+      } catch (error) {
+        pending.delete(id);
+        clearTimeout(timer);
+        reject(
+          new BridgeCallError(method, {
+            code: 'bridge.sendFailed',
+            message: `The request '${method}' could not be sent to Memento.`,
+            detail: error instanceof Error ? error.message : null,
+          }),
+        );
+      }
+    });
+  };
+
   return {
     isHosted,
     call<M extends MethodName>(method: M, ...args: ParamsArgument<M>): Promise<MethodResult<M>> {
-      const id = nextId++;
-      const params = (args[0] ?? {}) as MethodParams<M>;
-      return new Promise<MethodResult<M>>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          reject(
-            new BridgeCallError(method, {
-              code: 'bridge.timeout',
-              message: `Memento did not answer '${method}' within ${Math.round(timeoutMs / 1000)} s.`,
-              detail: null,
-            }),
-          );
-        }, timeoutMs);
-        pending.set(id, {
-          method,
-          resolve: resolve as (result: unknown) => void,
-          reject,
-          timer,
-        });
-        try {
-          transport.send({ id, method, params });
-        } catch (error) {
-          pending.delete(id);
-          clearTimeout(timer);
-          reject(
-            new BridgeCallError(method, {
-              code: 'bridge.sendFailed',
-              message: `The request '${method}' could not be sent to Memento.`,
-              detail: error instanceof Error ? error.message : null,
-            }),
-          );
-        }
-      });
+      return invoke(method, (args[0] ?? {}) as MethodParams<M>, null);
+    },
+    callWithFiles<M extends MethodName>(method: M, params: MethodParams<M>, files: readonly File[]): Promise<MethodResult<M>> {
+      return invoke(method, params, files);
     },
     on<E extends EventName>(event: E, handler: (payload: EventPayload<E>) => void): () => void {
       let subscribers = handlers.get(event);

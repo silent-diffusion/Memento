@@ -120,7 +120,7 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     await type(document.querySelector('#ai-key-input'), 'short');
     await click(button('Replace key'));
     await until(() => document.querySelector('.dialog-error') !== null);
-    expect(document.querySelector('.dialog-error')?.textContent).toContain('Nothing was stored.');
+    expect(document.querySelector('.dialog-error')?.textContent).toContain('8 to 500 characters with no spaces. Nothing was saved.');
     expect(document.body.textContent).not.toContain('short');
     await click(button('Cancel'));
 
@@ -141,7 +141,7 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     ]);
     await click(checks[5]);
     await until(() => h.callsOf('settings.set').length === 1);
-    expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai?.share.attachments).toBe(true);
+    expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai?.share?.attachments).toBe(true);
     expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai).not.toHaveProperty('providers');
   });
 

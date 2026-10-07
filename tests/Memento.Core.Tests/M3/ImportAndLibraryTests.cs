@@ -2,6 +2,7 @@ using System.Text.Json;
 using Memento.Core.Audio;
 using Memento.Core.Bridge;
 using Memento.Core.Import;
+using Memento.Core.Library;
 using Memento.Core.Maintenance;
 using Memento.Core.Projects;
 using Memento.Core.Tests.Audio;
@@ -77,6 +78,82 @@ public sealed class ImportAndLibraryTests : IDisposable
         Assert.False(manifest.HasVideo);
         var history = await _m3.Host.Store.ReadHistoryAsync(id, CancellationToken.None);
         Assert.Contains(history, h => h.Summary == "Only the audio was imported" && h.Event == "info");
+    }
+
+    [Fact]
+    public async Task AnImportCutShortByACrashIsMarkedFailedAtLaunchAndCanBeImportedAgain()
+    {
+        var source = Tone("standup.wav", seconds: 2);
+        var id = (await _m3.ResultAsync("library.importMedia", new { path = source })).GetProperty("recordingId").GetString()!;
+        await _m3.Get<MediaImportService>().WhenIdleAsync();
+        var originalHash = await FileHashes.Sha256Async(source, CancellationToken.None);
+
+        // What a crash halfway through decoding leaves: the project still finalizing, a partial WAV in tracks/.
+        var folder = _m3.Host.Store.GetProjectFolder(id);
+        foreach (var file in Directory.GetFiles(Path.Combine(folder, "tracks")))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+            File.Delete(file);
+        }
+
+        File.WriteAllBytes(Path.Combine(folder, "tracks", "imported.wav"), new byte[4096]);
+        await _m3.Get<ProjectCatalog>().UpdateAsync(
+            id,
+            m => m with { State = ProjectStates.Finalizing, Mix = null, Stages = [new Core.Bridge.Contracts.StageStatus(StageNames.Stored, "active", 40, "40% · importing")] },
+            CancellationToken.None);
+
+        var recovered = await _m3.Get<Core.Recovery.RecoveryService>().RunAsync(CancellationToken.None);
+
+        Assert.Empty(recovered);
+        var failed = await _m3.Host.Store.LoadAsync(id, CancellationToken.None);
+        Assert.Equal(ProjectStates.Failed, failed.State);
+        var stage = Assert.Single(failed.Stages);
+        Assert.Equal((StageNames.Stored, "failed", "Import interrupted"), (stage.Stage, stage.State, stage.Label));
+        var failure = Assert.Single(failed.Failures);
+        Assert.Equal(["importAgain"], failure.Remedies.Select(r => r.Id));
+        Assert.Contains("standup.wav", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("The original file was not changed", failure.Kept, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(folder, "tracks", "imported.wav")));
+        Assert.Contains(await _m3.Host.Store.ReadHistoryAsync(id, CancellationToken.None), h => h.Summary == "Import interrupted" && h.Event == "failed");
+        var row = (await _m3.Host.ResultAsync("library.list")).GetProperty("recordings")[0];
+        Assert.Equal("failed", row.GetProperty("state").GetString());
+
+        // A second launch leaves it as it is.
+        await _m3.Get<Core.Recovery.RecoveryService>().RunAsync(CancellationToken.None);
+        Assert.Equal(ProjectStates.Failed, (await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).State);
+
+        // Import again: the same file into the same project, then the normal stages.
+        await _m3.ResultAsync("processing.retry", new { recordingId = id, stage = "stored", remedyId = "importAgain" });
+        await _m3.Get<MediaImportService>().WhenIdleAsync();
+
+        var again = await _m3.Host.Store.LoadAsync(id, CancellationToken.None);
+        Assert.Equal(ProjectStates.Ready, again.State);
+        Assert.Empty(again.Failures);
+        Assert.Equal("tracks/imported.flac", Assert.Single(again.Tracks).File);
+        Assert.NotNull(again.Mix);
+        Assert.Equal(source, again.ImportedFrom?.Path);
+        Assert.Equal(originalHash, await FileHashes.Sha256Async(source, CancellationToken.None));
+        Assert.Contains(await _m3.Host.Store.ReadHistoryAsync(id, CancellationToken.None), h => h.Summary == "Importing again");
+    }
+
+    [Fact]
+    public async Task ImportAgainIsRefusedForARecordingAndWhenTheFileIsGone()
+    {
+        var recording = await _m3.RecordAsync();
+        var notAnImport = await _m3.ErrorAsync("processing.retry", new { recordingId = recording, stage = "stored" });
+
+        var source = Tone("gone.wav", seconds: 1);
+        var id = (await _m3.ResultAsync("library.importMedia", new { path = source })).GetProperty("recordingId").GetString()!;
+        await _m3.Get<MediaImportService>().WhenIdleAsync();
+        await _m3.Get<ProjectCatalog>().UpdateAsync(id, m => m with { State = ProjectStates.Finalizing }, CancellationToken.None);
+        await _m3.Get<Core.Recovery.RecoveryService>().RunAsync(CancellationToken.None);
+        File.Delete(source);
+        var gone = await _m3.ErrorAsync("processing.retry", new { recordingId = id, stage = "stored", remedyId = "importAgain" });
+
+        Assert.Equal(BridgeErrorCodes.InvalidParams, notAnImport.GetProperty("code").GetString());
+        Assert.Contains("is not an import that stopped", notAnImport.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("\"gone.wav\" is no longer at", gone.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(ProjectStates.Failed, (await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).State);
     }
 
     [Fact]
@@ -185,12 +262,51 @@ public sealed class ImportAndLibraryTests : IDisposable
         await _m3.Host.ResultAsync("recording.stop", JsonSerializer.Serialize(new { sessionId }));
         await _m3.Host.Recordings.WhenIdleAsync();
 
-        Assert.All(new[] { notEmpty, inside, same, relative }, e => Assert.Equal(BridgeErrorCodes.InvalidParams, e.GetProperty("code").GetString()));
+        Assert.All(new[] { notEmpty, inside, same, relative }, e => Assert.Equal(DomainErrorCodes.LibraryMoveRefused, e.GetProperty("code").GetString()));
         Assert.Contains("already has files", notEmpty.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(full, notEmpty.GetProperty("detail").GetString());
         Assert.Equal(DomainErrorCodes.LibraryBusy, busy.GetProperty("code").GetString());
         Assert.Contains("a recording is in progress", busy.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.False(Directory.Exists(_m3.Directory.File("Elsewhere")));
         Assert.Equal(root, _m3.Host.Settings.Current.EffectiveLibraryPath);
+    }
+
+    [Fact]
+    public async Task ARecordingDoesNotStartWhileTheLibraryIsBeingMoved()
+    {
+        var activity = _m3.Get<LibraryActivity>();
+        using (activity.Begin(LibraryActivity.Move))
+        {
+            var refused = await _m3.ErrorAsync("recording.start", new { title = "Live", type = "meeting", sourceIds = new[] { TestRecordings.Mic } });
+
+            Assert.Equal(DomainErrorCodes.LibraryBusy, refused.GetProperty("code").GetString());
+            Assert.Contains("can't start right now. Nothing was started.", refused.GetProperty("message").GetString(), StringComparison.Ordinal);
+            Assert.Null(_m3.Host.Recordings.Current);
+            Assert.False(activity.IsStartingRecording);
+        }
+
+        // Once the move is over, recording works again.
+        var (sessionId, _) = await _m3.Host.StartAsync("Live", TestRecordings.Mic);
+        Assert.False(activity.IsStartingRecording);
+        await _m3.Host.ResultAsync("recording.stop", JsonSerializer.Serialize(new { sessionId }));
+        await _m3.Host.Recordings.WhenIdleAsync();
+    }
+
+    [Fact]
+    public async Task TheLibraryIsNotMovedWhileARecordingIsStarting()
+    {
+        var activity = _m3.Get<LibraryActivity>();
+        var target = _m3.Directory.File("Elsewhere");
+        using (activity.BeginRecordingStart())
+        {
+            var busy = await _m3.ErrorAsync("library.move", new { newPath = target });
+
+            Assert.Equal(DomainErrorCodes.LibraryBusy, busy.GetProperty("code").GetString());
+            Assert.False(activity.IsMoving);
+        }
+
+        Assert.False(Directory.Exists(target));
+        Assert.Null(activity.Describe());
     }
 
     [Fact]
@@ -233,17 +349,21 @@ public sealed class ImportAndLibraryTests : IDisposable
         var mp3 = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = new[] { id }, downmixMono = false, codec = "mp3", bitrateKbps = 64 });
         var noAge = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = (string[]?)null, downmixMono = true, codec = "aac", bitrateKbps = (int?)null });
         var unknown = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = MissingId, downmixMono = false, codec = "aac" });
+        var none = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = Array.Empty<string>(), downmixMono = false, codec = "aac" });
 
         Assert.Equal(BridgeErrorCodes.InvalidParams, codec.GetProperty("code").GetString());
         Assert.Contains("96 to 320", mp3.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(DomainErrorCodes.StorageNothingToReclaim, noAge.GetProperty("code").GetString());
         Assert.Contains("Settings › Storage and history", noAge.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(DomainErrorCodes.ProjectNotFound, unknown.GetProperty("code").GetString());
+        Assert.Equal(DomainErrorCodes.StorageNothingToReclaim, none.GetProperty("code").GetString());
 
-        // With an age set, only older recordings are chosen: this one was made just now.
+        // With an age set, only older recordings are chosen: this one was made just now, so nothing is started.
         await _m3.ResultAsync("settings.set", new { storage = new { reclaimOlderThanDays = 30 } });
-        await _m3.ResultAsync("storage.reclaim", new { recordingIds = (string[]?)null, downmixMono = false, codec = "aac" });
-        await _m3.Get<StorageReclaimService>().WhenIdleAsync();
-        Assert.Equal(0, _m3.Sink.Payloads(BridgeEventNames.StorageReclaimProgress).Last().GetProperty("recordingsDone").GetInt32());
+        var young = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = (string[]?)null, downmixMono = false, codec = "aac" });
+        Assert.Equal(DomainErrorCodes.StorageNothingToReclaim, young.GetProperty("code").GetString());
+        Assert.Contains("older than 30 days", young.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Empty(_m3.Sink.Payloads(BridgeEventNames.StorageReclaimProgress));
         Assert.All((await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).Tracks, t => Assert.Equal("flac", t.Codec));
     }
 

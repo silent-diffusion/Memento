@@ -230,6 +230,56 @@ describe('transports', () => {
     }
   });
 
+  it('callWithFiles posts the request with the files through postMessageWithAdditionalObjects', async () => {
+    const listeners: ((event: { data: unknown }) => void)[] = [];
+    const plain: unknown[] = [];
+    const withObjects: [unknown, unknown[]][] = [];
+    const webview: WebViewMessaging = {
+      postMessage: (message) => plain.push(message),
+      postMessageWithAdditionalObjects: (message, objects) => withObjects.push([message, Array.from(objects)]),
+      addEventListener: (_type, listener) => listeners.push(listener),
+      removeEventListener: vi.fn(),
+    };
+    const client = createBridgeClient({ transport: webViewTransport(webview), logger: quietLogger() });
+    const file = new File(['1. Welcome'], 'agenda.docx');
+
+    const call = client.callWithFiles('agenda.importDropped', { recordingId: null, paths: ['agenda.docx'] }, [file]);
+    for (const listener of listeners) {
+      listener({ data: { id: 1, result: { preview: null, cancelled: true } } });
+    }
+
+    expect(plain).toEqual([]);
+    expect(withObjects).toEqual([[{ id: 1, method: 'agenda.importDropped', params: { recordingId: null, paths: ['agenda.docx'] } }, [file]]]);
+    await expect(call).resolves.toEqual({ preview: null, cancelled: true });
+  });
+
+  it('callWithFiles falls back to postMessage without postMessageWithAdditionalObjects or files', () => {
+    const plain: unknown[] = [];
+    const webview: WebViewMessaging = { postMessage: (message) => plain.push(message), addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const client = createBridgeClient({ transport: webViewTransport(webview), logger: quietLogger() });
+
+    void client.callWithFiles('agenda.importDropped', { recordingId: null, paths: ['a.docx'] }, [new File([''], 'a.docx')]);
+
+    expect(plain).toEqual([{ id: 1, method: 'agenda.importDropped', params: { recordingId: null, paths: ['a.docx'] } }]);
+  });
+
+  it('callWithFiles on a transport without sendWithFiles sends the request alone', () => {
+    const transport = new FakeTransport();
+    const client = createBridgeClient({ transport, logger: quietLogger() });
+
+    void client.callWithFiles('agenda.importDropped', { recordingId: null, paths: ['a.docx'] }, []);
+
+    expect(transport.last()).toEqual({ id: 1, method: 'agenda.importDropped', params: { recordingId: null, paths: ['a.docx'] } });
+  });
+
+  it('the browser-preview host reads the names of the dropped files as their paths', async () => {
+    const client = createBridgeClient({ logger: quietLogger(), mock: { live: false, recovery: false } });
+
+    const result = await client.callWithFiles('agenda.importDropped', { recordingId: null, paths: [] }, [new File([''], 'agenda.docx')]);
+
+    expect(result.preview?.source).toBe('agenda.docx');
+  });
+
   it('webViewTransport unsubscribes from the host', () => {
     const removeEventListener = vi.fn();
     const webview: WebViewMessaging = {

@@ -7,6 +7,7 @@ import { isoWithOffset, type MockProject } from './mockData';
 import { createMockExport, type ExportFlag, type MockExport } from './mockExport';
 import { visibleStages } from './mockLibrary';
 import { MockHostError } from './mockSession';
+import { mergeSettings } from './settingsMerge';
 import type {
   AiProvider,
   Attachment,
@@ -26,11 +27,14 @@ import type {
   Track,
 } from './types';
 
-/** URL flags for the failure cases: `?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`, `?import=unsupported`, `?move=busy`. */
+/**
+ * URL flags for the failure cases: `?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`,
+ * `?import=unsupported|interrupted` (the first import stops at 40% as if Memento had closed), `?move=busy`.
+ */
 export interface M3Flags {
   export: ExportFlag;
   agenda: AgendaFlag;
-  import: 'ok' | 'unsupported';
+  import: 'ok' | 'unsupported' | 'interrupted';
   move: 'ok' | 'busy';
 }
 
@@ -48,8 +52,9 @@ export function m3FlagsFromQuery(query: URLSearchParams): Partial<M3Flags> {
   } else if (agenda === 'nodrop') {
     flags.agenda = 'noDrop';
   }
-  if (query.get('import') === 'unsupported') {
-    flags.import = 'unsupported';
+  const importFlag = query.get('import');
+  if (importFlag === 'unsupported' || importFlag === 'interrupted') {
+    flags.import = importFlag;
   }
   if (query.get('move') === 'busy') {
     flags.move = 'busy';
@@ -146,6 +151,10 @@ export interface MockM3 {
   handlers: M3Handlers;
   agenda: MockAgenda;
   exports: MockExport;
+  /** recording.start while the library is being copied answers library.busy, as the host. */
+  throwIfMoving(): void;
+  /** processing.retry of `stored` on an import that stopped: imports the same file again (BRIDGE.md M3 integration). */
+  importAgain(recordingId: string): void;
   /** settings.set for the M3 blocks: validated, then merged into `settings`. */
   mergeSettings(settings: SettingsSnapshot, params: SettingsSetParams): SettingsSnapshot;
 }
@@ -184,6 +193,8 @@ export function createMockM3(env: MockM3Environment): MockM3 {
   let pickIndex = 0;
   let mediaIndex = 0;
   let importCounter = 0;
+  let interruptedOnce = false;
+  let moving = false;
   let jobCounter = 0;
 
   const at = (): string => isoWithOffset(new Date(env.now()));
@@ -303,7 +314,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     const track: Track = {
       id: `${id}-t1`,
       sourceId: 'imported',
-      sourceKind: 'microphone',
+      sourceKind: 'imported',
       name,
       file: 'tracks/01-imported.flac',
       sampleRate: 48_000,
@@ -346,6 +357,14 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     env.projects.set(id, project);
     env.changed(id);
     env.emit('processing.progress', { recordingId: id, stages: pipeline });
+    runImport(id, name);
+    return id;
+  };
+
+  /** Decoding and storing, 20% a step; with `?import=interrupted` the first import stops at 40%. */
+  const runImport = (id: string, name: string): void => {
+    const interrupt = env.flags.import === 'interrupted' && !interruptedOnce;
+    interruptedOnce ||= interrupt;
     const timer = setInterval(() => {
       const current = env.projects.get(id);
       if (current === undefined) {
@@ -354,6 +373,22 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       }
       const stored = current.stages.find((st) => st.stage === 'stored');
       const percent = Math.min(100, (stored?.percent ?? 0) + 20);
+      if (interrupt && percent >= 40) {
+        clearInterval(timer);
+        current.summary = { ...current.summary, state: 'failed' };
+        current.history = [
+          ...current.history,
+          {
+            at: at(),
+            stage: 'recorded',
+            event: 'failed',
+            summary: 'Import interrupted',
+            detail: `Importing ${name} stopped because Memento closed before it had finished. The original file was not changed. The half-imported copy was removed. Use Import again in the Library, or delete the recording.`,
+          },
+        ];
+        env.setStages(current, [{ stage: 'stored', state: 'failed', percent: null, label: 'Import interrupted' }]);
+        return;
+      }
       if (percent < 100) {
         env.setStages(current, current.stages.map((st) => (st.stage === 'stored' ? { ...st, percent, label: `Importing · ${percent}%` } : st)));
         return;
@@ -363,7 +398,19 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       env.setStages(current, current.stages.map((st) => (st.stage === 'stored' ? { ...st, state: 'done', percent: null, label: 'Done' } : st)));
       env.queueAfterStored(current);
     }, Math.max(200, env.stepMs * 2));
-    return id;
+  };
+
+  const importAgain = (recordingId: string): void => {
+    const project = env.find(recordingId);
+    const stored = project.stages.find((st) => st.stage === 'stored');
+    const name = project.tracks?.[0]?.name ?? project.summary.title;
+    if (project.summary.state !== 'failed' || stored?.state !== 'failed') {
+      throw new MockHostError('bridge.invalidParams', `"${project.summary.title}" is not an import that stopped, so there is nothing to import again. Nothing was changed.`);
+    }
+    project.summary = { ...project.summary, state: 'ready' };
+    project.history = [...project.history, { at: at(), stage: 'recorded', event: 'info', summary: 'Importing again', detail: `From ${name}.` }];
+    env.setStages(project, [{ stage: 'stored', state: 'active', percent: 0, label: 'Importing · 0%' }]);
+    runImport(recordingId, name);
   };
 
   const setProvider = (provider: AiProvider, hasKey: boolean): { hasKey: boolean } => {
@@ -474,7 +521,10 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       const settings = env.settings();
       const newPath = params.newPath.trim();
       if (newPath === '' || newPath.toLocaleLowerCase() === settings.libraryPath.toLocaleLowerCase()) {
-        throw new MockHostError('bridge.invalidParams', `The library is already in ${settings.libraryPath}. Nothing was moved.`, newPath);
+        throw new MockHostError('library.moveRefused', `The library is already in ${settings.libraryPath}. Nothing was changed.`, newPath);
+      }
+      if (/unwritable|readonly/i.test(newPath)) {
+        throw new MockHostError('library.moveRefused', `Memento can't create ${newPath}: Windows denied access. Nothing was changed. Choose another folder.`, newPath);
       }
       const busy = env.flags.move === 'busy' ? 'Q3 planning sync' : env.busyTitle();
       if (busy !== null) {
@@ -484,6 +534,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
           busy,
         );
       }
+      moving = true;
       return {
         jobId: runJob(
           Math.max(120, env.stepMs * 3),
@@ -492,6 +543,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
             env.emit('library.moveProgress', { jobId, percent, state, message, newPath });
           },
           () => {
+            moving = false;
             const current = env.settings();
             env.setSettings({ ...current, libraryPath: newPath });
             return `Every file was copied to ${newPath} and checked, and the old folder was removed.`;
@@ -506,6 +558,16 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       const chosen = [...env.projects.values()].filter((p) =>
         params.recordingIds === null ? cutoff !== null && Date.parse(p.summary.createdAt) < cutoff : params.recordingIds.includes(p.summary.id),
       );
+      if (chosen.length === 0) {
+        throw new MockHostError(
+          'storage.nothingToReclaim',
+          params.recordingIds !== null
+            ? 'No recording was chosen, so there is nothing to make smaller. Nothing was changed. Choose at least one recording.'
+            : days === null
+              ? 'No age is set for making recordings smaller, so none were chosen. Nothing was changed. Choose an age for "Downmix tracks older than" in Settings › Storage and history first.'
+              : `No recording is older than ${days} ${days === 1 ? 'day' : 'days'}, so there is nothing to make smaller yet. Nothing was changed.`,
+        );
+      }
       let freed = 0;
       let done = 0;
       return {
@@ -538,10 +600,11 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     'ai.setKey': (params) => {
       const provider = checkProvider(params.provider);
       const key = params.key.trim();
-      if (key.length < 20 || /\s/.test(key)) {
+      // As the host: 8 to 500 characters, no spaces.
+      if (key.length < 8 || key.length > 500 || /\s/.test(key)) {
         throw new MockHostError(
           'bridge.invalidParams',
-          'That does not look like a complete API key. Nothing was stored. Copy the whole key from the provider\u2019s console and paste it again.',
+          'That does not look like an API key: a key is 8 to 500 characters with no spaces. Nothing was saved. Copy the whole key from the provider\u2019s console and paste it again.',
         );
       }
       return setProvider(provider, true);
@@ -560,28 +623,32 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     handlers,
     agenda,
     exports,
+    importAgain,
+    throwIfMoving() {
+      if (moving) {
+        throw new MockHostError(
+          'library.busy',
+          'The library is being copied to its new folder, so a recording can\'t start right now. Nothing was started. Recording is possible again as soon as the move has finished; its progress is in Settings › Storage and history.',
+          'move',
+        );
+      }
+    },
     mergeSettings(settings, params) {
-      const general = params.general ?? settings.general;
+      // Field by field, as the host: a null default folder or reclaim age clears it.
+      const merged = mergeSettings(settings, { general: params.general ?? null, export: params.export ?? null, ai: params.ai ?? null, storage: params.storage ?? null });
+      const { general, storage } = merged;
       // The page's JSON is not checked against the types, so another language can still arrive.
       if ((general.language as string) !== 'en') {
         throw invalid('English is the only interface language in this version. Nothing was changed.', general.language);
       }
-      const exportBlock = params.export ?? settings.export;
-      if (exportBlock.defaultFolder !== null && exportBlock.defaultFolder.trim() === '') {
-        throw invalid('The default export folder needs a path. Nothing was changed.', 'export.defaultFolder');
+      // As the host, a blank folder is no folder.
+      const folder = merged.export.defaultFolder?.trim() ?? '';
+      const exportBlock = { ...merged.export, defaultFolder: folder === '' ? null : folder };
+      const days = storage.reclaimOlderThanDays;
+      if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= 3650)) {
+        throw invalid('Recordings are made smaller after a whole number of days, from 1 to 3650. Nothing was changed.', String(days));
       }
-      const storage = params.storage ?? settings.storage;
-      if (storage.reclaimOlderThanDays !== null && !(Number.isInteger(storage.reclaimOlderThanDays) && storage.reclaimOlderThanDays > 0)) {
-        throw invalid('Recordings are made smaller after a whole number of days. Nothing was changed.', String(storage.reclaimOlderThanDays));
-      }
-      return {
-        ...settings,
-        general,
-        export: exportBlock,
-        // The providers are read-only here; only ai.setKey and ai.clearKey change them.
-        ai: params.ai == null ? settings.ai : { ...params.ai, providers: settings.ai.providers },
-        storage,
-      };
+      return { ...merged, export: exportBlock };
     },
   };
 }

@@ -7,7 +7,12 @@ import { createStore } from '../state/store';
 import { focusableWithin, moveFocus, trapTab } from './keyboard';
 import { Dialog, initialFocusTarget } from './Overlay';
 
-const bridge: BridgeClient = { isHosted: false, call: vi.fn(() => new Promise<never>(() => undefined)), on: vi.fn(() => () => undefined) };
+const bridge: BridgeClient = {
+  isHosted: false,
+  call: vi.fn(() => new Promise<never>(() => undefined)),
+  callWithFiles: vi.fn(() => new Promise<never>(() => undefined)),
+  on: vi.fn(() => () => undefined),
+};
 
 function key(target: EventTarget, init: KeyboardEventInit): KeyboardEvent {
   const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });

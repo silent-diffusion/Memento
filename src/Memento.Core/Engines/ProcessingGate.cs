@@ -2,8 +2,9 @@ namespace Memento.Core.Engines;
 
 /// <summary>
 /// Decides whether heavy processing stages (transcription, speakers) may run now: not while the user paused processing,
-/// not while a recording is active or the processor has been over 85% busy for 10 seconds (when "pause when busy" is on),
-/// and not while the library drive is low on space. Resumes by itself when the reason goes away.
+/// not while a recording is active or the processor has been over 85% busy for 10 seconds (when "pause when busy" is on;
+/// a stage on the graphics card is exempt from the processor check, see <see cref="SetHeavyOnGpu"/>), and not while the
+/// library drive is low on space. Resumes by itself when the reason goes away.
 /// </summary>
 public sealed class ProcessingGate
 {
@@ -15,6 +16,11 @@ public sealed class ProcessingGate
     public const double BusyCpuPercent = 85;
     public static readonly TimeSpan BusyFor = TimeSpan.FromSeconds(10);
 
+    /// <summary>A busy pause ends once the processor has been at or below this for <see cref="CalmFor"/>.</summary>
+    public const double ResumeCpuPercent = 70;
+
+    public static readonly TimeSpan CalmFor = TimeSpan.FromSeconds(15);
+
     private readonly object _sync = new();
     private readonly TimeProvider _time;
     private TaskCompletionSource _open = NewOpen();
@@ -23,7 +29,9 @@ public sealed class ProcessingGate
     private bool _lowSpace;
     private bool _cpuBusy;
     private bool _busyReleased;
+    private bool _heavyOnGpu;
     private DateTimeOffset? _busySince;
+    private DateTimeOffset? _calmSince;
     private string? _reason;
 
     public ProcessingGate(TimeProvider time)
@@ -72,6 +80,25 @@ public sealed class ProcessingGate
     public void SetManual(bool paused) => Update(() => _manual = paused);
 
     /// <summary>
+    /// Whether the heavy stage that runs (or is about to) uses the graphics card. A pass on the GPU barely loads the
+    /// processor, so a busy processor does not pause it; a recording (while "Pause when busy" is on), low disk space
+    /// and a pause by the user still do.
+    /// </summary>
+    public void SetHeavyOnGpu(bool onGpu) => Update(() => _heavyOnGpu = onGpu);
+
+    /// <summary>The value last given to <see cref="SetHeavyOnGpu"/>.</summary>
+    public bool HeavyOnGpu
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _heavyOnGpu;
+            }
+        }
+    }
+
+    /// <summary>
     /// <c>processing.resume</c> (BRIDGE.md M2 clarification 4): lifts a pause by the user and also releases a "PC is busy"
     /// pause that is in effect now, until the busy condition ends and is detected again. Low disk space still pauses.
     /// </summary>
@@ -91,14 +118,38 @@ public sealed class ProcessingGate
         {
             _recording = pauseWhenBusy && recordingActive;
             _lowSpace = lowSpace;
-            if (!pauseWhenBusy || cpuBusyPercent is not { } cpu || cpu <= BusyCpuPercent)
+            var now = _time.GetUtcNow();
+            if (!pauseWhenBusy || cpuBusyPercent is not { } cpu)
             {
                 _busySince = null;
+                _calmSince = null;
                 _cpuBusy = false;
+            }
+            else if (_cpuBusy)
+            {
+                // Paused for a busy processor: resume only once it has been calm for a while, or a PC hovering
+                // around the threshold stops and restarts the same window again and again.
+                if (cpu > ResumeCpuPercent)
+                {
+                    _calmSince = null;
+                }
+                else
+                {
+                    _calmSince ??= now;
+                    if (now - _calmSince.Value >= CalmFor)
+                    {
+                        _cpuBusy = false;
+                        _busySince = null;
+                        _calmSince = null;
+                    }
+                }
+            }
+            else if (cpu <= BusyCpuPercent)
+            {
+                _busySince = null;
             }
             else
             {
-                var now = _time.GetUtcNow();
                 _busySince ??= now;
                 _cpuBusy = now - _busySince.Value >= BusyFor;
             }
@@ -124,7 +175,8 @@ public sealed class ProcessingGate
         lock (_sync)
         {
             change();
-            var reason = _manual ? ManualReason : _lowSpace ? LowSpaceReason : (_recording || _cpuBusy) && !_busyReleased ? BusyReason : null;
+            var busy = _recording || (_cpuBusy && !_heavyOnGpu);
+            var reason = _manual ? ManualReason : _lowSpace ? LowSpaceReason : busy && !_busyReleased ? BusyReason : null;
             changed = reason != _reason;
             _reason = reason;
             if (reason is null)

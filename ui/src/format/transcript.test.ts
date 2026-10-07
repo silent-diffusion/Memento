@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { TranscriptWord } from '../bridge/types';
 import {
+  gapNoticeText,
+  gapPlacement,
   isSpeakerUncertain,
   lowConfidenceRanges,
   matchCountText,
+  otherModelFor,
   queryRanges,
   realignWords,
   segmentIndexAt,
@@ -192,5 +195,35 @@ describe('playhead, speakers and wording', () => {
     expect(transcribingText({ label: 'Paused · PC is busy', percent: 40 })).toBe('Paused · PC is busy');
     expect(transcribingText({ label: null, percent: 12 })).toBe('Transcribing 12%');
     expect(transcribingText(null)).toBe('Transcribing');
+  });
+});
+
+describe('coverage notices', () => {
+  const at = (...starts: number[]) => starts.map((start) => ({ start }));
+
+  it('words a gap in the transcript’s own time format', () => {
+    expect(gapNoticeText({ start: 3.4, end: 18.9 })).toBe('Nothing was transcribed between 0:03 and 0:18, although there was speech.');
+    expect(gapNoticeText({ start: 3605, end: 3640 })).toBe('Nothing was transcribed between 1:00:05 and 1:00:40, although there was speech.');
+  });
+
+  it('places each gap before the first line at or after it, or after the last line', () => {
+    const segments = at(0, 3, 20, 25);
+    const placed = gapPlacement(segments, [
+      { start: 40, end: 60, track: 'mic' },
+      { start: 4, end: 19, track: 'mic' },
+      { start: 4.5, end: 19, track: 'system' },
+    ]);
+    expect([...placed.keys()]).toEqual([2, 4]);
+    expect(placed.get(2)?.map((g) => g.track)).toEqual(['mic', 'system']);
+    expect(placed.get(4)?.[0]?.start).toBe(40);
+    expect(gapPlacement([], [{ start: 0, end: 30, track: null }]).get(0)).toHaveLength(1);
+  });
+
+  it('offers the CPU fallback model, or another installed one, but never the one that made the transcript', () => {
+    const model = (id: string, installed = true, engine: 'transcription' | 'speakers' = 'transcription') => ({ id, name: id.toUpperCase(), installed, engine });
+    const models = [model('whisper-large-v3-turbo'), model('whisper-medium'), model('whisper-small'), model('nemo-titanet-small', true, 'speakers')];
+    expect(otherModelFor('whisper-large-v3-turbo', 'whisper-small', models)?.id).toBe('whisper-small');
+    expect(otherModelFor('whisper-small', 'whisper-small', models)?.id).toBe('whisper-large-v3-turbo');
+    expect(otherModelFor('whisper-large-v3-turbo', 'whisper-small', [model('whisper-large-v3-turbo'), model('whisper-small', false)])).toBeNull();
   });
 });

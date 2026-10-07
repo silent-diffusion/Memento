@@ -42,6 +42,12 @@ public sealed partial class MediaImportService(
 
     public const string SourceKind = "imported";
 
+    /// <summary>Remedy id of "Import again" (<c>processing.retry</c> with <c>stage: stored</c>).</summary>
+    public const string ImportAgainRemedy = "importAgain";
+
+    /// <summary>The failed <c>stored</c> stage's label; the UI reads it as "Import interrupted · Import again".</summary>
+    public const string InterruptedLabel = "Import interrupted";
+
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp4", ".m4v", ".mov", ".wmv", ".avi", ".mkv", ".webm", ".3gp", ".mpg", ".mpeg", ".ts",
@@ -94,6 +100,86 @@ public sealed partial class MediaImportService(
 
         M3Errors.RequireFile(path, "file to import");
         var name = Path.GetFileName(path);
+        var probe = await ProbeAsync(path, name, cancellationToken);
+        var modified = new DateTimeOffset(File.GetLastWriteTime(path));
+        var manifest = await store.CreateAsync(
+            new ProjectCreateRequest(
+                string.IsNullOrEmpty(title) ? FileTitle(name) : title,
+                string.IsNullOrEmpty(type) ? settings.Current.Recording.DefaultType : type,
+                modified,
+                ProjectStates.Finalizing),
+            cancellationToken);
+        await StartAsync(manifest.Id, path, name, probe, modified, cancellationToken);
+        return new LibraryImportMediaResult(manifest.Id, Cancelled: false);
+    }
+
+    /// <summary>
+    /// "Import again" (<c>processing.retry</c> of <c>stored</c> on an import that was cut short): decodes the same file
+    /// into the same project, from the start. The project keeps its title, details and History.
+    /// </summary>
+    /// <exception cref="BridgeException">The project is not a failed import, or its file is gone or unreadable.</exception>
+    public async Task ImportAgainAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        activity.ThrowIfMoving();
+        var manifest = await store.LoadAsync(recordingId, cancellationToken);
+        if (manifest.ImportedFrom is not { } source || manifest.State != ProjectStates.Failed || _running.ContainsKey(recordingId))
+        {
+            throw M3Errors.Invalid($"\"{manifest.Details.Title}\" is not an import that stopped, so there is nothing to import again. Nothing was changed.");
+        }
+
+        if (!File.Exists(source.Path))
+        {
+            throw M3Errors.Invalid(
+                $"\"{source.Name}\" is no longer at {source.Path}, so it can't be imported again. Nothing was changed. Put the file back, or delete this recording and import the file from where it is now.",
+                source.Name);
+        }
+
+        var probe = await ProbeAsync(source.Path, source.Name, cancellationToken);
+        DeleteDecodedTracks(recordingId);
+        await AppendAsync(recordingId, new HistoryEntry(time.GetLocalNow(), "recorded", "info", "Importing again", $"From {source.Path}."), cancellationToken);
+        await StartAsync(recordingId, source.Path, source.Name, probe, manifest.CreatedAt, cancellationToken);
+    }
+
+    /// <summary>
+    /// At launch (<see cref="Recovery.RecoveryService"/>): an import that was still decoding or storing when Memento
+    /// stopped is marked <c>failed</c> with a History note and the "Import again" remedy; its half-decoded copy is
+    /// removed. The original file was never changed. Returns false when <paramref name="manifest"/> is not such an import.
+    /// </summary>
+    public async Task<bool> MarkInterruptedAsync(ProjectManifest manifest, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (manifest.ImportedFrom is not { } source || manifest.State != ProjectStates.Finalizing || _running.ContainsKey(manifest.Id))
+        {
+            return false;
+        }
+
+        DeleteDecodedTracks(manifest.Id);
+        var failure = new ProjectStageFailure(
+            StageNames.Stored,
+            $"Importing {source.Name} stopped because Memento closed before it had finished.",
+            $"The original file was not changed ({source.Path}). The half-imported copy was removed.",
+            [new Remedy(ImportAgainRemedy, "Import again")],
+            ProjectStageFailure.CauseCrashed,
+            time.GetLocalNow());
+        await catalog.UpdateAsync(
+            manifest.Id,
+            m => m with
+            {
+                State = ProjectStates.Failed,
+                Stages = [new StageStatus(StageNames.Stored, StageStates.Failed, null, InterruptedLabel)],
+                Failures = [.. m.Failures.Where(f => f.Stage != StageNames.Stored), failure],
+            },
+            cancellationToken);
+        await AppendAsync(
+            manifest.Id,
+            new HistoryEntry(time.GetLocalNow(), "recorded", "failed", "Import interrupted", failure.Message + " " + failure.Kept + " Use Import again in the Library, or delete the recording."),
+            cancellationToken);
+        LogInterrupted(manifest.Id);
+        return true;
+    }
+
+    private async Task<MediaProbe> ProbeAsync(string path, string name, CancellationToken cancellationToken)
+    {
         MediaProbe probe;
         try
         {
@@ -104,25 +190,18 @@ public sealed partial class MediaImportService(
             throw Unsupported(name, ex.Message);
         }
 
-        if (probe.SampleRate <= 0 || probe.Channels <= 0)
-        {
-            throw Unsupported(name, "it has no audio stream");
-        }
+        return probe.SampleRate <= 0 || probe.Channels <= 0 ? throw Unsupported(name, "it has no audio stream") : probe;
+    }
 
-        var modified = new DateTimeOffset(File.GetLastWriteTime(path));
-        var manifest = await store.CreateAsync(
-            new ProjectCreateRequest(
-                string.IsNullOrEmpty(title) ? FileTitle(name) : title,
-                string.IsNullOrEmpty(type) ? settings.Current.Recording.DefaultType : type,
-                modified,
-                ProjectStates.Finalizing),
-            cancellationToken);
-        var id = manifest.Id;
-        manifest = await catalog.UpdateAsync(
+    private async Task StartAsync(string id, string path, string name, MediaProbe probe, DateTimeOffset modified, CancellationToken cancellationToken)
+    {
+        var manifest = await catalog.UpdateAsync(
             id,
             m => m with
             {
+                State = ProjectStates.Finalizing,
                 DurationMs = probe.DurationMs,
+                ImportedFrom = new ProjectImportSource { Path = path, Name = name },
                 Tracks =
                 [
                     new ProjectTrack
@@ -140,6 +219,7 @@ public sealed partial class MediaImportService(
                     },
                 ],
                 Stages = [new StageStatus(StageNames.Stored, StageStates.Active, 0, "Importing")],
+                Failures = m.Failures.Where(f => f.Stage != StageNames.Stored).ToList(),
             },
             cancellationToken);
         publisher.PublishProcessingProgress(new ProcessingProgressPayload(id, manifest.Stages));
@@ -148,7 +228,33 @@ public sealed partial class MediaImportService(
         _running[id] = work;
         _ = work.ContinueWith(_ => _running.TryRemove(id, out Task? _), TaskScheduler.Default);
         LogStarted(id, probe.SampleRate, probe.Channels, probe.DurationMs, probe.HasVideo);
-        return new LibraryImportMediaResult(id, Cancelled: false);
+    }
+
+    /// <summary>
+    /// What an unfinished import made from its file: the decoded track, and the mix and peaks if storing had begun
+    /// (stored files are read-only). Never the original file, which is outside the library.
+    /// </summary>
+    private void DeleteDecodedTracks(string recordingId)
+    {
+        var folder = store.GetProjectFolder(recordingId);
+        var tracks = Path.Combine(folder, ProjectLayout.TracksFolder);
+        var made = (Directory.Exists(tracks) ? Directory.EnumerateFiles(tracks, TrackId + ".*") : [])
+            .Concat(Directory.Exists(folder) ? Directory.EnumerateFiles(folder, ProjectLayout.MixBaseName + ".*") : [])
+            .Append(Path.Combine(folder, ProjectLayout.PeaksFile))
+            .Where(File.Exists)
+            .ToList();
+        foreach (var file in made)
+        {
+            try
+            {
+                File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
+                File.Delete(file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                LogNotRemoved(ex, recordingId);
+            }
+        }
     }
 
     /// <summary>Completes when every import started so far has finished (tests, shutdown).</summary>
@@ -302,6 +408,9 @@ public sealed partial class MediaImportService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Import {RecordingId} failed; the new project is removed and the original file is untouched")]
     private partial void LogFailed(Exception exception, string recordingId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Import {RecordingId} was cut short when Memento stopped; marked failed with Import again")]
+    private partial void LogInterrupted(string recordingId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Import {RecordingId}: the unfinished project could not be removed")]
     private partial void LogNotRemoved(Exception exception, string recordingId);

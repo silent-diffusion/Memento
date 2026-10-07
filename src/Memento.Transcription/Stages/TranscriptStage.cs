@@ -43,6 +43,15 @@ public sealed partial class TranscriptStage(
 
     public bool IsHeavy => true;
 
+    /// <summary>The device this pass would choose now: the GPU unless the request forces the processor or none fits.</summary>
+    public async Task<bool> UsesGpuAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        var manifest = await store.LoadAsync(recordingId, cancellationToken);
+        var request = manifest.Processing ?? new ProcessingRequest();
+        var modelId = request.ModelId ?? selector.EffectiveModelId(settings.Current.Transcription);
+        return models.Resolve(modelId) is not null && selector.SelectDevice(modelId, request.ForceCpu).UseGpu;
+    }
+
     public bool AppliesTo(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -138,13 +147,13 @@ public sealed partial class TranscriptStage(
                 new WorkerJob(WorkerJobKinds.Transcribe, Transcribe: job),
                 async reply =>
                 {
-                    if (!state.Apply(reply))
+                    if (state.Apply(reply))
                     {
-                        return;
+                        await writer.Store.SavePartialAsync(recordingId, state.ToPartial(stopwatch.ElapsedMilliseconds), CancellationToken.None);
                     }
 
-                    await writer.Store.SavePartialAsync(recordingId, state.ToPartial(stopwatch.ElapsedMilliseconds), CancellationToken.None);
-                    if (reply.Percent is { } percent)
+                    // Within a window the engine reports its own percentage (no segments yet); it is shown too.
+                    if (reply.Type == WorkerMessageTypes.Progress && reply.Percent is { } percent)
                     {
                         var whole = (int)Math.Clamp(Math.Floor(percent), 0, 99);
                         var word = state.Device?.Runtime == TranscriptionDefaults.RuntimeCpu ? "CPU" : device.ProgressWord;
@@ -226,7 +235,8 @@ public sealed partial class TranscriptStage(
             result = result with { Device = earlier };
         }
 
-        var segments = TranscriptMerger.Merge(state.Segments);
+        var repeats = RepeatFilter.Apply(state.Segments);
+        var segments = TranscriptMerger.Merge(repeats.Segments);
         var speech = state.Tracks.Values.ToDictionary(
             t => t.TrackId,
             t => (IReadOnlyList<(double Start, double End)>)t.Speech.Select(r => (r[0], r[1])).ToList(),
@@ -271,6 +281,12 @@ public sealed partial class TranscriptStage(
             await _history.AppendAsync(recordingId, Name, "info", $"Skipped {name}", "The track was silent the whole time, so there was nothing to transcribe.");
         }
 
+        if (repeats.Runs.Count > 0)
+        {
+            await _history.AppendAsync(recordingId, Name, "info", $"Dropped {HumanFormat.Count(repeats.DroppedCount, "repeated line", "repeated lines")}", RepeatsDetail(repeats, tracks));
+            LogRepeatsDropped(recordingId, repeats.DroppedCount, repeats.Runs.Count);
+        }
+
         foreach (var gap in gaps)
         {
             var name = tracks.FirstOrDefault(t => t.Id == gap.Track)?.Name ?? gap.Track;
@@ -284,6 +300,20 @@ public sealed partial class TranscriptStage(
 
         LogCompleted(recordingId, segments.Count, words, totalMs);
         await AttachHighlightsAsync(recordingId, saved ?? document);
+    }
+
+    /// <summary>"“Thank you.” 12 times in a row at 4:10–4:52 on Microphone; …": what the repeat filter removed.</summary>
+    private static string RepeatsDetail(RepeatFilter.Result repeats, IReadOnlyList<ProjectTrack> tracks)
+    {
+        const int Listed = 5;
+        var runs = repeats.Runs.Take(Listed).Select(r =>
+        {
+            var name = tracks.FirstOrDefault(t => t.Id == r.Kept.Track)?.Name ?? r.Kept.Track ?? "a track";
+            var text = r.Kept.Text.Length > 80 ? r.Kept.Text[..80] + "…" : r.Kept.Text;
+            return string.Create(CultureInfo.InvariantCulture, $"“{text}” {r.Dropped + 1} times in a row at {HumanFormat.Clock((long)(r.Kept.Start * 1000))}–{HumanFormat.Clock((long)(r.End * 1000))} on {name}");
+        });
+        var more = repeats.Runs.Count > Listed ? string.Create(CultureInfo.InvariantCulture, $"; and {repeats.Runs.Count - Listed} more") : string.Empty;
+        return string.Join("; ", runs) + more + ". The engine sometimes repeats one line when it loses its place; the first one is kept. Listen to that part to check nothing was said there.";
     }
 
     /// <summary>Once there is a transcript, every highlight points at the line at its time (M2 clarification 5).</summary>
@@ -318,7 +348,7 @@ public sealed partial class TranscriptStage(
         {
             Language = state.Language ?? "en",
             Engine = new TranscriptEngineInfo(EngineSelector.WhisperEngineName, entry.Id, state.Device?.Device ?? string.Empty, state.Device?.EngineVersion ?? string.Empty, state.ElapsedBeforeMs + elapsedMs),
-            Segments = TranscriptMerger.Merge(state.Segments),
+            Segments = TranscriptMerger.Merge(RepeatFilter.Apply(state.Segments).Segments),
             LowConfidenceThreshold = current.LowConfidenceThreshold,
             Complete = false,
         };
@@ -427,6 +457,9 @@ public sealed partial class TranscriptStage(
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId}: transcript done, {Segments} segments, {Words} words in {ElapsedMs} ms")]
     private partial void LogCompleted(string recordingId, int segments, int words, long elapsedMs);
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId}: dropped {Dropped} repeated segments in {Runs} runs")]
+    private partial void LogRepeatsDropped(string recordingId, int dropped, int runs);
+
     [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId}: the transcription worker exited with code {ExitCode}; {Segments} segments kept")]
     private partial void LogCrashed(string recordingId, int exitCode, int segments);
 
@@ -482,20 +515,18 @@ public sealed partial class TranscriptStage(
                     return true;
                 case WorkerMessageTypes.Progress:
                     Language = reply.Language ?? Language;
-                    if (reply.TrackId is { } trackId && Tracks.TryGetValue(trackId, out var track))
+                    // Segments count only together with the window they finish, and only once: a window that was
+                    // already kept (a resumed pass, or a worker that sends a window again) adds nothing, so the
+                    // partial file can never hold the same speech twice. A window cut short is sent again whole.
+                    if (reply.TrackId is { } trackId && Tracks.TryGetValue(trackId, out var track) && reply.WindowsDone is { } windowsDone && windowsDone > track.WindowsDone)
                     {
                         foreach (var segment in reply.Segments ?? [])
                         {
                             Segments.Add(new TranscriptSegment(string.Empty, segment.Start, segment.End, trackId, null, null, segment.Text, segment.Confidence, segment.Words, null));
                         }
 
-                        if (reply.WindowsDone is { } windowsDone)
-                        {
-                            Tracks[trackId] = track with { WindowsDone = Math.Max(track.WindowsDone, windowsDone) };
-                            return true;
-                        }
-
-                        return reply.Segments is { Count: > 0 };
+                        Tracks[trackId] = track with { WindowsDone = windowsDone };
+                        return true;
                     }
 
                     return false;

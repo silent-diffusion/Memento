@@ -2,13 +2,13 @@
 
 The host ↔ UI contract (ARCHITECTURE.md §3). Every method and event listed here exists as a C# record in `src/Memento.Core/Bridge/Contracts/` and a TypeScript type in `ui/src/bridge/types.ts`. JSON field names are camelCase. Times are ISO 8601 with offset unless the field ends in `Ms` (milliseconds, integer). Ids are opaque strings. Lists are never null; use `[]`.
 
-Status: **M0 and M1 methods and events are implemented** in the host (`src/Memento.Core/Bridge/Methods/`) and in the UI's browser-preview mock (`ui/src/bridge/mock*.ts`); this document is what both follow. `ContractSerializationTests` pins the host's JSON, and `ContractDocumentationTests` checks that every host error code and stage name is listed here and in `types.ts`.
+Status: **M0, M1, M2 and M3 methods and events are implemented** (M3 in 0.4.0) in the host (`src/Memento.Core/Bridge/Methods/`) and in the UI's browser-preview mock (`ui/src/bridge/mock*.ts`). This document is what both follow. `ContractSerializationTests`, `M2ContractSerializationTests` and `M3ContractSerializationTests` pin the host's JSON, and `ContractDocumentationTests` checks that the host's error codes and stage names are exactly the ones listed here and in `types.ts`.
 
 ## Shared types
 
 ```ts
 type RecordingType = 'meeting' | 'interview' | 'presentation' | 'lecture' | 'dictation' | 'research' | 'general' | string; // any other string is a custom type name
-type StageName = 'stored' | 'transcript' | 'speakers' | 'minutes' | 'optimize'; // pipeline order
+type StageName = 'stored' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize'; // pipeline order
 type StageState = 'done' | 'active' | 'queued' | 'failed';
 interface StageStatus { stage: StageName; state: StageState; percent: number | null; /* M1: */ label: string | null; /* e.g. "64% · local GPU", "Done", "Queued", "Transcript failed" */ }
 
@@ -71,7 +71,7 @@ A project exists from `recording.start` onwards: `project.get`, `project.updateD
 
 ### Stages
 
-M1 runs two stages; M2 adds `transcript`, `speakers` and `minutes` between them.
+M1 runs two stages; M2 adds `transcript`, `speakers` and `topics` between them (`minutes`, the documents stage, arrives with M4).
 
 - `stored` — finalize: tracks to lossless FLAC, the mix, `peaks.json` and SHA-256 hashes. Runs for every recording.
 - `optimize` — only when Settings › Recording › storage asks for AAC or MP3: converts the lossless FLAC files to that smaller format, after every other stage (the transcript is always made from the lossless files). If the setting is FLAC, the stage is not listed at all. When it fails, the FLAC files are kept.
@@ -92,7 +92,14 @@ UI names (`ui/src/format/recording.ts`): done or queued pill "Stored" / "Smaller
 | `recovered` | `info` | an interrupted recording was repaired at launch |
 | `edited` | `info` | `project.updateDetails` ("Details edited") and `project.rename` ("Renamed") |
 
-From M2 the `transcript`, `speakers` and `minutes` stages write `started`, `completed` and `failed` lines too.
+From M2:
+
+| `stage` | `event`s | Written when |
+|---|---|---|
+| `transcript` | `started`, `completed`, `failed`, `info` | a pass starts (engine, model, device, tracks), ends (engine version, model, device, audio length and time, segments, words, low-confidence words, language) or fails; `info` for "Skipped <track>" (a silent track), "Speech without a transcript at 0:03–0:18" (a coverage gap, see `Transcript.coverageGaps`) and "Dropped N repeated lines" (the repeat filter, see Shared types (M2)) |
+| `speakers` | `started`, `completed`, `failed`, `info` | identification starts, ends ("Found 2 speakers", talk-time shares) or fails; `info` for "No speakers to identify" |
+| `topics` | `completed`, `failed` | local keyword topics were found, or could not be saved |
+| `edited` | `info` | also "Transcript edited", "Speaker changed", "Speaker renamed", "Speakers merged", "Transcript version restored" |
 
 ## Methods
 
@@ -102,8 +109,8 @@ From M2 the `transcript`, `speakers` and `minutes` stages write `started`, `comp
 | `app.openExternal` | `{ url }` | `{ opened }` | M0. https: or ms-settings: only |
 | `ui.ready` | `{}` | `{}` | M0 |
 | `settings.get` | `{}` | `SettingsSnapshot` | M0; M1 extends the snapshot (below) |
-| `settings.set` | `Partial<SettingsSnapshot>` (nulls keep) | `SettingsSnapshot` | M0; M1 adds fields. Top-level fields merge; the `recording` block is **replaced whole** when present (the UI always sends the full block). |
-| `library.list` | `{ query?: string, type?: RecordingType \| 'all', sort?: 'newest' \| 'oldest' \| 'longest' \| 'title' }` | `{ recordings: RecordingSummary[], totalDurationMs, totalCount }` | M1 adds params. `query` searches titles, people and (M2) transcripts. Result reflects the filter. |
+| `settings.set` | `Partial<SettingsSnapshot>` (nulls keep) | `SettingsSnapshot` | M0; M1 adds fields. Top-level fields merge; the `recording` block is **replaced whole** when present (the UI always sends the full block). The M2 blocks `transcription`, `speakers` and `history` and the M3 blocks `general`, `export`, `ai` and `storage` merge **field by field**: a field that is missing or null keeps its value (M3 exceptions: see Settings snapshot (M3 additions)). |
+| `library.list` | `{ query?: string, type?: RecordingType \| 'all', sort?: 'newest' \| 'oldest' \| 'longest' \| 'title' \| /* M3: */ 'size' }` | `{ recordings: RecordingSummary[], totalDurationMs, totalCount }` | M1 adds params. `query` searches titles, people and (M2) transcripts. Result reflects the filter. |
 | `library.processing` | `{}` | `{ current: { recordingId, title, meta: RecordingSummary, stages: StageStatus[] } \| null, othersCount }` | M1. The processing card: the newest recording with a stage active or queued. `stages` lists every stage, finished `stored` and `optimize` included; `meta.stages` follows the row rule (see Stages). |
 | `project.get` | `{ recordingId }` | `Project` | M1 |
 | `project.updateDetails` | `{ recordingId, details: Partial<RecordingDetails> }` | `Project` | M1. Works during recording too. |
@@ -137,13 +144,13 @@ From M2 the `transcript`, `speakers` and `minutes` stages write `started`, `comp
 | Event | Payload | Notes |
 |---|---|---|
 | `theme.changed` | `{ isDark }` | M0 |
-| `status.footer` | `{ engine: { ready, device }, storage: { freeBytes, lowSpace }, /* M1: */ recording: { active: boolean, lastCheckpointAt: string \| null, lostSource: string \| null }, processingPaused: string \| null /* reason */ }` | M0, extended in M1. `processingPaused` is the reason in words, shown after "Transcription paused · ". M1 sends exactly one value, `"Low disk space"` (`FooterStatusService.LowSpaceReason`), whenever free space on the library drive is below the low-space threshold or a recording paused processing for that reason; otherwise `null`. |
+| `status.footer` | `{ engine: { ready, device, /* M2: */ detail: EngineStatusDetail }, storage: { freeBytes, lowSpace }, /* M1: */ recording: { active: boolean, lastCheckpointAt: string \| null, lostSource: string \| null }, processingPaused: string \| null /* reason */ }` | M0, extended in M1 and M2. `processingPaused` is the reason in words, shown after "Transcription paused · ": exactly one of `"Low disk space"` (free space on the library drive is below the low-space threshold, `FooterStatusService.LowSpaceReason`), `"PC is busy"` (a recording is running or the processor is busy, while "Pause when busy" is on) or `"Paused by you"` (`processing.pause`); otherwise `null`. M1 sent only the first. |
 | `recording.state` | `RecordingStatePayload = { sessionId, recordingId, state: 'recording' \| 'paused' \| 'finalizing' \| 'ready' \| 'stopped', startedAt, elapsedMs /* recorded time, excluding paused time */, tracks: Track[], lastCheckpointAt, highlightsCount }` | M1, on every change and at least every second while recording |
 | `recording.levels` | `{ sessionId, levels: { sourceId: string, rms: number /* 0..1 */, peak: number }[] }` | M1, ≤ 30 per second |
 | `recording.sourceLost` | `{ sessionId, sourceId, name, atMs, remaining: string[] }` | M1 |
 | `recording.stoppedByHost` | `{ sessionId, recordingId, reason: 'diskFull' \| 'deviceLost' \| 'error', atMs, message }` | M1 |
 | `library.changed` | `{ recordingIds: string[] }` | M1, after any project write; the UI refetches |
-| `processing.progress` | `{ recordingId, stages: StageStatus[] }` | M1. Every stage, finished ones included: `stored`, and `optimize` when the storage format is AAC or MP3; `transcript`/`speakers`/`minutes` from M2. |
+| `processing.progress` | `{ recordingId, stages: StageStatus[] }` | M1. Every stage, finished ones included: `stored`, and `optimize` when the storage format is AAC or MP3; `transcript`/`speakers`/`topics` from M2. |
 | `storage.lowSpace` | `{ freeBytes, thresholdBytes, recordingContinues: boolean, transcriptionPaused: boolean }` | M1, banner |
 
 ## Settings snapshot (M1)
@@ -197,9 +204,9 @@ The UI's bridge client adds two codes of its own, never sent by the host: `bridg
 
 ---
 
-# M2 — Transcription and speakers (contract; to be implemented)
+# M2 — Transcription and speakers (implemented in 0.3.0)
 
-Everything below is additive. Host and UI build to it from the same text; the UI's mock implements it with sample data.
+Everything below is additive. Host and UI build to it from the same text; the UI's mock implements it with sample data. The Clarifications at the end were decided after both halves landed; the sections above already say what they decided.
 
 ## Shared types (M2)
 
@@ -220,6 +227,7 @@ interface Transcript {
   speakers: Speaker[]; segments: TranscriptSegment[];
   reviewed: boolean; version: number;                                            // version increments on every write
   lowConfidenceThreshold: number;                                                // from settings at generation time
+  coverageGaps: { start: number; end: number; track: string | null }[];          // seconds; speech without a transcript, [] when none
 }
 type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
 interface StageFailure { stage: StageName; message: string; kept: string; remedies: { id: string; label: string }[] }   // DESIGN §17 copy: what failed, what was kept, most specific fix first
@@ -227,35 +235,42 @@ interface ModelInfo {
   id: string; engine: 'transcription' | 'speakers' | 'ocr'; name: string; description: string;
   sizeBytes: number; license: string; installed: boolean; installing: { percent: number; bytesDone: number } | null;
   recommended: boolean; runsOn: 'gpu' | 'cpu' | 'either'; minVramBytes: number | null; accuracyNote: string;   // "Most accurate", "Fast on CPU"
+  role: 'segmentation' | 'embedding' | null;     // speaker models: segmentation is always needed, the embedding (voice) model is the Settings choice
 }
 interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: string | null; freeVramBytes: number | null; model: string | null; paused: string | null }
+// model: the catalog id the engine would use, named even while it is not installed (ready is then false).
 ```
 
-`StageName` gains `transcript` and `speakers` as running stages (they already exist as pill names). `HistoryEntry.stage` gains `transcript`, `speakers`, `topics`; `detail` carries engine, model, device, duration and segment count.
+`StageName` gains `transcript`, `speakers` and `topics` as running stages. `HistoryEntry.stage` gains `transcript`, `speakers`, `topics`; `detail` carries engine, model, device, duration and segment count.
+
+- `coverageGaps`: stretches of at least **10 s** where a track has speech energy but no segment of that track has words (Whisper sometimes drops a passage, ENGINE-NOTES.md §D). Each one also gets a History `info` line. Review shows a notice at the gap's position, "Nothing was transcribed between 0:03 and 0:18, although there was speech.", with a "Transcribe again with {other model}" action (`transcript.retranscribe` with Settings' CPU-fallback model, or another installed model when the transcript already came from that one).
+- Repeated lines: a segment whose text is the same as the previous segment's on the same track (ignoring case, spacing and end punctuation) three or more times in a row is a known whisper.cpp failure. The host keeps the first and drops the repeats, and writes a History `info` line "Dropped N repeated lines" with the time and the repeated text.
+- `speakerConfidence`: sherpa-onnx's turn score is a similarity, not a probability. The host maps it linearly (a score of 0.2 or less → 0, 0.6 or more → 1; a track with a single cluster, score −2, → 1) and multiplies it by the winning speaker's share of the speech the segment overlaps. The UI marks a speaker as uncertain below 0.7.
+- `engine.model` is the catalog id (`whisper-large-v3-turbo`); `engine.device` is `"GPU (Vulkan)"` or `"CPU"`.
 
 ## Methods (M2)
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
-| `transcript.get` | `{ recordingId }` | `{ transcript: Transcript \| null, status: TranscriptStatus, failure: StageFailure \| null }` | `transcript` is null until the first pass completes; a failed pass may still return a partial transcript with `status: 'failed'`. |
+| `transcript.get` | `{ recordingId }` | `{ transcript: Transcript \| null, status: TranscriptStatus, failure: StageFailure \| null }` | `transcript` is null until the first pass completes; a failed pass may still return a partial transcript with `status: 'failed'`. `status` follows the `transcript` stage; `failure` is the transcript stage's failure, or else the `speakers` stage's (so a failed speaker pass shows its remedies while `status` is `done`). |
 | `transcript.editSegment` | `{ recordingId, segmentId, text }` | `{ segment: TranscriptSegment, version }` | Keeps `edited.original` from the first edit. Words are re-aligned proportionally (confidence set to 1 for edited words). |
 | `transcript.setSegmentSpeaker` | `{ recordingId, segmentId, speakerId: string \| null, newSpeakerName?: string }` | `{ segment, speakers }` | `newSpeakerName` creates a speaker and assigns it. |
 | `transcript.renameSpeaker` | `{ recordingId, speakerId, name }` | `{ speakers }` | Updates every segment by reference; `renamed: true`. |
 | `transcript.mergeSpeakers` | `{ recordingId, fromSpeakerId, intoSpeakerId }` | `{ speakers, segmentsChanged }` | |
 | `transcript.markReviewed` | `{ recordingId, reviewed }` | `{ reviewed }` | |
 | `transcript.search` | `{ recordingId, query }` | `{ matches: { segmentId, start, snippet }[] }` | Case-insensitive, word-boundary aware. |
-| `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording. |
-| `transcript.versions` | `{ recordingId }` | `{ versions: { id, at, reason: 'transcribed' \| 'edited' \| 'restored' \| 'retranscribed', engine: string \| null, segments: number }[] }` | Empty when history is off. |
+| `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass, then `speakers` (when on) and `topics`; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording, `models.notFound` for a model the catalog does not have. |
+| `transcript.versions` | `{ recordingId }` | `{ versions: { id, at, reason: 'transcribed' \| 'edited' \| 'restored' \| 'retranscribed', engine: string \| null, segments: number }[] }` | Empty when history is off. Newest first. `engine` names the engine and model, e.g. `"whisper.cpp whisper-small"`. |
 | `transcript.restoreVersion` | `{ recordingId, versionId }` | `{ transcript }` | The replaced transcript becomes a version. |
-| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies` (e.g. `cpu`, `model:small`). |
-| `processing.cancel` | `{ recordingId, stage }` | `{}` | Partial results are kept. |
+| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies`: `retry` (or none: run again as before), `cpu` (run on the processor) or `model:<catalog id>` (e.g. `model:whisper-small`). Retrying `transcript` also queues `speakers` (when on) and `topics`; a pass that stopped continues from its partial results. Retrying a finished `speakers` stage identifies the speakers again with the current Settings (Review's "Identify speakers again"). An unknown remedy answers `bridge.invalidParams`, an unknown model `models.notFound`. |
+| `processing.cancel` | `{ recordingId, stage }` | `{}` | Partial results are kept. The stage ends `failed` (label "Cancelled") with one remedy, `retry`, which continues from the partial results. |
 | `processing.pause` / `processing.resume` | `{}` | `{}` | Global; shown in the footer as "Transcription paused". |
 | `models.list` | `{}` | `{ models: ModelInfo[] }` | Catalog plus installed state; re-reads disk. |
 | `models.install` | `{ modelId }` | `{}` | Downloads with SHA-256 verification; progress via `models.progress`. One download at a time. |
-| `models.cancelInstall` | `{ modelId }` | `{}` | Removes the partial file. |
+| `models.cancelInstall` | `{ modelId }` | `{}` | Removes the partial file. The download's last `models.progress` is `state: 'failed'` with a message saying it was cancelled; it is sent before this call answers. |
 | `models.remove` | `{ modelId }` | `{}` | Refused with `models.inUse` while a stage is using it. |
 | `engine.status` | `{}` | `{ transcription: EngineStatusDetail, speakers: EngineStatusDetail }` | Probe result; `freeVramBytes` null on CPU-only. |
-| `library.list` | (as M1) | `RecordingSummary` | `query` now also matches transcript text (FTS); the summary gains `matchSnippet: string \| null` for transcript hits. |
+| `library.list` | (as M1) | `RecordingSummary` | `query` now also matches transcript text (FTS); the summary gains `matchSnippet: string \| null`: the words around the first transcript hit, and `null` when only the title or people matched (or there is no query). |
 
 ## Events (M2)
 
@@ -263,8 +278,8 @@ interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: s
 |---|---|---|
 | `processing.progress` | (as M1) stages now include `transcript` and `speakers` with `percent` and `label` ("64% · local GPU", "Queued", "Paused · PC is busy") | |
 | `transcript.changed` | `{ recordingId, version, reason: 'transcribed' \| 'edited' \| 'speakers' \| 'restored' \| 'topics' }` | The UI refetches `transcript.get` (or applies the edit it made). |
-| `models.progress` | `{ modelId, percent, bytesDone, bytesTotal, state: 'downloading' \| 'verifying' \| 'done' \| 'failed', message: string \| null }` | |
-| `status.footer` | adds `engine.detail: EngineStatusDetail` | Footer left side: "Local transcription ready · GPU (RTX 3060)" / "Transcription paused · PC is busy" / "No transcription model installed". |
+| `models.progress` | `{ modelId, percent, bytesDone, bytesTotal, state: 'downloading' \| 'verifying' \| 'done' \| 'failed', message: string \| null }` | `message` says why a download failed, including "The download of … was cancelled; the partial file was removed." after `models.cancelInstall`. |
+| `status.footer` | `engine` is `{ ready, device, detail: EngineStatusDetail }` | Footer left side: "Local transcription ready · GPU (RTX 3060)" / "Transcription paused · PC is busy" / "No transcription model installed". `processingPaused` is one of "Low disk space", "PC is busy", "Paused by you", or null. |
 | `recording.liveTranscript` | `{ sessionId, segments: { start: number, end: number, text: string }[] }` | Optional. Rough draft segments for the Recording session's Live transcript card; replaced entirely by the full pass. If live transcription is not available in a build, the host never sends it and the card says so. |
 
 ## Settings snapshot (M2 additions)
@@ -280,13 +295,15 @@ transcription: {
   keepWordTimestamps: boolean;           // true
   lowConfidenceThreshold: number;        // 0.5
 }
-speakers: { identify: boolean; expectedSpeakers: 'auto' | number; rememberRenamed: boolean; embeddingModelId: string }
+speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string }
 history: { keepVersions: boolean; keepDays: number }     // true, 90
 ```
 
+`settings.set` merges each of these blocks field by field: send only the fields that change (sending the whole block works too). `expectedSpeakers` is the string `"auto"` or a whole number from 1 to 20; anything else answers `settings.invalidValue`. It sets the speaker count for clustering when one track has speech; with several tracks it is not applied, because it says nothing about how many people each track holds.
+
 ## Error codes (M2)
 
-`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
+`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.busy` (detail: the model downloading now), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
 
 ## Clarifications (M2, decided after the UI landed)
 
@@ -297,13 +314,29 @@ history: { keepVersions: boolean; keepDays: number }     // true, 90
 5. Once a transcript exists, every highlight carries a non-null `segmentId` (the host attaches highlights to the segment at their time when a transcript is produced).
 6. `models.install` while another download is running answers `models.busy` (detail: the running model id).
 7. `settings.set` with a `modelId` / `cpuFallbackModelId` / `embeddingModelId` that is not installed answers `settings.invalidValue` naming the field.
-8. Catalog model ids are fixed strings both sides use: `whisper-large-v3-turbo`, `whisper-medium`, `whisper-small`, `whisper-base`, `pyannote-segmentation-3-0`, `nemo-titanet-small`, `tesseract-eng`.
+8. Catalog model ids are fixed strings both sides use: `whisper-large-v3-turbo`, `whisper-medium`, `whisper-small`, `whisper-base`, `pyannote-segmentation-3-0`, `nemo-titanet-small`, `tesseract-eng`, and an optional eighth, `3dspeaker-eres2net-base` (an alternative voice model).
+
+Decided at the M2 integration (0.3.0), from the host's proposals:
+
+9. `Transcript.coverageGaps: { start, end, track }[]`, flagged from 10 s of uncovered speech, shown in Review and listed in History.
+10. `RecordingSummary.matchSnippet` is `null` when only the title or people matched.
+11. `status.footer.engine` is `{ ready, device, detail }`; `processingPaused` is one of "Low disk space", "PC is busy", "Paused by you", or null.
+12. `settings.set` merges the M2 blocks field by field; only `recording` is replaced whole. `expectedSpeakers` is "auto" or 1–20.
+13. Remedy ids are `retry`, `cpu` and `model:<id>`. `processing.cancel` leaves the stage `failed` with the remedy `retry`. Retrying the transcript also queues `speakers` and `topics`.
+14. A stage whose model is not installed is `failed` with the label "Waiting for a model" and a failure naming the model; it is queued again by itself as soon as a model is installed.
+15. `transcript.get.failure` falls back to the `speakers` stage's failure.
+16. `speakerConfidence` is calibrated as described under Shared types (M2).
+17. `models.progress` reports a cancelled download as `failed` with a message.
+18. A kept version's `engine` reads like "whisper.cpp whisper-small".
+19. A heavy stage stopped by a busy PC (or closing Memento) resumes where it stopped: `transcript` from the last finished window of each track (`transcript.partial.json`), `speakers` from the last finished track (`speakers.partial.json`). One worker job that uses the graphics card runs at a time, and worker processes end when Memento ends.
+20. The repeat filter (Shared types (M2)) drops runs of three or more identical lines and says so in History.
+21. `ModelInfo.role` tells the speech-segmentation model (needed, not a choice) from the voice models Settings › Speakers chooses between; `null` for transcription and OCR models.
 
 ---
 
-# M3 — Agenda import, attachments, media import, export, remaining Settings (contract; to be implemented)
+# M3 — Agenda import, attachments, media import, export, remaining Settings (implemented in 0.4.0)
 
-Additive. The parsing library exists in `src/Memento.Documents/Agenda` (`AgendaImporter`); M3 wires it to these methods.
+Additive. The parsing library in `src/Memento.Documents/Agenda` (`AgendaImporter`) serves these methods. The Clarifications at the end were decided after both halves landed (1–8) and at the 0.4.0 integration (9–21); where they differ from the tables above, they win.
 
 ## Shared types (M3)
 
@@ -328,7 +361,12 @@ interface ExportSelection {
   details:    { on: boolean };
   attachments:{ on: boolean };
 }
-interface ExportEstimate { files: number; bytes: number; items: { name: string; bytes: number }[]; unavailable: string[] }   // e.g. "Transcript (not transcribed yet)"
+type ExportComponent = keyof ExportSelection;                                    // 'audioMixed' | 'tracks' | 'transcript' | ...
+interface ExportEstimate {
+  files: number; bytes: number;                                                  // every item, plus manifest.json
+  items: { component: ExportComponent; name: string; bytes: number }[];          // name as written, e.g. "Attachments/agenda.docx"
+  unavailable: { component: ExportComponent; reason: string }[];                 // a ticked row with nothing to write: "Not transcribed yet", "No attachments"
+}
 interface ExportDestination { folder: string; createSubfolder: boolean }                   // subfolder named after the recording (sanitised title + date)
 interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; largest: { recordingId: string; title: string; sizeBytes: number } | null }
 ```
@@ -339,10 +377,10 @@ interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; l
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
-| `agenda.importFile` | `{ recordingId, path?: string }` | `{ preview: AgendaParsePreview \| null, cancelled: boolean }` | Without `path` the host shows the file picker (filters: Word, PDF, Excel, CSV, Markdown, text, images). Parsing happens on this PC. Errors use the `agenda.*` codes below. |
-| `agenda.importDropped` | `{ recordingId, paths: string[] }` | as above | For a drop onto the drop zone (the host receives the real paths from WebView2's drop; the UI passes what it gets from the `File` objects' names and the host matches the pending drop). If the host cannot resolve a dropped path it answers `agenda.dropUnavailable` and the UI falls back to the picker. |
-| `agenda.parseText` | `{ recordingId, text }` | `{ preview }` | Pasted text. |
-| `agenda.apply` | `{ recordingId, items: { text, uncertain, uncertainReason }[], source, sourceKind, attachmentToken: string \| null }` | `Project` | Stores the agenda (ids assigned, `covered: false`), copies the original file into `attachments/` as kind `agenda` when a token is given, appends History. Items longer than 200 characters are refused with `agenda.itemTooLong` naming the item; more than 200 items with `agenda.tooManyItems`. |
+| `agenda.importFile` | `{ recordingId: string \| null, path?: string }` | `{ preview: AgendaParsePreview \| null, cancelled: boolean }` | Without `path` the host shows the file picker (filters: Word, PDF, Excel, CSV, Markdown, text, images). Parsing happens on this PC. Errors use the `agenda.*` codes below. |
+| `agenda.importDropped` | `{ recordingId: string \| null, paths: string[] }` | as above | For a drop onto the drop zone. The page only sees file names, so the UI sends this request with `chrome.webview.postMessageWithAdditionalObjects(request, files)` (the bridge client's `callWithFiles`), `paths` holding the `File` objects' names. The host reads the real paths of the attached files (`CoreWebView2File.Path`) from the same message before the request runs, keeps the last drop for 2 minutes, and matches each name first as a full path, then by file name. If nothing matches it answers `agenda.dropUnavailable` and the UI opens the file picker instead. The browser-preview mock treats the names as the paths. |
+| `agenda.parseText` | `{ recordingId: string \| null, text }` | `{ preview }` | Pasted text. |
+| `agenda.apply` | `{ recordingId, items: { text, uncertain, uncertainReason }[], source, sourceKind, attachmentToken: string \| null }` | `Project` | Stores the agenda (ids assigned, `covered: false`), copies the original file into `attachments/` as kind `agenda` when a token is given, appends History. Items longer than 200 characters are refused with `agenda.itemTooLong` (`detail`: the item's position, from 1); more than 200 items (counted after blank ones are dropped) with `agenda.tooManyItems` (`detail`: the count). An empty `items` list clears the agenda. |
 | `agenda.discard` | `{ attachmentToken }` | `{}` | Drops a pending original file. |
 | `agenda.setCovered` | `{ recordingId, itemId, covered }` | `{ agenda }` | Works during recording. |
 | `attachments.list` | `{ recordingId }` | `{ attachments: Attachment[] }` | |
@@ -352,13 +390,13 @@ interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; l
 | `library.importMedia` | `{ path?: string, title?: string, type?: RecordingType }` | `{ recordingId: string \| null, cancelled }` | Imports an existing audio file (wav, flac, mp3, m4a, wma, ogg/opus where Media Foundation can decode them; video containers are accepted for their audio track only in 1.0, with a warning) as a project with one track `imported`, then runs the normal stages. Progress through `processing.progress` (`stored`). `library.importUnsupported` when it cannot be decoded. |
 | `project.changeType` | `{ recordingId, type }` | `Project` | Custom types are any non-empty string ≤ 40 chars. |
 | `export.estimate` | `{ recordingId, selection }` | `ExportEstimate` | Fast; sizes for lossy formats are estimates. |
-| `export.run` | `{ recordingId, selection, destination, remember: boolean }` | `{ jobId }` | Writes in the background; `remember` stores selection and destination as the Settings › Export defaults. Writes a `manifest.json` (files, bytes, SHA-256, Memento version, recording id, exported at) beside the files. Never modifies the project. Refused with `export.destinationUnwritable` (detail: why) before anything is written. |
+| `export.run` | `{ recordingId, selection, destination, remember: boolean }` | `{ jobId }` | Writes in the background; `remember` stores selection and destination as the Settings › Export defaults. Writes a `manifest.json` beside the files (shape: M3 integration clarification 17); file names follow clarification 16. Jobs run one at a time (clarification 19). Never modifies the project. Refused with `export.destinationUnwritable` (detail: why) before anything is written. |
 | `export.cancel` | `{ jobId }` | `{}` | Partial files are removed. |
 | `export.openFolder` | `{ jobId }` | `{}` | Opens the destination in Explorer. |
 | `library.usage` | `{}` | `LibraryUsage` | |
 | `library.rebuildIndex` | `{}` | `{ recordings: number }` | |
 | `library.move` | `{ newPath }` | `{ jobId }` | Copy, verify hashes, switch, then delete the old folder; refused while recording or processing (`library.busy`). Progress via `library.moveProgress`. |
-| `storage.reclaim` | `{ recordingIds: string[] \| null, downmixMono: boolean, codec: 'aac' \| 'mp3', bitrateKbps }` | `{ jobId }` | Runs the optimize stage on the given (or all older than `settings.storage.reclaimOlderThanDays`) recordings. Transcripts are never touched. |
+| `storage.reclaim` | `{ recordingIds: string[] \| null, downmixMono: boolean, codec: 'aac' \| 'mp3', bitrateKbps?: number \| null }` | `{ jobId }` | Runs the optimize stage on the given (or all older than `settings.storage.reclaimOlderThanDays`) recordings. Transcripts are never touched. |
 | `ai.setKey` / `ai.clearKey` | `{ provider: 'anthropic' \| 'openai', key }` / `{ provider }` | `{ hasKey: boolean }` | DPAPI; the key is never returned. M3 stores keys so Settings is complete; M4 uses them. |
 | `app.setStartup` | `{ startWithWindows: boolean }` | `{ startWithWindows }` | Registry `Run` key for the current user. |
 
@@ -367,23 +405,26 @@ interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; l
 | Event | Payload |
 |---|---|
 | `export.progress` | `{ jobId, recordingId, percent, currentFile: string \| null, state: 'running' \| 'done' \| 'failed' \| 'cancelled', message: string \| null, outputFolder: string \| null, files: number, bytes: number }` |
-| `library.moveProgress` | `{ jobId, percent, state, message, newPath }` |
-| `storage.reclaimProgress` | `{ jobId, percent, state, message, recordingsDone, bytesFreed }` |
-| `status.footer` | adds `export: { active: boolean, percent: number \| null, title: string \| null }` (the footer shows "Exporting {title} · 42%") |
+| `library.moveProgress` | `{ jobId, percent, state: 'running' \| 'done' \| 'failed', message: string \| null, newPath }` |
+| `storage.reclaimProgress` | `{ jobId, percent, state: 'running' \| 'done' \| 'failed', message: string \| null, recordingsDone, bytesFreed }` (a reclaim cut short by closing Memento ends `failed`) |
+| `status.footer` | adds `export?: { active: boolean, percent: number \| null, title: string \| null }` (the footer shows "Exporting {title} · 42%"). The M3 host always sends it (`active: false` when idle); the UI accepts it missing from older hosts. |
 
 ## Settings snapshot (M3 additions)
 
 ```ts
 general:  { startWithWindows: boolean; keepRunningInTray: boolean; language: 'en' }   // tray: stored; applied in M5
 export:   { saveCopiesOutside: boolean; defaultFolder: string | null; askWhereEachTime: boolean; createSubfolder: boolean; defaults: ExportSelection }
-ai:       { enabled: false; askBeforeSend: true; keepRecord: true; share: { transcript: true; details: true; participants: true; agenda: true; highlights: true; attachments: false } }
-          // read side also reports providers: { anthropic: { hasKey }, openai: { hasKey } } in the snapshot (never keys)
+ai:       { enabled: boolean; askBeforeSend: boolean; keepRecord: boolean;                 // false, true, true
+            share: { transcript: boolean; details: boolean; participants: boolean; agenda: boolean; highlights: boolean; attachments: boolean };   // all true but attachments
+            providers: { anthropic: { hasKey: boolean }; openai: { hasKey: boolean } } }   // read side only; never the keys
 storage:  { reclaimOlderThanDays: number | null }
 ```
 
+`settings.set` merges each M3 block field by field (send only what changes, or the whole block); `export.defaults` is replaced whole when present, and `ai.providers` is never accepted. A missing field keeps its value. A JSON `null` keeps its value too, except for the two fields whose value can be empty: `export.defaultFolder: null` clears the default folder and `storage.reclaimOlderThanDays: null` clears the age ("Never").
+
 ## Error codes (M3)
 
-`agenda.fileTooLarge`, `agenda.imageTooLarge`, `agenda.unsupportedFormat`, `agenda.unreadable`, `agenda.protected`, `agenda.noText`, `agenda.noItems`, `agenda.ocrUnavailable` (detail: how to install the OCR language in Windows Settings), `agenda.itemTooLong`, `agenda.tooManyItems`, `agenda.dropUnavailable`, `attachments.tooLarge`, `attachments.notFound`, `library.importUnsupported`, `library.busy`, `export.destinationUnwritable`, `export.nothingSelected`, `export.notFound` (job).
+`agenda.fileTooLarge`, `agenda.imageTooLarge`, `agenda.unsupportedFormat`, `agenda.unreadable`, `agenda.protected`, `agenda.noText`, `agenda.noItems`, `agenda.ocrUnavailable` (detail: how to install the OCR language in Windows Settings), `agenda.itemTooLong`, `agenda.tooManyItems`, `agenda.itemNotFound` (an unknown agenda item), `agenda.dropUnavailable`, `attachments.tooLarge`, `attachments.notFound`, `library.importUnsupported`, `library.busy`, `export.destinationUnwritable`, `export.nothingSelected`, `export.notFound` (job), `library.moveRefused` (the target folder was checked and refused before anything was copied; detail: the folder), `storage.nothingToReclaim` (no recording chosen, or none older than the Settings age), `app.startupRefused` (Windows refused to change the startup entry; nothing was changed), `ai.keyWriteFailed` (Windows could not store or remove the key; nothing was changed).
 
 ## Design references
 
@@ -399,3 +440,19 @@ Export dialog: DESIGN §15 and `ExportDialog.dc.html`. Details sheet and agenda 
 6. `AudioSource['kind']` and `Track.sourceKind` gain `'imported'` for media-import tracks (`sourceId: 'imported'`).
 7. `agenda.setCovered` with an unknown item answers `agenda.itemNotFound`.
 8. `library.importMedia` on a video container records the "audio only" warning as a History `info` entry; no extra field.
+
+Decided at the M3 integration (0.4.0), from the host's notes:
+
+9. Drag and drop: the UI sends `agenda.importDropped` with `chrome.webview.postMessageWithAdditionalObjects(request, files)` (see the method's row). Without the files attached the host cannot know the paths and answers `agenda.dropUnavailable`.
+10. `agenda.apply` with an expired or unknown `attachmentToken` still stores the items; History says the original file was not attached. Tokens live one hour.
+11. `settings.set` merges the M3 blocks field by field; `export.defaultFolder: null` and `storage.reclaimOlderThanDays: null` clear the value (Settings snapshot (M3 additions)).
+12. Refusals that used `bridge.invalidParams` or `bridge.internal` have their own codes: `library.moveRefused` (`library.move` checked the target and copied nothing), `storage.nothingToReclaim` (`storage.reclaim` with `recordingIds: []`, with `null` and no age set, or with nothing older than the age; no job starts), `app.startupRefused` (`app.setStartup`, or `settings.set` with `general.startWithWindows`, when Windows refuses the `Run` entry) and `ai.keyWriteFailed` (`ai.setKey` / `ai.clearKey` when DPAPI or the file write fails). `ai.setKey` keys are 8 to 500 characters with no spaces, otherwise `bridge.invalidParams`; no message ever contains the key.
+13. `library.move` is refused with `library.busy` while a recording is in progress or starting, and `recording.start` is refused with `library.busy` (detail `move`) while the library is being copied. A move is also refused during an import, an export, a reclaim or another move; `export.run`, `library.importMedia` and `storage.reclaim` are refused with `library.busy` during a move.
+14. `project.json` schema v2 keeps the attachments index as a typed `attachments` field (extension data in v1); the v1 → v2 step keeps readable entries and drops damaged ones. `attachments.open` opens the file with its Windows default app; for a program or script it opens the containing folder instead of running it.
+15. `library.importMedia` that fails while decoding or storing removes the new project (the original file is never changed). An import cut short by a crash or power cut is found at the next launch, still `finalizing`: the host marks it `failed`, with its `stored` stage `failed` and labelled "Import interrupted", a failure carrying the remedy `importAgain`, the half-imported copy removed and a History `failed` line. The Library row reads "Import interrupted · Import again"; `processing.retry { stage: 'stored', remedyId: 'importAgain' }` imports the same file into the same project (`bridge.invalidParams` naming the file when it is no longer there). Delete removes it as usual. Imports keep their source in `project.json` (`importedFrom: { path, name }`).
+16. Exported file names, with `base` the folder name of clarification 4: the mix `{base}.{ext}`, each track `{base} - {track name}.{ext}` (the name made safe for Windows: forbidden and control characters become spaces, at most 80 characters, never a device name such as `CON`; the track id when nothing is left), the transcript `{base} - transcript.json` / `.md` / `.txt` and `{base}.srt`, the details `{base} - details.json`, and attachments under `Attachments/` with their own names. A name already taken in the destination gets " (2)". `ui/src/format/export-naming.cases.json` lists cases that `ExportNaming` (host) and `exportFolderName` / `exportFileNames` (UI) are both tested against.
+17. `manifest.json` beside the files: `{ schemaVersion: 1, app: "Memento", mementoVersion, recordingId, title, exportedAt, algorithm: "sha256", files: [{ name, bytes, sha256 }] }`; `name` is relative to the export folder with forward slashes (`Attachments/agenda.docx`). The manifest does not list itself.
+18. `export.estimate`'s `files` and `bytes` are the totals of its `items` plus `manifest.json` (one file, its estimated size) when anything would be written; `items` never lists the manifest. A reason in `unavailable` is given only for a ticked row. The UI sums the ticked rows and adds the manifest share (`files − items.length`, `bytes − Σ items.bytes`) once.
+19. Export jobs run one at a time in the order `export.run` was called; a waiting job sends no `export.progress` until it starts. On cancel or failure the files written so far are removed and the last `export.progress` has `files: 0, bytes: 0`; on success `files` and `bytes` count the manifest too.
+20. "Pause when the PC is busy" no longer pauses a transcription pass on the graphics card for a busy processor (the pass barely uses it); a recording in progress still pauses it while the setting is on, and low disk space and `processing.pause` always do. Passes on the processor, and the speaker pass, pause as before. The footer's `processingPaused` follows the stage that runs or waits.
+21. Settings › Transcription and Speakers keep Remove off, with the note "Needed by the current settings", for the default transcription model, the model used without a graphics card, the default voice model and, while Identify speakers is on, the speech-segmentation model. `models.remove` itself still refuses only a model in use (`models.inUse`).

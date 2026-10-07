@@ -37,6 +37,12 @@ export interface JobsState {
 
 const registry = new WeakMap<AppStore, JobsState>();
 const requests = new WeakMap<AppStore, Map<string, ExportRequest>>();
+/**
+ * export.progress that came before export.run's answer was handled (a small export can finish in a
+ * few milliseconds): kept by job id until trackExport learns the job, then handled.
+ */
+const early = new WeakMap<AppStore, Map<string, ExportProgressPayload>>();
+const handlers = new WeakMap<AppStore, (progress: ExportProgressPayload) => void>();
 
 export function jobsOf(store: AppStore): JobsState {
   let jobs = registry.get(store);
@@ -64,6 +70,11 @@ export function trackExport(store: AppStore, jobId: string, request: ExportReque
     request,
     progress: { jobId, recordingId: request.recordingId, percent: 0, currentFile: null, state: 'running', message: null, outputFolder: null, files: 0, bytes: 0 },
   };
+  const before = early.get(store)?.get(jobId);
+  if (before !== undefined) {
+    early.get(store)?.delete(jobId);
+    handlers.get(store)?.(before);
+  }
 }
 
 /** "Exported Q3 planning sync" toast body: "3 files · 420 MB in E:\Exports\Q3 planning sync 2026-10-06". */
@@ -78,70 +89,79 @@ export function exportDoneBody(progress: ExportProgressPayload): string {
  */
 export function connectJobEvents(bridge: BridgeClient, store: AppStore): () => void {
   const jobs = jobsOf(store);
-  const offs = [
-    bridge.on('export.progress', (progress) => {
-      const request = requests.get(store)?.get(progress.jobId) ?? jobs.export.value?.request ?? null;
-      if (request === null) {
-        return;
+  const onExport = (progress: ExportProgressPayload): void => {
+    const request = requests.get(store)?.get(progress.jobId) ?? null;
+    if (request === null) {
+      // Not tracked yet (export.run has not answered): keep the latest word on it for trackExport.
+      let map = early.get(store);
+      if (map === undefined) {
+        map = new Map();
+        early.set(store, map);
       }
-      jobs.export.value = { request, progress };
-      if (progress.state === 'running') {
-        return;
-      }
-      requests.get(store)?.delete(progress.jobId);
-      if (progress.state === 'done') {
-        store.toasts.show({
-          key: `export:${progress.jobId}`,
-          tone: 'ok',
-          title: `Exported ${request.title}`,
-          body: exportDoneBody(progress),
-          actions: [
-            {
-              label: 'Open folder',
-              run: () => {
-                bridge.call('export.openFolder', { jobId: progress.jobId }).catch((error: unknown) => {
-                  store.toasts.show({
-                    tone: 'warning',
-                    title: 'The folder could not be opened',
-                    body: `${error instanceof Error ? error.message : 'Memento did not answer.'} The exported files are where they were written.`,
-                  });
+      map.set(progress.jobId, progress);
+      return;
+    }
+    jobs.export.value = { request, progress };
+    if (progress.state === 'running') {
+      return;
+    }
+    requests.get(store)?.delete(progress.jobId);
+    if (progress.state === 'done') {
+      store.toasts.show({
+        key: `export:${progress.jobId}`,
+        tone: 'ok',
+        title: `Exported ${request.title}`,
+        body: exportDoneBody(progress),
+        actions: [
+          {
+            label: 'Open folder',
+            run: () => {
+              bridge.call('export.openFolder', { jobId: progress.jobId }).catch((error: unknown) => {
+                store.toasts.show({
+                  tone: 'warning',
+                  title: 'The folder could not be opened',
+                  body: `${error instanceof Error ? error.message : 'Memento did not answer.'} The exported files are where they were written.`,
                 });
-              },
+              });
             },
-            { label: 'Dismiss', quiet: true, run: () => undefined },
-          ],
-        });
-      } else if (progress.state === 'failed') {
-        const message = progress.message ?? `The export of ${request.title} stopped. Nothing inside Memento was changed.`;
-        const reopen = (pickFolder: boolean): void => {
-          store.dialog.value = {
-            kind: 'export',
-            recordingId: request.recordingId,
-            retry: { selection: request.selection, destination: request.destination, message, pickFolder },
-          };
+          },
+          { label: 'Dismiss', quiet: true, run: () => undefined },
+        ],
+      });
+    } else if (progress.state === 'failed') {
+      const message = progress.message ?? `The export of ${request.title} stopped. Nothing inside Memento was changed.`;
+      const reopen = (pickFolder: boolean): void => {
+        store.dialog.value = {
+          kind: 'export',
+          recordingId: request.recordingId,
+          retry: { selection: request.selection, destination: request.destination, message, pickFolder },
         };
-        store.toasts.show({
-          key: `export:${progress.jobId}`,
-          tone: 'danger',
-          title: `${request.title} was not exported`,
-          body: message,
-          actions: [
-            {
-              label: 'Try again',
-              run: () => {
-                reopen(false);
-              },
+      };
+      store.toasts.show({
+        key: `export:${progress.jobId}`,
+        tone: 'danger',
+        title: `${request.title} was not exported`,
+        body: message,
+        actions: [
+          {
+            label: 'Try again',
+            run: () => {
+              reopen(false);
             },
-            {
-              label: 'Choose another folder',
-              run: () => {
-                reopen(true);
-              },
+          },
+          {
+            label: 'Choose another folder',
+            run: () => {
+              reopen(true);
             },
-          ],
-        });
-      }
-    }),
+          },
+        ],
+      });
+    }
+  };
+  handlers.set(store, onExport);
+  const offs = [
+    bridge.on('export.progress', onExport),
     bridge.on('library.moveProgress', (progress) => {
       jobs.move.value = progress;
       if (progress.state === 'done') {

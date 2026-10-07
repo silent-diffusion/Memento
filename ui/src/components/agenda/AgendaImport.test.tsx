@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AgendaApplyParams, AgendaImportDroppedParams, Project } from '../../bridge/types';
 import { MERGED_REASON } from '../../bridge/mockAgenda';
-import { button, click, dropFiles, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
+import { button, click, dropFiles, fakeWebView, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
 import { blankItem, checkLimits, tooLongMessage, tooManyMessage, uncertainNotice } from './agendaItems';
 
 const Q3 = '20261006-100000-q3plan';
@@ -141,6 +141,22 @@ describe('Details sheet agenda import (against the browser-preview host)', () =>
     await click(button('Done'));
     await until(() => document.querySelector('.sheet') === null);
     expect(h.callsOf('agenda.apply')).toHaveLength(1);
+  });
+
+  it('in the Memento window, posts agenda.importDropped with the dropped files attached (postMessageWithAdditionalObjects)', async () => {
+    const fake = fakeWebView({ live: false, recovery: false, stepMs: 10 });
+    h = await mountApp({ name: 'review', recordingId: Q3 }, {}, undefined, fake.webview);
+    await until(() => document.querySelector('.detail-caption') !== null);
+    await click(button('Replace'));
+    await until(() => document.querySelector('.agenda-drop') !== null);
+    await dropFiles(document.querySelector('.agenda-drop'), ['agenda.docx']);
+    await until(() => items().length === 5);
+    const withFiles = fake.posted.filter((p) => p.additionalObjects !== null);
+    expect(withFiles).toHaveLength(1);
+    expect(withFiles[0]?.message).toMatchObject({ method: 'agenda.importDropped', params: { recordingId: Q3, paths: ['agenda.docx'] } });
+    expect((withFiles[0]?.additionalObjects as { name: string }[]).map((f) => f.name)).toEqual(['agenda.docx']);
+    // Every other request goes through plain postMessage.
+    expect(fake.posted.filter((p) => p.additionalObjects === null).every((p) => (p.message as { method: string }).method !== 'agenda.importDropped')).toBe(true);
   });
 
   it('falls back to the file picker when the host cannot resolve a drop', async () => {

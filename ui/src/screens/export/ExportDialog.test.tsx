@@ -63,19 +63,19 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(row('exp-tracks').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(true);
     expect(row('exp-audio').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(false);
     expect(row('exp-audio').querySelector('.export-row-size')?.textContent).toMatch(/^\d+ MB$/);
-    expect(summary()).toMatch(/^2 files · about \d+ MB$/);
+    expect(summary()).toMatch(/^3 files · about \d+ MB$/);
   });
 
   it('asks for every size once after a pause in changes and sums the ticked rows', async () => {
     await open();
     const before = h.callsOf('export.estimate').length;
     expect(before).toBe(1);
-    // Ticks change nothing the host is asked: the summary is summed locally.
+    // Ticks change nothing the host is asked: the summary is summed locally (plus manifest.json).
     await click(dialog().querySelector('#exp-tracks'));
-    expect(summary()).toMatch(/^5 files · about /);
+    expect(summary()).toMatch(/^6 files · about /);
     expect(row('exp-tracks').querySelector<HTMLButtonElement>('.select-btn')?.disabled).toBe(false);
     await click(dialog().querySelector('#exp-details'));
-    expect(summary()).toMatch(/^6 files · about /);
+    expect(summary()).toMatch(/^7 files · about /);
     // Three quick format changes make one estimate.
     await choose('Format for Audio (mixed)', 'WAV');
     await choose('Format for Audio (mixed)', 'MP3');
@@ -86,6 +86,28 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(estimates[1]?.selection.audioMixed).toEqual({ on: true, format: 'mp3', bitrateKbps: 192 });
     expect(estimates[1]?.selection.tracks.format).toBe('mp3');
     await until(() => /about \d+ MB/.test(summary()));
+  });
+
+  it('exports the transcript in several formats at once, keeping at least one', async () => {
+    await open();
+    const formatButton = (): HTMLButtonElement | null => dialog().querySelector<HTMLButtonElement>('[aria-label^="Format for Transcript:"]');
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: JSON');
+    await click(formatButton());
+    expect(document.querySelector('[role="listbox"][aria-label="Format for Transcript"]')?.getAttribute('aria-multiselectable')).toBe('true');
+    const option = (name: string): Element | undefined => [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === name);
+    await click(option('SRT'));
+    // The list stays open for another tick; unticking the last format is refused.
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: JSON + SRT');
+    await click(option('JSON'));
+    await click(option('SRT'));
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: SRT');
+    await click(option('JSON'));
+    expect(formatButton()?.getAttribute('aria-label')).toBe('Format for Transcript: JSON + SRT');
+    await press(document.querySelector('[role="listbox"]'), 'Escape');
+    await settle(ESTIMATE_DEBOUNCE_MS + 60);
+    await click(dialog().querySelector('.export-foot .btn.p'));
+    await until(() => h.callsOf('export.run').length === 1);
+    expect((h.callsOf('export.run')[0] as ExportRunParams).selection.transcript).toEqual({ on: true, formats: ['json', 'srt'] });
   });
 
   it('previews the path with and without the recording folder and remembers the choices', async () => {
@@ -157,9 +179,15 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     await open(DESIGN, { m3: { export: 'unwritable' } });
     await click(button('Change export folder'));
     await until(() => (dialog().querySelector('.export-path')?.textContent ?? '').startsWith('E:'));
+    // Scrolled down to the folder, as after Change; the card at the top must come into view.
+    const body = dialog().querySelector<HTMLElement>('.export-body');
+    if (body !== null) {
+      body.scrollTop = 400;
+    }
     await click(dialog().querySelector('.export-foot .btn.p'));
     await until(() => document.querySelector('.export-failure') !== null);
     expect(dialog().querySelector('.export-failure')?.textContent).toContain('Nothing was written, and nothing inside Memento was changed.');
+    expect(body?.scrollTop).toBe(0);
     expect(document.querySelector('.footer-export')).toBeNull();
     expect(failureText('The drive is full.')).toBe('The drive is full. Nothing inside Memento was changed.');
   });
@@ -171,7 +199,8 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(transcript?.checked).toBe(false);
     expect(row('exp-transcript').classList.contains('export-row--unavailable')).toBe(true);
     expect(row('exp-transcript').textContent).toContain('Not transcribed yet');
-    expect(summary()).toMatch(/^1 file · about /);
+    // The mix and manifest.json.
+    expect(summary()).toMatch(/^2 files · about /);
   });
 
   it('moves through the dialog with the keyboard and Esc cancels', async () => {

@@ -2,8 +2,8 @@ namespace Memento.Core.Workers;
 
 /// <summary>
 /// A line from the worker to the host. <c>ready</c> (pid), <c>device</c>, <c>track</c>, <c>progress</c> (percent and,
-/// for transcription, the segments finished in that window), then exactly one of <c>result</c>, <c>error</c> (code and
-/// message) or <c>cancelled</c>; <c>log</c> lines may appear anywhere.
+/// for transcription, the segments finished in that window), <c>diarized</c> (a speaker job's finished track), then
+/// exactly one of <c>result</c>, <c>error</c> (code and message) or <c>cancelled</c>; <c>log</c> lines may appear anywhere.
 /// </summary>
 public sealed record WorkerReply
 {
@@ -29,6 +29,9 @@ public sealed record WorkerReply
     public TranscribeResult? Transcription { get; init; }
 
     public DiarizeResult? Diarization { get; init; }
+
+    /// <summary>A <c>diarized</c> line: one finished track of a speaker job.</summary>
+    public DiarizedTrack? Diarized { get; init; }
 
     public string? Code { get; init; }
 

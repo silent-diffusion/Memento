@@ -5,7 +5,7 @@ import { formatTotalDuration } from '../format/duration';
 import { matchesQuery, queryRanges, realignWords, type TextRange } from '../format/transcript';
 import type { MockProject } from './mockData';
 import { isoWithOffset } from './mockData';
-import type { MockModelManager } from './mockModels';
+import { MODEL_IDS, type MockModelManager } from './mockModels';
 import { buildTranscript, LONG_SAMPLE_ID, scriptSpeakers, withTalkTimes } from './mockTranscripts';
 import { MockHostError } from './mockSession';
 import type {
@@ -68,18 +68,23 @@ interface Entry {
   /** How the current transcript came about: a version's reason once it is replaced. */
   origin: TranscriptVersionReason;
   failure: StageFailure | null;
+  /** The speakers stage's failure; transcript.get falls back to it. */
+  speakersFailure: StageFailure | null;
   versions: { meta: TranscriptVersion; snapshot: Transcript }[];
   /** Kept in its `?stage=` state until the user acts. */
   held: boolean;
-  paused: string | null;
+  /** Waiting for a busy PC. */
+  paused: 'PC is busy' | null;
   pass: Pass | null;
   timer: ReturnType<typeof setInterval> | null;
   editCount: number;
 }
 
-const PIPELINE: readonly StageName[] = ['stored', 'transcript', 'speakers', 'minutes', 'optimize'];
+const PIPELINE: readonly StageName[] = ['stored', 'transcript', 'speakers', 'topics', 'minutes', 'optimize'];
 /** Stages the preview runs itself; minutes (documents) arrives in a later milestone. */
-const RUNNABLE: ReadonlySet<StageName> = new Set<StageName>(['transcript', 'speakers', 'optimize']);
+const RUNNABLE: ReadonlySet<StageName> = new Set<StageName>(['transcript', 'speakers', 'topics', 'optimize']);
+/** The host's label for a stage whose model is not installed (BRIDGE.md M2 clarification 14). */
+export const WAITING_FOR_MODEL = 'Waiting for a model';
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -113,7 +118,9 @@ export interface MockTranscription {
   /** Model ids a running stage is using. */
   inUse(): string[];
   /** Reason for the footer while something is paused, or null. */
-  pausedReason(): string | null;
+  pausedReason(): 'PC is busy' | 'Paused by you' | null;
+  /** A model finished installing: stages waiting for one are queued again. */
+  modelInstalled(): void;
 }
 
 /** "…the processing card should disappear when a filter is active…": about 90 characters around a match. */
@@ -134,7 +141,7 @@ export function snippetAround(text: string, range: TextRange, before = 36, after
 export function createMockTranscription(env: TranscriptionEnvironment): MockTranscription {
   const entries = new Map<string, Entry>();
   const stepMs = env.stepMs ?? 300;
-  let globalPaused: string | null = null;
+  let globalPaused: 'Paused by you' | null = null;
   let versionCounter = 0;
 
   const at = (): string => isoWithOffset(new Date(env.now()));
@@ -156,7 +163,18 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
   const entryOf = (recordingId: string): Entry => {
     let entry = entries.get(recordingId);
     if (entry === undefined) {
-      entry = { transcript: null, origin: 'transcribed', failure: null, versions: [], held: false, paused: null, pass: null, timer: null, editCount: 0 };
+      entry = {
+        transcript: null,
+        origin: 'transcribed',
+        failure: null,
+        speakersFailure: null,
+        versions: [],
+        held: false,
+        paused: null,
+        pass: null,
+        timer: null,
+        editCount: 0,
+      };
       entries.set(recordingId, entry);
     }
     const p = env.projects.get(recordingId);
@@ -216,6 +234,7 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
 
   const build = (p: MockProject, pass: { modelId: string; device: 'GPU' | 'CPU' }, extra: { identify?: boolean; upTo?: number } = {}): Transcript => {
     const settings = env.settings();
+    const isLong = p.summary.id === LONG_SAMPLE_ID;
     return buildTranscript(p.summary.id, {
       durationMs: p.summary.durationMs,
       trackId: `${p.summary.id}-t1`,
@@ -223,7 +242,9 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       keepWords: settings.transcription.keepWordTimestamps,
       engine: engineFor(pass.modelId, pass.device, p.summary.durationMs),
       editedAt: isoWithOffset(new Date(Date.parse(p.summary.createdAt) + p.summary.durationMs + 40 * 60_000)),
-      ...(p.summary.id === LONG_SAMPLE_ID && env.segmentCount !== undefined ? { segmentCount: env.segmentCount } : {}),
+      ...(isLong && env.segmentCount !== undefined ? { segmentCount: env.segmentCount } : {}),
+      // The long sample's Large v3 Turbo pass drops a passage, as turbo did in testing; Small keeps it.
+      ...(isLong && pass.modelId === MODEL_IDS.turbo && env.segmentCount === undefined ? { gapAt: 0.3 } : {}),
       ...extra,
     });
   };
@@ -249,7 +270,8 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
         id: `v${String(versionCounter).padStart(4, '0')}`,
         at: when,
         reason: entry.origin,
-        engine: `${transcript.engine.model} · ${transcript.engine.device}`,
+        // As the host writes it: engine and model.
+        engine: `${transcript.engine.name} ${transcript.engine.model}`,
         segments: transcript.segments.length,
       },
       snapshot: clone(transcript),
@@ -316,7 +338,18 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     if (stage === 'speakers') {
       return `${percent}% · CPU`;
     }
+    if (stage === 'topics') {
+      return `${percent}% · on this PC`;
+    }
     return entry.pass?.device === 'CPU' ? `${percent}% · CPU` : `${percent}% · local GPU`;
+  };
+
+  const clock = (seconds: number): string => {
+    const total = Math.round(seconds);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = String(total % 60).padStart(2, '0');
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
   };
 
   const complete = (p: MockProject, entry: Entry, stage: StageName): void => {
@@ -337,14 +370,27 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       entry.failure = null;
       entry.editCount = 0;
       addHistory(p, { at: at(), stage: 'transcript', event: 'completed', summary: 'Transcribed locally', detail: transcriptDetail(fresh) });
+      for (const gap of fresh.coverageGaps) {
+        addHistory(p, {
+          at: at(),
+          stage: 'transcript',
+          event: 'info',
+          summary: `Speech without a transcript at ${clock(gap.start)}–${clock(gap.end)}`,
+          detail: 'The track has speech there but the engine wrote nothing; listen to that part, or transcribe again with another model.',
+        });
+      }
       refreshPeople(p, fresh);
       notify(id, fresh, 'transcribed');
     } else if (stage === 'speakers' && entry.transcript !== null) {
       identify(p, entry.transcript);
+      entry.speakersFailure = null;
       bump(entry.transcript);
       addHistory(p, { at: at(), stage: 'speakers', event: 'completed', summary: 'Speakers identified', detail: speakersDetail(entry.transcript) });
       refreshPeople(p, entry.transcript);
       notify(id, entry.transcript, 'speakers');
+    } else if (stage === 'topics') {
+      const local = p.topics.filter((t) => t.origin === 'local').length;
+      addHistory(p, { at: at(), stage: 'topics', event: 'completed', summary: 'Topics found locally', detail: `${local} ${local === 1 ? 'topic' : 'topics'} · on this PC` });
     } else if (stage === 'optimize') {
       addHistory(p, { at: at(), stage: 'optimize', event: 'completed', summary: 'Saved smaller files', detail: env.settings().recording.storage.codec.toUpperCase() });
     }
@@ -368,13 +414,21 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
         env.setStages(p, p.stages.filter((s) => s.stage !== 'speakers'));
         return true;
       }
-      addHistory(p, {
-        at: at(),
-        stage: next.stage,
-        event: 'started',
-        summary: next.stage === 'transcript' ? 'Transcribing locally' : next.stage === 'speakers' ? 'Identifying speakers' : 'Making smaller files',
-        detail: next.stage === 'transcript' ? `${entry.pass?.modelId ?? env.settings().transcription.modelId} · ${entry.pass?.device ?? 'GPU'}` : null,
-      });
+      const waiting = missingModel(next.stage, entry);
+      if (waiting !== null) {
+        failWaiting(p, entry, waiting);
+        return true;
+      }
+      // The quick topics pass writes only its result, as on the host.
+      if (next.stage !== 'topics') {
+        addHistory(p, {
+          at: at(),
+          stage: next.stage,
+          event: 'started',
+          summary: next.stage === 'transcript' ? 'Transcribing locally' : next.stage === 'speakers' ? 'Identifying speakers' : 'Making smaller files',
+          detail: next.stage === 'transcript' ? `${entry.pass?.modelId ?? env.settings().transcription.modelId} · ${entry.pass?.device ?? 'GPU'}` : null,
+        });
+      }
       env.setStages(
         p,
         p.stages.map((s) => (s === next ? { ...s, state: 'active', percent: 0, label: labelFor(s.stage, 0, entry) } : s)),
@@ -418,15 +472,76 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     env.setStages(p, sortStages(stages));
   };
 
-  const failureFor = (percent: number): StageFailure => ({
-    stage: 'transcript',
-    message: `The GPU ran out of memory at ${percent}%.`,
-    kept: 'The recording is safe and the partial transcript was kept.',
-    remedies: [
-      { id: 'cpu', label: 'Retry on CPU' },
-      { id: 'model:medium', label: 'Use the Medium model' },
-    ],
-  });
+  const failureFor = (percent: number): StageFailure => {
+    const fallback = env.settings().transcription.cpuFallbackModelId;
+    return {
+      stage: 'transcript',
+      message: `The GPU ran out of memory at ${percent}%.`,
+      kept: 'The recording is safe and the partial transcript was kept. Continuing starts from there.',
+      remedies: [
+        { id: 'cpu', label: 'Retry on CPU' },
+        { id: `model:${fallback}`, label: `Use the ${env.models.list().find((m) => m.id === fallback)?.name ?? fallback} model` },
+        { id: 'retry', label: 'Try again' },
+      ],
+    };
+  };
+
+  /** The failure for a stage whose model is not installed, or null when it can run. */
+  const missingModel = (stage: StageName, entry: Entry): StageFailure | null => {
+    const settings = env.settings();
+    if (stage === 'transcript') {
+      const modelId = entry.pass?.modelId ?? settings.transcription.modelId;
+      if (env.models.isInstalled(modelId)) {
+        return null;
+      }
+      const name = env.models.list().find((m) => m.id === modelId)?.name ?? modelId;
+      const installed = env.models.list().find((m) => m.engine === 'transcription' && m.installed);
+      return {
+        stage,
+        message: `Transcription needs the ${name} model, and it is not installed.`,
+        kept: 'The recording is safe. Install the model in Settings › Transcription and transcription starts by itself.',
+        remedies: [...(installed === undefined ? [] : [{ id: `model:${installed.id}`, label: `Use the ${installed.name} model (installed)` }]), { id: 'retry', label: 'Try again' }],
+      };
+    }
+    if (stage === 'speakers') {
+      const missing = [MODEL_IDS.segmentation, settings.speakers.embeddingModelId].filter((id) => !env.models.isInstalled(id));
+      if (missing.length === 0) {
+        return null;
+      }
+      const names = missing.map((id) => env.models.list().find((m) => m.id === id)?.name ?? id);
+      return {
+        stage,
+        message: `Speaker identification needs ${names.join(' and ')}, and ${missing.length === 1 ? 'it is' : 'they are'} not installed.`,
+        kept: 'The transcript is kept without speakers. Install the speaker models in Settings › Speakers and speakers are identified by themselves.',
+        remedies: [{ id: 'retry', label: 'Try again' }],
+      };
+    }
+    return null;
+  };
+
+  /** "Waiting for a model": failed, retried by itself once a model is installed (modelInstalled). */
+  const failWaiting = (p: MockProject, entry: Entry, failure: StageFailure): void => {
+    if (failure.stage === 'speakers') {
+      entry.speakersFailure = failure;
+    } else {
+      entry.failure = failure;
+    }
+    addHistory(p, {
+      at: at(),
+      stage: failure.stage,
+      event: 'failed',
+      summary: failure.stage === 'transcript' ? 'Waiting for a transcription model' : 'Waiting for the speaker models',
+      detail: `${failure.message} ${failure.kept}`,
+    });
+    // Speakers and topics wait for a transcript; they are queued again with it.
+    const dropDependents = failure.stage === 'transcript';
+    env.setStages(
+      p,
+      p.stages
+        .filter((s) => !(dropDependents && s.state === 'queued' && (s.stage === 'speakers' || s.stage === 'topics')))
+        .map((s) => (s.stage === failure.stage ? { ...s, state: 'failed', percent: null, label: WAITING_FOR_MODEL } : s)),
+    );
+  };
 
   // ---------------------------------------------------------------------------------------------
   // The sample library's transcripts
@@ -445,15 +560,16 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       const base = p.history.filter((h) => h.stage === 'recorded' || h.stage === 'stored');
       const stored: StageStatus = { stage: 'stored', state: 'done', percent: null, label: 'Done' };
       const speakersQueued: StageStatus = { stage: 'speakers', state: 'queued', percent: null, label: 'Queued' };
+      const topicsQueued: StageStatus = { stage: 'topics', state: 'queued', percent: null, label: 'Queued' };
       if (flag === 'queued') {
-        p.stages = [stored, { stage: 'transcript', state: 'queued', percent: null, label: 'Queued' }, speakersQueued];
+        p.stages = [stored, { stage: 'transcript', state: 'queued', percent: null, label: 'Queued' }, speakersQueued, topicsQueued];
         p.history = base;
       } else if (flag === 'running') {
-        p.stages = [stored, { stage: 'transcript', state: 'active', percent: 64, label: '64% · local GPU' }, speakersQueued];
+        p.stages = [stored, { stage: 'transcript', state: 'active', percent: 64, label: '64% · local GPU' }, speakersQueued, topicsQueued];
         p.history = [...base, { at: when(1), stage: 'transcript', event: 'started', summary: 'Transcribing locally', detail: `${settingsModel} · GPU` }];
       } else if (flag === 'paused') {
         entry.paused = 'PC is busy';
-        p.stages = [stored, { stage: 'transcript', state: 'active', percent: 40, label: 'Paused · PC is busy' }, speakersQueued];
+        p.stages = [stored, { stage: 'transcript', state: 'active', percent: 40, label: 'Paused · PC is busy' }, speakersQueued, topicsQueued];
         p.history = [
           ...base,
           { at: when(1), stage: 'transcript', event: 'started', summary: 'Transcribing locally', detail: `${settingsModel} · GPU` },
@@ -462,7 +578,8 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       } else {
         entry.failure = failureFor(64);
         entry.transcript = build(p, { modelId: settingsModel, device: 'GPU' }, { identify: false, upTo: 0.64 });
-        p.stages = [stored, { stage: 'transcript', state: 'failed', percent: null, label: 'Transcript failed' }, speakersQueued];
+        // A failed transcript leaves speakers and topics out until it is retried (as the host does).
+        p.stages = [stored, { stage: 'transcript', state: 'failed', percent: null, label: 'Transcript failed' }];
         p.history = [
           ...base,
           { at: when(1), stage: 'transcript', event: 'started', summary: 'Transcribing locally', detail: `${settingsModel} · GPU` },
@@ -517,7 +634,7 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     const edited = transcript.segments.filter((s) => s.edited !== null).length;
     if (edited > 0) {
       // The long sample's history: a medium pass on the CPU, a large pass on the GPU, then edits.
-      const first = build(p, { modelId: 'medium', device: 'CPU' }, { identify: speakersDone });
+      const first = build(p, { modelId: MODEL_IDS.medium, device: 'CPU' }, { identify: speakersDone });
       const second = clone(transcript);
       second.segments = second.segments.map((s) => (s.edited === null ? s : { ...s, text: s.edited.original, edited: null, words: realignWords([], s.edited.original, s.start, s.end).map((w) => ({ ...w, c: 0.9 })) }));
       entry.origin = 'transcribed';
@@ -581,14 +698,14 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     }
     entry.pass = { ...pass, startedAt: env.now() };
     entry.paused = null;
-    const settings = env.settings();
-    let stages = p.stages.filter((s) => s.stage !== 'transcript' && s.stage !== 'speakers');
-    stages = [...stages, { stage: 'transcript', state: 'queued', percent: null, label: 'Queued' }];
-    if (settings.speakers.identify) {
-      stages.push({ stage: 'speakers', state: 'queued', percent: null, label: 'Queued' });
-    }
-    env.setStages(p, sortStages(stages));
+    env.setStages(p, sortStages([...p.stages.filter((s) => s.stage !== 'transcript' && s.stage !== 'speakers' && s.stage !== 'topics'), ...transcriptAndDependents()]));
     run(p.summary.id);
+  };
+
+  /** A transcript pass queues speakers (when on) and topics after it (BRIDGE.md M2 clarification 13). */
+  const transcriptAndDependents = (): StageStatus[] => {
+    const queued = (stage: StageName): StageStatus => ({ stage, state: 'queued', percent: null, label: 'Queued' });
+    return [queued('transcript'), ...(env.settings().speakers.identify ? [queued('speakers')] : []), queued('topics')];
   };
 
   return {
@@ -598,7 +715,12 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     get: (recordingId) => {
       const p = project(recordingId);
       const entry = entryOf(recordingId);
-      return { transcript: entry.transcript === null ? null : clone(entry.transcript), status: statusOf(p, entry), failure: entry.failure };
+      return {
+        transcript: entry.transcript === null ? null : clone(entry.transcript),
+        status: statusOf(p, entry),
+        // The transcript stage's failure, or else the speakers stage's (BRIDGE.md, transcript.get).
+        failure: entry.failure ?? entry.speakersFailure,
+      };
     },
 
     editSegment: ({ recordingId, segmentId, text }) => {
@@ -727,14 +849,8 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       const entry = entryOf(recordingId);
       const settings = env.settings();
       const chosen = modelId ?? settings.transcription.modelId;
+      // An unknown model answers models.notFound; one that is not installed is queued and waits for it.
       const model = env.models.find(chosen);
-      if (!model.installed) {
-        throw new MockHostError(
-          'engine.unavailable',
-          `${model.name} is not installed. Install it in Settings › Transcription, or choose an installed model. Nothing was queued.`,
-          'Settings › Transcription',
-        );
-      }
       if (language !== undefined && language !== 'auto' && !/^[a-z]{2,3}$/.test(language)) {
         throw invalid(`'${language}' is not a language code. Nothing was queued.`);
       }
@@ -779,24 +895,24 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       if (!PIPELINE.includes(stage)) {
         throw invalid(`'${stage}' is not a stage. Nothing was retried.`);
       }
+      if (remedyId !== undefined && remedyId !== 'retry' && remedyId !== 'cpu' && !remedyId.startsWith('model:')) {
+        throw invalid(`Remedy '${remedyId}' is not one Memento offers. Choose one of the fixes shown with the failure.`);
+      }
       if (stage === 'transcript') {
-        const modelId = remedyId?.startsWith('model:') === true ? remedyId.slice('model:'.length) : env.settings().transcription.modelId;
-        if (remedyId?.startsWith('model:') === true && !env.models.isInstalled(modelId)) {
-          const model = env.models.find(modelId);
-          throw new MockHostError(
-            'engine.unavailable',
-            `${model.name} is not installed yet. Install it in Settings › Transcription, then retry. Nothing was queued.`,
-            'Settings › Transcription',
-          );
-        }
-        const device = remedyId === 'cpu' ? 'CPU' : env.models.find(modelId).runsOn === 'cpu' ? 'CPU' : 'GPU';
+        const modelId =
+          remedyId?.startsWith('model:') === true ? remedyId.slice('model:'.length) : (entry.pass?.modelId ?? env.settings().transcription.modelId);
+        // An unknown model answers models.notFound; one that is not installed waits for it.
+        const model = env.models.find(modelId);
+        const device = remedyId === 'cpu' ? 'CPU' : model.runsOn === 'cpu' ? 'CPU' : 'GPU';
         entry.failure = null;
         startTranscriptPass(p, entry, { device, modelId, retranscribe: false });
         return;
       }
       if (stage === 'speakers') {
+        // Also "Identify speakers again" on a finished stage, with the current Settings.
         transcriptOf(recordingId);
         entry.paused = null;
+        entry.speakersFailure = null;
         setStage(p, 'speakers', { state: 'queued', percent: null, label: 'Queued' });
         run(recordingId);
         return;
@@ -819,25 +935,35 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
         clearInterval(entry.timer);
         entry.timer = null;
       }
+      // Like the host: failed, "Cancelled", with one remedy that continues from what was kept.
+      const failure: StageFailure = {
+        stage,
+        message: stage === 'transcript' ? `Transcription was cancelled at ${existing.percent ?? 0}%.` : stage === 'speakers' ? 'Speaker identification was cancelled.' : `The ${stage} stage was cancelled.`,
+        kept:
+          stage === 'speakers'
+            ? 'The transcript is kept without speakers.'
+            : entry.transcript === null
+              ? 'The recording is safe; nothing else changed.'
+              : 'The recording is safe, and anything already finished is kept.',
+        remedies: [{ id: 'retry', label: stage === 'transcript' ? 'Continue transcribing' : stage === 'speakers' ? 'Identify speakers' : 'Start again' }],
+      };
       if (stage === 'transcript') {
-        entry.failure = {
-          stage,
-          message: `Transcription was cancelled at ${existing.percent ?? 0}%.`,
-          kept: entry.transcript === null ? 'The recording is safe; nothing else changed.' : 'The recording is safe and the earlier transcript was kept.',
-          remedies: [{ id: 'retry', label: 'Transcribe again' }],
-        };
+        entry.failure = failure;
+      } else if (stage === 'speakers') {
+        entry.speakersFailure = failure;
       }
-      addHistory(p, { at: at(), stage, event: 'failed', summary: 'Cancelled by you', detail: 'Partial results were kept.' });
+      addHistory(p, { at: at(), stage, event: 'info', summary: 'Cancelled', detail: failure.kept });
+      // A cancelled transcript takes the speakers and topics waiting for it out of the queue.
       env.setStages(
         p,
-        p.stages.map((s) =>
-          s.stage === stage ? { ...s, state: 'failed', percent: null, label: 'Cancelled' } : s.state === 'queued' && s.stage === 'speakers' ? s : s,
-        ),
+        p.stages
+          .filter((s) => !(stage === 'transcript' && s.state === 'queued' && (s.stage === 'speakers' || s.stage === 'topics')))
+          .map((s) => (s.stage === stage ? { ...s, state: 'failed', percent: null, label: 'Cancelled' } : s)),
       );
     },
 
     pauseAll: () => {
-      globalPaused = 'Until you resume';
+      globalPaused = 'Paused by you';
       env.onPausedChange(globalPaused);
     },
 
@@ -881,12 +1007,24 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       }
       const entry = entryOf(p.summary.id);
       entry.pass = { device: 'GPU', modelId: settings.transcription.modelId, retranscribe: false, startedAt: env.now() };
-      const extra: StageStatus[] = [{ stage: 'transcript', state: 'queued', percent: null, label: 'Queued' }];
-      if (settings.speakers.identify) {
-        extra.push({ stage: 'speakers', state: 'queued', percent: null, label: 'Queued' });
-      }
-      env.setStages(p, sortStages([...p.stages.filter((s) => s.stage !== 'transcript' && s.stage !== 'speakers'), ...extra]));
+      env.setStages(p, sortStages([...p.stages.filter((s) => s.stage !== 'transcript' && s.stage !== 'speakers' && s.stage !== 'topics'), ...transcriptAndDependents()]));
       run(p.summary.id);
+    },
+
+    modelInstalled: () => {
+      for (const [id, p] of env.projects) {
+        const entry = entryOf(id);
+        for (const stage of p.stages.filter((s) => s.state === 'failed' && s.label === WAITING_FOR_MODEL)) {
+          if (stage.stage === 'transcript') {
+            entry.failure = null;
+            startTranscriptPass(p, entry, { device: entry.pass?.device ?? 'GPU', modelId: entry.pass?.modelId ?? env.settings().transcription.modelId, retranscribe: false });
+          } else if (stage.stage === 'speakers' && entry.transcript !== null) {
+            entry.speakersFailure = null;
+            setStage(p, 'speakers', { state: 'queued', percent: null, label: 'Queued' });
+            run(id);
+          }
+        }
+      }
     },
 
     tick: () => {
@@ -895,7 +1033,7 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
         if (entry.held || entry.timer !== null || !p.summary.isProcessing) {
           continue;
         }
-        if (p.stages.some((s) => (s.stage === 'transcript' || s.stage === 'speakers') && (s.state === 'active' || s.state === 'queued'))) {
+        if (p.stages.some((s) => (s.stage === 'transcript' || s.stage === 'speakers' || s.stage === 'topics') && (s.state === 'active' || s.state === 'queued'))) {
           advance(id, 2);
         }
       }

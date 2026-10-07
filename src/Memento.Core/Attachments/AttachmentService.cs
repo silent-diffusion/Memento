@@ -40,7 +40,7 @@ public sealed partial class AttachmentService(
     public async Task<IReadOnlyList<Attachment>> ListAsync(string recordingId, CancellationToken cancellationToken)
     {
         var manifest = await LoadAsync(recordingId, cancellationToken);
-        return ManifestAttachments.Read(manifest).Select(a => a.ToContract()).ToList();
+        return manifest.Attachments.Select(a => a.ToContract()).ToList();
     }
 
     /// <summary><c>attachments.add</c>: the picker when <paramref name="path"/> is <c>null</c>.</summary>
@@ -82,7 +82,7 @@ public sealed partial class AttachmentService(
 
         var folder = Path.Combine(store.GetProjectFolder(recordingId), ProjectLayout.AttachmentsFolder);
         Directory.CreateDirectory(folder);
-        var taken = ManifestAttachments.Read(manifest).Select(a => Path.GetFileName(a.File)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var taken = manifest.Attachments.Select(a => Path.GetFileName(a.File)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var fileName = FileNames.Unique(folder, displayName, taken);
         var destination = Path.Combine(folder, fileName);
         var temporary = destination + ".tmp";
@@ -129,7 +129,7 @@ public sealed partial class AttachmentService(
 
         try
         {
-            await catalog.UpdateAsync(recordingId, m => ManifestAttachments.With(m, ManifestAttachments.Read(m).Append(record)), cancellationToken);
+            await catalog.UpdateAsync(recordingId, m => m with { Attachments = [.. m.Attachments, record] }, cancellationToken);
         }
         catch
         {
@@ -172,7 +172,7 @@ public sealed partial class AttachmentService(
                 record.Id);
         }
 
-        await catalog.UpdateAsync(recordingId, m => ManifestAttachments.With(m, ManifestAttachments.Read(m).Where(a => a.Id != attachmentId)), cancellationToken);
+        await catalog.UpdateAsync(recordingId, m => m with { Attachments = m.Attachments.Where(a => a.Id != attachmentId).ToList() }, cancellationToken);
         await AppendHistoryAsync(
             recordingId,
             new HistoryEntry(time.GetLocalNow(), "edited", "info", "Attachment removed", string.Create(CultureInfo.InvariantCulture, $"{record.Name} · {HumanFormat.Bytes(record.SizeBytes)}")),
@@ -217,7 +217,7 @@ public sealed partial class AttachmentService(
     }
 
     private static AttachmentRecord Find(ProjectManifest manifest, string attachmentId) =>
-        ManifestAttachments.Read(manifest).FirstOrDefault(a => a.Id == attachmentId)
+        manifest.Attachments.FirstOrDefault(a => a.Id == attachmentId)
         ?? throw new BridgeException(
             DomainErrorCodes.AttachmentsNotFound,
             "That attachment is not in this recording any more; it may have been removed. Nothing was changed. Reopen the recording to see its attachments.",

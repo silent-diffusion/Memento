@@ -27,7 +27,7 @@ Acceptance: a 4-hour, three-track recording completes with bounded memory; killi
 
 Delivered with two decisions: finalize always stores lossless FLAC, and a smaller AAC/MP3 choice is applied afterwards by a separate `optimize` stage that verifies the new files before removing the FLAC ones. Deferred: "Keep only the mix" is stored in Settings but not applied (separate tracks are always kept); the 4-hour real-device run moves to the M5 soak tests (M1 has a 30-minute three-track soak and the killed-process recovery check); "Import audio or video" on the empty Library arrives with M3.
 
-## M2 — Transcription and speakers (0.3.0)
+## M2 — Transcription and speakers — Done (0.3.0)
 
 - Model manager (catalog, download with SHA-256, install state, removal) and Settings › Transcription UI including model size, installed state and GPU/CPU.
 - Whisper.net stage with word timestamps and confidences, Vulkan with CPU fallback, chunked long-form processing, pause when busy / low disk, restartable with partial results.
@@ -39,7 +39,9 @@ Delivered with two decisions: finalize always stores lossless FLAC, and a smalle
 
 Acceptance: a 2-hour meeting transcribes end-to-end on this machine's GPU and on CPU; edits persist and survive restart; renaming a speaker updates every segment within one frame.
 
-## M3 — Details, agenda, settings, export (0.4.0)
+Delivered with Whisper.net (Vulkan, then CPU) and sherpa-onnx diarization in a separate `Memento.Worker` process (one graphics-card job at a time, ended with Memento), coverage-gap notices from 10 s with "Transcribe again with another model", a filter for lines the engine repeats in a loop, per-window and per-track resume after a busy pause or a crash, and voices grouped across tracks when the expected speaker count is set. Deferred: the live transcript during recording (the Recording screen's card says it is off; the setting is stored), remembering renamed speakers across recordings (stored in Settings, not applied; with "Remember speakers by voice" in Later), and chapter suggestions from the transcript (chapters stay manual; topics are suggested locally). The 2-hour GPU and CPU runs move to the M5 soak tests; M2 was checked end to end with 2- and 3-minute real-device recordings and 5- and 13-minute files through `tools/TranscriptionCheck`.
+
+## M3 — Details, agenda, settings, export — Done (0.4.0)
 
 - Agenda import: drop zone, file picker, paste; parsers for docx, pdf, xlsx, csv, md, txt; OCR for images (Windows OCR default, Tesseract alternative via model manager); uncertainty marks with explanations; editable list; agenda panel in Recording and Review.
 - All Settings sections complete per DESIGN.md §11, with every row's description.
@@ -47,6 +49,8 @@ Acceptance: a 2-hour meeting transcribes end-to-end on this machine's GPU and on
 - Reprocess, rename and change-type flows from Review's More menu.
 
 Acceptance: every agenda fixture in `tests/` parses to the expected items; exports open in common tools; a failed export leaves the project untouched.
+
+Delivered with agenda import from files, photos (Windows OCR; Tesseract as the alternative engine) and pasted text into the Details sheet, the original kept as an attachment (`project.json` schema v2 types the attachment index), attachments in Review, "Import audio or video" (Media Foundation decoding to the normal stored and transcribed pipeline, with "Import again" after an import cut short), the Export dialog with several transcript formats at once and a SHA-256 `manifest.json`, a verified library move that refuses to run alongside a recording (and the other way round), and every Settings section. 0.3.0 was not tagged on its own and ships in this release. Deferred: Documents in the Export dialog and the AI features behind Settings › AI and privacy (M4; keys can be stored now, nothing is sent); keeping Memento in the tray (stored, applied in M5); removing old video (no video capture yet); the live transcript and video capture (as in M2). Checked end to end through the real UI with `tools/e2e/m3-flow.mjs` (a LibriVox public-domain MP3 imported and transcribed, a Word agenda with an uncertain item, two attachments, an export verified against its manifest, an unwritable destination, keys, a library move out and back, a 60-second microphone and system recording), and `m1-flow.mjs` and `m2-flow.mjs` again.
 
 ## 0.5.0 — first public release (M1 + M2 + M3)
 
