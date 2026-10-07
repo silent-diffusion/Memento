@@ -31,6 +31,7 @@
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
     <ProjectReference Include="..\Memento.Audio\Memento.Audio.csproj" />
     <ProjectReference Include="..\Memento.Documents\Memento.Documents.csproj" />
+    <ProjectReference Include="..\Memento.Generation\Memento.Generation.csproj" />
     <ProjectReference Include="..\Memento.Transcription\Memento.Transcription.csproj" />
     <!-- Built first, but not referenced: the worker runs as its own process from the "worker" folder (below). -->
     <ProjectReference Include="..\Memento.Worker\Memento.Worker.csproj" ReferenceOutputAssembly="false" Private="false" SkipGetTargetFrameworkProperties="true" />
