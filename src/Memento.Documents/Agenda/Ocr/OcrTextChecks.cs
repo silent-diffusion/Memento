@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Memento.Documents.Agenda.Text;
 
 namespace Memento.Documents.Agenda.Ocr;
 
@@ -37,7 +38,7 @@ internal static partial class OcrTextChecks
                 return raw;
             }
 
-            if (SandwichPattern().IsMatch(token) || MisreadTimePattern().IsMatch(token))
+            if (RegexGuard.IsMatch(SandwichPattern(), token) || RegexGuard.IsMatch(MisreadTimePattern(), token))
             {
                 return raw;
             }
@@ -47,10 +48,10 @@ internal static partial class OcrTextChecks
     }
 
     /// <summary>A confusable letter between digits: "2O31", "1l0".</summary>
-    [GeneratedRegex(@"\d[OoIlSB]\d")]
+    [GeneratedRegex(@"\d[OoIlSB]\d", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex SandwichPattern();
 
     /// <summary>A time with a letter for a digit: "1O:30", "10:3O".</summary>
-    [GeneratedRegex(@"^(?=.*[OoIlS])[\dOoIlS]{1,2}[:.][\dOoIlS]{2}$")]
+    [GeneratedRegex(@"^(?=.*[OoIlS])[\dOoIlS]{1,2}[:.][\dOoIlS]{2}$", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex MisreadTimePattern();
 }

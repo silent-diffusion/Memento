@@ -66,7 +66,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 throw AgendaErrors.NoItems(options);
             }
 
-            var chosen = withData.FirstOrDefault(s => AgendaNamePattern().IsMatch(s.Sheet.Name?.Value ?? string.Empty));
+            var chosen = withData.FirstOrDefault(s => RegexGuard.IsMatch(AgendaNamePattern(), s.Sheet.Name?.Value ?? string.Empty));
             if (chosen.Sheet is null)
             {
                 chosen = withData[0];
@@ -225,7 +225,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
         return int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var row) ? row : 0;
     }
 
-    [GeneratedRegex(@"agenda|programme|program|schedule|run of show|order of business", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"agenda|programme|program|schedule|run of show|order of business", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex AgendaNamePattern();
 
     /// <summary>Shared strings and number formats, read once per workbook.</summary>
@@ -353,7 +353,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             return hasDate ? NumberKind.Date : hasTime ? NumberKind.Time : NumberKind.Number;
         }
 
-        [GeneratedRegex(@"""[^""]*""|\[[^\]]*\]|\\.")]
+        [GeneratedRegex(@"""[^""]*""|\[[^\]]*\]|\\.", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
         private static partial Regex QuotedPattern();
     }
 

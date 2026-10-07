@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Memento.Documents.Agenda.Text;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace Memento.Documents.Agenda.OpenXml;
@@ -33,7 +34,7 @@ internal sealed partial class WordStyles
                 return styleOutline + 1;
             }
 
-            var match = HeadingNamePattern().Match(Name(style));
+            var match = RegexGuard.Match(HeadingNamePattern(), Name(style));
             if (match.Success)
             {
                 return int.Parse(match.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
@@ -51,7 +52,7 @@ internal sealed partial class WordStyles
     {
         foreach (var style in Chain(paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value))
         {
-            var match = ListNamePattern().Match(Name(style));
+            var match = RegexGuard.Match(ListNamePattern(), Name(style));
             if (match.Success)
             {
                 return match.Groups["n"].Success ? int.Parse(match.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture) - 1 : 0;
@@ -91,9 +92,9 @@ internal sealed partial class WordStyles
         }
     }
 
-    [GeneratedRegex(@"^heading\s?(?<n>[1-9])$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^heading\s?(?<n>[1-9])$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex HeadingNamePattern();
 
-    [GeneratedRegex(@"^list\s?(?:bullet|number|continue|paragraph)(?:\s?(?<n>[2-9]))?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^list\s?(?:bullet|number|continue|paragraph)(?:\s?(?<n>[2-9]))?$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex ListNamePattern();
 }

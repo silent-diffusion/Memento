@@ -14,19 +14,19 @@ internal static partial class ItemChecks
         }
         else
         {
-            var midBullets = MidLineBulletPattern().Matches(text).Count;
+            var midBullets = RegexGuard.Matches(MidLineBulletPattern(), text).Count;
             if (midBullets >= 2)
             {
                 yield return UncertainReasons.SeveralItemsMerged;
             }
-            else if (midBullets == 1 || HeadingThenBulletPattern().IsMatch(text))
+            else if (midBullets == 1 || RegexGuard.IsMatch(HeadingThenBulletPattern(), text))
             {
                 yield return UncertainReasons.HeadingMerged;
             }
             else if (marker is { Style: MarkerStyle.Decimal or MarkerStyle.Outline, Value: { } value })
             {
                 var next = (value + 1).ToString(CultureInfo.InvariantCulture);
-                foreach (Match match in NextNumberPattern().Matches(text))
+                foreach (Match match in RegexGuard.Matches(NextNumberPattern(), text))
                 {
                     if (match.Groups["n"].Value == next)
                     {
@@ -48,12 +48,12 @@ internal static partial class ItemChecks
         }
     }
 
-    [GeneratedRegex(@"\S\s+[•●▪■◦►▸‣]\s+\S")]
+    [GeneratedRegex(@"\S\s+[•●▪■◦►▸‣]\s+\S", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex MidLineBulletPattern();
 
-    [GeneratedRegex(@"^[^:]{2,60}:\s*(?:[-*–]|\d{1,2}[.)])\s+\S")]
+    [GeneratedRegex(@"^[^:]{2,60}:\s*(?:[-*–]|\d{1,2}[.)])\s+\S", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex HeadingThenBulletPattern();
 
-    [GeneratedRegex(@"\S\s+(?<n>\d{1,3})[.)]\s+\p{Lu}")]
+    [GeneratedRegex(@"\S\s+(?<n>\d{1,3})[.)]\s+\p{Lu}", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex NextNumberPattern();
 }

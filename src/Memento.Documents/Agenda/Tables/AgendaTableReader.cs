@@ -201,7 +201,7 @@ internal static partial class AgendaTableReader
             }
 
             var headerish = cells.Count(c => c.Length <= 30 && !MarkerParser.IsTime(c) && !double.TryParse(c, NumberStyles.Any, CultureInfo.InvariantCulture, out _));
-            if (cells.Any(c => HeaderWordPattern().IsMatch(c)) && headerish * 2 >= cells.Count)
+            if (cells.Any(c => RegexGuard.IsMatch(HeaderWordPattern(), c)) && headerish * 2 >= cells.Count)
             {
                 return i;
             }
@@ -239,7 +239,7 @@ internal static partial class AgendaTableReader
         {
             for (var c = 0; c < header.Count; c++)
             {
-                if (TimeHeaderPattern().IsMatch(header[c]))
+                if (RegexGuard.IsMatch(TimeHeaderPattern(), header[c]))
                 {
                     return c;
                 }
@@ -256,7 +256,7 @@ internal static partial class AgendaTableReader
         {
             for (var c = 0; c < header.Count; c++)
             {
-                if (c != timeColumn && NumberHeaderPattern().IsMatch(header[c]))
+                if (c != timeColumn && RegexGuard.IsMatch(NumberHeaderPattern(), header[c]))
                 {
                     return c;
                 }
@@ -314,8 +314,8 @@ internal static partial class AgendaTableReader
             "agenda item" or "agenda items" or "item" or "items" or "topic" or "topics" or "agenda" or "agenda topic" or "agenda topics" => 10,
             "subject" or "session" or "title" or "activity" or "discussion" or "discussion item" or "discussion topic" or "what" => 8,
             "description" or "details" => 5,
-            _ when ItemWordPattern().IsMatch(text) => 7,
-            _ when SessionWordPattern().IsMatch(text) => 6,
+            _ when RegexGuard.IsMatch(ItemWordPattern(), text) => 7,
+            _ when RegexGuard.IsMatch(SessionWordPattern(), text) => 6,
             _ when text.Contains("description", StringComparison.Ordinal) => 4,
             _ => 0,
         };
@@ -337,19 +337,19 @@ internal static partial class AgendaTableReader
         _ => string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1],
     };
 
-    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda|subject|session|title|activity|discussion|description|details|time|start|end|duration|minutes|mins|owner|lead|led by|presenter|speaker|who|notes|no\.?|number|slot|when|outcome)\b|^#$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda|subject|session|title|activity|discussion|description|details|time|start|end|duration|minutes|mins|owner|lead|led by|presenter|speaker|who|notes|no\.?|number|slot|when|outcome)\b|^#$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex HeaderWordPattern();
 
-    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda)\b")]
+    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda)\b", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex ItemWordPattern();
 
-    [GeneratedRegex(@"\b(?:subject|session|title|activity|discussion)\b")]
+    [GeneratedRegex(@"\b(?:subject|session|title|activity|discussion)\b", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex SessionWordPattern();
 
-    [GeneratedRegex(@"^\s*(?:time|times|start|start time|starts|when|slot|time slot|from|begins?)\s*:?\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(?:time|times|start|start time|starts|when|slot|time slot|from|begins?)\s*:?\s*$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex TimeHeaderPattern();
 
-    [GeneratedRegex(@"^\s*(?:#|no\.?|nr\.?|num|number|item\s*#|item no\.?|ref)\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(?:#|no\.?|nr\.?|num|number|item\s*#|item no\.?|ref)\s*$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex NumberHeaderPattern();
 
     private sealed record ColumnStats(int Column, int NonEmpty, int TextLike, int Times, int SmallIntegers, bool Increasing)
