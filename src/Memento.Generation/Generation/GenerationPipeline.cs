@@ -267,6 +267,31 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             work = retry;
         }
 
+        // A summary-like section that every chunk answered with nothing is read once more as a plain summary, without
+        // its own instructions (MapPrompts.Build's plain); its points are verified like any other.
+        var empty = tasks.Where(t => MapPrompts.ReadsAgainWhenEmpty(t) && !claims.Any(c => c.Family == t.Family)).ToList();
+        if (empty.Count > 0 && chunks.Count > 0)
+        {
+            var again = empty.SelectMany(t => chunks.Select(c => (Task: t, Chunk: c))).ToList();
+            Report(progress, "generating", again[0].Task.Modules[0].Id, 60, "Reading the transcript again");
+            var requests = again.Select(w => MapPrompts.Build(w.Task, input.Payload, w.Chunk, chunks.Count, catalog, input.MapOutputTokens, input.Bounded, plain: true)).ToList();
+            var responses = await runner.RunAsync(requests, null, cancellationToken);
+            for (var i = 0; i < responses.Count; i++)
+            {
+                if (responses[i].StopReason != AiStopReason.Completed || responses[i].Json is not { } json)
+                {
+                    warnings.Add(string.Create(CultureInfo.InvariantCulture, $"{requests[i].Purpose}: the answer was incomplete ({responses[i].ProviderStopReason ?? responses[i].StopReason.ToString()}) and was not used."));
+                    continue;
+                }
+
+                foreach (var claim in MapPrompts.Parse(again[i].Task, json, again[i].Chunk.Index))
+                {
+                    CitationRepair.Repair(claim, transcript, again[i].Chunk);
+                    claims.Add(claim);
+                }
+            }
+        }
+
         return claims;
     }
 

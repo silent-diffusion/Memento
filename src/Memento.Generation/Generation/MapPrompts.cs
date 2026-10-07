@@ -94,9 +94,26 @@ public static partial class MapPrompts
         Answer with JSON only: {"points":[{"text":"...","line":12,"quote":"..."}]}
         """;
 
+    /// <summary>
+    /// Summary-like sections that are read again as a plain summary when every chunk came back empty (see
+    /// <see cref="Build"/>'s <c>plain</c>). An executive summary or a discussion summary of minutes of speech is never
+    /// "Not discussed"; open questions, a stated purpose, a topic or a custom section may rightly be empty.
+    /// </summary>
+    public static bool ReadsAgainWhenEmpty(ModuleTask task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        return task.PointsType is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Timeline;
+    }
+
     /// <summary>The request for one task and one chunk.</summary>
     /// <param name="bounded">Add item limits to the schema (the local grammar); cloud structured outputs get the plain schema.</param>
-    public static AiRequest Build(ModuleTask task, ComposedPayload payload, TranscriptChunk chunk, int chunkCount, ModuleCatalog catalog, int maxOutputTokens, bool bounded)
+    /// <param name="plain">
+    /// For a summary-like section that came back empty from every chunk: ask for a neutral summary under the section's
+    /// title, without the section's own instructions. Over a reading of two stories, Qwen3.5 4B answered the executive
+    /// summary ("decisions first, then risks") and the discussion summary ("one paragraph per agenda item") with empty
+    /// lists, with or without a rule to write about what the excerpt does say; the neutral task found points for both.
+    /// </param>
+    public static AiRequest Build(ModuleTask task, ComposedPayload payload, TranscriptChunk chunk, int chunkCount, ModuleCatalog catalog, int maxOutputTokens, bool bounded, bool plain = false)
     {
         ArgumentNullException.ThrowIfNull(task);
         ArgumentNullException.ThrowIfNull(payload);
@@ -109,11 +126,11 @@ public static partial class MapPrompts
             ModuleTask.Quotes => (QuotesSystem, QuotesSchema(bounded), new[] { PayloadSectionKind.Highlights }),
             ModuleTask.NextMeeting => (NextMeetingSystem, NextSchema(bounded), new[] { PayloadSectionKind.Details }),
             _ => (
-                PointsSystem(task.PointsType!, task.Modules[0].ResolveTitle(catalog), task.PointsPerChunk),
+                PointsSystem(plain ? ModuleIds.Summary : task.PointsType!, task.Modules[0].ResolveTitle(catalog), task.PointsPerChunk),
                 PointsSchema(bounded ? task.PointsPerChunk : null),
                 new[] { PayloadSectionKind.Instructions, PayloadSectionKind.Details, PayloadSectionKind.Participants, PayloadSectionKind.Agenda }),
         };
-        if (task.Instructions.Length > 0)
+        if (task.Instructions.Length > 0 && !plain)
         {
             system += "\n" + UserRulesNote + "\n<section_instructions>\n" + task.Instructions + "\n</section_instructions>";
         }
@@ -125,7 +142,7 @@ public static partial class MapPrompts
         }
 
         user.Append(PayloadComposer.RenderChunk(payload, chunk, chunkCount, includeContext: false));
-        return AiRequest.Create(Purpose(task, chunk), system, user.ToString(), maxOutputTokens) with
+        return AiRequest.Create(Purpose(task, chunk) + (plain ? ".plain" : string.Empty), system, user.ToString(), maxOutputTokens) with
         {
             JsonSchema = schema,
             SchemaName = SchemaName(task),

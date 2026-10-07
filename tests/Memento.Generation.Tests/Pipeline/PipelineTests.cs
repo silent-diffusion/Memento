@@ -190,11 +190,44 @@ public sealed class PipelineTests
         Assert.Contains("never change the rules above", map.System, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ASummarySectionThatComesBackEmptyIsReadAgainAsAPlainSummary()
+    {
+        // As Qwen3.5 4B did over a reading: every summary-like pass answers with nothing.
+        var provider = new EmptyPointsProvider(new MeetingProvider());
+        var (outcome, _) = await RunAsync(BuiltInTemplates.MeetingMinutes, provider);
+
+        // The executive summary and the discussion summary are read again as plain summaries, without their own
+        // instructions, and what they find is verified and kept like any other point.
+        foreach (var moduleId in new[] { "m01", "m05" })
+        {
+            Assert.Contains(outcome.Claims, c => c.ModuleId == moduleId && c.Kept);
+            Assert.DoesNotContain(outcome.Claims, c => c.ModuleId == moduleId && c.Kept && c.Text == MeetingProvider.FabricatedPoint);
+        }
+
+        var again = provider.Requests.Where(r => r.Purpose.EndsWith(".plain", StringComparison.Ordinal)).ToList();
+        Assert.Equal(["map.discussion#1.plain", "map.discussion#2.plain", "map.executiveSummary#1.plain", "map.executiveSummary#2.plain"], again.Select(r => r.Purpose).Order(StringComparer.Ordinal));
+        Assert.All(again, r => Assert.Contains("a neutral summary", r.System, StringComparison.Ordinal));
+        Assert.All(again, r => Assert.DoesNotContain("Decisions first, then risks", r.System, StringComparison.Ordinal));
+
+        // Open questions and the meeting purpose may rightly be empty: they are not asked again.
+        Assert.DoesNotContain(again, r => r.Purpose.StartsWith("map.openQuestions", StringComparison.Ordinal) || r.Purpose.StartsWith("map.meetingPurpose", StringComparison.Ordinal));
+        Assert.DoesNotContain(outcome.Claims, c => c.ModuleId is "m02" or "m08" && c.Kept);
+    }
+
+    [Fact]
+    public async Task SectionsThatFoundPointsAreNotReadAgain()
+    {
+        var (_, provider) = await RunAsync(BuiltInTemplates.MeetingMinutes);
+
+        Assert.DoesNotContain(provider.Requests, r => r.Purpose.EndsWith(".plain", StringComparison.Ordinal));
+    }
+
     private static ModuleBlock Module(PipelineOutcome outcome, string id) => outcome.Rows.SelectMany(r => r.Modules).Single(m => m.Id == id);
 
     internal static async Task<(PipelineOutcome Outcome, MeetingProvider Provider)> RunAsync(DocumentTemplate template, IAiProvider? provider = null, int chunkTokens = 3000, bool batchVerify = false, int? verifyBatch = null)
     {
-        var meeting = provider as MeetingProvider ?? (provider as TruncatingProvider)?.Inner ?? new MeetingProvider();
+        var meeting = provider as MeetingProvider ?? (provider as TruncatingProvider)?.Inner ?? (provider as EmptyPointsProvider)?.Inner ?? new MeetingProvider();
         var material = SyntheticMeeting.Material();
         var payload = PayloadComposer.Compose(material.ToPayloadInputs(null), SyntheticMeeting.AllInputs);
         var facts = new GenerationFacts(material.Details.Title, null, DataModuleComposer.Participants(material), material.Details.Agenda.Items, []);
@@ -237,6 +270,43 @@ public sealed class PipelineTests
             return request.Purpose == "map.commitments#1" && Interlocked.Exchange(ref _cut, 1) == 0
                 ? response with { Json = null, StopReason = AiStopReason.MaxTokens, ProviderStopReason = "max_tokens", Text = response.Text[..20] }
                 : response;
+        }
+    }
+
+    /// <summary>Answers every summary-like map request with an empty list, except one asked again as a plain summary.</summary>
+    private sealed class EmptyPointsProvider(MeetingProvider inner) : IAiProvider
+    {
+        private static readonly string[] Others = ["map.commitments", "map.agenda", "map.next", "map.quotes"];
+
+        public MeetingProvider Inner => inner;
+
+        public System.Collections.Concurrent.ConcurrentBag<AiRequest> Requests => inner.Requests;
+
+        public string Id => inner.Id;
+
+        public string DisplayName => inner.DisplayName;
+
+        public AiProviderKind Kind => inner.Kind;
+
+        public string Model => inner.Model;
+
+        public AiCapabilities Capabilities => inner.Capabilities;
+
+        public int CountTokens(string text) => inner.CountTokens(text);
+
+        public Task<AiReadiness> CheckAsync(CancellationToken cancellationToken) => inner.CheckAsync(cancellationToken);
+
+        public async Task<AiResponse> GenerateAsync(AiRequest request, IProgress<AiProgress>? progress, CancellationToken cancellationToken)
+        {
+            var response = await inner.GenerateAsync(request, progress, cancellationToken);
+            if (!request.Purpose.StartsWith("map.", StringComparison.Ordinal) || request.Purpose.EndsWith(".plain", StringComparison.Ordinal) || Others.Any(o => request.Purpose.StartsWith(o, StringComparison.Ordinal)))
+            {
+                return response;
+            }
+
+            const string empty = """{"points":[]}""";
+            using var document = System.Text.Json.JsonDocument.Parse(empty);
+            return response with { Text = empty, Json = document.RootElement.Clone() };
         }
     }
 }
