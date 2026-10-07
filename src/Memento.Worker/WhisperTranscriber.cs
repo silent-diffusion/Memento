@@ -273,7 +273,8 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
 
         if (level <= WhisperLogLevel.Warning || message.Contains("vulkan", StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.Write(message);
+            // Whisper.net's own messages have no line end; the host keeps stderr by lines for the crash report.
+            Console.Error.Write(message.EndsWith('\n') ? message : message + Environment.NewLine);
         }
     }
 
