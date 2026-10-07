@@ -36,7 +36,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(input);
         var warnings = new List<string>();
-        var runner = new RequestRunner(input.Provider);
+        var runner = new RequestRunner(input.Provider, observer: input.OnResponse);
         var transcript = new TranscriptIndex(input.Payload.TranscriptLines);
         var clock = Stopwatch.StartNew();
         Report(progress, "composing", null, 2, "Preparing the inputs");
@@ -267,7 +267,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         if (input.BatchVerify)
         {
             var batches = questions.Chunk(VerifyBatchSize).ToList();
-            var requests = batches.Select(b => VerifyPrompts.Batch(b.Select(q => (q, transcript.Excerpt(q.Line))).ToList())).ToList();
+            var requests = batches.Select(b => VerifyPrompts.Batch(b.Select(q => (q, SpanOf(q, transcript))).ToList())).ToList();
             var responses = await runner.RunAsync(requests, new Progress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
             for (var b = 0; b < batches.Count; b++)
             {
@@ -285,7 +285,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         }
         else
         {
-            var requests = questions.Select(q => VerifyPrompts.ForQuestion(q, transcript.Excerpt(q.Line))).ToList();
+            var requests = questions.Select(q => VerifyPrompts.ForQuestion(q, SpanOf(q, transcript))).ToList();
             var responses = await runner.RunAsync(requests, new Progress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
             for (var i = 0; i < responses.Count; i++)
             {
@@ -314,6 +314,13 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             }
         }
     }
+
+    /// <summary>
+    /// The span the verifier reads: two lines either side of the cited one; for an agenda item, the line where its
+    /// discussion starts and the six after it (a topic is discussed over several turns).
+    /// </summary>
+    private static string SpanOf(VerifyQuestion question, TranscriptIndex transcript) =>
+        question.Claim.Kind == ClaimKinds.Agenda ? transcript.Excerpt(question.Line, 1, 6) : transcript.Excerpt(question.Line);
 
     private static bool Reads(TemplateModule module, Claim claim) => module.Type switch
     {

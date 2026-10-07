@@ -332,6 +332,6 @@ internal sealed partial class MeetingProvider(AiProviderKind kind = AiProviderKi
     [GeneratedRegex(@"^The deadline stated for this task is ""(.+)"": (.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex DueClaim();
 
-    [GeneratedRegex(@"^This excerpt discusses the agenda item ""(.+)""\.$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^The people in this excerpt talk about the agenda topic ""(.+)"" \(", RegexOptions.CultureInvariant)]
     private static partial Regex AgendaClaim();
 }

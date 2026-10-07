@@ -35,7 +35,7 @@ public static class ClaimReducer
                 match.Claim.Quote = claim.Quote;
             }
 
-            if (claim.Line is not null && !string.Equals(TextMatch.Normalize(claim.Text), TextMatch.Normalize(match.Claim.Text), StringComparison.Ordinal))
+            if (claim.Line is not null && (claim.Line != match.Claim.Line || !string.Equals(TextMatch.Normalize(claim.Text), TextMatch.Normalize(match.Claim.Text), StringComparison.Ordinal)))
             {
                 match.Claim.Alternates.Add(claim);
             }

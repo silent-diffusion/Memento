@@ -41,7 +41,7 @@ public static class VerifyPrompts
         {
             ClaimKinds.Decision => "Decision: " + claim.Text,
             ClaimKinds.Action => "Action item: " + claim.Text,
-            ClaimKinds.Agenda => $"This excerpt discusses the agenda item \"{agendaItem(claim.AgendaItem ?? 0)}\".",
+            ClaimKinds.Agenda => $"The people in this excerpt talk about the agenda topic \"{agendaItem(claim.AgendaItem ?? 0)}\" (the topic does not need to be named in these words).",
             ClaimKinds.When => "The next meeting: " + claim.Text,
             ClaimKinds.NextAgenda => "A topic proposed for the next meeting: " + claim.Text,
             _ => claim.Text,

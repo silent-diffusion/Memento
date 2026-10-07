@@ -21,4 +21,8 @@ public sealed record PipelineInput(
     int ChunkTokens,
     int MapOutputTokens,
     bool Bounded,
-    bool BatchVerify);
+    bool BatchVerify)
+{
+    /// <summary>Sees every request and its answer (tests and diagnostics; the text is content and is never logged).</summary>
+    public Action<AiRequest, AiResponse>? OnResponse { get; init; }
+}

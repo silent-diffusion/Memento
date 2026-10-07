@@ -9,7 +9,7 @@ namespace Memento.Generation.Generation;
 /// (<see cref="LocalAiProvider.GenerateManyAsync"/>); a cloud provider gets them one by one, a few at a time. Each request
 /// is recorded by purpose, hash, tokens and stop reason (never by content).
 /// </summary>
-public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3)
+public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3, Action<AiRequest, AiResponse>? observer = null)
 {
     private readonly List<RecordRequest> _records = [];
     private long _modelLoadMs;
@@ -58,6 +58,7 @@ public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3
         for (var i = 0; i < responses.Count; i++)
         {
             var response = responses[i];
+            observer?.Invoke(requests[i], response);
             _records.Add(new RecordRequest
             {
                 Purpose = requests[i].Purpose,
