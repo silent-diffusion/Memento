@@ -201,7 +201,7 @@ public sealed class GenerationBridgeTests : IDisposable
         _host.Providers.Make = _ => blocking;
 
         var start = await _host.ResultAsync("generation.start", new { recordingId = id, template = await _host.MeetingMinutesAsync() });
-        await blocking.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await blocking.Started.Task.WaitAsync(Patience.Ceiling);
         await _host.ResultAsync("generation.cancel", new { jobId = start.GetProperty("jobId").GetString() });
 
         Assert.Equal("cancelled", (await _host.FinishedAsync(start.GetProperty("jobId").GetString()!)).GetProperty("stage").GetString());

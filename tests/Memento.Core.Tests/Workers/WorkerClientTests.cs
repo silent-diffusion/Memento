@@ -127,7 +127,7 @@ public sealed class WorkerClientTests
 
         var run = Client.RunAsync(Job, _ => { cancel.Cancel(); return Task.CompletedTask; }, cancel.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(15)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(Patience.Ceiling));
         Assert.True(Assert.Single(_launcher.Started).Killed);
     }
 
@@ -177,7 +177,7 @@ public sealed class WorkerClientTests
         // The second GPU job has not even started a worker while the first runs.
         Assert.Single(_launcher.Started);
         release.SetResult();
-        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(first, second).WaitAsync(Patience.Ceiling);
         Assert.Equal(2, _launcher.Started.Count);
         Assert.True(_launcher.Started[0].Exited.IsCompleted);
         Assert.Equal(1, most);
@@ -202,15 +202,15 @@ public sealed class WorkerClientTests
         var diarize = new WorkerJob(WorkerJobKinds.Diarize, Diarize: new DiarizeJob([new WorkerTrack("mic", @"C:\x\mic.flac", 0)], "s.onnx", "e.onnx", -1, 0.8f, 4));
 
         var gpu = client.RunAsync(Job, null, CancellationToken.None);
-        await client.RunAsync(cpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
-        await client.RunAsync(diarize, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        await client.RunAsync(cpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling);
+        await client.RunAsync(diarize, null, CancellationToken.None).WaitAsync(Patience.Ceiling);
 
         Assert.True(Job.UsesGpu);
         Assert.False(cpuJob.UsesGpu);
         Assert.False(diarize.UsesGpu);
         Assert.False(gpu.IsCompleted);
         release.SetResult();
-        await gpu.WaitAsync(TimeSpan.FromSeconds(10));
+        await gpu.WaitAsync(Patience.Ceiling);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Memento.Core.Tests.Fakes;
 using Memento.Core.Workers;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,7 +28,7 @@ public sealed class ProcessWorkerLauncherTests
             // As when Memento exits: the job's last handle closes, and Windows ends what is in it.
             launcher.Dispose();
 
-            await worker.Exited.WaitAsync(TimeSpan.FromSeconds(10));
+            await worker.Exited.WaitAsync(Patience.Ceiling);
             Assert.Throws<ArgumentException>(() => Process.GetProcessById(worker.Id));
         }
         finally
