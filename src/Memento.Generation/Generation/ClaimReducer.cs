@@ -63,6 +63,24 @@ public static class ClaimReducer
 
         var similarity = TextMatch.Jaccard(aWords, bWords);
         var nearby = a.Line is { } x && b.Line is { } y && Math.Abs(x - y) <= 1;
-        return similarity >= SameAnywhere || (nearby && similarity >= SameNearby);
+        return similarity >= SameAnywhere || (nearby && similarity >= SameNearby) || (SameOwner(a, b) && similarity >= SameOwnerAnywhere);
+    }
+
+    /// <summary>
+    /// Word similarity at which two action items with the same owner are the same task wherever they are cited: a recap
+    /// restates a task in fewer words ("Send final pricing mockups" for "Turn version B into final mockups").
+    /// </summary>
+    public const double SameOwnerAnywhere = 0.25;
+
+    private static bool SameOwner(Claim a, Claim b)
+    {
+        if (a.Kind != ClaimKinds.Action || a.Owner is null || b.Owner is null)
+        {
+            return false;
+        }
+
+        static string First(string owner) => TextMatch.Normalize(owner).Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+        var first = First(a.Owner);
+        return first.Length > 0 && first == First(b.Owner);
     }
 }
