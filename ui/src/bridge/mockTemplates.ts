@@ -298,7 +298,7 @@ const SAMPLE_ROWS = SAMPLE.slice(SAMPLE.indexOf(SAMPLE_TITLE) + SAMPLE_TITLE.len
 
 /** styles.sampleHtml: the fixed sample minutes in these settings (DocumentHtmlRenderer.RenderSample). */
 export function sampleHtml(settings: StyleSettings): string {
-  const builtIn = (Object.entries(builtInStyleSettings()) as [string, StyleSettings][]).find(([, s]) => sameSettings(s, settings));
+  const builtIn = Object.entries<StyleSettings>(builtInStyleSettings()).find(([, s]) => sameSettings(s, settings));
   const styleId = builtIn?.[0] ?? 'custom';
   return (
     articleOpen(settings, styleId, 'sample', 'style-sample') +
@@ -311,8 +311,8 @@ export function sampleHtml(settings: StyleSettings): string {
 }
 
 export interface TemplateStoreEnvironment {
-  emit<E extends EventName>(event: E, payload: EventPayload<E>): void;
-  now(): string;
+  emit: <E extends EventName>(event: E, payload: EventPayload<E>) => void;
+  now: () => string;
 }
 
 export interface MockTemplateStore {
@@ -401,10 +401,11 @@ export function createMockTemplateStore(env: TemplateStoreEnvironment): MockTemp
       checkTemplate(template);
       const existing = templates.find((t) => t.id === template.id);
       const cleanRows = template.rows.filter((r) => r.modules.length > 0);
-      if (existing === undefined || existing.builtIn) {
+      if (existing?.builtIn !== false) {
         // New, or a built-in saved over: a copy of its own (built-ins stay as they are).
         const taken = templates.map((t) => t.name);
-        const name = existing !== undefined && template.name.trim() === existing.name ? copyName(existing.name, taken) : template.name.trim();
+        const trimmed = template.name.trim();
+        const name = trimmed === existing?.name ? copyName(trimmed, taken) : trimmed;
         const saved: Template = { ...clone(template), rows: cleanRows, id: nextId('tpl'), name, builtIn: false, modifiedAt: env.now() };
         templates.push(saved);
         env.emit('templates.changed', {});
@@ -455,9 +456,9 @@ export function createMockTemplateStore(env: TemplateStoreEnvironment): MockTemp
         throw new MockHostError('bridge.invalidParams', 'A style needs a name of 1 to 60 characters. Nothing was saved.', style.name);
       }
       const existing = styles.find((s) => s.id === style.id);
-      if (existing === undefined || existing.builtIn) {
+      if (existing?.builtIn !== false) {
         const taken = styles.map((s) => s.name);
-        const savedName = existing !== undefined && name === existing.name ? copyName(existing.name, taken) : name;
+        const savedName = name === existing?.name ? copyName(name, taken) : name;
         const saved: Style = { ...clone(style), id: nextId('sty'), name: savedName, builtIn: false, usedByTemplates: 0, modifiedAt: env.now() };
         styles.push(saved);
         env.emit('styles.changed', {});

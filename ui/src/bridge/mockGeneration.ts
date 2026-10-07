@@ -121,13 +121,13 @@ const INPUT_NAMES: Record<keyof InputSelection, string> = {
 };
 
 export interface MockM4Environment {
-  emit<E extends EventName>(event: E, payload: EventPayload<E>): void;
-  now(): number;
-  find(recordingId: string): MockProject;
-  settings(): SettingsSnapshot;
+  emit: <E extends EventName>(event: E, payload: EventPayload<E>) => void;
+  now: () => number;
+  find: (recordingId: string) => MockProject;
+  settings: () => SettingsSnapshot;
   models: MockModelManager;
-  transcript(recordingId: string): TranscriptLine[];
-  attachmentNames(recordingId: string): string[];
+  transcript: (recordingId: string) => TranscriptLine[];
+  attachmentNames: (recordingId: string) => string[];
   flags: M4Flags;
   stepMs: number;
 }
@@ -373,7 +373,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         return;
       }
       const step = steps[index++];
-      if (step === undefined || !step()) {
+      if (!step?.()) {
         return;
       }
       job.timer = setTimeout(next, env.stepMs);
@@ -567,7 +567,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       const ai = settings.ai;
       const provider = ai.defaultProviderId;
       if (provider !== null && !(['anthropic', 'openai', 'local'] as string[]).includes(provider)) {
-        throw invalid('The default provider is Claude, ChatGPT or the local model. Nothing was changed.', String(provider));
+        throw invalid('The default provider is Claude, ChatGPT or the local model. Nothing was changed.', provider);
       }
       const local = env.models.list().find((m) => m.id === ai.localModelId);
       if (local?.engine !== 'llm') {

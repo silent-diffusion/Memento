@@ -80,13 +80,13 @@ export interface TranscriptLine {
 }
 
 export interface MockDocumentsEnvironment {
-  emit<E extends EventName>(event: E, payload: EventPayload<E>): void;
-  now(): number;
-  find(recordingId: string): MockProject;
-  settings(): SettingsSnapshot;
+  emit: <E extends EventName>(event: E, payload: EventPayload<E>) => void;
+  now: () => number;
+  find: (recordingId: string) => MockProject;
+  settings: () => SettingsSnapshot;
   store: MockTemplateStore;
   /** The recording's transcript as speaker lines, [] when it has none. */
-  transcript(recordingId: string): TranscriptLine[];
+  transcript: (recordingId: string) => TranscriptLine[];
 }
 
 export interface WriteRequest {
@@ -509,7 +509,7 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
       return;
     }
     // Edits a few minutes apart belong to one version, as typing does.
-    if (reason === 'edited' && last !== undefined && last.reason === 'edited' && env.now() - Date.parse(last.at) < 10 * MINUTE) {
+    if (reason === 'edited' && last?.reason === 'edited' && env.now() - Date.parse(last.at) < 10 * MINUTE) {
       doc.versions[doc.versions.length - 1] = { ...last, at, changes: last.changes + 1, html };
       return;
     }

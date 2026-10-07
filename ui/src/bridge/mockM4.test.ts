@@ -5,7 +5,8 @@ import { createBridgeClient, type BridgeClient } from './client';
 import type { MockOptions } from './mock';
 import { extractArticle, restyle } from './mockPaper';
 import { builtInStyleSettings } from './mockTemplates';
-import type { GenerationProgress, Template } from './types';
+import { M4_METHODS } from './mockGeneration';
+import { ERROR_CODES, EVENT_NAMES, METHOD_NAMES, type GenerationProgress } from './types';
 
 const quiet = { info: (): void => undefined, warn: (): void => undefined };
 const DESIGN = '20261005-160000-dsrev';
@@ -40,6 +41,50 @@ async function progressUntilEnd(bridge: BridgeClient, jobId: string): Promise<Ge
   return seen;
 }
 
+describe('M4 contract names (BRIDGE-M4.md)', () => {
+  it('lists every M4 method, event and error code in types.ts, in the contract’s order', () => {
+    expect(METHOD_NAMES.slice(METHOD_NAMES.indexOf('modules.list'))).toEqual([...M4_METHODS]);
+    expect(EVENT_NAMES.slice(-4)).toEqual(['generation.progress', 'documents.changed', 'templates.changed', 'styles.changed']);
+    expect(ERROR_CODES.slice(ERROR_CODES.indexOf('ai.disabled'))).toEqual([
+      'ai.disabled',
+      'ai.providerNotReady',
+      'ai.noKey',
+      'ai.invalidKey',
+      'ai.rateLimited',
+      'ai.network',
+      'ai.providerError',
+      'ai.contentTooLong',
+      'ai.modelNotInstalled',
+      'ai.notEnoughVram',
+      'ai.workerCrashed',
+      'generation.noTranscript',
+      'generation.busy',
+      'generation.notFound',
+      'templates.notFound',
+      'templates.builtIn',
+      'styles.notFound',
+      'styles.builtIn',
+      'styles.inUse',
+      'documents.notFound',
+      'documents.unsupportedEdit',
+      'documents.versionNotFound',
+    ]);
+  });
+
+  it('carries the M4 settings: default provider, local model, default template and style', async () => {
+    const bridge = client();
+    const settings = await bridge.call('settings.get');
+    expect(settings.documents).toEqual({ defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' });
+    expect(settings.ai).toMatchObject({ defaultProviderId: null, localModelId: 'qwen3.5-4b-instruct-q4' });
+    const changed = await bridge.call('settings.set', { ai: { defaultProviderId: 'local' }, documents: { defaultStyleId: 'minimal' } });
+    expect(changed.ai.defaultProviderId).toBe('local');
+    expect(changed.documents.defaultStyleId).toBe('minimal');
+    expect((await bridge.call('settings.set', { ai: { defaultProviderId: null } })).ai.defaultProviderId).toBeNull();
+    await expect(bridge.call('settings.set', { documents: { defaultTemplateId: 'gone' } })).rejects.toMatchObject({ code: 'settings.invalidValue' });
+    await expect(bridge.call('settings.set', { ai: { localModelId: 'whisper-small' } })).rejects.toMatchObject({ code: 'settings.invalidValue' });
+  });
+});
+
 describe('M4 browser-preview host', () => {
   it('lists the 23 modules in palette order with their groups and shapes', async () => {
     const { modules } = await client().call('modules.list');
@@ -63,7 +108,10 @@ describe('M4 browser-preview host', () => {
       ['Academic', 1],
     ]);
     await expect(bridge.call('templates.delete', { templateId: 'meeting-minutes' })).rejects.toMatchObject({ code: 'templates.builtIn' });
-    const minutes = templates[0] as Template;
+    const minutes = templates[0];
+    if (minutes === undefined) {
+      throw new Error('no templates');
+    }
     const copy = await bridge.call('templates.save', { template: minutes });
     expect(copy).toMatchObject({ name: 'Meeting minutes (copy)', builtIn: false });
     expect(copy.id).not.toBe('meeting-minutes');
@@ -154,7 +202,8 @@ describe('M4 browser-preview host', () => {
     const template = await bridge.call('templates.get', { templateId: 'meeting-minutes' });
     const first = await bridge.call('generation.start', { recordingId: DESIGN, template });
     const failed = await progressUntilEnd(bridge, first.jobId);
-    expect(failed[failed.length - 1]).toMatchObject({ stage: 'failed', message: expect.stringContaining('Claude could not be reached') });
+    expect(failed[failed.length - 1]?.stage).toBe('failed');
+    expect(failed[failed.length - 1]?.message).toContain('Claude could not be reached');
     const second = await bridge.call('generation.start', { recordingId: DESIGN, template });
     const ok = await progressUntilEnd(bridge, second.jobId);
     expect(ok[ok.length - 1]?.stage).toBe('done');
