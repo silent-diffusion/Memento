@@ -17,11 +17,12 @@ public sealed class WindowsPdfPageRenderer : IPdfPageRenderer
     public async Task<IReadOnlyList<byte[]>> RenderAsync(ReadOnlyMemory<byte> pdf, int dpi, int maxPages, AgendaParseOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
+        // The document reads its pages from the stream while rendering, so the stream lives as long as this call.
+        using var source = new MemoryStream(pdf.ToArray(), writable: false);
+        using var stream = source.AsRandomAccessStream();
         PdfDocument document;
         try
         {
-            using var source = new MemoryStream(pdf.ToArray(), writable: false);
-            var stream = source.AsRandomAccessStream();
             document = await PdfDocument.LoadFromStreamAsync(stream).AsTask(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception e) when (e is COMException or ArgumentException or InvalidOperationException)
@@ -52,10 +53,14 @@ public sealed class WindowsPdfPageRenderer : IPdfPageRenderer
                 throw AgendaErrors.Unreadable(options, "a PDF", e);
             }
 
-            var bytes = new byte[output.Size];
-            using var input = output.GetInputStreamAt(0);
-            await input.ReadAsync(bytes.AsBuffer(), (uint)bytes.Length, InputStreamOptions.None).AsTask(cancellationToken).ConfigureAwait(false);
-            pages.Add(bytes);
+            output.Seek(0);
+            using var png = new MemoryStream((int)output.Size);
+            using (var input = output.AsStreamForRead())
+            {
+                await input.CopyToAsync(png, cancellationToken).ConfigureAwait(false);
+            }
+
+            pages.Add(png.ToArray());
         }
 
         return pages;
