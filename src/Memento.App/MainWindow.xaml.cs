@@ -44,6 +44,7 @@ internal sealed partial class MainWindow : Window
 
     private readonly ThemeService _theme;
     private readonly WebViewBridge _bridge;
+    private bool _closed;
     private readonly FooterStatusService _footer;
     private readonly UiLifecycle _lifecycle;
     private readonly CommandLineOptions _options;
@@ -65,7 +66,7 @@ internal sealed partial class MainWindow : Window
         ILogger<MainWindow> logger)
     {
         ArgumentNullException.ThrowIfNull(opener);
-        opener.Opened += (_, _) => Dispatcher.BeginInvoke(() => MapLibrary(WebView.CoreWebView2));
+        opener.Opened += (_, _) => Dispatcher.BeginInvoke(() => MapLibrary(_closed ? null : WebView.CoreWebView2));
         _theme = theme;
         _bridge = bridge;
         _footer = footer;
@@ -78,13 +79,19 @@ internal sealed partial class MainWindow : Window
         {
             if (!string.Equals(e.Previous.EffectiveLibraryPath, e.Current.EffectiveLibraryPath, StringComparison.OrdinalIgnoreCase))
             {
-                Dispatcher.BeginInvoke(() => MapLibrary(WebView.CoreWebView2));
+                Dispatcher.BeginInvoke(() => MapLibrary(_closed ? null : WebView.CoreWebView2));
             }
         };
 
         InitializeComponent();
         ApplyTheme(theme.IsDark);
-        theme.EffectiveThemeChanged += (_, isDark) => Dispatcher.BeginInvoke(() => ApplyTheme(isDark));
+        theme.EffectiveThemeChanged += (_, isDark) => Dispatcher.BeginInvoke(() =>
+        {
+            if (!_closed)
+            {
+                ApplyTheme(isDark);
+            }
+        });
 
         if (options.IsScreenshotRun)
         {
@@ -99,6 +106,18 @@ internal sealed partial class MainWindow : Window
         }
 
         Loaded += OnLoaded;
+    }
+
+    /// <summary>
+    /// The WebView2 control is disposed with the window, but host services (recording levels, processing progress,
+    /// the footer) keep publishing until the host has stopped. From here on nothing touches the control: a queued event
+    /// posted to a disposed WebView2 throws on the UI thread and ended a normal close with a crash report.
+    /// </summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        _closed = true;
+        _bridge.Detach();
+        base.OnClosed(e);
     }
 
     /// <summary>Brings the window forward when a second Memento is started.</summary>

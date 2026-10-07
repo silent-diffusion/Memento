@@ -216,9 +216,12 @@ export class Run {
     }
   }
 
+  /** The run's results; a crash report written by Memento during the run (a normal close included) fails the run. */
   summary() {
-    const failed = this.results.filter((r) => !r.passed);
-    return { name: this.name, passed: this.results.length - failed.length, failed: failed.length, results: this.results, crashReports: this.crashReports() };
+    const crashReports = this.crashReports();
+    const results = [...this.results, { name: 'Memento wrote no crash report', passed: crashReports.length === 0, detail: crashReports.join(', ') }];
+    const failed = results.filter((r) => !r.passed);
+    return { name: this.name, passed: results.length - failed.length, failed: failed.length, results, crashReports };
   }
 }
 
