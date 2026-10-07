@@ -113,6 +113,9 @@ export async function updateSettings(services: AppServices, patch: SettingsSetPa
       theme: patch.theme ?? before.theme,
       listDensity: patch.listDensity ?? before.listDensity,
       recording: patch.recording ?? before.recording,
+      transcription: patch.transcription ?? before.transcription,
+      speakers: patch.speakers ?? before.speakers,
+      history: patch.history ?? before.history,
     };
     store.settings.value = optimistic;
   }

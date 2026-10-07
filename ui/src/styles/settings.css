@@ -207,3 +207,159 @@
   padding: 20px;
   gap: 4px;
 }
+
+/* M2: model cards in Settings › Transcription and Speakers (DESIGN.md §5.6, §5.5, §5.9, §17). The
+   default model carries the selected-card ring (a 2 px text ring, as the Builder's provider cards). */
+.model-cards {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0 4px;
+}
+
+.model-loading {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.model-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+}
+
+.model-card--default {
+  box-shadow: var(--neo-sm), 0 0 0 2px var(--text);
+}
+
+.model-main {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.model-radio {
+  margin-top: 3px;
+}
+
+.model-radio:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.model-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.model-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.model-tag {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+.model-note {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.model-desc {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.model-facts {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.model-installed {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.model-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.model-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 28px;
+}
+
+.model-progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.model-progress-status {
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.model-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in-xs);
+  overflow: hidden;
+}
+
+.model-fill {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.model-error {
+  margin-left: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.model-error-lead {
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.model-error-actions {
+  display: flex;
+  gap: 8px;
+}
