@@ -41,6 +41,44 @@
     Whisper.net copies every platform's native libraries (linux, arm64, x86, macOS: about 450 MB) even for win-x64
     (ENGINE-NOTES.md §D). Keep only runtimes/win-x64 (CPU) and runtimes/vulkan/win-x64.
   -->
+  <!--
+    Files the worker never loads, left out by name (PublishTrimmed stays off: an explicit list is easier to check than
+    the trimmer's analysis of the native-interop packages). Memento.Core brings SQLite for the library index, which
+    only the app opens, and DPAPI; Whisper.net brings Microsoft.Extensions.AI; the self-contained runtime brings QUIC,
+    HTTP and sockets, XML and data-contract serialization, System.Drawing, the debugger and dump DLLs and Visual Basic.
+    The worker's jobs (decode, transcribe, diarize, JSON over stdin/stdout) touch none of them: the list was checked
+    against the DLLs a running worker had loaded during transcription and speaker jobs (tools/e2e/m3-flow.mjs records
+    them in its summary). Removed from the publish and from the runtime-pack list that becomes the deps.json.
+  -->
+  <PropertyGroup>
+    <MementoWorkerUnused>
+      ;e_sqlite3.dll;Microsoft.Data.Sqlite.dll;SQLitePCLRaw.batteries_v2.dll;SQLitePCLRaw.core.dll;SQLitePCLRaw.provider.e_sqlite3.dll;
+      ;msquic.dll;System.Net.Quic.dll;
+      ;Microsoft.DiaSymReader.Native.amd64.dll;mscordaccore.dll;mscordbi.dll;createdump.exe;
+      ;Microsoft.VisualBasic.Core.dll;Microsoft.VisualBasic.dll;
+      ;System.Net.Mail.dll;System.Net.HttpListener.dll;System.Net.WebSockets.dll;System.Net.WebSockets.Client.dll;System.Net.Requests.dll;System.Net.WebClient.dll;System.Net.WebProxy.dll;System.Net.Ping.dll;System.Net.NetworkInformation.dll;
+      ;System.Data.Common.dll;System.Data.DataSetExtensions.dll;System.Data.dll;
+      ;System.Private.Xml.dll;System.Private.Xml.Linq.dll;System.Xml.dll;System.Xml.Linq.dll;System.Xml.XDocument.dll;System.Xml.ReaderWriter.dll;System.Xml.Serialization.dll;System.Xml.XmlDocument.dll;System.Xml.XmlSerializer.dll;System.Xml.XPath.dll;System.Xml.XPath.XDocument.dll;
+      ;System.Private.DataContractSerialization.dll;System.Runtime.Serialization.dll;System.Runtime.Serialization.Json.dll;System.Runtime.Serialization.Xml.dll;System.Runtime.Serialization.Formatters.dll;
+      ;System.Net.Http.dll;System.Net.Http.Json.dll;System.Net.Security.dll;System.Net.Sockets.dll;System.Net.NameResolution.dll;
+      ;System.Linq.Parallel.dll;System.Transactions.Local.dll;System.Transactions.dll;Microsoft.CSharp.dll;
+      ;System.Drawing.Common.dll;System.Drawing.dll;Microsoft.Win32.SystemEvents.dll;
+      ;System.Security.Cryptography.ProtectedData.dll;Microsoft.Extensions.AI.Abstractions.dll;
+    </MementoWorkerUnused>
+  </PropertyGroup>
+
+  <Target Name="MementoDropUnusedFromWorker" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$(MementoWorkerUnused.Contains(';%(Filename)%(Extension);')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('mscordaccore_'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="MementoDropUnusedRuntimePackAssets" AfterTargets="ResolveRuntimePackAssets">
+    <ItemGroup>
+      <RuntimePackAsset Remove="@(RuntimePackAsset)" Condition="$(MementoWorkerUnused.Contains(';%(Filename)%(Extension);')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('mscordaccore_'))" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="MementoStripForeignWhisperRuntimes" BeforeTargets="AssignTargetPaths;_CopyOutOfDateSourceItemsToOutputDirectory;GetCopyToPublishDirectoryItems">
     <ItemGroup>
       <None Remove="@(None)" Condition="'%(None.TargetPath)' != '' and $([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/')) and !$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/win-x64/')) and !$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/vulkan/win-x64/'))" />
