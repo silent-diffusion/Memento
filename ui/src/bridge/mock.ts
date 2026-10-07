@@ -771,6 +771,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     'sources.list':() => ({ audio: [...SAMPLE_SOURCES], videoAvailable: false }),
     'recording.start': (params) => {
+      m3.throwIfMoving();
       const started = session.start(params);
       startLiveDraft(started.sessionId);
       return started;

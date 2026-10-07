@@ -271,6 +271,10 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
     expect(bySize.recordings.map((r) => r.sizeBytes)).toEqual([...bySize.recordings.map((r) => r.sizeBytes)].sort((a, b) => b - a));
     const moved = waitFor(bridge, 'library.moveProgress', (p) => p.state === 'done');
     await bridge.call('library.move', { newPath: 'E:\\Memento Library' });
+    // No recording starts while the library is being copied.
+    const sources = (await bridge.call('sources.list')).audio.map((s) => s.id).slice(0, 1);
+    const refused = await failure(bridge.call('recording.start', { title: 'During the move', type: 'meeting', sourceIds: sources }));
+    expect([refused.code, refused.detail]).toEqual(['library.busy', 'move']);
     const events = await moved;
     expect(events.length).toBeGreaterThan(2);
     expect((await bridge.call('settings.get')).libraryPath).toBe('E:\\Memento Library');

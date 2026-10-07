@@ -151,6 +151,8 @@ export interface MockM3 {
   handlers: M3Handlers;
   agenda: MockAgenda;
   exports: MockExport;
+  /** recording.start while the library is being copied answers library.busy, as the host. */
+  throwIfMoving(): void;
   /** processing.retry of `stored` on an import that stopped: imports the same file again (BRIDGE.md M3 integration). */
   importAgain(recordingId: string): void;
   /** settings.set for the M3 blocks: validated, then merged into `settings`. */
@@ -192,6 +194,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
   let mediaIndex = 0;
   let importCounter = 0;
   let interruptedOnce = false;
+  let moving = false;
   let jobCounter = 0;
 
   const at = (): string => isoWithOffset(new Date(env.now()));
@@ -531,6 +534,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
           busy,
         );
       }
+      moving = true;
       return {
         jobId: runJob(
           Math.max(120, env.stepMs * 3),
@@ -539,6 +543,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
             env.emit('library.moveProgress', { jobId, percent, state, message, newPath });
           },
           () => {
+            moving = false;
             const current = env.settings();
             env.setSettings({ ...current, libraryPath: newPath });
             return `Every file was copied to ${newPath} and checked, and the old folder was removed.`;
@@ -619,6 +624,15 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     agenda,
     exports,
     importAgain,
+    throwIfMoving() {
+      if (moving) {
+        throw new MockHostError(
+          'library.busy',
+          'The library is being copied to its new folder, so a recording can\'t start right now. Nothing was started. Recording is possible again as soon as the move has finished; its progress is in Settings › Storage and history.',
+          'move',
+        );
+      }
+    },
     mergeSettings(settings, params) {
       // Field by field, as the host: a null default folder or reclaim age clears it.
       const merged = mergeSettings(settings, { general: params.general ?? null, export: params.export ?? null, ai: params.ai ?? null, storage: params.storage ?? null });
