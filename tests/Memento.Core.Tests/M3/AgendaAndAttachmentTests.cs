@@ -155,6 +155,26 @@ public sealed class AgendaAndAttachmentTests : IDisposable
     }
 
     [Fact]
+    public async Task APreviewCanBeMadeBeforeTheRecordingExists()
+    {
+        var preview = (await _m3.ResultAsync("agenda.importFile", new { recordingId = (string?)null, path = _m3.WriteFile("early.txt", "One\nTwo") })).GetProperty("preview");
+        var pasted = (await _m3.ResultAsync("agenda.parseText", new { recordingId = (string?)null, text = "Alpha\nBeta" })).GetProperty("preview");
+        var id = await _m3.RecordAsync();
+        var items = preview.GetProperty("items").EnumerateArray().Select(i => new { text = i.GetProperty("text").GetString(), uncertain = false }).ToArray();
+
+        var noId = await _m3.ErrorAsync("agenda.apply", new { recordingId = (string?)null, items, source = "early.txt", sourceKind = "text" });
+        var project = await _m3.ResultAsync("agenda.apply", new { recordingId = id, items, source = "early.txt", sourceKind = "text", attachmentToken = preview.GetProperty("attachmentToken").GetString() });
+
+        Assert.Equal(2, pasted.GetProperty("items").GetArrayLength());
+        Assert.Equal(DomainErrorCodes.ProjectNotFound, noId.GetProperty("code").GetString());
+        Assert.Equal(2, project.GetProperty("details").GetProperty("agenda").GetProperty("items").GetArrayLength());
+        var attachment = (await _m3.ResultAsync("attachments.list", new { recordingId = id })).GetProperty("attachments").EnumerateArray().Single();
+        Assert.Equal("early.txt", attachment.GetProperty("name").GetString());
+        Assert.Equal("agenda", attachment.GetProperty("kind").GetString());
+        Assert.True(PendingAgendaOptions.DefaultExpiry >= TimeSpan.FromMinutes(30));
+    }
+
+    [Fact]
     public async Task DiscardForgetsTheHeldFile()
     {
         var id = await _m3.RecordAsync();
@@ -204,7 +224,8 @@ public sealed class AgendaAndAttachmentTests : IDisposable
         var missing = await _m3.ErrorAsync("agenda.setCovered", new { recordingId = id, itemId = "a-missing", covered = true });
 
         Assert.Equal([false, true], result.GetProperty("agenda").GetProperty("items").EnumerateArray().Select(i => i.GetProperty("covered").GetBoolean()));
-        Assert.Equal(DomainErrorCodes.AnnotationsNotFound, missing.GetProperty("code").GetString());
+        Assert.Equal(DomainErrorCodes.AgendaItemNotFound, missing.GetProperty("code").GetString());
+        Assert.Equal("a-missing", missing.GetProperty("detail").GetString());
         await _m3.Host.ResultAsync("recording.stop", JsonSerializer.Serialize(new { sessionId }));
         await _m3.Host.Recordings.WhenIdleAsync();
         Assert.True((await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).Details.Agenda.Items[1].Covered);

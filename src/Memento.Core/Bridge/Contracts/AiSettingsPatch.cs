@@ -1,4 +1,3 @@
-using System.Text.Json;
 
 namespace Memento.Core.Bridge.Contracts;
 
@@ -13,6 +12,5 @@ public sealed record AiSettingsPatch
 
     public AiSharePatch? Share { get; init; }
 
-    /// <summary>Accepted and ignored, so the UI can send the block it read back; keys change only through <c>ai.setKey</c>.</summary>
-    public JsonElement? Providers { get; init; }
+    // No providers: keys change only through ai.setKey and ai.clearKey (M3 clarification 5).
 }

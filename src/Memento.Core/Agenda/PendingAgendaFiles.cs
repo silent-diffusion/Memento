@@ -15,7 +15,7 @@ public sealed class PendingAgendaFiles(PendingAgendaOptions options, TimeProvide
     public int Count => _held.Count;
 
     /// <summary>Copies <paramref name="sourcePath"/> and returns its token.</summary>
-    public async Task<string> HoldAsync(string sourcePath, string recordingId, CancellationToken cancellationToken)
+    public async Task<string> HoldAsync(string sourcePath, string? recordingId, CancellationToken cancellationToken)
     {
         Sweep();
         Directory.CreateDirectory(options.Folder);

@@ -37,17 +37,17 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         var baseName = ExportNaming.BaseName(manifest.Details.Title, manifest.CreatedAt);
         var stored = manifest.State is ProjectStates.Ready or ProjectStates.Recovered;
         var items = new List<ExportItem>();
-        var unavailable = new List<string>();
+        var unavailable = new List<ExportUnavailable>();
 
         if (selection.AudioMixed.On)
         {
             if (stored && manifest.Mix is { } mix && File.Exists(Full(folder, mix.File)))
             {
-                items.Add(AudioItem(baseName + ExportNaming.AudioExtension(selection.AudioMixed.Format), Full(folder, mix.File), mix.Codec, mix.SampleRate, mix.Channels, mix.DurationMs, selection.AudioMixed));
+                items.Add(AudioItem(ExportComponents.AudioMixed, baseName + ExportNaming.AudioExtension(selection.AudioMixed.Format), Full(folder, mix.File), mix.Codec, mix.SampleRate, mix.Channels, mix.DurationMs, selection.AudioMixed));
             }
             else
             {
-                unavailable.Add("Audio (mixed) (not saved yet)");
+                unavailable.Add(new(ExportComponents.AudioMixed, "Not saved yet"));
             }
         }
 
@@ -56,13 +56,13 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             var tracks = stored ? manifest.Tracks.Where(t => t.Sha256 is not null && File.Exists(Full(folder, t.File))).ToList() : [];
             if (tracks.Count == 0)
             {
-                unavailable.Add("Individual tracks (not saved yet)");
+                unavailable.Add(new(ExportComponents.Tracks, "Not saved yet"));
             }
 
             foreach (var track in tracks)
             {
                 var name = $"{baseName} - {FileNames.Sanitize(track.Name, track.Id)}{ExportNaming.AudioExtension(selection.Tracks.Format)}";
-                items.Add(AudioItem(name, Full(folder, track.File), track.Codec, track.SampleRate, track.Channels, track.DurationMs, selection.Tracks));
+                items.Add(AudioItem(ExportComponents.Tracks, name, Full(folder, track.File), track.Codec, track.SampleRate, track.Channels, track.DurationMs, selection.Tracks));
             }
         }
 
@@ -73,12 +73,12 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
         if (selection.Documents.On)
         {
-            unavailable.Add("Documents (arrive in a later version)");
+            unavailable.Add(new(ExportComponents.Documents, "Documents arrive in a later version"));
         }
 
         if (selection.Details.On)
         {
-            items.Add(TextItem(baseName + " - details.json", null, DetailsJson(project, manifest, exportedAt)));
+            items.Add(TextItem(ExportComponents.Details, baseName + " - details.json", null, DetailsJson(project, manifest, exportedAt)));
         }
 
         if (selection.Attachments.On)
@@ -86,13 +86,13 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             var files = ManifestAttachments.Read(manifest).Where(a => File.Exists(Full(folder, a.File))).ToList();
             if (files.Count == 0)
             {
-                unavailable.Add("Attachments (none added)");
+                unavailable.Add(new(ExportComponents.Attachments, "No attachments"));
             }
 
             foreach (var attachment in files)
             {
                 var path = Full(folder, attachment.File);
-                items.Add(new ExportItem(attachment.Name, ExportNaming.AttachmentsFolder, new FileInfo(path).Length, (destination, ct) => CopyAsync(path, destination, ct)));
+                items.Add(new ExportItem(ExportComponents.Attachments, attachment.Name, ExportNaming.AttachmentsFolder, new FileInfo(path).Length, (destination, ct) => CopyAsync(path, destination, ct)));
             }
         }
 
@@ -157,10 +157,10 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
     private static string Full(string folder, string relative) =>
         Path.GetFullPath(Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar)));
 
-    private static ExportItem TextItem(string name, string? subfolder, string content)
+    private static ExportItem TextItem(string component, string name, string? subfolder, string content)
     {
         var bytes = Utf8.GetBytes(content);
-        return new ExportItem(name, subfolder, bytes.LongLength, (destination, ct) => File.WriteAllBytesAsync(destination, bytes, ct));
+        return new ExportItem(component, name, subfolder, bytes.LongLength, (destination, ct) => File.WriteAllBytesAsync(destination, bytes, ct));
     }
 
     private static async Task CopyAsync(string source, string destination, CancellationToken cancellationToken)
@@ -170,10 +170,10 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         await input.CopyToAsync(output, cancellationToken);
     }
 
-    private ExportItem AudioItem(string name, string source, string codec, int sampleRate, int channels, long durationMs, ExportAudioChoice choice)
+    private ExportItem AudioItem(string component, string name, string source, string codec, int sampleRate, int channels, long durationMs, ExportAudioChoice choice)
     {
         var bytes = ExportAudio.Estimate(codec, new FileInfo(source).Length, sampleRate, channels, durationMs, choice);
-        return new ExportItem(name, null, bytes, (destination, ct) => audio.WriteAsync(source, codec, choice, destination, Path.GetDirectoryName(destination)!, ct));
+        return new ExportItem(component, name, null, bytes, (destination, ct) => audio.WriteAsync(source, codec, choice, destination, Path.GetDirectoryName(destination)!, ct));
     }
 
     private async Task AddTranscriptAsync(
@@ -184,13 +184,13 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         string baseName,
         DateTimeOffset exportedAt,
         List<ExportItem> items,
-        List<string> unavailable,
+        List<ExportUnavailable> unavailable,
         CancellationToken cancellationToken)
     {
         var formats = (choice.Formats ?? []).Distinct(StringComparer.Ordinal).ToList();
         if (formats.Count == 0)
         {
-            unavailable.Add("Transcript (no format chosen)");
+            unavailable.Add(new(ExportComponents.Transcript, "No format chosen"));
             return;
         }
 
@@ -201,13 +201,13 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         }
         catch (ProjectSchemaException)
         {
-            unavailable.Add("Transcript (its file could not be read)");
+            unavailable.Add(new(ExportComponents.Transcript, "Its file could not be read"));
             return;
         }
 
         if (transcript is null)
         {
-            unavailable.Add("Transcript (not transcribed yet)");
+            unavailable.Add(new(ExportComponents.Transcript, "Not transcribed yet"));
             return;
         }
 
@@ -220,7 +220,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
                 ExportRules.Srt => SrtWriter.Write(transcript),
                 _ => TranscriptJson(await File.ReadAllTextAsync(Path.Combine(folder, ProjectLayout.TranscriptFile), cancellationToken), project, exportedAt),
             };
-            items.Add(TextItem(baseName + ExportNaming.TranscriptSuffix(format), null, content));
+            items.Add(TextItem(ExportComponents.Transcript, baseName + ExportNaming.TranscriptSuffix(format), null, content));
         }
     }
 }

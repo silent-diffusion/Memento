@@ -36,10 +36,11 @@ public sealed partial class MediaImportService(
     ILogger<MediaImportService> logger) : IAsyncDisposable, IDisposable
 {
     public const string TrackId = "imported";
-    public const string SourceId = "import";
 
-    /// <summary>Until <c>AudioSourceKind</c> gains an <c>imported</c> value, imported tracks show their file name like an app track.</summary>
-    public const string SourceKind = "application";
+    /// <summary>Source id and kind of an imported track (M3 clarification 6).</summary>
+    public const string SourceId = "imported";
+
+    public const string SourceKind = "imported";
 
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {

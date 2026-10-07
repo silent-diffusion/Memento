@@ -39,6 +39,8 @@ public sealed class ImportAndLibraryTests : IDisposable
         var track = Assert.Single(manifest.Tracks);
         Assert.Equal("imported", track.Id);
         Assert.Equal("board_meeting.wav", track.Name);
+        Assert.Equal("imported", track.SourceId);
+        Assert.Equal("imported", track.SourceKind);
         Assert.Equal("tracks/imported.flac", track.File);
         Assert.InRange(track.DurationMs, 1990, 2010);
         Assert.NotNull(track.Sha256);
@@ -116,6 +118,17 @@ public sealed class ImportAndLibraryTests : IDisposable
         var rebuilt = await _m3.ResultAsync("library.rebuildIndex", new { });
         Assert.Equal("""{"recordings":2}""", rebuilt.GetRawText());
         Assert.Equal(2, _m3.Sink.Payloads(BridgeEventNames.LibraryChanged).Single().GetProperty("recordingIds").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task TheLibraryListsLargestFirstWithSortSize()
+    {
+        var small = await _m3.RecordAsync("Small", 1);
+        var large = await _m3.RecordAsync("Large", 4);
+
+        var list = await _m3.ResultAsync("library.list", new { sort = "size" });
+
+        Assert.Equal([large, small], list.GetProperty("recordings").EnumerateArray().Select(r => r.GetProperty("id").GetString()));
     }
 
     [Fact]

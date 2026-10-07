@@ -40,7 +40,7 @@ public sealed class M3SettingsTests : IDisposable
         {
             general = new { keepRunningInTray = true },
             export = new { saveCopiesOutside = true, defaultFolder = folder, defaults = new { audioMixed = new { on = false, format = "mp3", bitrateKbps = 128 }, tracks = new { on = true, format = "wav" }, transcript = new { on = true, formats = SrtOnly }, documents = new { on = false }, details = new { on = true }, attachments = new { on = true } } },
-            ai = new { enabled = true, share = new { attachments = true }, providers = new { anthropic = new { hasKey = true } } },
+            ai = new { enabled = true, share = new { attachments = true } },
             storage = new { reclaimOlderThanDays = 90 },
         });
 
@@ -117,6 +117,10 @@ public sealed class M3SettingsTests : IDisposable
         var response = await _m3.Host.CallAsync("settings.set", """{"general":{"autoUpdate":true}}""");
 
         Assert.Equal(BridgeErrorCodes.InvalidParams, response.GetProperty("error").GetProperty("code").GetString());
+
+        // Keys change only through ai.setKey and ai.clearKey (M3 clarification 5).
+        var providers = await _m3.Host.CallAsync("settings.set", """{"ai":{"providers":{"anthropic":{"hasKey":true}}}}""");
+        Assert.Equal(BridgeErrorCodes.InvalidParams, providers.GetProperty("error").GetProperty("code").GetString());
     }
 
     [Fact]

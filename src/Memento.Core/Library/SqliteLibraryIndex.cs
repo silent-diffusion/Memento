@@ -170,6 +170,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             LibrarySort.Oldest => "r.createdAtUtc ASC, r.id ASC",
             LibrarySort.Longest => "r.durationMs DESC, r.createdAtUtc DESC",
             LibrarySort.Title => "r.title COLLATE NOCASE ASC, r.createdAtUtc DESC",
+            LibrarySort.Size => "r.sizeBytes DESC, r.createdAtUtc DESC",
             _ => "r.createdAtUtc DESC, r.id DESC",
         };
 

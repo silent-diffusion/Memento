@@ -50,7 +50,7 @@ public sealed partial class AgendaService(
     ];
 
     /// <summary><c>agenda.importFile</c>: the picker when <paramref name="path"/> is <c>null</c>.</summary>
-    public async Task<AgendaImportResult> ImportFileAsync(string recordingId, string? path, CancellationToken cancellationToken)
+    public async Task<AgendaImportResult> ImportFileAsync(string? recordingId, string? path, CancellationToken cancellationToken)
     {
         RequireProject(recordingId);
         var source = path;
@@ -68,7 +68,7 @@ public sealed partial class AgendaService(
     }
 
     /// <summary><c>agenda.importDropped</c>: the first dropped file the host has the real path of.</summary>
-    public async Task<AgendaImportResult> ImportDroppedAsync(string recordingId, IReadOnlyList<string> names, CancellationToken cancellationToken)
+    public async Task<AgendaImportResult> ImportDroppedAsync(string? recordingId, IReadOnlyList<string> names, CancellationToken cancellationToken)
     {
         RequireProject(recordingId);
         var path = dropped.Resolve(names ?? []);
@@ -83,7 +83,7 @@ public sealed partial class AgendaService(
     }
 
     /// <summary><c>agenda.parseText</c>.</summary>
-    public async Task<AgendaPreviewResult> ParseTextAsync(string recordingId, string text, CancellationToken cancellationToken)
+    public async Task<AgendaPreviewResult> ParseTextAsync(string? recordingId, string text, CancellationToken cancellationToken)
     {
         RequireProject(recordingId);
         var reading = await reader.ReadTextAsync(text ?? string.Empty, cancellationToken);
@@ -110,9 +110,9 @@ public sealed partial class AgendaService(
             throw M3Errors.Invalid($"The agenda source needs a name of 1 to {ProjectService.MaxTitleLength} characters, such as the file name.");
         }
 
-        RequireProject(parameters.RecordingId);
+        RequireExisting(parameters.RecordingId);
         var held = parameters.AttachmentToken is { } token ? pending.Find(token) : null;
-        if (held is not null && held.RecordingId != parameters.RecordingId)
+        if (held is not null && held.RecordingId is not null && held.RecordingId != parameters.RecordingId)
         {
             held = null;
         }
@@ -156,7 +156,7 @@ public sealed partial class AgendaService(
     /// <summary><c>agenda.setCovered</c>: works during recording too.</summary>
     public async Task<Bridge.Contracts.Agenda> SetCoveredAsync(string recordingId, string itemId, bool covered, CancellationToken cancellationToken)
     {
-        RequireProject(recordingId);
+        RequireExisting(recordingId);
         var saved = await catalog.UpdateAsync(
             recordingId,
             m =>
@@ -165,7 +165,7 @@ public sealed partial class AgendaService(
                 if (!agenda.Items.Any(i => i.Id == itemId))
                 {
                     throw new BridgeException(
-                        DomainErrorCodes.AnnotationsNotFound,
+                        DomainErrorCodes.AgendaItemNotFound,
                         "That agenda item is not in this recording any more; the agenda may have been replaced. Nothing was changed. Reopen the recording to see its agenda.",
                         itemId);
                 }
@@ -217,7 +217,7 @@ public sealed partial class AgendaService(
         return kept;
     }
 
-    private async Task<AgendaParsePreview> ReadFileAsync(string recordingId, string path, CancellationToken cancellationToken)
+    private async Task<AgendaParsePreview> ReadFileAsync(string? recordingId, string path, CancellationToken cancellationToken)
     {
         var reading = await reader.ReadFileAsync(path, cancellationToken);
         string token;
@@ -235,9 +235,19 @@ public sealed partial class AgendaService(
         return new AgendaParsePreview(Path.GetFileName(path), reading.SourceKind, reading.Title, reading.Items, reading.Warnings, reading.OcrEngine, token);
     }
 
-    private void RequireProject(string recordingId)
+    /// <summary>Apply and setCovered need a recording that exists.</summary>
+    private void RequireExisting([System.Diagnostics.CodeAnalysis.NotNull] string? recordingId)
     {
-        if (!store.Exists(recordingId))
+        if (recordingId is null || !store.Exists(recordingId))
+        {
+            throw ProjectService.NotFound(recordingId ?? string.Empty);
+        }
+    }
+
+    /// <summary>A preview may be made before the recording exists (<c>null</c>); a given id must name a project.</summary>
+    private void RequireProject(string? recordingId)
+    {
+        if (recordingId is not null && !store.Exists(recordingId))
         {
             throw ProjectService.NotFound(recordingId);
         }

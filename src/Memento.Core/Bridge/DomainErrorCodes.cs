@@ -75,6 +75,9 @@ public static class DomainErrorCodes
     /// <summary><c>agenda.apply</c> with more than 200 items.</summary>
     public const string AgendaTooManyItems = "agenda.tooManyItems";
 
+    /// <summary><c>agenda.setCovered</c> named an item the agenda does not have; <c>detail</c> is the id (M3 clarification 7).</summary>
+    public const string AgendaItemNotFound = "agenda.itemNotFound";
+
     /// <summary>The dropped file's path did not reach the host; the UI falls back to the picker.</summary>
     public const string AgendaDropUnavailable = "agenda.dropUnavailable";
 

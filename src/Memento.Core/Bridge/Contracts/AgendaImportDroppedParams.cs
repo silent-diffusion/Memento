@@ -6,7 +6,8 @@ namespace Memento.Core.Bridge.Contracts;
 /// </summary>
 public sealed record AgendaImportDroppedParams
 {
-    public required string RecordingId { get; init; }
+    /// <summary><c>null</c> before the recording exists (M3 clarification 2); the token is then accepted by any <c>agenda.apply</c>.</summary>
+    public string? RecordingId { get; init; }
 
     public IReadOnlyList<string> Paths { get; init; } = [];
 }

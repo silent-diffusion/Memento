@@ -54,13 +54,11 @@ public sealed partial class ExportService(
     {
         Validate(selection);
         var plan = await planner.PlanAsync(recordingId, selection, cancellationToken);
-        var items = plan.Items.Select(i => new ExportEstimateItem(i.Folder is null ? i.Name : i.Folder + "/" + i.Name, i.EstimatedBytes)).ToList();
-        if (items.Count > 0)
-        {
-            items.Add(new ExportEstimateItem(ExportNaming.ManifestFile, plan.ManifestEstimate));
-        }
+        var items = plan.Items.Select(i => new ExportEstimateItem(i.Component, i.Folder is null ? i.Name : i.Folder + "/" + i.Name, i.EstimatedBytes)).ToList();
 
-        return new ExportEstimate(items.Count, items.Sum(i => i.Bytes), items, plan.Unavailable);
+        // manifest.json is written beside any export; it is counted in the totals, not as a row's file.
+        var manifest = items.Count > 0 ? 1 : 0;
+        return new ExportEstimate(items.Count + manifest, items.Sum(i => i.Bytes) + (manifest * plan.ManifestEstimate), items, plan.Unavailable);
     }
 
     /// <summary>
@@ -76,7 +74,9 @@ public sealed partial class ExportService(
         var plan = await planner.PlanAsync(parameters.RecordingId, parameters.Selection, cancellationToken);
         if (plan.Items.Count == 0)
         {
-            var reasons = plan.Unavailable.Count > 0 ? string.Join(", ", plan.Unavailable) : "every row is unticked";
+            var reasons = plan.Unavailable.Count > 0
+                ? string.Join("; ", plan.Unavailable.Select(u => $"{ExportComponents.Label(u.Component)}: {u.Reason.ToLowerInvariant()}"))
+                : "every row is unticked";
             throw new BridgeException(
                 DomainErrorCodes.ExportNothingSelected,
                 $"There is nothing to export: {reasons}. Nothing was written. Tick at least one row that is available.");

@@ -8,7 +8,10 @@ public static class LibrarySort
     public const string Longest = "longest";
     public const string Title = "title";
 
-    public static IReadOnlyList<string> All { get; } = [Newest, Oldest, Longest, Title];
+    /// <summary>Largest project folder first (M3 clarification 3).</summary>
+    public const string Size = "size";
+
+    public static IReadOnlyList<string> All { get; } = [Newest, Oldest, Longest, Title, Size];
 
     public static bool IsValid(string? sort) => sort is not null && All.Contains(sort, StringComparer.Ordinal);
 }

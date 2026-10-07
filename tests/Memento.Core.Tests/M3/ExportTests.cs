@@ -30,16 +30,30 @@ public sealed class ExportTests : IDisposable
 
         Assert.Equal("files,bytes,items,unavailable", string.Join(",", estimate.EnumerateObject().Select(p => p.Name)));
         Assert.Equal(
-            ["Transcript (not transcribed yet)", "Documents (arrive in a later version)", "Attachments (none added)"],
-            estimate.GetProperty("unavailable").EnumerateArray().Select(u => u.GetString()));
-        var names = estimate.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("name").GetString()!).ToList();
+            """[{"component":"transcript","reason":"Not transcribed yet"},{"component":"documents","reason":"Documents arrive in a later version"},{"component":"attachments","reason":"No attachments"}]""",
+            estimate.GetProperty("unavailable").GetRawText());
+        var items = estimate.GetProperty("items").EnumerateArray().ToList();
         var baseName = await BaseNameAsync(id);
-        Assert.Equal([baseName + ".flac", baseName + " - Simulated microphone.wav", baseName + " - details.json", "manifest.json"], names);
-        Assert.Equal(names.Count, estimate.GetProperty("files").GetInt32());
-        Assert.Equal(estimate.GetProperty("items").EnumerateArray().Sum(i => i.GetProperty("bytes").GetInt64()), estimate.GetProperty("bytes").GetInt64());
+        Assert.Equal([baseName + ".flac", baseName + " - Simulated microphone.wav", baseName + " - details.json"], items.Select(i => i.GetProperty("name").GetString()));
+        Assert.Equal(["audioMixed", "tracks", "details"], items.Select(i => i.GetProperty("component").GetString()));
+
+        // The totals add manifest.json, which belongs to no row.
+        Assert.Equal(items.Count + 1, estimate.GetProperty("files").GetInt32());
+        Assert.True(estimate.GetProperty("bytes").GetInt64() > items.Sum(i => i.GetProperty("bytes").GetInt64()));
 
         var mix = new FileInfo(Path.Combine(_m3.Host.Store.GetProjectFolder(id), "mix.flac")).Length;
-        Assert.Equal(mix, estimate.GetProperty("items")[0].GetProperty("bytes").GetInt64());
+        Assert.Equal(mix, items[0].GetProperty("bytes").GetInt64());
+    }
+
+    [Theory]
+    [InlineData("Design review: library screen", "Design review - library screen 2026-10-05")]
+    [InlineData("A/B test | results?", "A - B test - results 2026-10-05")]
+    [InlineData("  --Roadmap--  ", "Roadmap 2026-10-05")]
+    [InlineData("...", "Recording 2026-10-05")]
+    public void TheFolderNameMatchesTheUi(string title, string expected)
+    {
+        Assert.Equal(expected, ExportNaming.BaseName(title, new DateTimeOffset(2026, 10, 5, 23, 30, 0, TimeSpan.FromHours(-6))));
+        Assert.Equal(ExportNaming.MaxTitleLength + 11, ExportNaming.BaseName(new string('x', 120), DateTimeOffset.Now).Length);
     }
 
     [Fact]
@@ -201,7 +215,7 @@ public sealed class ExportTests : IDisposable
         var noProject = await _m3.ErrorAsync("export.estimate", new { recordingId = "20260101-000000-aaaaaa", selection = new ExportSelection() });
 
         Assert.Equal(DomainErrorCodes.ExportNothingSelected, nothing.GetProperty("code").GetString());
-        Assert.Contains("Transcript (not transcribed yet)", nothing.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("Transcript: not transcribed yet", nothing.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(DomainErrorCodes.ExportNotFound, unknownCancel.GetProperty("code").GetString());
         Assert.Equal(DomainErrorCodes.ExportNotFound, unknownOpen.GetProperty("code").GetString());
         Assert.Equal(BridgeErrorCodes.InvalidParams, badFormat.GetProperty("code").GetString());

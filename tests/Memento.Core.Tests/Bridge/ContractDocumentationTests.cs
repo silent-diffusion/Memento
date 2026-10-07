@@ -60,9 +60,14 @@ public sealed partial class ContractDocumentationTests
     private static readonly string[] ClarificationStages = [StageNames.Topics];
     private static readonly string[] ClarificationCodes = [DomainErrorCodes.ModelsBusy];
 
+    /// <summary>What the "Clarifications (M3)" section added after the M3 UI landed.</summary>
+    private static readonly string[] M3ClarificationCodes = [DomainErrorCodes.AgendaItemNotFound];
+
     private static string Doc => ReadRepoFile("docs", "BRIDGE.md");
 
     private static bool DocHasClarifications => Doc.Contains("## Clarifications (M2", StringComparison.Ordinal);
+
+    private static bool DocHasM3Clarifications => Doc.Contains("## Clarifications (M3", StringComparison.Ordinal);
 
     /// <summary>From each <paramref name="heading"/> to the next <c>## </c> heading.</summary>
     private static string Sections(string heading)
@@ -92,8 +97,12 @@ public sealed partial class ContractDocumentationTests
     public void EveryHostErrorCodeIsDocumentedInBridgeMd()
     {
         // The M0/M1 "## Error codes" section, the M2 one, and the M2 clarifications.
-        var documented = Sections("## Error codes") + Sections("## Clarifications (M2");
+        var documented = Sections("## Error codes") + Sections("## Clarifications (M2") + Sections("## Clarifications (M3");
         var expected = DocHasClarifications ? HostErrorCodes() : HostErrorCodes().Except(ClarificationCodes, StringComparer.Ordinal).ToList();
+        if (!DocHasM3Clarifications)
+        {
+            expected = expected.Except(M3ClarificationCodes, StringComparer.Ordinal).ToList();
+        }
 
         Assert.All(expected, code => Assert.Contains($"`{code}`", documented, StringComparison.Ordinal));
     }
@@ -121,6 +130,7 @@ public sealed partial class ContractDocumentationTests
         }
 
         expected = expected.Except(ClarificationCodes.Except(ui, StringComparer.Ordinal), StringComparer.Ordinal).ToList();
+        expected = expected.Except(M3ClarificationCodes.Except(ui, StringComparer.Ordinal), StringComparer.Ordinal).ToList();
         Assert.Equal(expected.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
     }
 
