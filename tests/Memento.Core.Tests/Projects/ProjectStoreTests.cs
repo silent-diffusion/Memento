@@ -61,7 +61,7 @@ public sealed class ProjectStoreTests : IDisposable
         var loaded = await Store.LoadAsync(created.Id, CancellationToken.None);
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Store.GetProjectFolder(created.Id), "project.json")));
 
-        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, document.RootElement.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("Weekly sync", document.RootElement.GetProperty("details").GetProperty("title").GetString());
         Assert.Equal("2026-10-06T10:00:00+01:00", document.RootElement.GetProperty("createdAt").GetString());
         Assert.Equal(61_000, loaded.DurationMs);
@@ -164,6 +164,7 @@ public sealed class ProjectStoreTests : IDisposable
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         node.Remove("details");
         node["legacyTitle"] = "From v1";
+        node["schemaVersion"] = 1;
         await File.WriteAllTextAsync(path, node.ToJsonString());
 
         // A hypothetical v2 moved "legacyTitle" into details.title.
@@ -198,7 +199,46 @@ public sealed class ProjectStoreTests : IDisposable
         Assert.Throws<ProjectSchemaException>(() => migrator.Migrate(new JsonObject { ["schemaVersion"] = 0 }));
         Assert.True(migrator.Migrate(new JsonObject { ["schemaVersion"] = 4 }).FromNewerVersion);
         Assert.Equal(1, ProjectManifestMigrator.Default.Migrate(new JsonObject()).FromVersion);
-        Assert.False(ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = 1 }).Migrated);
+        Assert.True(ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = 1 }).Migrated);
+        Assert.False(ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = ProjectManifest.CurrentSchemaVersion }).Migrated);
+    }
+
+    [Fact]
+    public async Task AV1ManifestKeepsItsReadableAttachmentsAsTheTypedListAndDropsDamagedOnes()
+    {
+        var created = await CreateAsync();
+        var path = Path.Combine(Store.GetProjectFolder(created.Id), "project.json");
+        var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        node["schemaVersion"] = 1;
+        node.Remove("attachments");
+        node["attachments"] = JsonNode.Parse("""
+            [
+              { "id": "a1", "name": "agenda.docx", "file": "attachments/agenda.docx", "sizeBytes": 12, "sha256": "ab", "addedAt": "2026-10-01T10:00:00+02:00", "kind": "agenda", "contentType": null, "note": "kept" },
+              { "id": "a2", "name": "broken.pdf", "file": "attachments/broken.pdf", "sizeBytes": "twelve" },
+              { "name": "no id.txt", "file": "attachments/no id.txt" },
+              "not an object"
+            ]
+            """);
+        await File.WriteAllTextAsync(path, node.ToJsonString());
+
+        var loaded = await Store.LoadAsync(created.Id, CancellationToken.None);
+        await Store.SaveAsync(loaded, CancellationToken.None);
+
+        var attachment = Assert.Single(loaded.Attachments);
+        Assert.Equal(("a1", "agenda", "attachments/agenda.docx", 12L), (attachment.Id, attachment.Kind, attachment.File, attachment.SizeBytes));
+        var written = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, written["schemaVersion"]!.GetValue<int>());
+        Assert.Equal("kept", written["attachments"]![0]!["note"]!.GetValue<string>());
+        Assert.Single(written["attachments"]!.AsArray());
+    }
+
+    [Fact]
+    public void AV1AttachmentsFieldThatIsNotAListIsDropped()
+    {
+        var migrated = ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = 1, ["attachments"] = "agenda.docx" });
+
+        Assert.False(migrated.Manifest.ContainsKey("attachments"));
+        Assert.Equal(2, migrated.Manifest["schemaVersion"]!.GetValue<int>());
     }
 
     [Theory]

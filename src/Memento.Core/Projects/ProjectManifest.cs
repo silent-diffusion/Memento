@@ -5,12 +5,13 @@ using Memento.Core.Bridge.Contracts;
 namespace Memento.Core.Projects;
 
 /// <summary>
-/// <c>project.json</c>, schema v1 (ARCHITECTURE.md §4). Fields this build does not know are kept in
-/// <see cref="ExtensionData"/> and written back unchanged.
+/// <c>project.json</c>, schema v2 (ARCHITECTURE.md §4). Fields this build does not know are kept in
+/// <see cref="ExtensionData"/> and written back unchanged. v2 (0.4.0) makes <see cref="Attachments"/> a typed field;
+/// v1 files carried the same array untyped, and <see cref="ProjectManifestMigrator"/> drops entries it cannot read.
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -60,6 +61,9 @@ public sealed record ProjectManifest
 
     /// <summary>How the next transcription pass runs when it differs from Settings (M2); <c>null</c> otherwise.</summary>
     public ProcessingRequest? Processing { get; init; }
+
+    /// <summary>Files kept with the recording (M3): the original agenda and other attachments, in the order added.</summary>
+    public IReadOnlyList<AttachmentRecord> Attachments { get; init; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

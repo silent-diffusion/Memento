@@ -94,7 +94,7 @@ Library/
 ```
 
 Rules:
-- `project.json` carries `schemaVersion`. Readers accept older versions and migrate forward; writers always write the current version. Unknown fields are preserved on round-trip.
+- `project.json` carries `schemaVersion`. Readers accept older versions and migrate forward; writers always write the current version. Unknown fields are preserved on round-trip. Schema v2 (0.4.0) adds the typed `attachments` index (id, name, file, size, SHA-256, added, kind `agenda` | `file`, content type); the v1 → v2 step keeps every readable entry and drops damaged ones.
 - Writes are atomic: write to `<name>.tmp`, flush, then `File.Move(overwrite: true)`.
 - Original tracks are never modified after finalize. Storage optimisation (downmix, lossy) writes new files and records the operation and the resulting hashes in `history.jsonl`; the user opts in.
 - `integrity` in the manifest lists SHA-256 for every track and the mix, computed at finalize. Exports write a `manifest.json` beside the files with the same hashes.

@@ -83,7 +83,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
         if (selection.Attachments.On)
         {
-            var files = ManifestAttachments.Read(manifest).Where(a => File.Exists(Full(folder, a.File))).ToList();
+            var files = manifest.Attachments.Where(a => File.Exists(Full(folder, a.File))).ToList();
             if (files.Count == 0)
             {
                 unavailable.Add(new(ExportComponents.Attachments, "No attachments"));

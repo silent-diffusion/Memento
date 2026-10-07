@@ -249,7 +249,7 @@ public sealed class AgendaAndAttachmentTests : IDisposable
         Assert.Equal("application/pdf", first.GetProperty("contentType").GetString());
 
         var manifest = await _m3.Host.Store.LoadAsync(id, CancellationToken.None);
-        var records = ManifestAttachments.Read(manifest);
+        var records = manifest.Attachments;
         Assert.Equal(["attachments/Slides final.pdf", "attachments/Slides final (2).pdf"], records.Select(r => r.File));
         Assert.Equal(await FileHashes.Sha256Async(source, CancellationToken.None), records[0].Sha256);
 
