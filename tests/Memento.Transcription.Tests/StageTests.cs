@@ -655,6 +655,40 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task IdentifyingSpeakersAgainWhileTheyRunStartsOverWithTheNewSettings()
+    {
+        InstallAll();
+        var firstStarted = new TaskCompletionSource();
+        _host.Workers.Script = async (job, context, cancel) =>
+        {
+            if (job.Kind == WorkerJobKinds.Diarize && !firstStarted.Task.IsCompleted)
+            {
+                lock (_jobs)
+                {
+                    _jobs.Add(job);
+                }
+
+                // The first speaker job is still busy when the expected count changes.
+                firstStarted.TrySetResult();
+                await Task.Delay(Timeout.Infinite, cancel);
+            }
+
+            return await DefaultScript(job, context, cancel);
+        };
+
+        var id = await _host.RecordAsync("Again", 2, Mic, SystemAudio);
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await _host.ResultAsync("settings.set", """{"speakers":{"expectedSpeakers":3}}""");
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+
+        var jobs = Jobs(WorkerJobKinds.Diarize);
+        Assert.Equal([-1, 3], jobs.Select(j => j.Diarize!.NumClusters));
+        Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
+        Assert.Empty((await ManifestAsync(id)).Failures);
+    }
+
+    [Fact]
     public async Task TurningTranscriptionOffQueuesNothing()
     {
         InstallAll();
