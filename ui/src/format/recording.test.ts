@@ -95,6 +95,11 @@ describe('status pills', () => {
     ]);
   });
 
+  it('reads a stage waiting for a model as waiting, not failed', () => {
+    const waiting: StageStatus = { stage: 'transcript', state: 'failed', percent: null, label: 'Waiting for a model' };
+    expect(pills([stage('stored', 'done'), waiting])).toEqual([{ kind: 'queued', label: 'Transcript · needs a model' }]);
+  });
+
   it('shows storing progress while a new recording finalizes', () => {
     expect(pills([stage('stored', 'active', 40)])).toEqual([{ kind: 'active', label: 'Storing 40%' }]);
   });

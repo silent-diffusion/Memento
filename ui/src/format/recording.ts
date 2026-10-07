@@ -145,6 +145,10 @@ function pillFor(stage: StageStatus): Pill {
     case 'queued':
       return { ...base, kind: 'queued', label: named(DONE_NAMES, stage.stage) };
     case 'failed':
+      // Waiting for a model to be installed is not a failure; it starts by itself once there is one.
+      if (stage.label === 'Waiting for a model') {
+        return { ...base, kind: 'queued', label: `${named(DONE_NAMES, stage.stage)} · needs a model` };
+      }
       return { ...base, kind: 'failed', label: `${named(DONE_NAMES, stage.stage)} failed · Retry` };
   }
 }
@@ -155,10 +159,11 @@ function pillFor(stage: StageStatus): Pill {
  * it says the recording itself is safe. An empty list means "Audio only".
  */
 export function stagePills(stages: readonly StageStatus[]): Pill[] {
-  const anyFailed = stages.some((s) => s.state === 'failed');
-  const failed = stages.filter((s) => s.state === 'failed').map(pillFor);
+  const broken = (s: StageStatus): boolean => s.state === 'failed' && s.label !== 'Waiting for a model';
+  const anyFailed = stages.some(broken);
+  const failed = stages.filter(broken).map(pillFor);
   const rest = stages
-    .filter((s) => s.state !== 'failed' && (!HOUSEKEEPING.has(s.stage) || s.state !== 'done' || anyFailed))
+    .filter((s) => !broken(s) && (!HOUSEKEEPING.has(s.stage) || s.state !== 'done' || anyFailed))
     .map(pillFor);
   // A row's stages leave a finished Stored out (BRIDGE.md, Stages); beside a failure it is put back,
   // because "the recording itself is safe" is the point (DESIGN.md §17).

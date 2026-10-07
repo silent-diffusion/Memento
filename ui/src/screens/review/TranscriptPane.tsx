@@ -7,6 +7,7 @@ import type { CoverageGap, Highlight, ModelInfo, Project, Speaker, StageFailure,
 import { CheckIcon, TranscriptLinesIcon } from '../../components/icons';
 import { formatDuration } from '../../format/duration';
 import { gapNoticeText, gapPlacement, isPausedLabel, otherModelFor, segmentIndexAt, transcribingText } from '../../format/transcript';
+import { openSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { computeWindow, RowHeights } from '../../format/virtualList';
 import { createFollowPlayhead, followScrollDelta, type FollowPlayhead } from '../../state/followPlayhead';
@@ -19,6 +20,9 @@ const ESTIMATED_ROW = 76;
 const OVERSCAN = 8;
 const NO_HIGHLIGHTS: readonly Highlight[] = [];
 const NO_GAPS: readonly CoverageGap[] = [];
+
+/** The host's label for a stage whose model is not installed (BRIDGE.md M2 clarification 14). */
+const WAITING_FOR_MODEL = 'Waiting for a model';
 
 const FAILED_LABEL: Partial<Record<StageFailure['stage'], string>> = {
   transcript: 'Transcription failed',
@@ -78,10 +82,23 @@ function ProgressCard({ title, text, stage, children }: { title: string; text: s
   );
 }
 
-function FailedCard({ failure, onRemedy, onDetails }: { failure: StageFailure; onRemedy: (remedyId: string) => void; onDetails: () => void }): JSX.Element {
-  const label = FAILED_LABEL[failure.stage] ?? 'Processing failed';
+function FailedCard({
+  failure,
+  waiting,
+  onRemedy,
+  onDetails,
+  onSettings,
+}: {
+  failure: StageFailure;
+  /** The stage only waits for a model to be installed (label "Waiting for a model"): nothing went wrong. */
+  waiting: boolean;
+  onRemedy: (remedyId: string) => void;
+  onDetails: () => void;
+  onSettings: () => void;
+}): JSX.Element {
+  const label = waiting ? WAITING_FOR_MODEL : (FAILED_LABEL[failure.stage] ?? 'Processing failed');
   return (
-    <section class="tx-failed" aria-labelledby="tx-failed-label">
+    <section class={waiting ? 'tx-failed tx-failed--waiting' : 'tx-failed'} aria-labelledby="tx-failed-label">
       <div class="tx-failed-text">
         <div id="tx-failed-label" class="tx-failed-label">
           <span class="tx-failed-dot" aria-hidden="true" />
@@ -92,10 +109,15 @@ function FailedCard({ failure, onRemedy, onDetails }: { failure: StageFailure; o
         </p>
       </div>
       <div class="tx-failed-actions">
+        {waiting ? (
+          <button class="btn p" type="button" onClick={onSettings}>
+            {failure.stage === 'speakers' ? 'Open Settings › Speakers' : 'Open Settings › Transcription'}
+          </button>
+        ) : null}
         {failure.remedies.map((remedy, i) => (
           <button
             key={remedy.id}
-            class={i === 0 ? 'btn p' : 'btn g'}
+            class={i === 0 && !waiting ? 'btn p' : 'btn g'}
             type="button"
             onClick={() => {
               onRemedy(remedy.id);
@@ -533,7 +555,8 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
   const failure = result?.failure ?? null;
 
   // Coverage notices, and the installed model they offer to transcribe again with.
-  const { bridge, store } = useServices();
+  const services = useServices();
+  const { bridge, store } = services;
   const coverageGaps = transcript?.coverageGaps;
   const gaps = useMemo(() => gapPlacement(segments, coverageGaps ?? []), [segments, coverageGaps]);
   const [models, setModels] = useState<ModelInfo[] | null>(null);
@@ -698,7 +721,11 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
       {failure !== null && (status === 'failed' || failure.stage !== 'transcript') ? (
         <FailedCard
           failure={failure}
+          waiting={api.stages.find((s) => s.stage === failure.stage)?.label === WAITING_FOR_MODEL}
           onDetails={onShowHistory}
+          onSettings={() => {
+            openSettings(services, failure.stage === 'speakers' ? 'speakers' : 'transcription');
+          }}
           onRemedy={(remedyId) => {
             void api.retry(failure.stage, remedyId).then((message) => {
               if (message !== null) {
