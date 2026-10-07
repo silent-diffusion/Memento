@@ -1,0 +1,851 @@
+/* Document builder (DESIGN.md §10, §5.14, §5.15, §5.17), transcribed from
+   design/renders/Builder.dc.html. Shadows and colours come from tokens.css by role; its hover,
+   press and focus rules apply by class (.pal, .mod, .modhead, .icon-btn, .dz, .side, .seg, .tog). */
+
+.builder-title {
+  flex: 0 1 300px;
+}
+
+/* Generate and Save style while they cannot run (no ready provider, a job running, nothing to save). */
+.spoke-primary:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+}
+
+.builder-main {
+  flex: 1;
+  padding: 28px 40px 40px;
+  box-sizing: border-box;
+}
+
+.builder-layout {
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* Palette */
+.palette {
+  flex: 0 1 236px;
+  min-width: 200px;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--neo-card);
+  padding: 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.palette-search {
+  position: relative;
+}
+
+.palette-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.palette-field {
+  width: 100%;
+  padding: 0 12px 0 36px;
+  font-size: 13px;
+}
+
+.palette-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.palette-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.palette-label {
+  padding: 6px 10px 4px;
+}
+
+.pal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px 0 8px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  box-sizing: border-box;
+  cursor: grab;
+}
+
+.pal:active {
+  cursor: grabbing;
+}
+
+.pal-handle {
+  color: var(--line-strong);
+  flex: none;
+}
+
+.pal-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pal-plus {
+  color: var(--text-3);
+  flex: none;
+}
+
+.palette-hint,
+.palette-empty {
+  margin: 0;
+  padding: 4px 10px 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Structure */
+.structure {
+  flex: 999 1 440px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.structure-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 2px 6px;
+}
+
+.structure-hint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.structure-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.structure-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: var(--neo-in);
+  text-align: center;
+}
+
+.structure-empty-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.structure-empty-text {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.row-line {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.row-grid {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  /* A selected card grows; the cards beside it keep their own height. */
+  align-items: start;
+}
+
+/* Drop zones (§5.17): a 10 px gap that becomes a 40 px pressed-in strip while dragging. */
+.dz {
+  height: 10px;
+  border-radius: 12px;
+  transition: height 0.12s, background 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.dz.live {
+  height: 40px;
+}
+
+.dz.live.hot {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.side {
+  display: none;
+  width: 28px;
+  flex: none;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.side.live {
+  display: flex;
+}
+
+.side.hot {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: var(--neo-in), 0 0 0 2px var(--accent);
+}
+
+/* Module card (§5.14) */
+.mod {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 12px 12px 10px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+.mod.ghosted {
+  opacity: 0.4;
+}
+
+.mod-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.handle {
+  cursor: grab;
+  color: var(--text-3);
+  flex: none;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.handle:active {
+  cursor: grabbing;
+}
+
+.modhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  border-radius: 12px;
+}
+
+.mod-n {
+  font-size: 11px;
+  color: var(--text-3);
+  width: 18px;
+  flex: none;
+}
+
+.mod-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mod-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mod-instr {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mod-icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.mod-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 0 0 32px;
+}
+
+.mod-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mod-input {
+  width: 100%;
+  height: 34px;
+  font-size: 13px;
+}
+
+.mod-textarea {
+  width: 100%;
+  height: auto;
+  padding: 10px 12px;
+  font-size: 13px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.mod-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.mod-options {
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.mod-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mod-option-label,
+.mod-option-text {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.mod-option-text {
+  color: var(--text);
+}
+
+.mod-option .seg {
+  height: 26px;
+  font-size: 12px;
+}
+
+.add-module {
+  height: 44px;
+  border-radius: 20px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+
+/* Preview and inputs */
+.builder-side {
+  flex: 0 1 400px;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.builder-tabs {
+  border-radius: 16px;
+}
+
+.builder-tabs .seg {
+  flex: 1;
+}
+
+.builder-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.preview-caption-strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.preview-edit-style {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.builder-paper .paper {
+  min-height: 560px;
+}
+
+.preview-foot {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.builder-inline-error {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 20px;
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.inputs-card {
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--neo-card);
+  padding: 18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.inputs-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inputs-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inputs-groove {
+  height: 1px;
+  background: var(--line);
+}
+
+.inputs-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.input-check--locked {
+  color: var(--text-3);
+}
+
+.input-name {
+  flex: 1;
+}
+
+.input-note,
+.inputs-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.inline-link {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.provider-off {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  box-shadow: var(--neo-in);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.providers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  cursor: pointer;
+}
+
+.provider.on {
+  box-shadow: var(--neo-sm), 0 0 0 2px var(--text);
+}
+
+.provider--off {
+  box-shadow: var(--neo-in-xs);
+  color: var(--text-3);
+  cursor: default;
+}
+
+.provider-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.provider-note {
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.style-choice .seg-well {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.style-choice .seg {
+  flex: 1;
+}
+
+.outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.output-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.output-ok {
+  color: var(--ok);
+}
+
+.output-name {
+  flex: 1;
+}
+
+.notice-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notice-link {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.notice-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.notice-link:disabled {
+  color: var(--text-3);
+}
+
+/* Generation progress (a card in the preview's place) and the §17 provider failure. */
+.gen-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+}
+
+.gen-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gen-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.gen-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.gen-percent {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.gen-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.gen-detail {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.gen-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+.gen-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.gen-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gen-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.ai-failure {
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--neo-sm);
+  padding: 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-failure-text {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+}
+
+.ai-failure-icon {
+  color: var(--danger);
+  flex: none;
+  margin-top: 2px;
+}
+
+.ai-failure-lead {
+  font-weight: 700;
+}
+
+.ai-failure-body {
+  color: var(--text-2);
+}
+
+.ai-failure-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-failure-dismiss {
+  margin-left: auto;
+}
+
+/* What will be sent (sheet) and the send confirmation. */
+.payload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.payload-loading,
+.payload-never {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.payload-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  row-gap: 8px;
+  column-gap: 12px;
+  font-size: 13px;
+  align-items: center;
+}
+
+.payload-facts dt {
+  color: var(--text-3);
+}
+
+.payload-facts dd {
+  margin: 0;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.payload-facts dd.mono {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.send-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.send-none {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.payload-warnings {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.payload-label {
+  margin-top: 4px;
+}
+
+.payload-text {
+  width: 100%;
+  height: auto;
+  min-height: 320px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
+.confirm-facts {
+  margin-top: 14px;
+}
+
+.confirm-never {
+  margin-top: 12px;
+}
+
+.sheet-footer-note {
+  font-size: 12px;
+  color: var(--text-3);
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dz,
+  .gen-fill {
+    transition: none;
+  }
+}

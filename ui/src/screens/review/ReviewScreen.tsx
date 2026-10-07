@@ -21,6 +21,7 @@ import { PlayerStrip, usePeaks, usePlayer } from './Player';
 import { DetailsPane, OutlinePane, type DetailsTab } from './ReviewPanes';
 import { TranscriptPane } from './TranscriptPane';
 import { useTranscript, useTranscriptSearch } from './useTranscript';
+import { rememberPlayhead } from '../docview/playhead';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -41,15 +42,14 @@ export function reviewMeta(project: Project, now: Date): string {
   ].join(' · ');
 }
 
-const DOCUMENT_NOTICE = {
-  kind: 'notice' as const,
-  title: 'Documents arrive in a later version',
-  body: 'Minutes, summaries and other documents are built from the transcript in a later version of Memento. The transcript is ready for them.',
-};
-
-export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Element {
+/** `startAtMs` (M4): a document's timestamp chip opens Review at that moment. */
+export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; startAtMs?: number }): JSX.Element {
   const services = useServices();
   const { bridge, store } = services;
+  // M4: Create document opens the Document builder.
+  const createDocument = (): void => {
+    services.router.navigate({ name: 'builder', recordingId, templateId: null, documentId: null });
+  };
   const known = store.library.value?.recordings.find((r) => r.id === recordingId) ?? null;
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +135,26 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
 
   const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0);
   const peaks = usePeaks(project?.peaksUrl ?? null);
+  // M4: the viewer's Insert timestamp starts where the player is.
+  useEffect(() => {
+    rememberPlayhead(store, recordingId, player.positionMs);
+  }, [store, recordingId, player.positionMs]);
+  // M4: opened from a document's timestamp chip: the player goes there, then the transcript line shows.
+  const startDone = useRef({ seek: false, reveal: false });
+  useEffect(() => {
+    if (startAtMs === undefined || project === null) {
+      return;
+    }
+    if (!startDone.current.seek) {
+      startDone.current.seek = true;
+      player.seek(startAtMs);
+    }
+    const segment = transcript?.segments.find((seg) => seg.start * 1000 <= startAtMs && startAtMs < seg.end * 1000) ?? transcript?.segments.find((seg) => seg.start * 1000 >= startAtMs);
+    if (!startDone.current.reveal && segment !== undefined) {
+      startDone.current.reveal = true;
+      revealRef.current?.(segment.id);
+    }
+  }, [startAtMs, project, transcript]);
   // One saver for the sheet, created with the first project read; Edit details re-adopts the latest.
   const saverRef = useRef<DetailsSaver | null>(null);
   if (saverRef.current === null && project !== null) {
@@ -233,9 +253,7 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
             <button
               class="btn primary spoke-primary"
               type="button"
-              onClick={() => {
-                store.dialog.value = DOCUMENT_NOTICE;
-              }}
+              onClick={createDocument}
             >
               <DocumentPlusIcon size={16} />
               Create document
@@ -405,9 +423,7 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
             onTags={(tags) => {
               updateDetails({ tags }, 'The tags were not saved');
             }}
-            onCreateDocument={() => {
-              store.dialog.value = DOCUMENT_NOTICE;
-            }}
+            onCreateDocument={createDocument}
           />
         </div>
       )}

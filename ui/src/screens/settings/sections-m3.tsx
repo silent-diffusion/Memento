@@ -26,6 +26,7 @@ import { updateLibraryView } from '../../state/data';
 import { jobsOf } from '../../state/jobs';
 import { PROVIDER_NAMES } from './SettingsDialogs';
 import { LATER, OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
+import { AiProviderDefaults } from './sections-m4';
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Memento did not answer.';
@@ -409,6 +410,8 @@ export function AiPrivacySection(): JSX.Element {
           }
         />
       </SettingsGroup>
+      {/* M4: the default provider and the local model (sections-m4.tsx). */}
+      <AiProviderDefaults />
     </>
   );
 }

@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Chapter, Highlight, HistoryEntry, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
 import { TagEditor } from '../../components/DetailsSheet';
 import { AttachmentsSection } from '../../components/attachments/AttachmentsSection';
-import { DocumentIcon, MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
+import { MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
+import { DocumentsTab } from '../docview/DocumentsTab';
 import { ActionMenu } from '../../components/Menus';
 import { formatDuration } from '../../format/duration';
 import { activeChapterIndex, chapterInsertIndex, historyTone } from '../../format/player';
@@ -641,21 +642,8 @@ export function DetailsPane({
             </button>
           </>
         ) : tab === 'documents' ? (
-          <div class="docs">
-            <div class="docs-empty">
-              <span class="docs-empty-tile" aria-hidden="true">
-                <DocumentIcon size={18} />
-              </span>
-              <span class="docs-empty-title">No documents yet</span>
-              <span class="docs-empty-text">
-                Minutes, summaries and notes are built from the transcript. Creating documents arrives in a later version.
-              </span>
-            </div>
-            <button class="btn primary docs-create" type="button" onClick={onCreateDocument}>
-              Create document
-            </button>
-            <p class="docs-note">Documents are saved inside this recording and can be exported on their own.</p>
-          </div>
+          // M4: the recording's documents (screens/docview/DocumentsTab.tsx).
+          <DocumentsTab recordingId={summary.id} onCreate={onCreateDocument} />
         ) : (
           <HistoryList history={project.history} now={now} onRetry={onRetry} />
         )}

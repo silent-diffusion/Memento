@@ -97,6 +97,9 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
       'Claude (Anthropic)',
       'ChatGPT (OpenAI)',
       'Allowed data',
+      // M4
+      'Default provider',
+      'Local model',
     ]);
     expect(button('Allow external AI services').getAttribute('aria-checked')).toBe('false');
     expect(rowOf('Claude (Anthropic)').querySelector('.settings-key')?.textContent).toBe(MASKED_KEY);

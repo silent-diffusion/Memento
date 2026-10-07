@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type {
   Attachment,
   AudioExportFormat,
+  DocumentExportFormat,
+  DocumentSummary,
   ExportComponent,
   ExportEstimate,
   ExportSelection,
@@ -32,6 +34,7 @@ import { formatSize } from '../../format/storage';
 import { useServices } from '../../state/context';
 import type { DialogRequest } from '../../state/dialogs';
 import { trackExport } from '../../state/jobs';
+import './export-m4.css';
 
 export const ESTIMATE_DEBOUNCE_MS = 250;
 
@@ -52,14 +55,23 @@ const TRANSCRIPT_OPTIONS = (Object.keys(TRANSCRIPT_FORMAT_LABELS) as TranscriptE
   label: TRANSCRIPT_FORMAT_LABELS[value],
 }));
 
-/** Documents stay off in M3: the row is disabled ("Documents arrive in a later version"). */
-function startingSelection(selection: ExportSelection): ExportSelection {
+/**
+ * M4: Documents follow the defaults (every document of the recording), or start ticked with the
+ * ones the Document viewer's Export names.
+ */
+function startingSelection(selection: ExportSelection, documentIds?: string[]): ExportSelection {
   return {
     ...selection,
     transcript: { ...selection.transcript, formats: selection.transcript.formats.length === 0 ? ['json'] : selection.transcript.formats },
-    documents: { ...selection.documents, on: false },
+    documents: documentIds === undefined ? { ...selection.documents, documentIds: [] } : { ...selection.documents, on: true, documentIds },
   };
 }
+
+const DOCUMENT_OPTIONS: readonly { value: DocumentExportFormat; label: string }[] = [
+  { value: 'docx', label: 'Word' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'markdown', label: 'Markdown' },
+];
 
 function withAudioFormat(choice: ExportSelection['audioMixed'], format: AudioExportFormat): ExportSelection['audioMixed'] {
   return { ...choice, format, bitrateKbps: format === 'mp3' ? (choice.bitrateKbps ?? MP3_EXPORT_KBPS) : null };
@@ -123,9 +135,11 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
 
   const [project, setProject] = useState<Project | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // M4: the recording's documents for the Documents row.
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selection, setSelection] = useState<ExportSelection | null>(() => {
     const base = retry?.selection ?? exportSettings?.defaults ?? null;
-    return base === null ? null : startingSelection(base);
+    return base === null ? null : retry !== null ? base : startingSelection(base, request.documentIds);
   });
   const [folder, setFolder] = useState<string>(retry?.destination.folder ?? exportSettings?.defaultFolder ?? '');
   const [subfolder, setSubfolder] = useState<boolean>(retry?.destination.createSubfolder ?? exportSettings?.createSubfolder ?? true);
@@ -149,11 +163,16 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
 
   useEffect(() => {
     let live = true;
-    Promise.all([bridge.call('project.get', { recordingId: request.recordingId }), bridge.call('attachments.list', { recordingId: request.recordingId })])
-      .then(([p, a]) => {
+    Promise.all([
+      bridge.call('project.get', { recordingId: request.recordingId }),
+      bridge.call('attachments.list', { recordingId: request.recordingId }),
+      bridge.call('documents.list', { recordingId: request.recordingId }).catch(() => ({ documents: [] })),
+    ])
+      .then(([p, a, d]) => {
         if (live) {
           setProject(p);
           setAttachments(a.attachments);
+          setDocuments(d.documents);
         }
       })
       .catch((e: unknown) => {
@@ -169,7 +188,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
   // Settings may arrive after the dialog opened (a reload straight into Review).
   useEffect(() => {
     if (selection === null && exportSettings !== null) {
-      setSelection(startingSelection(exportSettings.defaults));
+      setSelection(startingSelection(exportSettings.defaults, request.documentIds));
       setFolder((f) => (f === '' ? (exportSettings.defaultFolder ?? '') : f));
     }
   }, [exportSettings, selection]);
@@ -215,6 +234,17 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
     const items = estimate.items.filter((i) => i.component === component);
     return items.length === 0 ? '—' : formatSize(items.reduce((sum, i) => sum + i.bytes, 0));
   };
+  /** M4: the size of the chosen documents ([] = all of them) in the chosen format. */
+  const documentsSize = (documentIds: readonly string[]): string => {
+    if (estimate === null) {
+      return '…';
+    }
+    if (unavailable.has('documents')) {
+      return '—';
+    }
+    const items = estimate.items.filter((i) => i.component === 'documents' && (documentIds.length === 0 || (i.documentId !== undefined && documentIds.includes(i.documentId))));
+    return items.length === 0 ? '—' : formatSize(items.reduce((sum, i) => sum + i.bytes, 0));
+  };
   const summary = estimate === null || selection === null ? null : summarise(estimate, selection);
 
   /** The selection as sent: rows that cannot be exported are off. */
@@ -224,7 +254,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
       audioMixed: { ...current.audioMixed, on: current.audioMixed.on && !off('audioMixed') },
       tracks: { ...current.tracks, on: current.tracks.on && !off('tracks') },
       transcript: { ...current.transcript, on: current.transcript.on && !off('transcript') },
-      documents: { ...current.documents, on: false },
+      documents: { ...current.documents, on: current.documents.on && !off('documents') },
       details: { on: current.details.on && !off('details') },
       attachments: { on: current.attachments.on && !off('attachments') },
     };
@@ -447,15 +477,57 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                     />
                   }
                 />
+                {/* M4: the recording's documents, each with its own checkbox while the row is ticked. */}
                 <ComponentRow
                   id="exp-documents"
                   name="Documents"
-                  description="Documents arrive in a later version"
-                  checked={false}
-                  disabled
-                  size="—"
-                  format={<SelectMenu label="Format for Documents" value="docx" options={[{ value: 'docx', label: 'Word' }]} disabled onChange={() => undefined} />}
+                  description={reasonOr('documents', 'Generated and hand-written documents')}
+                  checked={s.documents.on && isAvailable('documents')}
+                  disabled={!isAvailable('documents')}
+                  size={documentsSize(s.documents.documentIds)}
+                  onToggle={() => {
+                    update({ documents: { ...s.documents, on: !s.documents.on } });
+                  }}
+                  format={
+                    <SelectMenu<DocumentExportFormat>
+                      label="Format for Documents"
+                      value={s.documents.format}
+                      options={DOCUMENT_OPTIONS}
+                      disabled={!s.documents.on || !isAvailable('documents')}
+                      onChange={(format) => {
+                        update({ documents: { ...s.documents, format } });
+                      }}
+                    />
+                  }
                 />
+                {s.documents.on && isAvailable('documents') && documents.length > 0 ? (
+                  <div class="export-subrows" role="group" aria-label="Documents to export">
+                    {documents.map((doc) => {
+                      const chosen = s.documents.documentIds.length === 0 || s.documents.documentIds.includes(doc.id);
+                      return (
+                        <label key={doc.id} class="export-subrow">
+                          <input
+                            class="chk"
+                            type="checkbox"
+                            checked={chosen}
+                            onChange={() => {
+                              const current = s.documents.documentIds.length === 0 ? documents.map((d) => d.id) : s.documents.documentIds;
+                              const next = chosen ? current.filter((id) => id !== doc.id) : [...current, doc.id];
+                              update({
+                                documents:
+                                  next.length === 0
+                                    ? { ...s.documents, on: false, documentIds: [] }
+                                    : { ...s.documents, documentIds: next.length === documents.length ? [] : next },
+                              });
+                            }}
+                          />
+                          <span class="export-subrow-name">{doc.name}</span>
+                          <span class="mono export-subrow-size">{documentsSize([doc.id])}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <ComponentRow
                   id="exp-details"
                   name="Recording details"
