@@ -15,7 +15,7 @@ const bridge: BridgeClient = {
 const EMPTY = { recordings: [], totalDurationMs: 0, totalCount: 0 };
 
 const footerPayload = (overrides: Partial<FooterStatusPayload> = {}): FooterStatusPayload => ({
-  engine: { ready: false, device: null },
+  engine: { ready: false, device: null, detail: { ready: false, device: null, gpuName: null, freeVramBytes: null, model: null, paused: null } },
   storage: { freeBytes: 212 * 1024 ** 3, lowSpace: false },
   recording: { active: false, lastCheckpointAt: null, lostSource: null },
   processingPaused: null,
@@ -93,7 +93,7 @@ describe('Library shell, first run', () => {
       store.footer.value = footerPayload();
     });
 
-    expect(footer()).toContain('Local transcription is not set up yet');
+    expect(footer()).toContain('No transcription model installed');
     expect(footer()).toContain('Everything is stored on this PC · 212 GB free');
   });
 

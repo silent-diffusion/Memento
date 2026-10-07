@@ -1,4 +1,4 @@
-import type { EngineStatus, FooterStatusPayload, StorageStatus } from '../bridge/types';
+import type { EngineStatus, EngineStatusDetail, FooterStatusPayload, StorageStatus } from '../bridge/types';
 import { formatTimecode } from './duration';
 import { formatFreeSpace } from './storage';
 
@@ -19,16 +19,34 @@ export interface StorageLine extends FooterLine {
   low: boolean;
 }
 
-/** Left side of the status footer from the engine alone. `null` means the host has not reported yet. */
+/** "GPU (NVIDIA GeForce RTX 4070)", "CPU", or null when nothing runs. */
+export function deviceWording(detail: Pick<EngineStatusDetail, 'device' | 'gpuName'>): string | null {
+  if (detail.device === null) {
+    return null;
+  }
+  return detail.gpuName !== null && /gpu/i.test(detail.device) ? `${detail.device} (${detail.gpuName})` : detail.device;
+}
+
+/**
+ * Left side of the status footer from the engine alone (BRIDGE.md M2 status.footer): "Local
+ * transcription ready · GPU (RTX 4070)", "Transcription paused · PC is busy", "No transcription model
+ * installed". `null` means the host has not reported yet.
+ */
 export function engineLine(engine: EngineStatus | null): EngineLine {
   if (engine === null) {
     return { text: 'Checking transcription engine', tone: 'neutral' };
   }
+  // An M1 host sends no detail; its two fields still give the plain line.
+  const detail = (engine as Partial<EngineStatus>).detail ?? null;
+  if (detail?.paused != null) {
+    return { text: `Transcription paused · ${detail.paused}`, tone: 'accent' };
+  }
   if (engine.ready) {
-    return {
-      text: engine.device === null ? 'Local transcription ready' : `Local transcription ready · ${engine.device}`,
-      tone: 'ok',
-    };
+    const device = detail === null ? engine.device : (deviceWording(detail) ?? engine.device);
+    return { text: device === null ? 'Local transcription ready' : `Local transcription ready · ${device}`, tone: 'ok' };
+  }
+  if (detail !== null && detail.model === null) {
+    return { text: 'No transcription model installed', tone: 'neutral' };
   }
   return { text: 'Local transcription is not set up yet', tone: 'neutral' };
 }

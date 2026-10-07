@@ -59,6 +59,7 @@ describe('meta line', () => {
       isProcessing: false,
       state: 'ready',
       sizeBytes: 0,
+      matchSnippet: null,
     };
     expect(metaLine(recording, new Date(2026, 9, 6, 15, 0))).toBe('Meeting · 5 people · 10:00 AM');
   });
