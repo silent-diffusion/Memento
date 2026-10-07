@@ -8,6 +8,7 @@ import type {
   AiSettingsInput,
   AiShareSettings,
   AudioExportFormat,
+  DocumentExportFormat,
   ExportSelection,
   ExportSettings,
   GeneralSettings,
@@ -420,14 +421,15 @@ export function AiPrivacySection(): JSX.Element {
 // Export
 // ---------------------------------------------------------------------------------------------
 
-type IncludeKey = 'audioMixed' | 'tracks' | 'transcript' | 'details' | 'attachments';
+type IncludeKey = 'audioMixed' | 'tracks' | 'transcript' | 'details' | 'attachments' | 'documents';
 
-const INCLUDE_ITEMS: readonly { key: IncludeKey | 'video' | 'documents'; name: string; note?: string; locked?: boolean }[] = [
+const INCLUDE_ITEMS: readonly { key: IncludeKey | 'video'; name: string; note?: string; locked?: boolean }[] = [
   { key: 'audioMixed', name: 'Audio', note: 'mixed' },
   { key: 'tracks', name: 'Individual tracks' },
   { key: 'video', name: 'Video', note: 'not in this version', locked: true },
   { key: 'transcript', name: 'Transcript' },
-  { key: 'documents', name: 'Documents', note: 'later version', locked: true },
+  // M4: every document of the recording; the Export dialog lists them one by one.
+  { key: 'documents', name: 'Documents', note: 'all of them' },
   { key: 'details', name: 'Recording details' },
   { key: 'attachments', name: 'Attachments' },
 ];
@@ -444,6 +446,8 @@ function toggleInclude(selection: ExportSelection, key: IncludeKey): ExportSelec
       return { ...selection, details: { on: !selection.details.on } };
     case 'attachments':
       return { ...selection, attachments: { on: !selection.attachments.on } };
+    case 'documents':
+      return { ...selection, documents: { ...selection.documents, on: !selection.documents.on, documentIds: [] } };
   }
 }
 
@@ -570,8 +574,19 @@ export function ExportSection(): JSX.Element {
             }}
           />
         </SettingsRow>
-        <SettingsRow label="Documents" description="Generated documents and notes." note={LATER} below={<InlineMessage message={error} />}>
-          <SelectMenu label="Documents format" value="md-docx" options={[{ value: 'md-docx', label: 'Markdown + Word' }]} disabled onChange={() => undefined} />
+        <SettingsRow label="Documents" description="Generated documents and notes. Word and PDF follow the document's style." below={<InlineMessage message={error} />}>
+          <SelectMenu<DocumentExportFormat>
+            label="Documents format"
+            value={defaults.documents.format}
+            options={[
+              { value: 'docx', label: 'Word' },
+              { value: 'pdf', label: 'PDF' },
+              { value: 'markdown', label: 'Markdown' },
+            ]}
+            onChange={(format) => {
+              save({ defaults: { ...defaults, documents: { ...defaults.documents, format } } });
+            }}
+          />
         </SettingsRow>
       </SettingsGroup>
     </>
