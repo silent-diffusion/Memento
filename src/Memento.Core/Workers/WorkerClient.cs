@@ -68,7 +68,18 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         _running[process.Id] = process;
         try
         {
-            await SendAsync(process, new WorkerCommand(WorkerMessageTypes.Start, job));
+            try
+            {
+                await SendAsync(process, new WorkerCommand(WorkerMessageTypes.Start, job));
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+                // The worker died as it started (a missing native DLL, a loader abort): its stdin pipe is already closed.
+                var code = await WaitForExitAsync(process);
+                LogCrashed(process.Id, code, FormatTail(process.ErrorTail));
+                throw new WorkerCrashedException(code, process.ErrorTail);
+            }
+
             await using var registration = cancellationToken.Register(() => _ = StopAsync(process));
             while (true)
             {
