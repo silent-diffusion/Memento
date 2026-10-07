@@ -2,7 +2,7 @@
 
 The host ↔ UI contract (ARCHITECTURE.md §3). Every method and event listed here exists as a C# record in `src/Memento.Core/Bridge/Contracts/` and a TypeScript type in `ui/src/bridge/types.ts`. JSON field names are camelCase. Times are ISO 8601 with offset unless the field ends in `Ms` (milliseconds, integer). Ids are opaque strings. Lists are never null; use `[]`.
 
-Status: **M0, M1 and M2 methods and events are implemented** in the host (`src/Memento.Core/Bridge/Methods/`) and in the UI's browser-preview mock (`ui/src/bridge/mock*.ts`); **M3 is implemented on both sides and is being integrated for 0.4.0**. This document is what both follow. `ContractSerializationTests`, `M2ContractSerializationTests` and `M3ContractSerializationTests` pin the host's JSON, and `ContractDocumentationTests` checks that the host's error codes and stage names are exactly the ones listed here and in `types.ts`.
+Status: **M0, M1, M2 and M3 methods and events are implemented** (M3 in 0.4.0) in the host (`src/Memento.Core/Bridge/Methods/`) and in the UI's browser-preview mock (`ui/src/bridge/mock*.ts`). This document is what both follow. `ContractSerializationTests`, `M2ContractSerializationTests` and `M3ContractSerializationTests` pin the host's JSON, and `ContractDocumentationTests` checks that the host's error codes and stage names are exactly the ones listed here and in `types.ts`.
 
 ## Shared types
 
@@ -334,9 +334,9 @@ Decided at the M2 integration (0.3.0), from the host's proposals:
 
 ---
 
-# M3 — Agenda import, attachments, media import, export, remaining Settings (implemented; integration for 0.4.0)
+# M3 — Agenda import, attachments, media import, export, remaining Settings (implemented in 0.4.0)
 
-Additive. The parsing library exists in `src/Memento.Documents/Agenda` (`AgendaImporter`); M3 wires it to these methods.
+Additive. The parsing library in `src/Memento.Documents/Agenda` (`AgendaImporter`) serves these methods. The Clarifications at the end were decided after both halves landed (1–8) and at the 0.4.0 integration (9–21); where they differ from the tables above, they win.
 
 ## Shared types (M3)
 

@@ -41,7 +41,7 @@ Acceptance: a 2-hour meeting transcribes end-to-end on this machine's GPU and on
 
 Delivered with Whisper.net (Vulkan, then CPU) and sherpa-onnx diarization in a separate `Memento.Worker` process (one graphics-card job at a time, ended with Memento), coverage-gap notices from 10 s with "Transcribe again with another model", a filter for lines the engine repeats in a loop, per-window and per-track resume after a busy pause or a crash, and voices grouped across tracks when the expected speaker count is set. Deferred: the live transcript during recording (the Recording screen's card says it is off; the setting is stored), remembering renamed speakers across recordings (stored in Settings, not applied; with "Remember speakers by voice" in Later), and chapter suggestions from the transcript (chapters stay manual; topics are suggested locally). The 2-hour GPU and CPU runs move to the M5 soak tests; M2 was checked end to end with 2- and 3-minute real-device recordings and 5- and 13-minute files through `tools/TranscriptionCheck`.
 
-## M3 — Details, agenda, settings, export (0.4.0)
+## M3 — Details, agenda, settings, export — Done (0.4.0)
 
 - Agenda import: drop zone, file picker, paste; parsers for docx, pdf, xlsx, csv, md, txt; OCR for images (Windows OCR default, Tesseract alternative via model manager); uncertainty marks with explanations; editable list; agenda panel in Recording and Review.
 - All Settings sections complete per DESIGN.md §11, with every row's description.
@@ -49,6 +49,8 @@ Delivered with Whisper.net (Vulkan, then CPU) and sherpa-onnx diarization in a s
 - Reprocess, rename and change-type flows from Review's More menu.
 
 Acceptance: every agenda fixture in `tests/` parses to the expected items; exports open in common tools; a failed export leaves the project untouched.
+
+Delivered with agenda import from files, photos (Windows OCR; Tesseract as the alternative engine) and pasted text into the Details sheet, the original kept as an attachment (`project.json` schema v2 types the attachment index), attachments in Review, "Import audio or video" (Media Foundation decoding to the normal stored and transcribed pipeline, with "Import again" after an import cut short), the Export dialog with several transcript formats at once and a SHA-256 `manifest.json`, a verified library move that refuses to run alongside a recording (and the other way round), and every Settings section. 0.3.0 was not tagged on its own and ships in this release. Deferred: Documents in the Export dialog and the AI features behind Settings › AI and privacy (M4; keys can be stored now, nothing is sent); keeping Memento in the tray (stored, applied in M5); removing old video (no video capture yet); the live transcript and video capture (as in M2). Checked end to end through the real UI with `tools/e2e/m3-flow.mjs` (a LibriVox public-domain MP3 imported and transcribed, a Word agenda with an uncertain item, two attachments, an export verified against its manifest, an unwritable destination, keys, a library move out and back, a 60-second microphone and system recording), and `m1-flow.mjs` and `m2-flow.mjs` again.
 
 ## 0.5.0 — first public release (M1 + M2 + M3)
 
