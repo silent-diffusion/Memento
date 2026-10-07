@@ -24,4 +24,7 @@ public sealed record SettingsSnapshot(
 
     /// <summary>Settings › Storage and history (M3).</summary>
     public LibraryStorageSettingsSnapshot Storage { get; init; } = new(null);
+
+    /// <summary>Settings › Documents (M4).</summary>
+    public DocumentsSettingsSnapshot Documents { get; init; } = new(null, null);
 }

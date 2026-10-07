@@ -26,9 +26,4 @@
     <InternalsVisibleTo Include="Memento.AI.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Local model catalog entries, merged into Core's catalog by the integration (Memento.AI.Local.local-models.json). -->
-    <EmbeddedResource Include="Local\local-models.json" LogicalName="Memento.AI.Local.local-models.json" />
-  </ItemGroup>
-
 </Project>

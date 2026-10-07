@@ -39,14 +39,25 @@ public sealed class LocalCatalogAndPlannerTests
     }
 
     [Fact]
-    public void TheCatalogFileReadsAsCoreCatalogEntriesWithTheLlmBlockAsExtensionData()
+    public void TheLocalModelsAreTheLlmEntriesOfCoresCatalogWithTheirLlmBlock()
     {
-        using var stream = LocalModelCatalog.OpenJson();
-        var document = JsonSerializer.Deserialize<ModelCatalogDocument>(stream, WebJson)!;
+        var entries = ModelCatalog.Default.OfKind(ModelKinds.Llm).ToList();
 
-        Assert.Equal(ModelCatalogDocument.CurrentSchemaVersion, document.SchemaVersion);
-        Assert.Equal([LocalModelCatalog.Qwen35FourB, LocalModelCatalog.Ministral3ThreeB], document.Models.Select(m => m.Id));
-        Assert.All(document.Models, m => Assert.True(m.ExtensionData!.ContainsKey("llm")));
+        Assert.Equal([LocalModelCatalog.Qwen35FourB, LocalModelCatalog.Ministral3ThreeB], entries.Select(m => m.Id));
+        Assert.All(entries, m => Assert.True(m.ExtensionData!.ContainsKey("llm")));
+        Assert.All(entries, m => Assert.Equal(LocalModelCatalog.Engine, m.Engine));
+        Assert.Equal(entries.Select(e => e.Id), LocalModelCatalog.Models.Select(m => m.Id));
+    }
+
+    [Fact]
+    public void AnEntryWithoutAReadableLlmBlockIsNotALocalModel()
+    {
+        var entry = ModelCatalog.Default.Find(LocalModelCatalog.Qwen35FourB)!;
+        var broken = entry with { ExtensionData = new() { ["llm"] = JsonSerializer.SerializeToElement(new { templateId = "unknown" }, WebJson) } };
+
+        Assert.NotNull(LocalModelCatalog.ToLocal(entry));
+        Assert.Null(LocalModelCatalog.ToLocal(broken));
+        Assert.Null(LocalModelCatalog.ToLocal(entry with { ExtensionData = null }));
     }
 
     [Fact]

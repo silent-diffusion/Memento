@@ -39,7 +39,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage,documents", Names(result));
         Assert.Equal(AppPaths.DefaultLibrary, result.GetProperty("libraryPath").GetString());
         Assert.Contains("\"theme\":\"system\"", json, StringComparison.Ordinal);
         Assert.Contains("\"listDensity\":\"comfortable\"", json, StringComparison.Ordinal);
@@ -55,7 +55,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage,documents", Names(result));
         Assert.Equal("dark", result.GetProperty("theme").GetString());
     }
 

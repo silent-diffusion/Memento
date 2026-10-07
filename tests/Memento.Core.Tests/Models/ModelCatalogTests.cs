@@ -19,7 +19,7 @@ public sealed class ModelCatalogTests
         var catalog = ModelCatalog.Default;
 
         Assert.Equal(
-            ["whisper-large-v3-turbo", "whisper-medium", "whisper-small", "whisper-base", "pyannote-segmentation-3-0", "nemo-titanet-small", "3dspeaker-eres2net-base", "tesseract-eng"],
+            ["whisper-large-v3-turbo", "whisper-medium", "whisper-small", "whisper-base", "pyannote-segmentation-3-0", "nemo-titanet-small", "3dspeaker-eres2net-base", "tesseract-eng", "qwen3.5-4b-q4", "ministral-3-3b-q4"],
             catalog.Entries.Select(e => e.Id));
         Assert.Equal("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", catalog.Find("whisper-large-v3-turbo")!.Sha256);
         Assert.Equal("6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208", catalog.Find("whisper-medium")!.Sha256);

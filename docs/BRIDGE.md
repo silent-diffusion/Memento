@@ -456,3 +456,125 @@ Decided at the M3 integration (0.4.0), from the host's notes:
 19. Export jobs run one at a time in the order `export.run` was called; a waiting job sends no `export.progress` until it starts. On cancel or failure the files written so far are removed and the last `export.progress` has `files: 0, bytes: 0`; on success `files` and `bytes` count the manifest too.
 20. "Pause when the PC is busy" no longer pauses a transcription pass on the graphics card for a busy processor (the pass barely uses it); a recording in progress still pauses it while the setting is on, and low disk space and `processing.pause` always do. Passes on the processor, and the speaker pass, pause as before. The footer's `processingPaused` follows the stage that runs or waits.
 21. Settings › Transcription and Speakers keep Remove off, with the note "Needed by the current settings", for the default transcription model, the model used without a graphics card, the default voice model and, while Identify speakers is on, the speech-segmentation model. `models.remove` itself still refuses only a model in use (`models.inUse`).
+
+## Shared types (M4)
+
+Documents, templates, styles, AI providers and generation. The document model, module catalog, templates, styles, renderer and exporters live in `src/Memento.Documents` (M4b); providers, the payload composer and the chunker in `src/Memento.AI` (M4a); the store, the pipeline and these methods in `src/Memento.Generation` (M4d). Records: `src/Memento.Core/Bridge/Contracts`, serialized by `M4BridgeJsonContext`.
+
+```ts
+type ModuleId = 'title' | 'summary' | 'executiveSummary' | 'participants' | 'agenda' | 'topic' | 'discussion' | 'decisions' | 'actionItems' | 'owner' | 'deadline' | 'openQuestions' | 'quote' | 'highlight' | 'chapter' | 'timeline' | 'followUpEmail' | 'nextMeeting' | 'meetingPurpose' | 'notes' | 'fullTranscript' | 'customText' | 'customAi';
+type ContentShape = 'paragraph' | 'list' | 'table' | 'chips' | 'labelValue' | 'quote' | 'timeline' | 'transcript' | 'text';
+interface ModuleInfo { id: ModuleId; name: string; group: 'structure' | 'detail' | 'custom'; shape: ContentShape; generated: boolean; defaultLength: 'short' | 'medium' | 'long';
+                       groundingRule: string | null; description: string;
+                       groundingRules: string[]; defaultLinkToTranscript: boolean; columns: string[]; labels: string[] }   // the last four are additive
+type TextSize = 'smaller' | 'normal' | 'larger';
+interface ModuleSettings { id: string; module: ModuleId; instructions: string; length: 'short' | 'medium' | 'long'; textSize: TextSize; linkToTranscript: boolean; customTitle: string | null; customText: string | null }
+interface TemplateRow { modules: ModuleSettings[] }                              // 1–3
+interface InputSelection { transcript: boolean; details: boolean; participants: boolean; agenda: boolean; highlights: boolean; attachments: boolean; previousDocuments: boolean }   // audio/video never exist here
+interface Template {
+  id: string; name: string; builtIn: boolean; recordingTypes: RecordingType[]; rows: TemplateRow[]; inputs: InputSelection;
+  providerId: ProviderId | null; styleId: string;
+  output: { alsoExportDocx: boolean; alsoExportMarkdown: boolean; alsoExportPdf?: boolean };
+  modifiedAt: string | null;            // null: a built-in never changed
+  documentKind: string;                 // "Meeting minutes": the meta line's kind and the word in "Generate {documentKind}"
+  processingInstructions?: string;      // whole-document instructions; never override the grounding rules
+  customized?: boolean;                 // a built-in with a customised copy (Reset applies)
+}
+type ProviderId = 'anthropic' | 'openai' | 'local';
+interface ProviderInfo { id: ProviderId; name: string; vendor: string /* "Anthropic", "OpenAI", "This PC" */; kind: 'cloud' | 'local'; ready: boolean;
+                         reason: string | null /* "External AI is off", "No key saved", "Model not installed", "Not enough video memory" */; modelLabel: string | null;
+                         code: string | null /* ai.disabled | ai.noKey | ai.modelNotInstalled | ai.notEnoughVram */; detail: string | null /* the §17 sentence, or a note when ready */; modelId: string | null /* local catalog id */ }
+interface StyleSettings { headingFace: 'sans' | 'serif'; bodyFace: 'sans' | 'serif'; baseSize: 'small' | 'normal' | 'large'; headingCase: 'normal' | 'smallCaps'; numberedHeadings: boolean; headingColor: 'navy' | 'ink' | 'forest' | 'burgundy'; tableHeaderFill: boolean; ruleUnderTitle: boolean; linesBetweenSections: boolean; spacing: 'tight' | 'normal' | 'airy'; paper: 'letter' | 'a4'; pageNumbers: boolean; runningHeader: boolean }
+interface Style { id: string; name: string; builtIn: boolean; settings: StyleSettings; usedByTemplates: number; modifiedAt: string | null; customized?: boolean }
+interface DocumentSummary { id: string; name: string; kind: 'generated' | 'written'; templateName: string | null; styleId: string; providerId: ProviderId | null; generatedAt: string | null; version: number; versions: number; modifiedAt: string; sizeBytes: number }
+interface GenerationRecord {
+  templateId: string; templateName: string; styleId: string; providerId: ProviderId; modelLabel: string; startedAt: string; durationMs: number;
+  inputs: InputSelection; payloadHash: string; payloadKept: boolean; chunks: number;
+  modules: { moduleId: string; claims: number; verified: number; dropped: number; notDiscussed: boolean }[];   // generated modules only
+  sent: string[];                       // the included sections, as the preview names them: "Transcript (118 segments, 4 speakers)"
+  bytes: number; stayedOnPc: boolean;   // true for the local model: nothing was sent
+  claims: { id: string; moduleId: string; text: string; t: number | null; verdict: 'supported' | 'unsupported' | 'notChecked'; kept: boolean; reason: string | null }[];
+  payloadText: string | null;           // when "keep a record of what was sent" was on
+}
+interface DocumentModule { id: string; module: ModuleId | string; title: string; textSize: TextSize; linkToTranscript: boolean; blocks: Block[] }   // Block per src/Memento.Documents/Model/Blocks
+interface DocumentContent { schemaVersion: 1; id: string; title: string; meta: string; rows: { modules: DocumentModule[] }[]; record: GenerationRecord | null; styleId: string | null; version: number }
+interface GenerationProgress { jobId: string; recordingId: string; documentId: string | null; stage: 'composing' | 'generating' | 'verifying' | 'rendering' | 'done' | 'failed' | 'cancelled'; moduleId: string | null; percent: number; message: string | null; code: string | null /* on failed: ai.network, ai.notEnoughVram… */ }
+interface GenerationSendSummary { providerId: ProviderId; providerName: string; modelLabel: string | null; inputsUsed: InputSelection; bytes: number; chunks: number }
+```
+
+## Methods (M4)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `modules.list` | `{}` | `{ modules: ModuleInfo[] }` | The catalog; the palette reads it. |
+| `templates.list` / `templates.get` | `{}` / `{ templateId }` | `{ templates: Template[] }` / `Template` | Built-ins first, then the user's by name. |
+| `templates.save` | `{ template: Template }` | `Template` | New id (a slug of the name) when `id` is empty or unknown. A built-in is never saved over: saving one creates a copy ("{name} (copy)" when the name is unchanged). The style must exist (`styles.notFound`). |
+| `templates.duplicate` / `templates.delete` / `templates.resetBuiltIn` | `{ templateId }` | `Template` / `{}` / `Template` | Delete refused for built-ins (`templates.builtIn`). |
+| `styles.list` / `styles.get` / `styles.save` / `styles.duplicate` / `styles.delete` / `styles.resetBuiltIn` | likewise | likewise | Presets behave as built-in templates; delete is refused with `styles.inUse` (detail: the templates) while a template uses the style. |
+| `styles.sampleHtml` | `{ settings: StyleSettings }` | `{ html }` | The Style editor's live sample page (fixed sample minutes). |
+| `providers.list` | `{}` | `{ providers: ProviderInfo[], externalAiEnabled: boolean, defaultProviderId: ProviderId \| null }` | Readiness from Settings, keys, the model manager and free video memory. No provider is constructed and nothing is sent. |
+| `generation.preview` | `{ recordingId, template: Template }` | `{ payloadText, bytes, chunks, inputsUsed: InputSelection, warnings: string[], providerId, staysOnPc }` | "Preview exactly what will be sent" (for Local: "nothing leaves this PC"). Nothing is sent. |
+| `generation.previewHtml` | `{ recordingId: string \| null, template: Template, styleId }` | `{ html }` | The Builder's live preview paper with skeletons; `recordingId: null` (a template edited from Settings) shows the sample title and meta line. |
+| `generation.start` | `{ recordingId, template: Template, documentId?: string /* regenerate into */ }` | `{ jobId, confirmationRequired: boolean, summary: GenerationSendSummary \| null }` | Refused with `ai.disabled` (a cloud provider while external AI is off; checked before anything is read or constructed), `ai.providerNotReady` (detail: `ai.noKey`, `ai.modelNotInstalled`, `ai.notEnoughVram`), `generation.noTranscript` (no transcript, or the transcript not among the allowed inputs), `generation.busy`, `documents.notFound` (the regenerated document). With "ask before every send" a **cloud** job returns `confirmationRequired: true` and the summary, and nothing runs until `generation.confirm`; the local model sends nothing and is not asked. |
+| `generation.confirm` / `generation.cancel` | `{ jobId, approved }` / `{ jobId }` | `{}` | `generation.notFound` for an unknown or finished job. Declining or cancelling a waiting job ends it with `stage: 'cancelled'`. |
+| `documents.list` | `{ recordingId }` | `{ documents: DocumentSummary[] }` | Newest change first. |
+| `documents.get` | `{ recordingId, documentId }` | `{ document: DocumentContent, summary: DocumentSummary }` | |
+| `documents.renderHtml` | `{ recordingId, documentId, mode: 'view' \| 'print' }` | `{ html }` | `view`: the `article.paper` element only; `print`: the whole print page (`@page` rules, footnoted timestamps) the PDF is printed from. |
+| `documents.create` | `{ recordingId, name, styleId }` | `DocumentSummary` | A hand-written document with one empty text module ("Notes"). |
+| `documents.saveEdit` | `{ recordingId, documentId, html }` | `{ document: DocumentContent, version }` | The viewer's light edits, parsed back into blocks (`HtmlToBlocks`); markup the viewer never produces (scripts, images, forms, event attributes, no sections) is refused with `documents.unsupportedEdit` and nothing is saved. Saving unchanged markup writes nothing. Debounced by the UI. |
+| `documents.rename` / `documents.duplicate` / `documents.delete` | `{ recordingId, documentId, name? }` | `DocumentSummary` / `DocumentSummary` / `{}` | Delete asks nothing on the host; the UI confirms. A copy is "{name} (copy)" unless `name` is given. |
+| `documents.makeTemplate` | `{ recordingId, documentId, name }` | `Template` | The generation's template with the document's layout, headings, text sizes and links. |
+| `documents.versions` / `documents.restoreVersion` | `{ recordingId, documentId }` / `{ recordingId, documentId, versionId }` | `{ versions: { id, at, reason: 'generated' \| 'edited' \| 'restored' \| 'regenerated', changes, version }[] }` / `{ document, summary }` | Empty when history is off. `reason` says how that content came to be; `version` is its version number; `changes` counts the modules (and title) that differ from now. `documents.versionNotFound` for a pruned version. |
+| `documents.export` | `{ recordingId, documentId, format: 'docx' \| 'pdf' \| 'markdown', path?: string }` | `{ path, bytes, sha256 }` | Without `path`: Settings › Export's folder (or Documents), `{base} - {document name}.{ext}`, never over an existing file. A relative path or a missing folder is `export.destinationUnwritable`; a failed export `documents.exportFailed` (the document is unchanged). PDF is printed by the host through WebView2. The Export dialog's Documents row uses `export.run` with `documents` filled. |
+
+## Events (M4)
+
+| Event | Payload |
+|---|---|
+| `generation.progress` | `GenerationProgress` (at most four per second; every stage change and the final one always pass; nothing after the final one) |
+| `documents.changed` | `{ recordingId, documentId, reason: 'generated' \| 'edited' \| 'created' \| 'deleted' \| 'restored' }` (a rename is `edited`); `library.changed` follows |
+| `templates.changed` / `styles.changed` | `{}` |
+
+## Settings snapshot (M4 additions)
+
+```ts
+ai: { …M3,
+      defaultProviderId: ProviderId | null;    // null: the local model
+      localModelId: string | null;             // the local model in effect: the choice, or the one the hardware suits; null only without local models
+      localModelChosen: boolean;               // localModelId was chosen in Settings
+      providers: { anthropic: { hasKey: boolean; model: string; models: string[] }; openai: { hasKey: boolean; model: string; models: string[] } } }   // model in effect; models offered
+documents: { defaultTemplateId: string; defaultStyleId: string }   // "meeting-minutes" and "corporate" until chosen
+```
+
+`settings.set` takes `ai.defaultProviderId` (`'anthropic' | 'openai' | 'local' | null`), `ai.localModelId` (an installed `kind: 'llm'` catalog id, or `null` for the hardware default), `ai.providers.anthropic.model` / `ai.providers.openai.model` (a model id, or `null` for the default) and `documents.defaultTemplateId` / `defaultStyleId` (an id, or `null` for the built-in). A field left out keeps its value; `null` clears it; a bad value is `settings.invalidValue` with the field as `detail`, and nothing is written. Keys still change only through `ai.setKey` / `ai.clearKey`.
+
+"Allow external AI services" (`ai.enabled`) governs the cloud providers only. The local model sends nothing and is available whenever its model is installed, whatever `ai.enabled` says. The share switches (`ai.share`) limit what a cloud provider receives; a template's ticks never exceed them.
+
+Model defaults: Claude **`claude-opus-5-5`** (the claude-api skill's default and Anthropic's most capable generally available Opus) with `claude-fable-5-1` offered (Anthropic's most capable model: higher price, always thinks, needs 30-day data retention); ChatGPT `gpt-6-astra` (M4a's choice from OpenAI's documentation). The local model by hardware: Qwen3.5 4B (`qwen3.5-4b-q4`) when the discrete card has 3.3 GB free, otherwise Ministral 3 3B (`ministral-3-3b-q4`); both are `kind: 'llm'` entries of `models.list` (`engine: 'llm'`), installed like every other model.
+
+## Error codes (M4)
+
+`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.workerCrashed`, `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
+
+The `ai.*` provider codes reach the UI as the code of a failed generation progress event, with the provider's own §17 message ("Claude could not be reached: no network. Nothing was sent twice and no document was changed."); a failure never changes an existing document.
+
+## Design references (M4)
+
+Builder: DESIGN §10 and `Builder.dc.html`. Viewer: §12 and `DocView.dc.html`. Style editor: §13 and `StyleEditor.dc.html`. Error states: §17 (AI provider failed card). The "ask before every send" confirmation is a dialog (§5.19) showing the provider, the inputs, the size and the chunk count.
+
+## Decisions (M4, at the M4d integration)
+
+1. `DocumentContent.rows` are rows of modules `{ id, module, title, textSize, linkToTranscript, blocks }`, the engine's model (with `type` named `module`), not bare `{ blocks }`. The UI shows documents through `documents.renderHtml` only.
+2. The `html` of `documents.renderHtml` (`view`), `generation.previewHtml` and `styles.sampleHtml` is the `article.paper` element only. The UI bundles the paper stylesheet itself (`ui/src/components/paper/paper.css`, a verbatim copy of `PaperCss.Stylesheet`; its CSP forbids inline `<style>`); a host test fails when the two differ.
+3. `generation.previewHtml` accepts `recordingId: null`.
+4. `GenerationStartResult.summary` is `{ providerId, providerName, modelLabel, inputsUsed, bytes, chunks }`.
+5. `documents.versions` entries carry `version`.
+6. `ExportEstimateItem` gains `documentId` (Documents rows only; left out elsewhere). In `ExportSelection.documents`, an empty `documentIds` exports every document of the recording; each is `{base} - {document name}.{ext}`.
+7. `Template.documentKind` is a string, always set (the template's name when it has none).
+8. `documents.rename` and `documents.duplicate` return `DocumentSummary`; `documents.delete` returns `{}`.
+9. The local model catalog ids are `qwen3.5-4b-q4` and `ministral-3-3b-q4` (catalog ids may contain dots).
+10. The Local provider is available whenever its model is installed, regardless of "Allow external AI services", which governs cloud providers only. Without a template or Settings provider, generation uses the local model.
+11. A template's output toggles ("Also export Word / Markdown", and PDF) are honoured after generation: the files go to the project's `documents/exports/` as `{document name} v{version}.{ext}` (never over an earlier copy), each listed in History.
+12. Versions follow the transcript rules: a version is kept on the first edit after a generation, creation or restore (a run of edits is one version), on regenerate and on restore; a rename keeps none. Versions live in `versions/document.{documentId}.{utc-stamp}.json` and are pruned with the transcript's.
+13. A generation appends one History line (stage `minutes`): the template, the provider and model, exactly which inputs were sent and how much, where (or that nothing left the PC), that audio and video were not sent, the claims found, verified and dropped, and the time taken. Failures and cancellations get their own line.
+14. `Template.modifiedAt` and `Style.modifiedAt` are `null` for a built-in that was never changed.

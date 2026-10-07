@@ -48,6 +48,9 @@ public sealed record DocumentStyle
     /// <summary>The recording title and date on every page.</summary>
     public bool RunningHeader { get; init; }
 
+    /// <summary>When it was last saved; <c>null</c> for a preset that was never changed.</summary>
+    public DateTimeOffset? ModifiedAt { get; init; }
+
     /// <summary>Set by the store: one of the presets that ship with Memento.</summary>
     public bool BuiltIn { get; init; }
 

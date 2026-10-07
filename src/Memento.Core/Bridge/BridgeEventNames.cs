@@ -21,4 +21,10 @@ public static class BridgeEventNames
     public const string ExportProgress = "export.progress";
     public const string LibraryMoveProgress = "library.moveProgress";
     public const string StorageReclaimProgress = "storage.reclaimProgress";
+
+    // M4.
+    public const string GenerationProgress = "generation.progress";
+    public const string DocumentsChanged = "documents.changed";
+    public const string TemplatesChanged = "templates.changed";
+    public const string StylesChanged = "styles.changed";
 }

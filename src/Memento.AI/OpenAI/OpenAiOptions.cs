@@ -11,7 +11,7 @@ public sealed record OpenAiOptions
     public Uri BaseUrl { get; init; } = DefaultBaseUrl;
 
     /// <summary>OpenAI's most capable model as listed in its model documentation (October 2026).</summary>
-    public string Model { get; init; } = "gpt-6-astra";
+    public string Model { get; init; } = Memento.Core.Ai.AiModelDefaults.OpenAiModel;
 
     /// <summary><c>reasoning.effort</c> (<c>low</c> … <c>max</c>), or <c>null</c> for the model default.</summary>
     public string? ReasoningEffort { get; init; } = "high";

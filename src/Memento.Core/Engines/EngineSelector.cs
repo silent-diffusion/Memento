@@ -36,9 +36,12 @@ public sealed class EngineSelector(IModelManager models, IResourceProbe probe)
     public bool IsRecommended(ModelCatalogEntry entry, ResourceSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return entry.Kind == ModelKinds.Transcription
-            ? entry.Id == RecommendedTranscriptionModelId(snapshot)
-            : entry.RecommendedFor == "any";
+        return entry.Kind switch
+        {
+            ModelKinds.Transcription => entry.Id == RecommendedTranscriptionModelId(snapshot),
+            ModelKinds.Llm => entry.Id == Ai.LocalModelChoice.RecommendedId(models.Catalog, snapshot),
+            _ => entry.RecommendedFor == "any",
+        };
     }
 
     /// <summary>The transcription model in effect: the saved choice, or the recommended one.</summary>

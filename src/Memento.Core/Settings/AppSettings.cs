@@ -48,6 +48,9 @@ public sealed record AppSettings
     /// <summary>Settings › Storage and history (M3).</summary>
     public LibraryStorageSettings Storage { get; set; } = new();
 
+    /// <summary>Settings › Documents (M4): default template and style.</summary>
+    public DocumentsSettings Documents { get; set; } = new();
+
     // A setter rather than init: System.Text.Json cannot bind extension data through init-only members.
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

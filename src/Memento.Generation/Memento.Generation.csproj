@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    M4d, the host side of documents and AI generation (ARCHITECTURE.md §8): the provider registry (Anthropic, OpenAI,
+    and the local model through Memento.Worker), the project document store with versions, the data-module composer,
+    the chunked generation pipeline with citation repair, verification and the grounding validator, and the M4 bridge
+    methods. It sits above Core, Memento.AI and Memento.Documents, which Core cannot reference; the app adds it with
+    AddMementoM4(). The contracts stay in Core (Bridge/Contracts) beside the other bridge records.
+  -->
+  <PropertyGroup>
+    <!-- Memento.Documents targets the Windows SDK projection (agenda OCR). -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>Memento.Generation</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+    <ProjectReference Include="..\Memento.AI\Memento.AI.csproj" />
+    <ProjectReference Include="..\Memento.Documents\Memento.Documents.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Memento.Generation.Tests" />
+  </ItemGroup>
+
+</Project>

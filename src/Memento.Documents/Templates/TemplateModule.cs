@@ -25,6 +25,9 @@ public sealed record TemplateModule
 
     public bool LinkToTranscript { get; init; }
 
+    /// <summary>Custom text modules: the text, placed as written (no AI). <c>null</c> for every other module.</summary>
+    public string? CustomText { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 

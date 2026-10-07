@@ -70,10 +70,11 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             throw new BridgeException(InvalidValueCode, m3Problem + " Nothing was changed.");
         }
 
+        M4SettingsBlocks.Merge(store.Current, parameters, models);
         M3SettingsBlocks.ApplyStartup(parameters, extras);
 
         var updated = await store.UpdateAsync(
-            current => M3SettingsBlocks.Merge(current, parameters) with
+            current => M4SettingsBlocks.Merge(M3SettingsBlocks.Merge(current, parameters), parameters, models) with
             {
                 Theme = parameters.Theme ?? current.Theme,
                 ListDensity = parameters.ListDensity ?? current.ListDensity,
@@ -84,7 +85,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             },
             cancellationToken);
 
-        return SettingsGetMethod.ToSnapshot(updated, selector.EffectiveModelId(updated.Transcription), extras);
+        return M4SettingsBlocks.Complete(SettingsGetMethod.ToSnapshot(updated, selector.EffectiveModelId(updated.Transcription), extras), updated, selector);
     }
 
     /// <summary>Settings › Transcription: each field present replaces the stored one; <c>null</c> keeps it.</summary>

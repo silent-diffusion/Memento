@@ -90,11 +90,11 @@ public sealed class M2ContractSerializationTests : IDisposable
     {
         var models = (await _host.ResultAsync("models.list")).GetProperty("models").EnumerateArray().ToList();
 
-        Assert.Equal(8, models.Count);
+        Assert.Equal(10, models.Count);
         Assert.All(models, m => Assert.False(m.GetProperty("installed").GetBoolean()));
         Assert.All(models, m => Assert.Equal(JsonValueKind.Null, m.GetProperty("installing").ValueKind));
-        Assert.Equal(["whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small", "tesseract-eng"], models.Where(m => m.GetProperty("recommended").GetBoolean()).Select(m => m.GetProperty("id").GetString()));
-        Assert.Equal(["transcription", "speakers", "ocr"], models.Select(m => m.GetProperty("engine").GetString()).Distinct());
+        Assert.Equal(["whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small", "tesseract-eng", "ministral-3-3b-q4"], models.Where(m => m.GetProperty("recommended").GetBoolean()).Select(m => m.GetProperty("id").GetString()));
+        Assert.Equal(["transcription", "speakers", "ocr", "llm"], models.Select(m => m.GetProperty("engine").GetString()).Distinct());
         Assert.Equal(
             ["segmentation", "embedding", "embedding"],
             models.Where(m => m.GetProperty("engine").GetString() == "speakers").Select(m => m.GetProperty("role").GetString()));

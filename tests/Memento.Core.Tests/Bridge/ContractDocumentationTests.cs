@@ -90,7 +90,24 @@ public sealed partial class ContractDocumentationTests
     {
         var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export const ERROR_CODES = [", "] as const");
 
-        Assert.Equal(HostErrorCodes().Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+        // M4 lands as M2 and M3 did: a code the host added in the M4 contract after the UI's change (documents.exportFailed)
+        // is accepted until the UI lists it; every code the UI lists must be a host code.
+        var pending = M4DocumentedCodes().Except(ui, StringComparer.Ordinal).ToList();
+        var expected = HostErrorCodes().Except(pending, StringComparer.Ordinal);
+        Assert.Equal(expected.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>The codes in backticks in BRIDGE.md's "## Error codes (M4)" section.</summary>
+    private static List<string> M4DocumentedCodes() =>
+        BacktickedCode().Matches(Sections("## Error codes (M4)")).Select(m => m.Groups[1].Value).ToList();
+
+    [Fact]
+    public void EveryM4CodeInBridgeMdIsAHostCode()
+    {
+        var documented = M4DocumentedCodes();
+
+        Assert.NotEmpty(documented);
+        Assert.Empty(documented.Except(HostErrorCodes(), StringComparer.Ordinal));
     }
 
     [Fact]

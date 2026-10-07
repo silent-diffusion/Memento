@@ -10,8 +10,8 @@ public sealed record AnthropicOptions
     /// <summary>The API root; tests point it at a local fake server. Must end with a slash.</summary>
     public Uri BaseUrl { get; init; } = DefaultBaseUrl;
 
-    /// <summary>The most capable generally available Claude model (claude-api skill, September 2026).</summary>
-    public string Model { get; init; } = "claude-opus-5-5";
+    /// <summary>The model; Settings may override it (<see cref="Memento.Core.Ai.AiModelDefaults"/>, claude-api skill, October 2026).</summary>
+    public string Model { get; init; } = Memento.Core.Ai.AiModelDefaults.AnthropicModel;
 
     /// <summary>
     /// <c>output_config.effort</c>: <c>low</c>, <c>medium</c>, <c>high</c>, <c>xhigh</c>, <c>max</c>, or <c>null</c> for

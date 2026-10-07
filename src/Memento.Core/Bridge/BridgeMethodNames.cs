@@ -80,4 +80,38 @@ public static class BridgeMethodNames
     public const string AiSetKey = "ai.setKey";
     public const string AiClearKey = "ai.clearKey";
     public const string AppSetStartup = "app.setStartup";
+
+    // M4: documents, templates, styles, providers, generation (BRIDGE.md "Methods (M4)").
+    public const string ModulesList = "modules.list";
+    public const string TemplatesList = "templates.list";
+    public const string TemplatesGet = "templates.get";
+    public const string TemplatesSave = "templates.save";
+    public const string TemplatesDuplicate = "templates.duplicate";
+    public const string TemplatesDelete = "templates.delete";
+    public const string TemplatesResetBuiltIn = "templates.resetBuiltIn";
+    public const string StylesList = "styles.list";
+    public const string StylesGet = "styles.get";
+    public const string StylesSave = "styles.save";
+    public const string StylesDuplicate = "styles.duplicate";
+    public const string StylesDelete = "styles.delete";
+    public const string StylesResetBuiltIn = "styles.resetBuiltIn";
+    public const string StylesSampleHtml = "styles.sampleHtml";
+    public const string ProvidersList = "providers.list";
+    public const string GenerationPreview = "generation.preview";
+    public const string GenerationPreviewHtml = "generation.previewHtml";
+    public const string GenerationStart = "generation.start";
+    public const string GenerationConfirm = "generation.confirm";
+    public const string GenerationCancel = "generation.cancel";
+    public const string DocumentsList = "documents.list";
+    public const string DocumentsGet = "documents.get";
+    public const string DocumentsRenderHtml = "documents.renderHtml";
+    public const string DocumentsCreate = "documents.create";
+    public const string DocumentsSaveEdit = "documents.saveEdit";
+    public const string DocumentsRename = "documents.rename";
+    public const string DocumentsDuplicate = "documents.duplicate";
+    public const string DocumentsDelete = "documents.delete";
+    public const string DocumentsMakeTemplate = "documents.makeTemplate";
+    public const string DocumentsVersions = "documents.versions";
+    public const string DocumentsRestoreVersion = "documents.restoreVersion";
+    public const string DocumentsExport = "documents.export";
 }

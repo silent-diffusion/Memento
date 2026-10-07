@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Memento.Core.Workers;
 
 /// <summary>
@@ -32,6 +34,15 @@ public sealed record WorkerReply
 
     /// <summary>A <c>diarized</c> line: one finished track of a speaker job.</summary>
     public DiarizedTrack? Diarized { get; init; }
+
+    /// <summary>A local model job's <c>result</c> (Memento.AI's <c>LocalLlmResult</c>), raw JSON.</summary>
+    public JsonElement? Llm { get; init; }
+
+    /// <summary>A local model job's <c>device</c> line (where the model was loaded), raw JSON.</summary>
+    public JsonElement? LlmDevice { get; init; }
+
+    /// <summary>A local model job's progress details, raw JSON. Its text delta is content: shown, never logged.</summary>
+    public JsonElement? LlmProgress { get; init; }
 
     public string? Code { get; init; }
 

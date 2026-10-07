@@ -37,4 +37,7 @@ public sealed record SettingsSetParams
 
     /// <summary>Settings › Storage and history (M3).</summary>
     public LibraryStorageSettingsPatch? Storage { get; init; }
+
+    /// <summary>Settings › Documents (M4); each field present is changed.</summary>
+    public DocumentsSettingsPatch? Documents { get; init; }
 }

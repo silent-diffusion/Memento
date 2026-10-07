@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Memento.Core.Attachments;
 using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
+using Memento.Core.Documents;
 using Memento.Core.Projects;
 using Memento.Core.Transcripts;
 
@@ -14,7 +15,7 @@ namespace Memento.Core.Export;
 /// details) are rendered here, so their sizes are exact; audio and attachments are read when the job writes them.
 /// Reads only: the project is never changed.
 /// </summary>
-public sealed class ExportPlanner(IProjectStore store, ProjectService projects, TranscriptStore transcripts, ExportAudio audio, TimeProvider time)
+public sealed class ExportPlanner(IProjectStore store, ProjectService projects, TranscriptStore transcripts, ExportAudio audio, TimeProvider time, IDocumentExportSource? documents = null)
 {
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -73,7 +74,20 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
         if (selection.Documents.On)
         {
-            unavailable.Add(new(ExportComponents.Documents, "Documents arrive in a later version"));
+            if (documents is null)
+            {
+                unavailable.Add(new(ExportComponents.Documents, "Documents are not available in this build"));
+            }
+            else
+            {
+                var plan = await documents.PlanAsync(recordingId, selection.Documents.DocumentIds ?? [], selection.Documents.Format, cancellationToken);
+                if (plan.Unavailable is { } reason)
+                {
+                    unavailable.Add(new(ExportComponents.Documents, reason));
+                }
+
+                items.AddRange(plan.Files.Select(f => new ExportItem(ExportComponents.Documents, baseName + " - " + f.Name, null, f.EstimatedBytes, f.WriteAsync, f.DocumentId)));
+            }
         }
 
         if (selection.Details.On)

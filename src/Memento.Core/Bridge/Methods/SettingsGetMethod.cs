@@ -16,7 +16,7 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
     public override JsonTypeInfo<SettingsSnapshot> ResultTypeInfo => BridgeJsonContext.Default.SettingsSnapshot;
 
     public override Task<SettingsSnapshot> InvokeAsync(EmptyParams parameters, CancellationToken cancellationToken) =>
-        Task.FromResult(ToSnapshot(store.Current, selector.EffectiveModelId(store.Current.Transcription), extras));
+        Task.FromResult(M4SettingsBlocks.Complete(ToSnapshot(store.Current, selector.EffectiveModelId(store.Current.Transcription), extras), store.Current, selector));
 
     internal static SettingsSnapshot ToSnapshot(AppSettings settings, string effectiveModelId, SettingsExtras? extras = null)
     {
