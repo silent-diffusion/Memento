@@ -635,7 +635,8 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
     },
     versions(recordingId, documentId) {
       const doc = findDoc(recordingId, documentId);
-      return [...doc.versions].reverse().map(({ id, at, reason, changes }) => ({ id, at, reason, changes }));
+      // As the host lists them: the current content first, every entry with its version number.
+      return doc.versions.map(({ id, at, reason, changes }, i) => ({ id: i === doc.versions.length - 1 ? 'current' : id, at, reason, changes, version: i + 1 })).reverse();
     },
     restoreVersion(recordingId, documentId, versionId) {
       const doc = findDoc(recordingId, documentId);

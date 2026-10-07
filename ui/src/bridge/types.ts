@@ -1732,6 +1732,8 @@ export interface DocumentVersion {
   at: string;
   reason: DocumentVersionReason;
   changes: number;
+  /** The content's version number (the host sends it; the first entry, id "current", is what the document holds now). */
+  version?: number;
 }
 
 /** documents.changed reasons. */

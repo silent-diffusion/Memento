@@ -80,7 +80,7 @@ interface VersionsProps {
 /** Newest first, numbered from the oldest (version 1). */
 export function numberedVersions(versions: readonly DocumentVersion[]): { version: DocumentVersion; number: number }[] {
   const oldestFirst = [...versions].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  return oldestFirst.map((version, i) => ({ version, number: i + 1 })).reverse();
+  return oldestFirst.map((version, i) => ({ version, number: version.version ?? i + 1 })).reverse();
 }
 
 export function versionMeta(version: DocumentVersion, now: Date): string {
