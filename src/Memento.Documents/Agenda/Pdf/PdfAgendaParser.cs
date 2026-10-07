@@ -44,8 +44,11 @@ public sealed class PdfAgendaParser : IAgendaParser
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
         var canRecognize = _renderer is not null && _engines.Count > 0;
-        var result = await Task.Run(() => Parse(bytes, options, canRecognize, cancellationToken), cancellationToken).ConfigureAwait(false);
-        return result ?? await ScannedPdfReader.ReadAsync(bytes, options, _engines, _renderer!, cancellationToken).ConfigureAwait(false);
+        return await ParseGuard.RunAsync(
+            options,
+            "a PDF",
+            async token => Parse(bytes, options, canRecognize, token) ?? await ScannedPdfReader.ReadAsync(bytes, options, _engines, _renderer!, token).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <returns><c>null</c> when the PDF has no text layer and <paramref name="canRecognize"/> is set.</returns>
@@ -60,7 +63,7 @@ public sealed class PdfAgendaParser : IAgendaParser
         {
             throw AgendaErrors.Protected(options, e);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (ParseGuard.IsDamage(e, cancellationToken))
         {
             throw AgendaErrors.Unreadable(options, "a PDF", e);
         }
@@ -82,7 +85,7 @@ public sealed class PdfAgendaParser : IAgendaParser
                     page = document.GetPage(number);
                     pageWords = page.GetWords().ToList();
                 }
-                catch (Exception e) when (e is not OperationCanceledException)
+                catch (Exception e) when (ParseGuard.IsDamage(e, cancellationToken))
                 {
                     throw AgendaErrors.Unreadable(options, "a PDF", e);
                 }

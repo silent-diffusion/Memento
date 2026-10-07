@@ -133,7 +133,7 @@ internal static class FormatSniffer
             using var zip = new ZipArchive(new MemoryStream(bytes.ToArray(), writable: false), ZipArchiveMode.Read);
             names = zip.Entries.Select(e => e.FullName.Replace('\\', '/')).ToList();
         }
-        catch (InvalidDataException e)
+        catch (Exception e) when (ParseGuard.IsDamage(e, CancellationToken.None))
         {
             throw AgendaErrors.Unreadable(options, "a Word or Excel file", e);
         }

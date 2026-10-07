@@ -797,13 +797,13 @@ internal static partial class AgendaStructurer
     [GeneratedRegex(@"^(?:attendees|participants|present|invitees|apologies|absent|attendance|distribution|guests|people|who)\s*[:：]?$", RegexOptions.IgnoreCase)]
     private static partial Regex PeopleHeadingPattern();
 
-    [GeneratedRegex(@"^(?:(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\.?,?\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4})(?:\s*[,·|–—-]\s*.*)?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\.?,?\s+)?(?:[0-9]{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+[0-9]{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+[0-9]{1,2}(?:st|nd|rd|th)?,?\s+[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[/.][0-9]{1,2}[/.][0-9]{2,4})(?:\s*[,·|–—-]\s*.*)?$", RegexOptions.IgnoreCase)]
     private static partial Regex DateLinePattern();
 
-    [GeneratedRegex(@"^\s*\d{1,2}[:.h]\d{2}(?:\s*[ap]\.?m\.?)?\s*(?:-|–|—|to)\s*\d{1,2}[:.h]\d{2}(?:\s*[ap]\.?m\.?)?\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*[0-9]{1,2}[:.h][0-9]{2}(?:\s*[ap]\.?m\.?)?\s*(?:-|–|—|to)\s*[0-9]{1,2}[:.h][0-9]{2}(?:\s*[ap]\.?m\.?)?\s*$", RegexOptions.IgnoreCase)]
     private static partial Regex TimeOnlyPattern();
 
-    [GeneratedRegex(@"^(?:page\s+\d+(?:\s+of\s+\d+)?|\d+\s*/\s*\d+|-\s*\d+\s*-)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:page\s+[0-9]+(?:\s+of\s+[0-9]+)?|[0-9]+\s*/\s*[0-9]+|-\s*[0-9]+\s*-)$", RegexOptions.IgnoreCase)]
     private static partial Regex PageFurniturePattern();
 
     [GeneratedRegex(@"^(?:thanks|thank you|many thanks|best|best regards|regards|kind regards|cheers|see you|talk soon)\b", RegexOptions.IgnoreCase)]

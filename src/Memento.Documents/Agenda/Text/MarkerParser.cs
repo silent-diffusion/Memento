@@ -7,7 +7,7 @@ namespace Memento.Documents.Agenda.Text;
 internal static partial class MarkerParser
 {
     private const string TimeExpression =
-        @"(?:\d{1,2}[:.h]\d{2}|\d{1,2})(?:\s*[ap]\.?\s?m\.?)?(?:\s*(?:-|–|—|to|until)\s*(?:\d{1,2}[:.h]\d{2}|\d{1,2})(?:\s*[ap]\.?\s?m\.?)?)?";
+        @"(?:[0-9]{1,2}[:.h][0-9]{2}|[0-9]{1,2})(?:\s*[ap]\.?\s?m\.?)?(?:\s*(?:-|–|—|to|until)\s*(?:[0-9]{1,2}[:.h][0-9]{2}|[0-9]{1,2})(?:\s*[ap]\.?\s?m\.?)?)?";
 
     public static bool TryParseMarker(string text, out ListMarker marker, out string rest)
     {
@@ -205,10 +205,10 @@ internal static partial class MarkerParser
     [GeneratedRegex(@"^(?:(?<g>[-*+])\s+|(?<g>[–—])\s+|(?<g>o)(?:\t|\s{2,})|(?<g>[•●○◦▪▫■□►▸‣⁃·»→✓✔])\s*)(?=\S)")]
     private static partial Regex BulletPattern();
 
-    [GeneratedRegex(@"^(?<v>\d{1,3}(?:\.\d{1,3})+)\.?(?:\)\s*|\s+|(?=\p{L}))(?=\S)")]
+    [GeneratedRegex(@"^(?<v>[0-9]{1,3}(?:\.[0-9]{1,3})+)\.?(?:\)\s*|\s+|(?=\p{L}))(?=\S)")]
     private static partial Regex OutlinePattern();
 
-    [GeneratedRegex(@"^(?:\((?<v>\d{1,3})\)|\#(?<v>\d{1,3})[.):]?|(?<v>\d{1,3})(?:[.)\]:]|\s+[-–—](?=\s)))\s*(?=\S)")]
+    [GeneratedRegex(@"^(?:\((?<v>[0-9]{1,3})\)|\#(?<v>[0-9]{1,3})[.):]?|(?<v>[0-9]{1,3})(?:[.)\]:]|\s+[-–—](?=\s)))\s*(?=\S)")]
     private static partial Regex DecimalPattern();
 
     [GeneratedRegex(@"^\(?(?<v>[ivxIVX]{2,5})[.)]\s+(?=\S)")]
@@ -226,7 +226,7 @@ internal static partial class MarkerParser
     [GeneratedRegex(@"^" + TimeExpression + @"$", RegexOptions.IgnoreCase)]
     private static partial Regex WholeTimePattern();
 
-    [GeneratedRegex(@"^(?<h>\d{1,2})(?:(?<s>[:.h])(?<m>\d{2}))?(?:\s*(?<ap>[ap]\.?\s?m\.?))?", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?<h>[0-9]{1,2})(?:(?<s>[:.h])(?<m>[0-9]{2}))?(?:\s*(?<ap>[ap]\.?\s?m\.?))?", RegexOptions.IgnoreCase)]
     private static partial Regex TimePartPattern();
 
     [GeneratedRegex(@"\s+")]

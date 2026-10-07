@@ -18,6 +18,9 @@ namespace Memento.Documents.Agenda.OpenXml;
 /// </summary>
 public sealed class DocxAgendaParser : IAgendaParser
 {
+    /// <summary>A merged cell spans at most this many columns; a wider <c>w:gridSpan</c> is damage, not layout.</summary>
+    private const int MaxSpan = 64;
+
     public IReadOnlyList<AgendaSourceKind> Kinds { get; } = [AgendaSourceKind.Docx];
 
     public bool CanParse(string fileName, string? contentType) =>
@@ -28,7 +31,7 @@ public sealed class DocxAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        return await Task.Run(() => Parse(bytes, options, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ParseGuard.RunAsync(options, "a Word document", token => Parse(bytes, options, token), cancellationToken).ConfigureAwait(false);
     }
 
     private static AgendaParseResult Parse(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, CancellationToken cancellationToken)
@@ -107,7 +110,7 @@ public sealed class DocxAgendaParser : IAgendaParser
                 case TabChar:
                     text.Append('\t');
                     break;
-                case Break br when br.Type?.Value != BreakValues.Page && br.Type?.Value != BreakValues.Column:
+                case Break br when OpenXmlValues.Enum(br.Type) is not { } type || (type != BreakValues.Page && type != BreakValues.Column):
                     text.Append('\n');
                     break;
                 case Break:
@@ -268,7 +271,9 @@ public sealed class DocxAgendaParser : IAgendaParser
                 var cellElements = row.Elements<TableCell>().ToList();
                 foreach (var cell in cellElements)
                 {
-                    var continuation = cell.TableCellProperties?.VerticalMerge is { } merge && merge.Val?.Value != MergedCellValues.Restart;
+                    // No value means "continue"; a value Word does not know keeps the cell's text rather than dropping it.
+                    var continuation = cell.TableCellProperties?.VerticalMerge is { } merge &&
+                        (merge.Val is null || OpenXmlValues.Enum(merge.Val) == MergedCellValues.Continue);
                     var text = continuation
                         ? string.Empty
                         : string.Join('\n', cell.Descendants<Paragraph>()
@@ -276,14 +281,14 @@ public sealed class DocxAgendaParser : IAgendaParser
                             .Select(p => ParagraphText(p).Trim())
                             .Where(t => t.Length > 0));
                     cells.Add(text);
-                    var span = cell.TableCellProperties?.GridSpan?.Val?.Value ?? 1;
+                    var span = Math.Clamp(OpenXmlValues.Int(cell.TableCellProperties?.GridSpan?.Val) ?? 1, 1, MaxSpan);
                     for (var s = 1; s < span; s++)
                     {
                         cells.Add(string.Empty);
                     }
                 }
 
-                var spansAll = cellElements.Count == 1 && (gridColumns > 1 || (cellElements[0].TableCellProperties?.GridSpan?.Val?.Value ?? 1) > 1);
+                var spansAll = cellElements.Count == 1 && (gridColumns > 1 || (OpenXmlValues.Int(cellElements[0].TableCellProperties?.GridSpan?.Val) ?? 1) > 1);
                 rows.Add(new AgendaTableRow(cells, new AgendaSourceLocation { Table = number, Row = rowNumber }) { MergedAcross = spansAll });
             }
 

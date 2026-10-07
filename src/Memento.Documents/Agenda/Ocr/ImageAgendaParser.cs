@@ -30,6 +30,11 @@ public sealed class ImageAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
+        return await ParseGuard.RunAsync(options, "an image", token => ParseAsync(bytes, options, token), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<AgendaParseResult> ParseAsync(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, CancellationToken cancellationToken)
+    {
         var format = ImageFormats.Detect(bytes.Span);
         if (format is null or ImageFormats.Gif or ImageFormats.Webp)
         {

@@ -29,7 +29,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        return await Task.Run(() => Parse(bytes, options, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ParseGuard.RunAsync(options, "an Excel workbook", token => Parse(bytes, options, token), cancellationToken).ConfigureAwait(false);
     }
 
     private static AgendaParseResult Parse(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             var workbookPart = document.WorkbookPart ?? throw AgendaErrors.Unreadable(options, "an Excel workbook");
             var context = new SheetContext(workbookPart);
             var sheets = (workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
-                .Where(s => s.State is null || s.State.Value == SheetStateValues.Visible)
+                .Where(s => OpenXmlValues.Enum(s.State) is not { } state || state == SheetStateValues.Visible)
                 .Select(s => (Sheet: s, Rows: ReadSheet(workbookPart, s, context, cancellationToken)))
                 .ToList();
             var withData = sheets.Where(s => s.Rows.Any(r => r.Cells.Any(c => c.Length > 0))).ToList();
@@ -86,7 +86,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
     private static List<AgendaTableRow> ReadSheet(WorkbookPart workbookPart, Sheet sheet, SheetContext context, CancellationToken cancellationToken)
     {
         var name = sheet.Name?.Value ?? string.Empty;
-        if (sheet.Id?.Value is not { } id || workbookPart.GetPartById(id) is not WorksheetPart part)
+        if (sheet.Id?.Value is not { } id || !workbookPart.TryGetPartById(id, out var sheetPart) || sheetPart is not WorksheetPart part)
         {
             return [];
         }
@@ -103,7 +103,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
         foreach (var row in data.Elements<Row>())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var rowIndex = (int)(row.RowIndex?.Value ?? (uint)nextRow);
+            var rowIndex = (int)(OpenXmlValues.UInt(row.RowIndex) ?? (uint)nextRow);
             nextRow = rowIndex + 1;
             if (rowIndex > MaxRows)
             {
@@ -220,18 +220,18 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 .ToList();
             var stylesheet = workbookPart.WorkbookStylesPart?.Stylesheet;
             _cellFormats = (stylesheet?.CellFormats?.Elements<CellFormat>() ?? [])
-                .Select(f => f.NumberFormatId?.Value ?? 0)
+                .Select(f => OpenXmlValues.UInt(f.NumberFormatId) ?? 0)
                 .ToList();
             _customFormats = (stylesheet?.NumberingFormats?.Elements<NumberingFormat>() ?? [])
-                .Where(f => f.NumberFormatId?.Value is not null)
-                .GroupBy(f => f.NumberFormatId!.Value)
+                .Where(f => OpenXmlValues.UInt(f.NumberFormatId) is not null)
+                .GroupBy(f => OpenXmlValues.UInt(f.NumberFormatId)!.Value)
                 .ToDictionary(g => g.Key, g => g.First().FormatCode?.Value ?? string.Empty);
         }
 
         public string ValueOf(Cell cell)
         {
             var raw = cell.CellValue?.Text ?? string.Empty;
-            var type = cell.DataType?.Value;
+            var type = OpenXmlValues.Enum(cell.DataType);
             if (type == CellValues.SharedString)
             {
                 return int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index) && index < _sharedStrings.Count
@@ -239,7 +239,8 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                     : string.Empty;
             }
 
-            if (type == CellValues.InlineString)
+            // An inline string is read whatever the cell's type says (a type Excel does not know reads as absent).
+            if (type == CellValues.InlineString || (cell.InlineString is not null && cell.CellValue is null))
             {
                 return cell.InlineString is { } inline ? ItemText(inline) : raw;
             }
@@ -251,7 +252,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 
             if (type is null || type == CellValues.Number)
             {
-                return FormatNumber(raw, cell.StyleIndex?.Value);
+                return FormatNumber(raw, OpenXmlValues.UInt(cell.StyleIndex));
             }
 
             return raw;

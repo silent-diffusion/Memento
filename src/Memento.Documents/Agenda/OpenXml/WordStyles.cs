@@ -19,7 +19,7 @@ internal sealed partial class WordStyles
     /// <summary>The heading level (1-9) of a paragraph from its outline level or heading style; <c>null</c> for body text.</summary>
     public int? HeadingLevel(Paragraph paragraph)
     {
-        var direct = paragraph.ParagraphProperties?.OutlineLevel?.Val?.Value;
+        var direct = OpenXmlValues.Int(paragraph.ParagraphProperties?.OutlineLevel?.Val);
         if (direct is { } outline and < 9)
         {
             return outline + 1;
@@ -27,7 +27,7 @@ internal sealed partial class WordStyles
 
         foreach (var style in Chain(paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value))
         {
-            var level = style.StyleParagraphProperties?.OutlineLevel?.Val?.Value;
+            var level = OpenXmlValues.Int(style.StyleParagraphProperties?.OutlineLevel?.Val);
             if (level is { } styleOutline and < 9)
             {
                 return styleOutline + 1;
@@ -70,9 +70,9 @@ internal sealed partial class WordStyles
         foreach (var style in Chain(styleId))
         {
             var numPr = style.StyleParagraphProperties?.NumberingProperties;
-            if (numPr?.NumberingId?.Val?.Value is { } numId)
+            if (OpenXmlValues.Int(numPr?.NumberingId?.Val) is { } numId)
             {
-                return (numId, numPr.NumberingLevelReference?.Val?.Value);
+                return (numId, OpenXmlValues.Int(numPr!.NumberingLevelReference?.Val));
             }
         }
 

@@ -15,8 +15,15 @@ public sealed partial class MarkdownAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        var text = TextDecoder.Decode(bytes.Span, out var fallback);
-        return Parse(text, options, fallback ? [TextDecoder.FallbackWarning(options)] : [], cancellationToken);
+        return await ParseGuard.RunAsync(
+            options,
+            "a Markdown file",
+            token =>
+            {
+                var text = TextDecoder.Decode(bytes.Span, out var fallback);
+                return Parse(text, options, fallback ? [TextDecoder.FallbackWarning(options)] : [], token);
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Whether pasted text is Markdown: it has headings, task boxes or a table.</summary>
