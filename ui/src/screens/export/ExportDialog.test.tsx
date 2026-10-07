@@ -179,9 +179,15 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     await open(DESIGN, { m3: { export: 'unwritable' } });
     await click(button('Change export folder'));
     await until(() => (dialog().querySelector('.export-path')?.textContent ?? '').startsWith('E:'));
+    // Scrolled down to the folder, as after Change; the card at the top must come into view.
+    const body = dialog().querySelector<HTMLElement>('.export-body');
+    if (body !== null) {
+      body.scrollTop = 400;
+    }
     await click(dialog().querySelector('.export-foot .btn.p'));
     await until(() => document.querySelector('.export-failure') !== null);
     expect(dialog().querySelector('.export-failure')?.textContent).toContain('Nothing was written, and nothing inside Memento was changed.');
+    expect(body?.scrollTop).toBe(0);
     expect(document.querySelector('.footer-export')).toBeNull();
     expect(failureText('The drive is full.')).toBe('The drive is full. Nothing inside Memento was changed.');
   });

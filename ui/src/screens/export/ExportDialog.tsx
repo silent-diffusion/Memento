@@ -134,6 +134,16 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
   const [estimate, setEstimate] = useState<ExportEstimate | null>(null);
   const [estimateError, setEstimateError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(retry === null ? null : failureText(retry.message));
+  // The failure sits at the top of the scrolling list; after Export at the bottom it must come into view.
+  const failureRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (failure !== null) {
+      const body = failureRef.current?.closest<HTMLElement>('.export-body');
+      if (body !== null && body !== undefined) {
+        body.scrollTop = 0;
+      }
+    }
+  }, [failure]);
   const [busy, setBusy] = useState(false);
   const { ref, onKeyDown } = useModal(close);
 
@@ -321,7 +331,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
 
         <div class="export-body">
           {failure === null ? null : (
-            <div class="export-failure" role="alert">
+            <div class="export-failure" role="alert" ref={failureRef}>
               <span class="export-failure-icon" aria-hidden="true">
                 <InfoIcon size={18} />
               </span>
