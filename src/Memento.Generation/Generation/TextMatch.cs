@@ -44,7 +44,14 @@ public static partial class TextMatch
     public static IReadOnlyList<string> QuotePieces(string? quote) =>
         Ellipsis().Split(quote ?? string.Empty).Select(Normalize).Where(p => p.Length > 0).ToList();
 
-    /// <summary>Every piece of <paramref name="quote"/> occurs in <paramref name="text"/> (normalised, on word boundaries).</summary>
+    /// <summary>Words each piece of a quote joined by an ellipsis must have, so scattered words cannot pass as a quote.</summary>
+    public const int MinWordsPerPiece = 3;
+
+    /// <summary>
+    /// The pieces of <paramref name="quote"/> occur in <paramref name="text"/> in their order, without overlapping
+    /// (normalised, on word boundaries). A quote of several pieces needs at least <see cref="MinWordsPerPiece"/> words in
+    /// each, so "we … not … ship" cannot be assembled from words spread over a line.
+    /// </summary>
     public static bool QuoteIn(string? quote, string? text)
     {
         var pieces = QuotePieces(quote);
@@ -53,8 +60,26 @@ public static partial class TextMatch
             return false;
         }
 
+        if (pieces.Count > 1 && pieces.Any(p => p.Split(' ').Length < MinWordsPerPiece))
+        {
+            return false;
+        }
+
         var haystack = " " + Normalize(text) + " ";
-        return pieces.All(p => haystack.Contains(" " + p + " ", StringComparison.Ordinal));
+        var from = 0;
+        foreach (var piece in pieces)
+        {
+            var at = haystack.IndexOf(" " + piece + " ", from, StringComparison.Ordinal);
+            if (at < 0)
+            {
+                return false;
+            }
+
+            // The next piece may start at the space this one ends with.
+            from = at + piece.Length + 1;
+        }
+
+        return true;
     }
 
     /// <summary>Share of the quote's words that occur in <paramref name="text"/> (for near-verbatim quotes), 0..1.</summary>
