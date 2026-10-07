@@ -28,6 +28,13 @@ public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKey
             throw M3Errors.Invalid($"That does not look like an API key: a key is {MinKeyLength} to {MaxKeyLength} characters with no spaces. Nothing was saved. Copy the whole key from the provider's console and paste it again.");
         }
 
+        // Provider keys are printable ASCII. Anything else (a smart quote, a look-alike letter, a zero-width character)
+        // came from a document or chat, and would make the key header invalid when it is sent.
+        if (key.Any(c => c is < '!' or > '~'))
+        {
+            throw M3Errors.Invalid("That does not look like an API key: it contains a character that is not a plain letter, digit or symbol, such as a curly quote or an accented letter. Nothing was saved. Copy the key again from the provider's console rather than from a document or chat, and paste it.");
+        }
+
         try
         {
             await secrets.SetKeyAsync(provider, key, cancellationToken);
