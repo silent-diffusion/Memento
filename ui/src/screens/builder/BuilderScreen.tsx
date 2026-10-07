@@ -34,6 +34,12 @@ import { moduleName, Structure } from './Structure';
 /** The preview paper is asked for once changes pause this long. */
 export const PREVIEW_DEBOUNCE_MS = 200;
 
+/**
+ * How often provider readiness is asked again while the chosen provider is not ready. The local model's readiness
+ * depends on free video memory, which other apps (or a job that just ended) give back without any event.
+ */
+export const PROVIDER_RECHECK_MS = 5000;
+
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Memento did not answer.';
 }
@@ -253,6 +259,27 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
 
   const providerList = providers?.providers ?? [];
   const provider = template === null ? null : chosenProvider(template, settings?.ai.defaultProviderId ?? null, providerList);
+  const waitingForProvider = providers !== null && template !== null && provider?.ready !== true;
+  useEffect(() => {
+    if (!waitingForProvider) {
+      return undefined;
+    }
+    let live = true;
+    const timer = setInterval(() => {
+      bridge
+        .call('providers.list')
+        .then((result) => {
+          if (live) {
+            setProviders(result);
+          }
+        })
+        .catch(() => undefined);
+    }, PROVIDER_RECHECK_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [bridge, waitingForProvider]);
   const word = documentWord(template?.name ?? 'document');
   const count = moduleCount(structure.rows);
   const style = styles.find((s) => s.id === template?.styleId) ?? null;
