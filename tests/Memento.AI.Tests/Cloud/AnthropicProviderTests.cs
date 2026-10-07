@@ -286,6 +286,19 @@ public sealed class AnthropicProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task AnAnswerPastTheSizeLimitIsAProviderErrorThatSaysSo()
+    {
+        var delta = new string('a', 1024 * 1024);
+        _server.Enqueue(AnthropicStreams.Text(Enumerable.Repeat(delta, 5)));
+
+        var error = await Assert.ThrowsAsync<AiException>(() => Provider().GenerateAsync(AiRequest.Create("test.huge", string.Empty, "Hi"), null, CancellationToken.None));
+
+        Assert.Equal(AiErrorCodes.ProviderError, error.Code);
+        Assert.Equal("the answer is too long", error.Error.Diagnostic);
+        Assert.Equal("Claude sent an answer Memento could not read. Nothing was sent twice and no document was changed. Try again.", error.Message);
+    }
+
+    [Fact]
     public async Task ACompletedAnswerThatIsNotJsonIsAProviderError()
     {
         _server.Enqueue(AnthropicStreams.Text(["Sure! Here is the JSON: {"]));

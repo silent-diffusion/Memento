@@ -86,6 +86,10 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
                     {
                         throw Fail(call, AiErrors.TimedOut(call.ProviderName, options.StreamIdleTimeout));
                     }
+                    catch (CloudAnswerTooLongException)
+                    {
+                        throw Fail(call, AiErrors.Unreadable(call.ProviderName, "the answer is too long"));
+                    }
                     catch (JsonException ex)
                     {
                         throw Fail(call, AiErrors.Unreadable(call.ProviderName, "malformed stream event: " + ex.GetType().Name));
