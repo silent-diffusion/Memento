@@ -296,6 +296,9 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             await _shutdown.CancelAsync();
         }
 
+        // The stage's work is cancelled (it is queued again for the next launch); its worker need not finish the
+        // native step it is in, which can take longer than the host's stop timeout.
+        _workers?.KillAll();
         await _worker;
         await _sampler;
     }

@@ -689,6 +689,33 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task ClosingMementoEndsAWorkerStuckInNativeCodeAtOnceAndQueuesTheStageAgain()
+    {
+        InstallAll();
+        var started = new TaskCompletionSource();
+        _host.Workers.Script = async (job, context, _) =>
+        {
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Track, Track = new WorkerTrackInfo("mic", 2, false, 0.1, [[0.2, 1.8]], 1) });
+            started.TrySetResult();
+            // Busy in native code: does not notice the cancel.
+            await Task.Delay(Timeout.Infinite, CancellationToken.None);
+            return 0;
+        };
+        var id = await _host.RecordAsync("Closing", 2, Mic);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(20));
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        await _host.Processing.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Well within the host's 5-second stop timeout, not after the 5-second cancel grace.
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(3), $"stopping took {stopwatch.Elapsed}");
+        Assert.True(Assert.Single(_host.Workers.Started).Killed);
+        var manifest = await ManifestAsync(id);
+        Assert.Equal(StageStates.Queued, Stage(manifest, StageNames.Transcript).State);
+        Assert.Empty(manifest.Failures);
+    }
+
+    [Fact]
     public async Task TurningTranscriptionOffQueuesNothing()
     {
         InstallAll();

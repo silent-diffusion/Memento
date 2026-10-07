@@ -132,6 +132,18 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
 
     public void Dispose() => _gpu.Dispose();
 
+    /// <summary>
+    /// Memento is closing: ends every worker at once instead of waiting out the cancel grace period (finished windows
+    /// and tracks are already saved; the jobs are cancelled first, so they report a cancel, not a crash).
+    /// </summary>
+    public void KillAll()
+    {
+        foreach (var process in _running.Values)
+        {
+            process.Kill();
+        }
+    }
+
     private async Task WaitGoneAsync(IWorkerProcess process)
     {
         try
