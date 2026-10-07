@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Memento.Core.Agendas;
 using Memento.Core.Bridge;
 using Memento.Core.Projects;
 
@@ -98,6 +99,26 @@ public sealed class SecurityAuditBridgeTests : IDisposable
 
         var copy = Path.Combine(_m3.Host.Store.GetProjectFolder(id), "attachments", "from-email.docx");
         Assert.Contains("ZoneId=3", File.ReadAllText(copy + ":Zone.Identifier"), StringComparison.Ordinal);
+    }
+
+    /// <summary>SA-71: agenda copies a crashed Memento held in %TEMP% are removed by the next session.</summary>
+    [Fact]
+    public async Task HeldAgendaCopiesOfACrashedSessionAreRemoved()
+    {
+        var root = _m3.Directory.File(PendingAgendaOptions.PendingFolderName);
+        var crashed = Path.Combine(root, "2147483646");
+        var notOurs = Path.Combine(root, "keep-me");
+        Directory.CreateDirectory(crashed);
+        Directory.CreateDirectory(notOurs);
+        File.WriteAllText(Path.Combine(crashed, "0123.bin"), "confidential agenda");
+        var own = Path.Combine(root, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        using var pending = new PendingAgendaFiles(new PendingAgendaOptions(own, TimeSpan.FromHours(1)), TimeProvider.System);
+
+        await pending.HoldAsync(_m3.WriteFile("agenda.txt", "1. Welcome"), null, CancellationToken.None);
+
+        Assert.False(Directory.Exists(crashed));
+        Assert.True(Directory.Exists(notOurs));
+        Assert.Single(Directory.GetFiles(own));
     }
 
     private void EditManifest(string id, Action<JsonObject> edit)
