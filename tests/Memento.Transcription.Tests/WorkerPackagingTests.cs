@@ -57,7 +57,8 @@ public sealed class WorkerPackagingTests
                     || import.StartsWith("ext-ms-", StringComparison.OrdinalIgnoreCase)
                     || System.Contains(import)
                     || File.Exists(Path.Combine(own, import))
-                    || File.Exists(Path.Combine(folder, import));
+                    || File.Exists(Path.Combine(folder, import))
+                    || LlamaCpuSibling(folder, own, import);
                 if (!resolved)
                 {
                     unresolved.Add($"{Path.GetRelativePath(folder, dll)} → {import}");
@@ -66,7 +67,7 @@ public sealed class WorkerPackagingTests
         }
 
         Assert.True(checkedFiles >= 6, $"Only {checkedFiles} native DLLs were found in {folder}.");
-        Assert.Empty(unresolved);
+        Assert.True(unresolved.Count == 0, "Unresolved imports: " + string.Join("; ", unresolved));
     }
 
     [Fact]
@@ -82,8 +83,24 @@ public sealed class WorkerPackagingTests
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(["runtimes/vulkan", "runtimes/vulkan/win-x64", "runtimes/win-x64"], runtimes);
+        // Whisper.net: runtimes/win-x64 (CPU) and runtimes/vulkan/win-x64; LLamaSharp: runtimes/win-x64/native/{CPU variants, vulkan}.
+        Assert.Equal(
+            ["runtimes/vulkan", "runtimes/vulkan/win-x64", "runtimes/win-x64", "runtimes/win-x64/native", "runtimes/win-x64/native/avx", "runtimes/win-x64/native/avx2", "runtimes/win-x64/native/avx512", "runtimes/win-x64/native/noavx", "runtimes/win-x64/native/vulkan"],
+            runtimes);
         Assert.DoesNotContain(Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories), f => f.Contains("cuda", StringComparison.OrdinalIgnoreCase) || f.Contains("cublas", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// llama.cpp's Vulkan <c>ggml.dll</c> imports <c>ggml-cpu.dll</c>, which LLamaSharp loads first from the CPU variant it
+    /// picks (<c>runtimes/win-x64/native/avx2</c> and its siblings), so the import resolves to the module already loaded.
+    /// </summary>
+    private static bool LlamaCpuSibling(string folder, string own, string import)
+    {
+        var native = Path.Combine(folder, "runtimes", "win-x64", "native");
+        return string.Equals(import, "ggml-cpu.dll", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Path.GetFullPath(own), Path.GetFullPath(Path.Combine(native, "vulkan")), StringComparison.OrdinalIgnoreCase)
+            && File.Exists(Path.Combine(native, "avx2", import))
+            && File.Exists(Path.Combine(native, "noavx", import));
     }
 
     [Fact]

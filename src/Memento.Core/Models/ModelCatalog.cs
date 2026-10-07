@@ -68,7 +68,7 @@ public sealed partial class ModelCatalog
         string? problem = null;
         if (!IdPattern().IsMatch(entry.Id ?? string.Empty))
         {
-            problem = "its id must be lower-case letters, digits and dashes";
+            problem = "its id must be lower-case letters, digits, dashes and dots";
         }
         else if (!seen.Add(entry.Id!))
         {
@@ -121,7 +121,7 @@ public sealed partial class ModelCatalog
         return Parse(reader.ReadToEnd());
     }
 
-    [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[a-z0-9]+([.-][a-z0-9]+)*$", RegexOptions.CultureInvariant)]
     private static partial Regex IdPattern();
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]

@@ -6,6 +6,10 @@ namespace Memento.Core.Settings;
 /// <summary>Settings › AI and privacy (M3, M4). External AI is off by default; keys live in DPAPI storage, never here.</summary>
 public sealed record AiSettings
 {
+    /// <summary>
+    /// "Allow external AI services": governs the cloud providers (Claude, ChatGPT) only. The local model sends nothing
+    /// and is available whenever its model is installed, whatever this says (M4).
+    /// </summary>
     public bool Enabled { get; init; }
 
     public bool AskBeforeSend { get; set; } = true;

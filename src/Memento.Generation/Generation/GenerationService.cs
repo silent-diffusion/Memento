@@ -49,6 +49,9 @@ public sealed partial class GenerationService(
     /// <summary>How long a job waits for "ask before every send" before it is forgotten.</summary>
     public static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(10);
 
+    /// <summary>Below the project's <c>documents/</c>: the copies a template's output options ask for.</summary>
+    public const string ExportsFolder = "exports";
+
     private readonly object _gate = new();
     private readonly ILogger<GenerationService> _logger = logger;
     private Job? _job;
@@ -91,13 +94,19 @@ public sealed partial class GenerationService(
     }
 
     /// <summary>The Builder's live preview paper: the real title and meta line, the headings in the style, a skeleton per module.</summary>
-    public async Task<HtmlResult> PreviewHtmlAsync(string recordingId, BridgeTemplate template, string styleId, CancellationToken cancellationToken)
+    /// <param name="recordingId"><c>null</c> while a template is edited without a recording: the sample minutes' title and meta line.</param>
+    public async Task<HtmlResult> PreviewHtmlAsync(string? recordingId, BridgeTemplate template, string styleId, CancellationToken cancellationToken)
     {
         var stored = M4Mapping.FromBridge(template, null, catalog);
-        var material = await loader.LoadAsync(recordingId, null, cancellationToken);
         var style = await styles.FindAsync(styleId, cancellationToken);
-        var paper = renderer.RenderSkeleton(stored, Title(material), Meta(material, stored), style);
-        return new HtmlResult(paper.Html) { Css = paper.Css };
+        if (recordingId is null)
+        {
+            var sample = SampleDocument.Minutes;
+            return new HtmlResult(renderer.RenderSkeleton(stored, sample.Title, sample.Meta with { Kind = Kind(stored) }, style).Html);
+        }
+
+        var material = await loader.LoadAsync(recordingId, null, cancellationToken);
+        return new HtmlResult(renderer.RenderSkeleton(stored, Title(material), Meta(material, stored), style).Html);
     }
 
     public async Task<GenerationStartResult> StartAsync(string recordingId, BridgeTemplate template, string? documentId, CancellationToken cancellationToken)
@@ -147,7 +156,6 @@ public sealed partial class GenerationService(
 
         if (confirm)
         {
-            Publish(job, "waiting", null, 0, "Waiting for you to confirm what will be sent", force: true);
             return new GenerationStartResult(job.Id)
             {
                 ConfirmationRequired = true,
@@ -155,10 +163,9 @@ public sealed partial class GenerationService(
                     prepared.Status.Id,
                     prepared.Status.Name,
                     prepared.Status.ModelLabel,
-                    prepared.Payload.Sections.Select(s => s.Summary.Length == 0 ? s.Title : $"{s.Title} ({s.Summary})").ToList(),
+                    M4Mapping.ToBridge(prepared.Selection),
                     Encoding.UTF8.GetByteCount(prepared.Payload.Text),
-                    prepared.Chunks,
-                    StaysOnPc: false),
+                    prepared.Chunks),
             };
         }
 
@@ -185,7 +192,7 @@ public sealed partial class GenerationService(
         }
         else
         {
-            Publish(job, "cancelled", null, 0, "Nothing was sent.", force: true);
+            Finish(job, "cancelled", null, 0, "Nothing was sent.", null);
         }
     }
 
@@ -204,7 +211,7 @@ public sealed partial class GenerationService(
 
         if (job.Run is null)
         {
-            Publish(job, "cancelled", null, 0, "Nothing was sent.", force: true);
+            Finish(job, "cancelled", null, 0, "Nothing was sent.", null);
             return;
         }
 
@@ -326,18 +333,27 @@ public sealed partial class GenerationService(
 
     private void Finish(Job job, string stage, string? documentId, double percent, string message, string? code)
     {
-        lock (_gate)
+        lock (job.EventGate)
         {
-            job.Finished = true;
-        }
+            lock (_gate)
+            {
+                job.Finished = true;
+            }
 
-        events.PublishGenerationProgress(new GenerationProgress(job.Id, job.RecordingId, documentId, stage, null, percent, message) { Code = code });
+            events.PublishGenerationProgress(new GenerationProgress(job.Id, job.RecordingId, documentId, stage, null, percent, message) { Code = code });
+        }
     }
 
     private void Publish(Job job, string stage, string? moduleId, double percent, string? message, bool force = false)
     {
-        if (job.Throttle.TryPass(force || stage != job.LastStage))
+        // Progress callbacks arrive on the pool and can trail the job: nothing is sent after its final event.
+        lock (job.EventGate)
         {
+            if (job.Finished || !job.Throttle.TryPass(force || stage != job.LastStage))
+            {
+                return;
+            }
+
             job.LastStage = stage;
             events.PublishGenerationProgress(new GenerationProgress(job.Id, job.RecordingId, job.DocumentId, stage, moduleId, percent, message));
         }
@@ -421,7 +437,10 @@ public sealed partial class GenerationService(
             $"Inputs: {(record.Sent.Count == 0 ? "none" : string.Join("; ", record.Sent))} · {HumanFormat.Bytes(record.Bytes)} in {record.Chunks} chunk{(record.Chunks == 1 ? string.Empty : "s")}, {where}. Audio and video were not sent. {ai.Count} generated section{(ai.Count == 1 ? string.Empty : "s")}: {ai.Sum(m => m.Claims)} claims, {ai.Sum(m => m.Verified)} verified, {ai.Sum(m => m.Dropped)} dropped{(ai.Count(m => m.NotDiscussed) is var n and > 0 ? $", {n} not discussed" : string.Empty)}. Took {HumanFormat.Clock(record.DurationMs)}.");
     }
 
-    /// <summary>The template's output options: Word, Markdown and PDF copies in the Settings export folder, when one is set.</summary>
+    /// <summary>
+    /// The template's output options ("Also export Word / Markdown", and PDF): copies in the project's
+    /// <c>documents/exports/</c>, named after the document and its version (never over an earlier copy), each listed in History.
+    /// </summary>
     private async Task AlsoExportAsync(Document document, Prepared prepared, CancellationToken cancellationToken)
     {
         var output = prepared.Template.Output;
@@ -431,17 +450,14 @@ public sealed partial class GenerationService(
             return;
         }
 
-        if (settings.Current.Export.DefaultFolder is not { Length: > 0 } folder || !Directory.Exists(folder))
-        {
-            await HistoryAsync(prepared.Material.RecordingId, "info", "Copies were not exported", "The template asks for copies, but no export folder is set in Settings › Export. The document is saved in the recording.", cancellationToken);
-            return;
-        }
-
+        var folder = Path.Combine(projects.GetProjectFolder(prepared.Material.RecordingId), ProjectLayout.DocumentsFolder, ExportsFolder);
+        Directory.CreateDirectory(folder);
+        var stem = DocumentService.FileStem(document.Name ?? document.Title) + string.Create(CultureInfo.InvariantCulture, $" v{document.Version}");
         foreach (var format in formats)
         {
             try
             {
-                await documents.ExportAsync(prepared.Material.RecordingId, document.Id, format, null, cancellationToken);
+                await documents.ExportAsync(prepared.Material.RecordingId, document.Id, format, Path.Combine(folder, stem), cancellationToken);
             }
             catch (BridgeException ex)
             {
@@ -527,5 +543,8 @@ public sealed partial class GenerationService(
         public ProgressThrottle Throttle { get; } = new(TimeProvider.System);
 
         public string? LastStage { get; set; }
+
+        /// <summary>Orders this job's events: no progress after the final one.</summary>
+        public object EventGate { get; } = new();
     }
 }

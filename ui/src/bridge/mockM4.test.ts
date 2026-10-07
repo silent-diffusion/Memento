@@ -75,7 +75,7 @@ describe('M4 contract names (BRIDGE-M4.md)', () => {
     const bridge = client();
     const settings = await bridge.call('settings.get');
     expect(settings.documents).toEqual({ defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' });
-    expect(settings.ai).toMatchObject({ defaultProviderId: null, localModelId: 'qwen3.5-4b-instruct-q4' });
+    expect(settings.ai).toMatchObject({ defaultProviderId: null, localModelId: 'qwen3.5-4b-q4' });
     const changed = await bridge.call('settings.set', { ai: { defaultProviderId: 'local' }, documents: { defaultStyleId: 'minimal' } });
     expect(changed.ai.defaultProviderId).toBe('local');
     expect(changed.documents.defaultStyleId).toBe('minimal');

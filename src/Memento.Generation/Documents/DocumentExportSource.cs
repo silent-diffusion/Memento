@@ -44,7 +44,7 @@ public sealed class DocumentExportSource(ProjectDocumentStore store, StyleServic
             if (kind == DocumentExportFormat.Pdf)
             {
                 var estimate = renderer.RenderPrintHtml(document, style).Length;
-                files.Add(new DocumentExportFile(name, estimate, async (path, ct) =>
+                files.Add(new DocumentExportFile(name, estimate, DocumentId: document.Id, WriteAsync: async (path, ct) =>
                 {
                     var result = await exporter.ExportAsync(document, style, kind, ct);
                     await File.WriteAllBytesAsync(path, result.Content.ToArray(), ct);
@@ -53,7 +53,7 @@ public sealed class DocumentExportSource(ProjectDocumentStore store, StyleServic
             }
 
             var bytes = (await exporter.ExportAsync(document, style, kind, cancellationToken)).Content;
-            files.Add(new DocumentExportFile(name, bytes.Length, (path, ct) => File.WriteAllBytesAsync(path, bytes.ToArray(), ct)));
+            files.Add(new DocumentExportFile(name, bytes.Length, (path, ct) => File.WriteAllBytesAsync(path, bytes.ToArray(), ct), document.Id));
         }
 
         return new DocumentExportPlan(files, null);

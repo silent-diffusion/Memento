@@ -15,7 +15,7 @@ public static class LocalModelCatalog
     /// <summary>The catalog <c>kind</c> of a local LLM (<see cref="ModelKinds.Llm"/>).</summary>
     public const string Kind = ModelKinds.Llm;
 
-    public const string Qwen35FourB = "qwen3-5-4b-q4";
+    public const string Qwen35FourB = "qwen3.5-4b-q4";
     public const string Ministral3ThreeB = "ministral-3-3b-q4";
 
     private static readonly Lazy<IReadOnlyList<LocalModelEntry>> Entries = new(() => From(ModelCatalog.Default));

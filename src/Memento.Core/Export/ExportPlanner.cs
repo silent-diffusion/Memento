@@ -86,7 +86,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
                     unavailable.Add(new(ExportComponents.Documents, reason));
                 }
 
-                items.AddRange(plan.Files.Select(f => new ExportItem(ExportComponents.Documents, baseName + " - " + f.Name, null, f.EstimatedBytes, f.WriteAsync)));
+                items.AddRange(plan.Files.Select(f => new ExportItem(ExportComponents.Documents, baseName + " - " + f.Name, null, f.EstimatedBytes, f.WriteAsync, f.DocumentId)));
             }
         }
 

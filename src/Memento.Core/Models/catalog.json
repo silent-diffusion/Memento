@@ -146,7 +146,7 @@
       "accuracyNote": "Per-word confidence"
     },
     {
-      "id": "qwen3-5-4b-q4",
+      "id": "qwen3.5-4b-q4",
       "engine": "llama",
       "kind": "llm",
       "role": null,

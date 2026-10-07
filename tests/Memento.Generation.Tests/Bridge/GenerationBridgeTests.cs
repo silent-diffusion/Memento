@@ -132,7 +132,7 @@ public sealed class GenerationBridgeTests : IDisposable
         Assert.True(held.GetProperty("confirmationRequired").GetBoolean());
         var summary = held.GetProperty("summary");
         Assert.Equal("Claude", summary.GetProperty("providerName").GetString());
-        Assert.False(summary.GetProperty("staysOnPc").GetBoolean());
+        Assert.False(summary.GetProperty("inputsUsed").GetProperty("attachments").GetBoolean());
         Assert.True(summary.GetProperty("bytes").GetInt64() > 1000);
         Assert.Equal(0, _host.Providers.CloudCreated);
         Assert.Equal(DomainErrorCodes.GenerationBusy, (await _host.ErrorAsync("generation.start", new { recordingId = id, template })).GetProperty("code").GetString());

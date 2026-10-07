@@ -132,7 +132,7 @@ public sealed class StyleService(IStyleStore styles, ITemplateStore templates, D
     {
         var style = M4Mapping.FromSettings(settings, BuiltInStyles.Corporate with { Id = "sample", Name = "Sample" });
         var paper = renderer.RenderSample(style);
-        return new HtmlResult(paper.Html) { Css = paper.Css };
+        return new HtmlResult(paper.Html);
     }
 
     /// <summary>Style id → the names of the templates that use it as their default.</summary>

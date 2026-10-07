@@ -22,8 +22,8 @@ export const MODEL_IDS = {
   eres2net: '3dspeaker-eres2net-base',
   tesseract: 'tesseract-eng',
   // M4: the Local provider's language models (ROADMAP M4a).
-  qwen: 'qwen3.5-4b-instruct-q4',
-  ministral: 'ministral-3-3b-instruct-q4',
+  qwen: 'qwen3.5-4b-q4',
+  ministral: 'ministral-3-3b-q4',
 } as const;
 
 /**

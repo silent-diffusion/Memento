@@ -209,10 +209,13 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         {
             var requests = work.Select(w => MapPrompts.Build(w.Task, input.Payload, w.Chunk, chunks.Count, catalog, input.MapOutputTokens, input.Bounded)).ToList();
             var done = finished;
+            var batch = work;
+            var batchTotal = total;
             var batchProgress = new Progress<int>(n =>
             {
-                var index = Math.Min(n, work.Count - 1);
-                Report(progress, "generating", work[index].Task.Modules[0].Id, 5 + (55.0 * Math.Min(total, done + n) / Math.Max(1, total)), "Reading the transcript");
+                // Progress<T> runs this later, on the pool: read only what this batch captured.
+                var index = Math.Clamp(n, 0, batch.Count - 1);
+                Report(progress, "generating", batch[index].Task.Modules[0].Id, 5 + (55.0 * Math.Min(batchTotal, done + n) / Math.Max(1, batchTotal)), "Reading the transcript");
             });
             var responses = await runner.RunAsync(requests, batchProgress, cancellationToken);
             var retry = new List<(ModuleTask Task, TranscriptChunk Chunk, int Split)>();

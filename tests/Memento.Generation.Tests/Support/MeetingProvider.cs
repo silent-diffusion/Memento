@@ -39,7 +39,7 @@ internal sealed partial class MeetingProvider(AiProviderKind kind = AiProviderKi
 
     public AiProviderKind Kind => kind;
 
-    public string Model => kind == AiProviderKind.Local ? "qwen3-5-4b-q4" : "claude-opus-5-5";
+    public string Model => kind == AiProviderKind.Local ? "qwen3.5-4b-q4" : "claude-opus-5-5";
 
     public AiCapabilities Capabilities { get; } = new(context, context / 2, true, kind == AiProviderKind.Local, true, false);
 

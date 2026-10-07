@@ -65,7 +65,7 @@ public static class M4Mapping
             new TemplateOutputSettings(template.Output.AlsoExportDocx, template.Output.AlsoExportMarkdown) { AlsoExportPdf = template.Output.AlsoExportPdf },
             template.ModifiedAt)
         {
-            DocumentKind = template.DocumentKind,
+            DocumentKind = string.IsNullOrWhiteSpace(template.DocumentKind) ? template.Name : template.DocumentKind,
             ProcessingInstructions = template.ProcessingInstructions,
             Customized = template.Customized,
         };
@@ -271,8 +271,29 @@ public static class M4Mapping
     public static DocumentContent ToContent(Document document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        var json = JsonSerializer.SerializeToElement(document, DocumentJsonContext.Default.Document);
-        return new DocumentContent(document.SchemaVersion, document.Id, document.Title, MetaLine.Format(document.Meta), json.GetProperty("rows").Clone(), ToBridge(document.Record))
+        // Rows of modules { id, module, title, textSize, linkToTranscript, blocks }, the stored model with "type" named "module".
+        var stored = JsonSerializer.SerializeToNode(document, DocumentJsonContext.Default.Document)!;
+        var rows = new System.Text.Json.Nodes.JsonArray();
+        foreach (var row in stored["rows"]?.AsArray() ?? [])
+        {
+            var modules = new System.Text.Json.Nodes.JsonArray();
+            foreach (var module in row?["modules"]?.AsArray() ?? [])
+            {
+                modules.Add(new System.Text.Json.Nodes.JsonObject
+                {
+                    ["id"] = module?["id"]?.DeepClone(),
+                    ["module"] = module?["type"]?.DeepClone(),
+                    ["title"] = module?["title"]?.DeepClone(),
+                    ["textSize"] = module?["textSize"]?.DeepClone() ?? "normal",
+                    ["linkToTranscript"] = module?["linkToTranscript"]?.DeepClone() ?? false,
+                    ["blocks"] = module?["blocks"]?.DeepClone() ?? new System.Text.Json.Nodes.JsonArray(),
+                });
+            }
+
+            rows.Add(new System.Text.Json.Nodes.JsonObject { ["modules"] = modules });
+        }
+
+        return new DocumentContent(document.SchemaVersion, document.Id, document.Title, MetaLine.Format(document.Meta), JsonSerializer.SerializeToElement(rows, M4NodeJsonContext.Default.JsonArray), ToBridge(document.Record))
         {
             StyleId = document.StyleId,
             Version = document.Version,

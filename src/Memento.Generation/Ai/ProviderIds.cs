@@ -26,6 +26,6 @@ public static class ProviderIds
     {
         Anthropic => "Anthropic",
         OpenAi => "OpenAI",
-        _ => "On this PC",
+        _ => "This PC",
     };
 }

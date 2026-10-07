@@ -17,8 +17,8 @@ public sealed record Template(
     TemplateOutputSettings Output,
     DateTimeOffset? ModifiedAt)
 {
-    /// <summary>What the generated document is called ("Meeting minutes").</summary>
-    public string? DocumentKind { get; init; }
+    /// <summary>What the generated document is called: the meta line kind and the word in "Generate {documentKind}" ("Meeting minutes"). Empty in <c>templates.save</c> keeps the stored one (or the name).</summary>
+    public string DocumentKind { get; init; } = string.Empty;
 
     /// <summary>Instructions for the whole document; they never override the grounding rules.</summary>
     public string? ProcessingInstructions { get; init; }

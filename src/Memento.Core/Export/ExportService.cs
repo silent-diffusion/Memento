@@ -54,7 +54,7 @@ public sealed partial class ExportService(
     {
         Validate(selection);
         var plan = await planner.PlanAsync(recordingId, selection, cancellationToken);
-        var items = plan.Items.Select(i => new ExportEstimateItem(i.Component, i.Folder is null ? i.Name : i.Folder + "/" + i.Name, i.EstimatedBytes)).ToList();
+        var items = plan.Items.Select(i => new ExportEstimateItem(i.Component, i.Folder is null ? i.Name : i.Folder + "/" + i.Name, i.EstimatedBytes) { DocumentId = i.DocumentId }).ToList();
 
         // manifest.json is written beside any export; it is counted in the totals, not as a row's file.
         var manifest = items.Count > 0 ? 1 : 0;

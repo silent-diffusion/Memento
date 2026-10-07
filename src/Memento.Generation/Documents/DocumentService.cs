@@ -93,7 +93,7 @@ public sealed partial class DocumentService(
         }
 
         var paper = renderer.RenderViewer(document, style);
-        return new HtmlResult(paper.Html) { Css = paper.Css };
+        return new HtmlResult(paper.Html);
     }
 
     /// <summary>A hand-written document with one empty text module.</summary>
@@ -181,7 +181,7 @@ public sealed partial class DocumentService(
         await LoadAsync(recordingId, documentId, cancellationToken);
         var saved = await store.WriteAsync(recordingId, documentId, DocumentChangeReasons.Renamed, d => d is null ? null : d with { Name = value, Title = d.Generation is null ? value : d.Title }, cancellationToken)
             ?? throw M4Errors.DocumentNotFound(documentId);
-        await ChangedAsync(recordingId, documentId, DocumentChangeReasons.Renamed, $"Document renamed to \"{value}\"", null, cancellationToken);
+        await ChangedAsync(recordingId, documentId, DocumentChangeReasons.Edited, $"Document renamed to \"{value}\"", null, cancellationToken);
         return await SummaryAsync(recordingId, saved, cancellationToken);
     }
 
@@ -266,7 +266,7 @@ public sealed partial class DocumentService(
         }
 
         var versions = await store.ListVersionsAsync(recordingId, documentId, cancellationToken);
-        return versions.Select(v => new DocumentVersionInfo(v.Id, v.SavedAt, v.Reason, Changes(v.Document, current))).ToList();
+        return versions.Select(v => new DocumentVersionInfo(v.Id, v.SavedAt, v.Reason, Changes(v.Document, current), v.Document.Version)).ToList();
     }
 
     public async Task<DocumentRestoreResult> RestoreVersionAsync(string recordingId, string documentId, string versionId, CancellationToken cancellationToken)

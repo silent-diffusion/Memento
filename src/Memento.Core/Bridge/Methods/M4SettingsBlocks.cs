@@ -18,6 +18,10 @@ internal static class M4SettingsBlocks
     public const string OpenAi = "openai";
     public const string Local = "local";
 
+    /// <summary>The template and style a new document starts from when Settings names none (the built-ins).</summary>
+    public const string BuiltInTemplateId = "meeting-minutes";
+    public const string BuiltInStyleId = "corporate";
+
     public static IReadOnlyList<string> ProviderIds { get; } = [Anthropic, OpenAi, Local];
 
     /// <summary>Adds the M4 fields to a snapshot.</summary>
@@ -36,7 +40,7 @@ internal static class M4SettingsBlocks
                     snapshot.Ai.Providers.Anthropic with { Model = ai.Providers.Anthropic.Model ?? AiModelDefaults.AnthropicModel, Models = AiModelDefaults.AnthropicModels },
                     snapshot.Ai.Providers.Openai with { Model = ai.Providers.Openai.Model ?? AiModelDefaults.OpenAiModel, Models = AiModelDefaults.OpenAiModels }),
             },
-            Documents = new DocumentsSettingsSnapshot(settings.Documents.DefaultTemplateId, settings.Documents.DefaultStyleId),
+            Documents = new DocumentsSettingsSnapshot(settings.Documents.DefaultTemplateId ?? BuiltInTemplateId, settings.Documents.DefaultStyleId ?? BuiltInStyleId),
         };
     }
 
