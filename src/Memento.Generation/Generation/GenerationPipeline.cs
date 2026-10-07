@@ -211,9 +211,9 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             var done = finished;
             var batch = work;
             var batchTotal = total;
-            var batchProgress = new Progress<int>(n =>
+            var batchProgress = new InlineProgress<int>(n =>
             {
-                // Progress<T> runs this later, on the pool: read only what this batch captured.
+                // Read only what this batch captured.
                 var index = Math.Clamp(n, 0, batch.Count - 1);
                 Report(progress, "generating", batch[index].Task.Modules[0].Id, 5 + (55.0 * Math.Min(batchTotal, done + n) / Math.Max(1, batchTotal)), "Reading the transcript");
             });
@@ -268,7 +268,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         {
             var batches = questions.Chunk(VerifyBatchSize).ToList();
             var requests = batches.Select(b => VerifyPrompts.Batch(b.Select(q => (q, SpanOf(q, transcript))).ToList())).ToList();
-            var responses = await runner.RunAsync(requests, new Progress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
+            var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
             for (var b = 0; b < batches.Count; b++)
             {
                 if (responses[b].StopReason == AiStopReason.Completed && responses[b].Json is { } json)
@@ -286,7 +286,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         else
         {
             var requests = questions.Select(q => VerifyPrompts.ForQuestion(q, SpanOf(q, transcript))).ToList();
-            var responses = await runner.RunAsync(requests, new Progress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
+            var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
             for (var i = 0; i < responses.Count; i++)
             {
                 if (responses[i].StopReason == AiStopReason.Completed && responses[i].Json is { } json && VerifyPrompts.ParseSingle(json) is { Supported: { } supported } verdict)
