@@ -9,13 +9,16 @@ namespace Memento.Core.Workers;
 /// <c>device</c>/<c>track</c>/<c>progress</c> line to the caller as it arrives, and returns the <c>result</c>. On
 /// cancellation it sends <c>cancel</c> and kills the process if it has not exited within a few seconds. A process
 /// that ends without a result raises <see cref="WorkerCrashedException"/>, so a native abort never reaches the app.
+/// Jobs that use the graphics card run one at a time: a second one waits until the first worker has exited.
 /// </summary>
-public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<WorkerClient> logger)
+public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<WorkerClient> logger) : IDisposable
 {
     private static readonly TimeSpan CancelGrace = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ExitGrace = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan KillGrace = TimeSpan.FromSeconds(10);
 
     private readonly ConcurrentDictionary<int, IWorkerProcess> _running = new();
+    private readonly SemaphoreSlim _gpu = new(1, 1);
     private readonly ILogger<WorkerClient> _logger = logger;
 
     /// <summary>Processor time used by the workers running now.</summary>
@@ -31,6 +34,31 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
     {
         ArgumentNullException.ThrowIfNull(job);
         cancellationToken.ThrowIfCancellationRequested();
+        if (!job.UsesGpu)
+        {
+            return await RunOneAsync(job, onReply, cancellationToken);
+        }
+
+        // One job on the graphics card at a time (ARCHITECTURE.md §6); the gate opens only once the previous worker has
+        // exited and let go of its video memory. The worker also takes a machine-wide lock (WorkerRuntimes.GpuLockName).
+        if (!_gpu.Wait(0, CancellationToken.None))
+        {
+            LogWaitingForGpu();
+            await _gpu.WaitAsync(cancellationToken);
+        }
+
+        try
+        {
+            return await RunOneAsync(job, onReply, cancellationToken);
+        }
+        finally
+        {
+            _gpu.Release();
+        }
+    }
+
+    private async Task<WorkerReply> RunOneAsync(WorkerJob job, Func<WorkerReply, Task>? onReply, CancellationToken cancellationToken)
+    {
         using var process = launcher.Start();
         _running[process.Id] = process;
         try
@@ -95,8 +123,36 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
             _running.TryRemove(process.Id, out _);
             if (!process.Exited.IsCompleted)
             {
+                // Leaving early (an error while handling a line): the worker must be gone before the next one starts.
                 process.Kill();
+                await WaitGoneAsync(process);
             }
+        }
+    }
+
+    public void Dispose() => _gpu.Dispose();
+
+    /// <summary>
+    /// Memento is closing: ends every worker at once instead of waiting out the cancel grace period (finished windows
+    /// and tracks are already saved; the jobs are cancelled first, so they report a cancel, not a crash).
+    /// </summary>
+    public void KillAll()
+    {
+        foreach (var process in _running.Values)
+        {
+            process.Kill();
+        }
+    }
+
+    private async Task WaitGoneAsync(IWorkerProcess process)
+    {
+        try
+        {
+            await process.Exited.WaitAsync(KillGrace);
+        }
+        catch (TimeoutException)
+        {
+            LogNotGone(process.Id);
         }
     }
 
@@ -174,6 +230,12 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         }
     }
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "A worker job waits for the graphics card: another one is using it")]
+    private partial void LogWaitingForGpu();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker {Pid} was killed but had not exited after 10 s")]
+    private partial void LogNotGone(int pid);
+
     [LoggerMessage(Level = LogLevel.Debug, Message = "Worker {Pid} {Level}: {Message}")]
     private partial void LogWorkerLine(int pid, string level, string message);
 
@@ -183,7 +245,9 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
     [LoggerMessage(Level = LogLevel.Warning, Message = "Worker wrote a damaged protocol line")]
     private partial void LogBadLine(Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker {Pid} did not stop within the grace period and was killed")]
+    // Expected after a cancel during native work that cannot be interrupted (a sherpa-onnx track); nothing is lost,
+    // because finished windows and tracks are kept, so this is not a warning.
+    [LoggerMessage(Level = LogLevel.Information, Message = "Worker {Pid} was still busy in native code 5 s after the cancel and was ended")]
     private partial void LogKilled(int pid);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Worker {Pid} exited with code {ExitCode} without a result; last diagnostics: {Tail}")]

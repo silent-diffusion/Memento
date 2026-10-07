@@ -76,11 +76,13 @@ public sealed class M2ContractSerializationTests : IDisposable
     [Fact]
     public void ModelsListShape()
     {
-        var info = new ModelInfo("whisper-large-v3-turbo", "transcription", "Large v3 Turbo", "d", 1_624_555_275, "MIT", false, new ModelInstalling(42, 682_000_000), true, "gpu", 2_684_354_560, "Most accurate");
+        var info = new ModelInfo("whisper-large-v3-turbo", "transcription", "Large v3 Turbo", "d", 1_624_555_275, "MIT", false, new ModelInstalling(42, 682_000_000), true, "gpu", 2_684_354_560, "Most accurate", null);
+        var voice = new ModelInfo("nemo-titanet-small", "speakers", "Voice model", "d", 40_257_283, "CC-BY-4.0", true, null, true, "cpu", null, "Most accurate", "embedding");
 
         Assert.Equal(
-            """{"models":[{"id":"whisper-large-v3-turbo","engine":"transcription","name":"Large v3 Turbo","description":"d","sizeBytes":1624555275,"license":"MIT","installed":false,"installing":{"percent":42,"bytesDone":682000000},"recommended":true,"runsOn":"gpu","minVramBytes":2684354560,"accuracyNote":"Most accurate"}]}""",
-            Json(new ModelsListResult([info]), BridgeJsonContext.Default.ModelsListResult));
+            """{"models":[{"id":"whisper-large-v3-turbo","engine":"transcription","name":"Large v3 Turbo","description":"d","sizeBytes":1624555275,"license":"MIT","installed":false,"installing":{"percent":42,"bytesDone":682000000},"recommended":true,"runsOn":"gpu","minVramBytes":2684354560,"accuracyNote":"Most accurate","role":null},"""
+            + """{"id":"nemo-titanet-small","engine":"speakers","name":"Voice model","description":"d","sizeBytes":40257283,"license":"CC-BY-4.0","installed":true,"installing":null,"recommended":true,"runsOn":"cpu","minVramBytes":null,"accuracyNote":"Most accurate","role":"embedding"}]}""",
+            Json(new ModelsListResult([info, voice]), BridgeJsonContext.Default.ModelsListResult));
     }
 
     [Fact]
@@ -93,6 +95,10 @@ public sealed class M2ContractSerializationTests : IDisposable
         Assert.All(models, m => Assert.Equal(JsonValueKind.Null, m.GetProperty("installing").ValueKind));
         Assert.Equal(["whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small", "tesseract-eng"], models.Where(m => m.GetProperty("recommended").GetBoolean()).Select(m => m.GetProperty("id").GetString()));
         Assert.Equal(["transcription", "speakers", "ocr"], models.Select(m => m.GetProperty("engine").GetString()).Distinct());
+        Assert.Equal(
+            ["segmentation", "embedding", "embedding"],
+            models.Where(m => m.GetProperty("engine").GetString() == "speakers").Select(m => m.GetProperty("role").GetString()));
+        Assert.All(models.Where(m => m.GetProperty("engine").GetString() != "speakers"), m => Assert.Equal(JsonValueKind.Null, m.GetProperty("role").ValueKind));
     }
 
     [Fact]

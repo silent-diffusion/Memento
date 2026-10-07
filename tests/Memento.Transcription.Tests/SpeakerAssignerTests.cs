@@ -86,6 +86,63 @@ public sealed class SpeakerAssignerTests
         Assert.Null(result.Segments[1].SpeakerConfidence);
     }
 
+    /// <summary>A voice embedding pointing mostly along axis <paramref name="axis"/>, with a little of <paramref name="other"/>.</summary>
+    private static SpeakerVoice Voice(int speaker, int axis, int other = -1) =>
+        new(speaker, Enumerable.Range(0, 8).Select(i => i == axis ? 1f : i == other ? 0.3f : 0f).ToArray(), 20);
+
+    /// <summary>The system track has readers A and B; the microphone picked both up from the loudspeakers.</summary>
+    private static (TranscriptSegment[] Segments, DiarizedTrack[] Tracks) EchoedMeeting(bool voices = true)
+    {
+        var segments = new[]
+        {
+            Segment("s1", 0, 10, "system"), Segment("s2", 0.2, 10, "mic"),
+            Segment("s3", 10, 20, "system"), Segment("s4", 10.2, 20, "mic"),
+        };
+        var tracks = new[]
+        {
+            new DiarizedTrack("system", [new SpeakerTurn(0, 10, 0, 0.7), new SpeakerTurn(10, 20, 1, 0.7)], voices ? [Voice(0, 0), Voice(1, 1)] : null),
+            new DiarizedTrack("mic", [new SpeakerTurn(0.2, 10, 0, 0.6), new SpeakerTurn(10.2, 20, 1, 0.6)], voices ? [Voice(0, 0, 2), Voice(1, 1, 2)] : null),
+        };
+        return (segments, tracks);
+    }
+
+    [Fact]
+    public void WithAnExpectedCountTheSameVoiceOnTwoTracksIsOnePerson()
+    {
+        var (segments, tracks) = EchoedMeeting();
+
+        Assert.Equal(4, SpeakerAssigner.Assign(segments, tracks).Speakers.Count);
+        var result = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 2);
+
+        Assert.Equal(["spk1", "spk1", "spk2", "spk2"], result.Segments.Select(s => s.Speaker));
+        Assert.Equal(["Speaker 1", "Speaker 2"], result.Speakers.Select(s => s.Name));
+        Assert.Equal(2, result.MergedAcrossTracks);
+        Assert.Equal([19_800L, 19_800L], result.Speakers.Select(s => s.TalkTimeMs));
+    }
+
+    [Fact]
+    public void TheExpectedCountIsReachedByJoiningTheMostAlikeVoicesFirst()
+    {
+        var (segments, tracks) = EchoedMeeting();
+
+        // Down to 3: only the closest pair is joined; one count of 1 joins everyone.
+        Assert.Equal(3, SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 3).Speakers.Count);
+        Assert.Equal(["spk1", "spk1", "spk1", "spk1"], SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 1).Segments.Select(s => s.Speaker));
+        // More expected than found changes nothing.
+        Assert.Equal(4, SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 6).Speakers.Count);
+    }
+
+    [Fact]
+    public void SpeakersWithoutAVoiceEmbeddingAreNeverJoined()
+    {
+        var (segments, tracks) = EchoedMeeting(voices: false);
+
+        var result = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 2);
+
+        Assert.Equal(4, result.Speakers.Count);
+        Assert.Equal(0, result.MergedAcrossTracks);
+    }
+
     [Fact]
     public void TheTranscriptOrderIsKept()
     {

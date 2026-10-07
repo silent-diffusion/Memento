@@ -54,12 +54,46 @@ public sealed class ProcessingGateTests
         gate.Sample(true, false, false, 90);
         Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
 
-        // A quiet sample resets the watch and resumes.
+        // It resumes once the processor has been calm (70 % or less) for 15 s; then the watch starts over.
+        gate.Sample(true, false, false, 40);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+        _time.Advance(TimeSpan.FromSeconds(15));
         gate.Sample(true, false, false, 40);
         Assert.Null(gate.Reason);
         _time.Advance(TimeSpan.FromSeconds(30));
         gate.Sample(true, false, false, 99);
         Assert.Null(gate.Reason);
+    }
+
+    [Fact]
+    public void AProcessorHoveringAroundTheThresholdDoesNotStopAndStartTheStageAgainAndAgain()
+    {
+        var gate = new ProcessingGate(_time);
+        var changes = 0;
+        gate.Changed += (_, _) => changes++;
+
+        // 95 % for 10 s pauses; then it swings between 80 and 90 % for two minutes.
+        gate.Sample(true, false, false, 95);
+        _time.Advance(TimeSpan.FromSeconds(10));
+        gate.Sample(true, false, false, 95);
+        for (var i = 0; i < 120; i++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            gate.Sample(true, false, false, i % 2 == 0 ? 80 : 90);
+        }
+
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+        Assert.Equal(1, changes);
+
+        // A calm spell shorter than 15 s does not resume either.
+        for (var i = 0; i < 10; i++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            gate.Sample(true, false, false, 30);
+        }
+
+        gate.Sample(true, false, false, 75);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
     }
 
     [Fact]

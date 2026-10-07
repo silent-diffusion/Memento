@@ -55,6 +55,7 @@ describe('M3 contract names', () => {
       'agenda.ocrUnavailable',
       'agenda.itemTooLong',
       'agenda.tooManyItems',
+      'agenda.itemNotFound',
       'agenda.dropUnavailable',
       'attachments.tooLarge',
       'attachments.notFound',

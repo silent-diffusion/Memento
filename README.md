@@ -18,17 +18,18 @@ The installer is not yet code-signed, so Windows SmartScreen may show a warning 
 
 ## What it does
 
-Version 0.2.0 records, stores and plays back:
+Version 0.3.0 records, transcribes and plays back:
 
 - **Record** from microphones, everything the PC plays, or one application at a time, with each source saved as its own synchronized track and checkpointed to disk every 30 seconds. Pause, mark highlights with notes, and turn sources on or off mid-recording.
 - **Never lose a recording**: a crash or power cut is repaired at the next start, and the recovery dialog says what was saved and what may be missing.
 - **Store** every recording as lossless FLAC with a mix, a waveform and SHA-256 hashes, or choose smaller AAC/MP3 files that Memento converts and verifies after saving.
-- **Review** with a player, waveform, seeking, chapters, highlights, details and a full processing history.
-- **Find** recordings in the Library by title and people, filter by type, and delete them with a clear confirmation.
+- **Transcribe** on your PC (Whisper, on the graphics card or the processor) with word-level timings and confidence marks, and tell speakers apart. Nothing is uploaded. Models are downloaded and checked in Settings.
+- **Review** with a player, waveform, seeking, chapters, highlights, details and a full processing history, next to a transcript that follows the playhead: click a line to play it, double-click to correct it, rename speakers everywhere at once, search, mark as reviewed, and restore earlier transcript versions.
+- **Find** recordings in the Library by title, people and words in their transcripts, filter by type, and delete them with a clear confirmation.
 
 Coming in later versions (see the [roadmap](docs/ROADMAP.md)):
 
-- **Transcribe** on your PC with word-level timestamps and confidence marks, and identify who said what.
+- **Live transcript** while recording.
 - **Import an agenda** from Word, PDF, Excel, CSV, Markdown, text or a photo, parsed locally.
 - **Create documents** (minutes, summaries, action items and more) with a visual builder, where every statement links back to the moment in the recording. Requires an AI provider you enable and a key you supply.
 - **Export** exactly the parts you want: audio, tracks, transcript, documents, details, with an integrity manifest.

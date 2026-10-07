@@ -12,6 +12,9 @@ public static class WorkerMessageTypes
     public const string Device = "device";
     public const string Track = "track";
     public const string Progress = "progress";
+
+    /// <summary>A speaker job finished one track (<see cref="WorkerReply.Diarized"/>); the host keeps it so a stopped job resumes after it.</summary>
+    public const string Diarized = "diarized";
     public const string Result = "result";
     public const string Error = "error";
     public const string Cancelled = "cancelled";

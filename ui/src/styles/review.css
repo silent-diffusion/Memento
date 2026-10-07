@@ -817,6 +817,15 @@
   background: var(--danger);
 }
 
+/* Waiting for a model is not a failure: accent, not danger (DESIGN.md §2.1). */
+.tx-failed--waiting .tx-failed-label {
+  color: var(--accent-text);
+}
+
+.tx-failed--waiting .tx-failed-dot {
+  background: var(--accent);
+}
+
 .tx-failed-body {
   margin: 0;
   font-size: 13px;
@@ -851,6 +860,40 @@
   border-radius: 50%;
   background: var(--accent);
   flex: none;
+}
+
+/*
+ * A coverage notice at its place in the transcript: speech the engine wrote nothing for. Still safe,
+ * so accent-soft with accent-text (DESIGN.md §2.1), like the banner (§5.19) at the scale of a line.
+ */
+.tx-gap {
+  margin: 4px 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: default;
+}
+
+.tx-gap-text {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.tx-gap-action {
+  flex: none;
+}
+
+/* One row of the windowed list: the segment and any coverage notice before or after it. */
+.segm-slot {
+  display: block;
 }
 
 /* Segments: grid 132px | 1fr, 16 px gap, 12 x 16 padding (radius, hover and current in tokens.css). */

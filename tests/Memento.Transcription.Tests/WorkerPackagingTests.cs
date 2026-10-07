@@ -16,7 +16,7 @@ public sealed class WorkerPackagingTests
         "dxcore.dll", "d3d12.dll", "version.dll", "winmm.dll", "ucrtbase.dll", "secur32.dll", "iphlpapi.dll", "psapi.dll",
         "mfplat.dll", "mfreadwrite.dll", "mf.dll", "propsys.dll", "comctl32.dll", "comdlg32.dll", "winspool.drv", "imm32.dll",
         "vulkan-1.dll", "normaliz.dll", "wldap32.dll", "msvcrt.dll", "combase.dll", "userenv.dll", "powrprof.dll", "dwmapi.dll",
-        "uxtheme.dll", "msimg32.dll", "usp10.dll", "api-ms-win-core-path-l1-1-0.dll", "mscoree.dll",
+        "uxtheme.dll", "msimg32.dll", "usp10.dll", "api-ms-win-core-path-l1-1-0.dll", "mscoree.dll", "sspicli.dll",
     };
 
     private static readonly string[] VcRuntime = ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "vcomp140.dll"];

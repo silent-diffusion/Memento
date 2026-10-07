@@ -197,7 +197,7 @@ describe('Library, populated (against the browser-preview host)', () => {
     await act(() => {
       document.querySelector<HTMLFormElement>('#rename-form')?.requestSubmit();
     });
-    // The rename, then the Library's refetch, both answer asynchronously; under a full parallel run that can take a while.
+    // The rename answers, then library.changed refetches the list (slower when the whole suite runs).
     await until(() => text('.row-title').includes('README notes, take two'));
     expect(text('.row-title')).toContain('README notes, take two');
   });

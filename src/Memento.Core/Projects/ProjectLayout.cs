@@ -17,5 +17,8 @@ public static class ProjectLayout
 
     /// <summary>Segments of a pass that has not finished yet, so an interrupted pass resumes where it stopped.</summary>
     public const string TranscriptPartialFile = "transcript.partial.json";
+
+    /// <summary>The tracks an unfinished speaker pass has done, so it continues with the others.</summary>
+    public const string SpeakersPartialFile = "speakers.partial.json";
     public const string DocumentsFolder = "documents";
 }

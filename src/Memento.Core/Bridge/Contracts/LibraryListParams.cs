@@ -9,6 +9,6 @@ public sealed record LibraryListParams
     /// <summary>A recording type, or <c>all</c> (the default).</summary>
     public string? Type { get; init; }
 
-    /// <summary><c>newest</c> (default), <c>oldest</c>, <c>longest</c> or <c>title</c>.</summary>
+    /// <summary><c>newest</c> (default), <c>oldest</c>, <c>longest</c>, <c>title</c> or (M3) <c>size</c>, largest first.</summary>
     public string? Sort { get; init; }
 }

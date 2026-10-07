@@ -2,13 +2,14 @@
 // over the DevTools protocol; the bridge is never called directly). Each step saves a screenshot and the run ends
 // with a JSON summary of what it measured on disk and in the logs.
 //
-//   node tools/e2e/m1-flow.mjs [--simulate] [--data <dir>] [--out <dir>] [--port <n>]
+//   node tools/e2e/m1-flow.mjs [--simulate] [--data <dir>] [--out <dir>] [--port <n>] [--models <dir>]
 //
 // The app runs with LOCALAPPDATA pointed at --data (default artifacts/e2e-data[-sim]), so the real library is never
-// touched. With real audio the microphone is recorded: delete --data afterwards (it holds room audio).
+// touched. With real audio the microphone is recorded: delete --data afterwards (it holds room audio). --models copies
+// installed models (a folder m2-flow.mjs --keep-models wrote) in first, so the recordings are transcribed too.
 
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { App, repoRoot } from './app.mjs';
 import { sleep } from './cdp.mjs';
@@ -21,6 +22,7 @@ const simulate = flag('--simulate');
 const dataRoot = option('--data', join(repoRoot, 'artifacts', simulate ? 'e2e-data-sim' : 'e2e-data'));
 const out = option('--out', join(repoRoot, 'artifacts', 'e2e', simulate ? 'simulated' : 'real'));
 const port = Number(option('--port', '9333'));
+const models = option('--models', null);
 const appSource = simulate ? 'Simulated meeting app' : 'Windows PowerShell';
 const summary = { mode: simulate ? 'simulated' : 'real', steps: [] };
 
@@ -49,6 +51,18 @@ function check(condition, message) {
 
 async function hasText(text, timeoutMs = 20_000) {
   return page.waitFor(`document.body.innerText.includes(${JSON.stringify(text)})`, `"${text}"`, timeoutMs);
+}
+
+/**
+ * Review's transcript area once the recording is stored. Since M2 the transcript stage runs after storing: without a
+ * model it waits for one ("Transcription needs the … model"); with --models it transcribes (or skips silent tracks).
+ */
+async function transcriptArea(timeoutMs = 180_000) {
+  return page.waitFor(
+    `(() => { const t = document.querySelector('.transcript')?.innerText ?? ''; return t.includes('Transcription needs the') || t.includes('Not transcribed yet') || t.includes('Click a line to play it') || t.includes('no part of the transcript') || (!!document.querySelector('.transcript') && !document.querySelector('.tx-progress') && /Mark as reviewed|Reviewed/.test(t)); })()`,
+    'the transcript area to settle',
+    timeoutMs,
+  );
 }
 
 /** Recorded time shown on the Record screen's big timer, in seconds. */
@@ -107,6 +121,11 @@ function logLines(pattern) {
 let tone;
 try {
   rmSync(dataRoot, { recursive: true, force: true });
+  if (models) {
+    // Installed models (copied from a folder an M2 run kept), so the recordings are transcribed too.
+    cpSync(models, join(dataRoot, 'Memento', 'models'), { recursive: true });
+    log('models copied', models);
+  }
   if (!simulate) {
     tone = await playTone(join(repoRoot, 'artifacts', 'e2e-tone'), 600);
     log('tone playing', `PowerShell pid ${tone.pid}`);
@@ -171,7 +190,7 @@ try {
   // 7. Stop: Finalizing, then Review.
   await waitElapsed(92);
   await page.click({ name: 'Stop and open review' });
-  await hasText('Not transcribed yet', 60_000);
+  await transcriptArea();
   await sleep(1500);
   await shot('review');
   const peaksLoaded = await page.eval(`performance.getEntriesByType('resource').some((r) => r.name.endsWith('/peaks.json'))`);
@@ -204,7 +223,8 @@ try {
   await page.click({ name: 'Library' });
   await hasText('1 recording');
   const row = await page.text('main');
-  check(row.includes('E2E check one') && row.includes('Audio only'), 'the row shows the recording as "Audio only"');
+  // Without a model the transcript waits for one; with --models it has run.
+  check(row.includes('E2E check one') && /Audio only|needs a model|Transcript/.test(row), 'the row shows the recording with its transcript state');
   await shot('library-row');
   await page.click({ selector: 'input[type=search]' });
   await page.type('check one');
@@ -215,7 +235,7 @@ try {
   await hasText('0 recordings');
   await page.key('a', ['ctrl']);
   await page.key('Backspace');
-  log('Library', 'row reads "Audio only"; search finds it and nothing for a non-match');
+  log('Library', `row reads "${/Audio only|Transcript · needs a model|Transcript/.exec(row)?.[0]}"; search finds it and nothing for a non-match`);
 
   // 10. Settings › Recording: Smaller AAC at 160 kbps.
   await page.click({ name: 'Settings' });
@@ -234,7 +254,7 @@ try {
   await hasText('RECORDING');
   await waitElapsed(30);
   await page.click({ name: 'Stop and open review' });
-  await hasText('Not transcribed yet', 60_000);
+  await transcriptArea();
   await page.waitFor(`document.querySelector('audio')?.src?.endsWith('/mix.m4a')`, 'Review to switch to the AAC mix', 90_000);
   await page.click({ name: 'History' });
   await hasText('Saved smaller files');
@@ -280,7 +300,7 @@ try {
   await shot('recovery-dialog');
   await page.click({ name: 'Open recording' });
   await hasText('E2E check three crash');
-  await hasText('Not transcribed yet', 60_000);
+  await transcriptArea();
   await page.click({ name: 'History' });
   await hasText('Recovered after Memento closed during recording');
   await page.waitFor(`document.querySelector('audio')?.src?.endsWith('/mix.m4a')`, 'the recovered recording to be optimized', 90_000);

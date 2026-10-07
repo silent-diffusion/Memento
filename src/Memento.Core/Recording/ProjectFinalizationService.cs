@@ -5,7 +5,9 @@ using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
 using Memento.Core.Library;
+using Memento.Core.Processing;
 using Memento.Core.Projects;
+using Memento.Core.Settings;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Recording;
@@ -23,9 +25,36 @@ public sealed partial class ProjectFinalizationService(
     ITrackFinalizer finalizer,
     BridgeEventPublisher publisher,
     TimeProvider time,
-    ILogger<ProjectFinalizationService> logger)
+    ILogger<ProjectFinalizationService> logger,
+    IEnumerable<IProcessingStage>? stages = null,
+    ISettingsStore? settings = null)
 {
     private readonly ILogger<ProjectFinalizationService> _logger = logger;
+    private readonly IReadOnlyList<IProcessingStage> _stages = stages?.ToList() ?? [];
+
+    /// <summary>
+    /// The stages that follow <c>stored</c> with the current settings, marked queued in the same write that marks
+    /// <c>stored</c> done, so the Library's processing card does not vanish for a moment in between (the orchestrator
+    /// then schedules them, <see cref="ProcessingOrchestrator.EnqueueAfterStoredAsync"/>).
+    /// </summary>
+    private IReadOnlyList<StageStatus> WithFollowingQueued(IReadOnlyList<StageStatus> stages)
+    {
+        if (settings is null)
+        {
+            return stages;
+        }
+
+        var current = settings.Current;
+        foreach (var stage in _stages.Where(s => s.AppliesTo(current)))
+        {
+            if (StageList.Find(stages, stage.Name) is not { State: StageStates.Done })
+            {
+                stages = StageList.With(stages, StageStatusWriter.QueuedStatus(stage.Name));
+            }
+        }
+
+        return stages;
+    }
 
     /// <param name="finalState"><see cref="ProjectStates.Ready"/> or <see cref="ProjectStates.Recovered"/>.</param>
     public async Task<ProjectManifest> FinalizeAsync(string recordingId, string finalState, CancellationToken cancellationToken)
@@ -93,7 +122,7 @@ public sealed partial class ProjectFinalizationService(
                 Mix = new ProjectMix(audio.Mix.File, audio.Mix.Codec, audio.Mix.SampleRate, audio.Mix.Channels, audio.Mix.DurationMs, audio.Mix.Sha256),
                 Peaks = audio.PeaksFile,
                 Integrity = new ProjectIntegrity { ComputedAt = audio.ComputedAt, Files = integrity },
-                Stages = WithStored(m.Stages, StageStates.Done, null, "Done"),
+                Stages = WithFollowingQueued(WithStored(m.Stages, StageStates.Done, null, "Done")),
             },
             cancellationToken);
 

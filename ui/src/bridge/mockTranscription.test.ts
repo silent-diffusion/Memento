@@ -76,7 +76,7 @@ describe('preview host stages (M2 pipeline)', () => {
 
     const card = host.call('library.processing', {}).current;
     expect(card?.recordingId).toBe(recordingId);
-    expect(states(card?.stages)).toEqual(['stored:active', 'transcript:queued', 'speakers:queued', 'optimize:queued']);
+    expect(states(card?.stages)).toEqual(['stored:active', 'transcript:queued', 'speakers:queued', 'topics:queued', 'optimize:queued']);
     expect(host.call('transcript.get', { recordingId }).status).toBe('queued');
 
     // Step until the transcript stage runs.
@@ -85,13 +85,14 @@ describe('preview host stages (M2 pipeline)', () => {
       vi.advanceTimersByTime(100);
       running = host.call('library.processing', {}).current;
     }
-    expect(states(running?.stages)).toEqual(['stored:done', 'transcript:active', 'speakers:queued', 'optimize:queued']);
+    expect(states(running?.stages)).toEqual(['stored:done', 'transcript:active', 'speakers:queued', 'topics:queued', 'optimize:queued']);
     expect(running?.stages[1]?.label).toMatch(/^\d+% · local GPU$/);
     expect(host.call('transcript.get', { recordingId }).status).toBe('running');
 
-    vi.advanceTimersByTime(3_000);
+    vi.advanceTimersByTime(4_000);
     expect(host.call('library.processing', {}).current).toBeNull();
     const project = host.call('project.get', { recordingId });
+    // A finished topics stage is left out of rows, like stored and optimize.
     expect(states(project.summary.stages)).toEqual(['transcript:done', 'speakers:done']);
     expect(project.history.map((h) => `${h.stage}:${h.event}`)).toEqual([
       'recorded:completed',
@@ -100,10 +101,11 @@ describe('preview host stages (M2 pipeline)', () => {
       'transcript:completed',
       'speakers:started',
       'speakers:completed',
+      'topics:completed',
       'optimize:started',
       'optimize:completed',
     ]);
-    expect(states(progress(host.messages).at(-1))).toEqual(['stored:done', 'transcript:done', 'speakers:done', 'optimize:done']);
+    expect(states(progress(host.messages).at(-1))).toEqual(['stored:done', 'transcript:done', 'speakers:done', 'topics:done', 'optimize:done']);
     const { transcript, status } = host.call('transcript.get', { recordingId });
     expect(status).toBe('done');
     expect(transcript?.segments.length).toBeGreaterThan(0);
@@ -127,6 +129,35 @@ describe('preview host stages (M2 pipeline)', () => {
     expect(progress(host.messages).at(-1)).toEqual([{ stage: 'stored', state: 'done', percent: null, label: 'Done' }]);
     expect(host.call('project.get', { recordingId }).summary.stages).toEqual([]);
     expect(host.call('transcript.get', { recordingId })).toEqual({ transcript: null, status: 'none', failure: null });
+  });
+
+  it('waits for a model on a first run and starts by itself once one is installed', () => {
+    const host = previewHost({ library: 'empty', modelsInstalled: 'none', stepMs: 10 });
+    const sourceIds = [host.call('sources.list', {}).audio[0]?.id ?? ''];
+    const { sessionId, recordingId } = host.call('recording.start', { title: 'First', type: 'meeting', sourceIds });
+    vi.advanceTimersByTime(2_000);
+    host.call('recording.stop', { sessionId });
+    vi.advanceTimersByTime(6_000);
+
+    const waiting = host.call('transcript.get', { recordingId });
+    expect(waiting.status).toBe('failed');
+    expect(waiting.failure?.message).toBe('Transcription needs the Large v3 Turbo model, and it is not installed.');
+    const row = host.call('project.get', { recordingId }).summary.stages;
+    expect(row.find((s) => s.stage === 'transcript')).toMatchObject({ state: 'failed', label: 'Waiting for a model' });
+    // Speakers and topics wait for the transcript; they are queued again with it.
+    expect(row.some((s) => s.stage === 'speakers' || s.stage === 'topics')).toBe(false);
+    expect(host.call('status.get', {}).engine).toMatchObject({ ready: false, device: null });
+
+    for (const modelId of ['whisper-large-v3-turbo', 'pyannote-segmentation-3-0', 'nemo-titanet-small']) {
+      host.call('models.install', { modelId });
+      vi.advanceTimersByTime(400);
+    }
+    vi.advanceTimersByTime(5_000);
+    const done = host.call('transcript.get', { recordingId });
+    expect(done.status).toBe('done');
+    expect(done.failure).toBeNull();
+    expect(done.transcript?.speakers.length).toBeGreaterThan(0);
+    expect(host.call('status.get', {}).engine.ready).toBe(true);
   });
 });
 
@@ -228,7 +259,8 @@ describe('preview host transcripts (M2)', () => {
     const host = previewHost();
     const { versions } = host.call('transcript.versions', { recordingId: LONG });
     expect(versions.map((v) => v.reason)).toEqual(['retranscribed', 'transcribed']);
-    expect(versions[1]?.engine).toBe('medium · CPU');
+    // As the host writes it: engine and model.
+    expect(versions[1]?.engine).toBe('whisper.cpp whisper-medium');
     const target = versions[0];
     if (target === undefined) {
       throw new Error('no versions');
@@ -246,19 +278,34 @@ describe('preview host transcripts (M2)', () => {
   it('transcribes again: queued, running, then done after a few seconds, keeping the old one as a version', () => {
     const host = previewHost({ stepMs: 100 });
     const before = host.call('transcript.get', { recordingId: LONG }).transcript;
-    host.call('transcript.retranscribe', { recordingId: LONG, modelId: 'small' });
+    // The Large v3 Turbo sample dropped a passage, which the notice offers to fix with Small.
+    expect(before?.coverageGaps).toHaveLength(1);
+    host.call('transcript.retranscribe', { recordingId: LONG, modelId: 'whisper-small' });
     expect(host.call('transcript.get', { recordingId: LONG }).status).toBe('queued');
     vi.advanceTimersByTime(250);
     expect(host.call('transcript.get', { recordingId: LONG }).status).toBe('running');
     // The current transcript stays readable while the new pass runs.
     expect(host.call('transcript.get', { recordingId: LONG }).transcript?.segments.length).toBe(before?.segments.length);
-    vi.advanceTimersByTime(2_000);
+    vi.advanceTimersByTime(3_000);
     const after = host.call('transcript.get', { recordingId: LONG });
     expect(after.status).toBe('done');
-    expect(after.transcript?.engine).toMatchObject({ model: 'small', device: 'CPU' });
+    expect(after.transcript?.engine).toMatchObject({ model: 'whisper-small', device: 'GPU' });
+    expect(after.transcript?.coverageGaps).toEqual([]);
+    expect(after.transcript?.segments.length).toBeGreaterThan(before?.segments.length ?? 0);
     expect(host.call('transcript.versions', { recordingId: LONG }).versions[0]?.reason).toBe('edited');
-    expect(host.fail('transcript.retranscribe', { recordingId: LONG, modelId: 'base' }).code).toBe('engine.unavailable');
     expect(host.fail('transcript.retranscribe', { recordingId: LONG, modelId: 'nonsense' }).code).toBe('models.notFound');
+  });
+
+  it('lists the coverage gap in History when a pass leaves one', () => {
+    const host = previewHost({ stepMs: 100 });
+    host.call('transcript.retranscribe', { recordingId: LONG, modelId: 'whisper-large-v3-turbo' });
+    vi.advanceTimersByTime(4_000);
+    const { transcript } = host.call('transcript.get', { recordingId: LONG });
+    const gap = transcript?.coverageGaps[0];
+    expect(gap?.end).toBeGreaterThan((gap?.start ?? 0) + 10);
+    expect(transcript?.segments.some((s) => gap !== undefined && s.start >= gap.start && s.start < gap.end)).toBe(false);
+    const lines = host.call('project.get', { recordingId: LONG }).history.filter((h) => h.stage === 'transcript' && h.event === 'info');
+    expect(lines.at(-1)?.summary).toMatch(/^Speech without a transcript at \d+:\d\d–\d+:\d\d$/);
   });
 
   it('reports a failed pass with its partial transcript and retries with a remedy', () => {
@@ -266,9 +313,10 @@ describe('preview host transcripts (M2)', () => {
     const failed = host.call('transcript.get', { recordingId: FAILED });
     expect(failed.status).toBe('failed');
     expect(failed.failure).toMatchObject({ stage: 'transcript', message: 'The GPU ran out of memory at 64%.' });
-    expect(failed.failure?.remedies.map((r) => r.id)).toEqual(['cpu', 'model:medium']);
+    expect(failed.failure?.remedies.map((r) => r.id)).toEqual(['cpu', 'model:whisper-small', 'retry']);
     expect(failed.transcript?.segments.length).toBeGreaterThan(5);
-    expect(host.fail('processing.retry', { recordingId: FAILED, stage: 'transcript', remedyId: 'model:medium' }).code).toBe('engine.unavailable');
+    expect(host.fail('processing.retry', { recordingId: FAILED, stage: 'transcript', remedyId: 'model:nonsense' }).code).toBe('models.notFound');
+    expect(host.fail('processing.retry', { recordingId: FAILED, stage: 'transcript', remedyId: 'gpu' }).code).toBe('bridge.invalidParams');
 
     host.call('processing.retry', { recordingId: FAILED, stage: 'transcript', remedyId: 'cpu' });
     vi.advanceTimersByTime(250);
@@ -279,6 +327,37 @@ describe('preview host transcripts (M2)', () => {
     expect(done.status).toBe('done');
     expect(done.failure).toBeNull();
     expect(done.transcript?.engine.device).toBe('CPU');
+  });
+
+  it('cancels a stage: failed with "Cancelled" and one remedy, retry, which runs it again', () => {
+    const host = previewHost({ stepMs: 100 });
+    host.call('transcript.retranscribe', { recordingId: LONG, modelId: 'whisper-small' });
+    vi.advanceTimersByTime(250);
+    host.call('processing.cancel', { recordingId: LONG, stage: 'transcript' });
+    const cancelled = host.call('transcript.get', { recordingId: LONG });
+    expect(cancelled.status).toBe('failed');
+    expect(cancelled.failure?.remedies).toEqual([{ id: 'retry', label: 'Continue transcribing' }]);
+    const stages = host.call('project.get', { recordingId: LONG }).summary.stages;
+    expect(stages.find((s) => s.stage === 'transcript')).toMatchObject({ state: 'failed', label: 'Cancelled' });
+    // The speakers and topics that waited for it are taken out of the queue.
+    expect(stages.some((s) => s.state === 'queued')).toBe(false);
+
+    host.call('processing.retry', { recordingId: LONG, stage: 'transcript', remedyId: 'retry' });
+    vi.advanceTimersByTime(4_000);
+    expect(host.call('transcript.get', { recordingId: LONG })).toMatchObject({ status: 'done', failure: null });
+  });
+
+  it('falls back to the speakers stage failure while the transcript is done', () => {
+    const host = previewHost({ stepMs: 100 });
+    host.call('processing.retry', { recordingId: LONG, stage: 'speakers' });
+    vi.advanceTimersByTime(150);
+    host.call('processing.cancel', { recordingId: LONG, stage: 'speakers' });
+    const result = host.call('transcript.get', { recordingId: LONG });
+    expect(result.status).toBe('done');
+    expect(result.failure).toMatchObject({ stage: 'speakers', remedies: [{ id: 'retry', label: 'Identify speakers' }] });
+    host.call('processing.retry', { recordingId: LONG, stage: 'speakers', remedyId: 'retry' });
+    vi.advanceTimersByTime(2_000);
+    expect(host.call('transcript.get', { recordingId: LONG }).failure).toBeNull();
   });
 
   it('drives the long sample through the ?stage= states', () => {
@@ -300,9 +379,9 @@ describe('preview host transcripts (M2)', () => {
   it('pauses and resumes processing globally and reports it in the footer', () => {
     const host = previewHost();
     host.call('processing.pause', {});
-    expect(host.call('status.get', {}).engine.detail.paused).toBe('Until you resume');
+    expect(host.call('status.get', {})).toMatchObject({ processingPaused: 'Paused by you', engine: { detail: { paused: 'Paused by you' } } });
     host.call('processing.resume', {});
-    expect(host.call('status.get', {}).engine.detail.paused).toBeNull();
+    expect(host.call('status.get', {})).toMatchObject({ processingPaused: null, engine: { detail: { paused: null } } });
   });
 
   it('answers transcript.none and project.notFound', () => {
@@ -325,78 +404,100 @@ describe('preview host models and engine (M2)', () => {
   it('lists the catalog and the engine status', () => {
     const host = previewHost();
     const { models } = host.call('models.list', {});
-    expect(models.filter((m) => m.engine === 'transcription').map((m) => m.id)).toEqual(['large-v3', 'large-v3-turbo', 'medium', 'small', 'base']);
-    expect(models.find((m) => m.recommended && m.engine === 'transcription')?.id).toBe('large-v3');
+    // The host's fixed catalog ids (BRIDGE.md M2 clarification 8).
+    expect(models.map((m) => m.id)).toEqual([
+      'whisper-large-v3-turbo',
+      'whisper-medium',
+      'whisper-small',
+      'whisper-base',
+      'pyannote-segmentation-3-0',
+      'nemo-titanet-small',
+      '3dspeaker-eres2net-base',
+      'tesseract-eng',
+    ]);
+    expect(models.filter((m) => m.engine === 'speakers').map((m) => m.role)).toEqual(['segmentation', 'embedding', 'embedding']);
+    expect(models.find((m) => m.recommended && m.engine === 'transcription')?.id).toBe('whisper-large-v3-turbo');
     const status = host.call('engine.status', {});
-    expect(status.transcription).toMatchObject({ ready: true, device: 'GPU', model: 'large-v3', paused: null });
+    expect(status.transcription).toMatchObject({ ready: true, device: 'GPU', model: 'whisper-large-v3-turbo', paused: null });
     expect(status.speakers).toMatchObject({ ready: true, device: 'CPU', freeVramBytes: null });
+    expect(previewHost({ modelsInstalled: 'none' }).call('models.list', {}).models.some((m) => m.installed)).toBe(false);
   });
 
   it('installs with progress, verifies, and is then installed', () => {
     const host = previewHost({ stepMs: 10 });
-    host.call('models.install', { modelId: 'medium' });
+    host.call('models.install', { modelId: 'whisper-medium' });
     vi.advanceTimersByTime(30);
-    expect(host.call('models.list', {}).models.find((m) => m.id === 'medium')?.installing?.percent).toBeGreaterThan(0);
-    expect(host.fail('models.install', { modelId: 'base' }).code).toBe('models.downloadFailed');
+    expect(host.call('models.list', {}).models.find((m) => m.id === 'whisper-medium')?.installing?.percent).toBeGreaterThan(0);
+    const busy = host.fail('models.install', { modelId: 'whisper-base' });
+    expect(busy).toMatchObject({ code: 'models.busy', detail: 'whisper-medium' });
     vi.advanceTimersByTime(400);
     const seen = progress(host.messages);
     expect(seen[0]).toBe('downloading:4');
     expect(seen.slice(-2)).toEqual(['verifying:100', 'done:100']);
-    expect(host.call('models.list', {}).models.find((m) => m.id === 'medium')).toMatchObject({ installed: true, installing: null });
-    host.call('settings.set', { transcription: { ...host.call('settings.get', {}).transcription, modelId: 'medium' } });
-    expect(host.call('engine.status', {}).transcription.model).toBe('medium');
+    expect(host.call('models.list', {}).models.find((m) => m.id === 'whisper-medium')).toMatchObject({ installed: true, installing: null });
+    host.call('settings.set', { transcription: { modelId: 'whisper-medium' } });
+    expect(host.call('engine.status', {}).transcription.model).toBe('whisper-medium');
   });
 
-  it('cancels a download and removes a model', () => {
+  it('cancels a download (its last progress is failed, with a message) and removes a model', () => {
     const host = previewHost({ stepMs: 10 });
-    host.call('models.install', { modelId: 'base' });
+    host.call('models.install', { modelId: 'whisper-base' });
     vi.advanceTimersByTime(25);
-    host.call('models.cancelInstall', { modelId: 'base' });
+    host.call('models.cancelInstall', { modelId: 'whisper-base' });
+    const last = host.messages.filter((m) => m.event === 'models.progress').at(-1)?.payload as { state: string; message: string | null };
+    expect(last).toMatchObject({ state: 'failed', message: 'The download of Base was cancelled; the partial file was removed.' });
     vi.advanceTimersByTime(500);
-    expect(host.call('models.list', {}).models.find((m) => m.id === 'base')).toMatchObject({ installed: false, installing: null });
-    host.call('models.remove', { modelId: 'small' });
-    expect(host.call('models.list', {}).models.find((m) => m.id === 'small')?.installed).toBe(false);
+    expect(host.call('models.list', {}).models.find((m) => m.id === 'whisper-base')).toMatchObject({ installed: false, installing: null });
+    host.call('models.remove', { modelId: 'whisper-small' });
+    expect(host.call('models.list', {}).models.find((m) => m.id === 'whisper-small')?.installed).toBe(false);
     expect(host.fail('models.remove', { modelId: 'nope' }).code).toBe('models.notFound');
   });
 
   it('refuses a download without space and fails one part-way', () => {
-    expect(previewHost({ models: 'noSpace' }).fail('models.install', { modelId: 'medium' }).code).toBe('models.noSpace');
+    expect(previewHost({ models: 'noSpace' }).fail('models.install', { modelId: 'whisper-medium' }).code).toBe('models.noSpace');
     const host = previewHost({ models: 'network', stepMs: 10 });
-    host.call('models.install', { modelId: 'medium' });
+    host.call('models.install', { modelId: 'whisper-medium' });
     vi.advanceTimersByTime(500);
     expect(progress(host.messages).at(-1)).toBe('failed:44');
-    expect(host.call('models.list', {}).models.find((m) => m.id === 'medium')).toMatchObject({ installed: false, installing: null });
+    expect(host.call('models.list', {}).models.find((m) => m.id === 'whisper-medium')).toMatchObject({ installed: false, installing: null });
   });
 
   it('refuses to remove a model a running stage uses', () => {
     // The Q3 sample is transcribing with the default model.
-    expect(previewHost().fail('models.remove', { modelId: 'large-v3' }).code).toBe('models.inUse');
+    expect(previewHost().fail('models.remove', { modelId: 'whisper-large-v3-turbo' }).code).toBe('models.inUse');
   });
 
-  it('round-trips the M2 settings blocks and validates them', () => {
+  it('round-trips the M2 settings blocks, merging them field by field, and validates them', () => {
     const host = previewHost();
     const settings = host.call('settings.get', {});
     expect(settings.transcription).toMatchObject({
       auto: true,
       timing: 'after',
-      modelId: 'large-v3',
-      cpuFallbackModelId: 'small',
+      modelId: 'whisper-large-v3-turbo',
+      cpuFallbackModelId: 'whisper-small',
       language: 'auto',
       lowConfidenceThreshold: 0.5,
     });
-    expect(settings.speakers).toEqual({ identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'voice-resnet34' });
+    expect(settings.speakers).toEqual({ identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'nemo-titanet-small' });
     expect(settings.history).toEqual({ keepVersions: true, keepDays: 90 });
     const next = host.call('settings.set', {
-      transcription: { ...settings.transcription, timing: 'during', lowConfidenceThreshold: 0.6, language: 'de' },
-      speakers: { ...settings.speakers, expectedSpeakers: 4 },
-      history: { keepVersions: false, keepDays: 30 },
+      transcription: { timing: 'during', lowConfidenceThreshold: 0.6, language: 'de' },
+      speakers: { expectedSpeakers: 4 },
+      history: { keepDays: 30 },
     });
-    expect(next.transcription).toMatchObject({ timing: 'during', lowConfidenceThreshold: 0.6, language: 'de' });
-    expect(next.speakers.expectedSpeakers).toBe(4);
-    expect(next.history).toEqual({ keepVersions: false, keepDays: 30 });
-    expect(host.call('settings.get', {})).toEqual(next);
-    expect(host.fail('settings.set', { transcription: { ...settings.transcription, modelId: 'base' } }).code).toBe('settings.invalidValue');
-    expect(host.fail('settings.set', { speakers: { ...settings.speakers, expectedSpeakers: 0 } }).code).toBe('settings.invalidValue');
+    expect(next.transcription).toEqual({ ...settings.transcription, timing: 'during', lowConfidenceThreshold: 0.6, language: 'de' });
+    expect(next.speakers).toEqual({ ...settings.speakers, expectedSpeakers: 4 });
+    expect(next.history).toEqual({ keepVersions: true, keepDays: 30 });
+    // Null keeps a value too.
+    expect(host.call('settings.set', { history: { keepVersions: null as unknown as boolean, keepDays: 90 } }).history).toEqual({ keepVersions: true, keepDays: 90 });
+    expect(host.call('settings.get', {}).speakers).toEqual(next.speakers);
+    expect(host.fail('settings.set', { transcription: { modelId: 'whisper-base' } }).code).toBe('settings.invalidValue');
+    // The segmentation model is not a voice model.
+    expect(host.fail('settings.set', { speakers: { embeddingModelId: 'pyannote-segmentation-3-0' } }).code).toBe('settings.invalidValue');
+    for (const expectedSpeakers of [0, 21, 2.5]) {
+      expect(host.fail('settings.set', { speakers: { expectedSpeakers } }).code).toBe('settings.invalidValue');
+    }
+    expect(host.call('settings.set', { speakers: { expectedSpeakers: 20 } }).speakers.expectedSpeakers).toBe(20);
   });
 
   it('streams a live draft during a session with ?live=1', () => {

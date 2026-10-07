@@ -168,8 +168,16 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             ?? throw new BridgeException(BridgeErrorCodes.InvalidParams, $"There is no '{stage}' stage to retry in this version.");
         var manifest = await _store.LoadAsync(recordingId, cancellationToken);
         var current = StageList.Find(manifest.Stages, stage);
-        if (current is { State: StageStates.Active or StageStates.Queued })
+        if (RunningStage(recordingId) == stage)
         {
+            // Running now with the settings it started with (Identify speakers again after changing the expected
+            // count): stop it and run it again from the start of the queue, with the settings as they are now.
+            await CancelStageAsync(recordingId, stage, StageStopReason.Requeued);
+            manifest = await _store.LoadAsync(recordingId, cancellationToken);
+        }
+        else if (current is { State: StageStates.Active or StageStates.Queued })
+        {
+            // Waiting its turn: it reads the settings when it starts.
             Schedule(recordingId);
             return;
         }
@@ -288,6 +296,9 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             await _shutdown.CancelAsync();
         }
 
+        // The stage's work is cancelled (it is queued again for the next launch); its worker need not finish the
+        // native step it is in, which can take longer than the host's stop timeout.
+        _workers?.KillAll();
         await _worker;
         await _sampler;
     }

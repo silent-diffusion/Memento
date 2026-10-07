@@ -3,7 +3,7 @@
 // [speaker, text, atSeconds]: `{word}` marks a word the engine was unsure of, and a speaker written
 // as `?S` marks an uncertain speaker assignment.
 import { seedFromId } from '../format/waveform';
-import type { Speaker, SpeakerColour, Transcript, TranscriptSegment, TranscriptWord } from './types';
+import type { CoverageGap, Speaker, SpeakerColour, Transcript, TranscriptSegment, TranscriptWord } from './types';
 
 export type ScriptLine = readonly [speaker: string, text: string, at?: number];
 
@@ -591,6 +591,24 @@ export interface BuildOptions {
   editedAt: string;
   /** Assign speakers (default: whether the script's speakers stage ran). */
   identify?: boolean;
+  /**
+   * Leave out about 15 s of lines from this fraction of the recording and report them as a coverage
+   * gap, the way Whisper sometimes drops a passage.
+   */
+  gapAt?: number;
+}
+
+/** Removes the lines in about 15 s from `fraction` of the way through and reports the hole as a coverage gap. */
+function dropPassage(segments: TranscriptSegment[], fraction: number): { segments: TranscriptSegment[]; gaps: CoverageGap[] } {
+  const first = segments[Math.floor(segments.length * fraction)];
+  if (segments.length < 6 || first === undefined) {
+    return { segments, gaps: [] };
+  }
+  const from = first.start;
+  const kept = segments.filter((s) => s.start < from || s.start >= from + 15);
+  const next = kept.find((s) => s.start >= from);
+  const to = next?.start ?? from + 15;
+  return to - from < 10 ? { segments, gaps: [] } : { segments: kept, gaps: [{ start: round3(from), end: round3(to), track: first.track }] };
 }
 
 /** A recording made in the preview: the planning lines, two unnamed voices, over its whole length. */
@@ -643,16 +661,18 @@ export function buildTranscript(recordingId: string, options: BuildOptions): Tra
         return { id: `sp${i + 1}`, name, renamed, color: ((i % 4) + 1) as SpeakerColour, talkTimeMs: 0 };
       })
     : [];
+  const covered = options.gapAt === undefined ? { segments, gaps: [] } : dropPassage(segments, options.gapAt);
   return {
     schemaVersion: 1,
     language: 'en',
     languageDetected: true,
     engine: options.engine,
-    speakers: talkTimes(segments, speakers),
-    segments,
+    speakers: talkTimes(covered.segments, speakers),
+    segments: covered.segments,
     reviewed: false,
     version: 1,
     lowConfidenceThreshold: options.threshold,
+    coverageGaps: covered.gaps,
   };
 }
 
