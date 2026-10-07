@@ -27,7 +27,7 @@ public static partial class PayloadComposer
 
         string Clean(string? text)
         {
-            var (value, count) = Neutralise((text ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim());
+            var (value, count) = NeutraliseCounting((text ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim());
             neutralised += count;
             return value;
         }
@@ -217,7 +217,14 @@ public static partial class PayloadComposer
         ".wav", ".flac", ".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wma", ".aiff", ".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".wmv",
     };
 
-    private static (string Text, int Count) Neutralise(string text)
+    /// <summary>
+    /// <paramref name="text"/> with every opening or closing tag the prompts use as a delimiter (the payload sections,
+    /// a verify batch's <c>&lt;item&gt;</c>, a module's <c>&lt;section_instructions&gt;</c>) made visibly inert:
+    /// <c>&lt;/transcript&gt;</c> becomes <c>‹/transcript&gt;</c>. Apply it to any recording or model text placed in a prompt.
+    /// </summary>
+    public static string Neutralise(string? text) => NeutraliseCounting(text ?? string.Empty).Text;
+
+    private static (string Text, int Count) NeutraliseCounting(string text)
     {
         var count = 0;
         var result = SectionTag().Replace(text, match =>
@@ -228,6 +235,6 @@ public static partial class PayloadComposer
         return (result, count);
     }
 
-    [GeneratedRegex(@"<\/?(?:instructions|recording_details|participants|agenda|outline|highlights|notes|attachments|attachment|previous_documents|document|transcript)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<\/?(?:instructions|recording_details|participants|agenda|outline|highlights|notes|attachments|attachment|previous_documents|document|transcript|item|section_instructions)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SectionTag();
 }

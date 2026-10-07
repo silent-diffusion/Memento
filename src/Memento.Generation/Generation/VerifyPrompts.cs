@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Memento.AI;
+using Memento.AI.Payload;
 
 namespace Memento.Generation.Generation;
 
@@ -37,26 +38,35 @@ public static class VerifyPrompts
             yield break;
         }
 
+        // The claim, owner and due date are the model's words and the agenda is the user's file: each goes into the
+        // question on one line, with prompt delimiters neutralised, so none of them can close an item or open a new one.
+        var text = Inline(claim.Text);
         var statement = claim.Kind switch
         {
-            ClaimKinds.Decision => "Decision: " + claim.Text,
-            ClaimKinds.Action => "Action item: " + claim.Text,
-            ClaimKinds.Agenda => $"The people in this excerpt talk about the agenda topic \"{agendaItem(claim.AgendaItem ?? 0)}\" (the topic does not need to be named in these words).",
-            ClaimKinds.When => "The next meeting: " + claim.Text,
-            ClaimKinds.NextAgenda => "A topic proposed for the next meeting: " + claim.Text,
-            _ => claim.Text,
+            ClaimKinds.Decision => "Decision: " + text,
+            ClaimKinds.Action => "Action item: " + text,
+            ClaimKinds.Agenda => $"The people in this excerpt talk about the agenda topic \"{Quoted(agendaItem(claim.AgendaItem ?? 0))}\" (the topic does not need to be named in these words).",
+            ClaimKinds.When => "The next meeting: " + text,
+            ClaimKinds.NextAgenda => "A topic proposed for the next meeting: " + text,
+            _ => text,
         };
         yield return new VerifyQuestion(claim, VerifyQuestion.ClaimField, statement, line);
         if (claim.Kind == ClaimKinds.Action && claim.Owner is { } owner)
         {
-            yield return new VerifyQuestion(claim, VerifyQuestion.OwnerField, $"{owner} is the person who will do this task: {claim.Text}", line);
+            yield return new VerifyQuestion(claim, VerifyQuestion.OwnerField, $"{Inline(owner)} is the person who will do this task: {text}", line);
         }
 
         if (claim.Kind == ClaimKinds.Action && claim.Due is { } due)
         {
-            yield return new VerifyQuestion(claim, VerifyQuestion.DueField, $"The deadline stated for this task is \"{due}\": {claim.Text}", line);
+            yield return new VerifyQuestion(claim, VerifyQuestion.DueField, $"The deadline stated for this task is \"{Quoted(due)}\": {text}", line);
         }
     }
+
+    /// <summary>Text placed in a question: delimiters neutralised, line breaks and runs of spaces as one space.</summary>
+    public static string Inline(string? text) =>
+        string.Join(' ', PayloadComposer.Neutralise(text).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static string Quoted(string? text) => Inline(text).Replace('"', '\'');
 
     public static AiRequest ForQuestion(VerifyQuestion question, string excerpt) =>
         AiRequest.Create("verify." + question.Field, System, $"Excerpt:\n{excerpt}\n\nClaim: {question.Statement}", 160) with
@@ -88,7 +98,10 @@ public static class VerifyPrompts
             ? (supported.GetBoolean(), json.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String ? reason.GetString() : null)
             : (null, null);
 
-    /// <summary>Item number (1-based) → verdict; items the answer leaves out stay unchecked.</summary>
+    /// <summary>
+    /// Item number (1-based) → verdict; items the answer leaves out stay unchecked, and so does an item the answer
+    /// judges more than once (a later entry must not overwrite an earlier one: neither is trusted).
+    /// </summary>
     public static IReadOnlyDictionary<int, (bool Supported, string? Reason)> ParseBatch(JsonElement json)
     {
         var result = new Dictionary<int, (bool, string?)>();
@@ -97,13 +110,31 @@ public static class VerifyPrompts
             return result;
         }
 
+        var seen = new HashSet<int>();
+        var repeated = new HashSet<int>();
         foreach (var item in verdicts.EnumerateArray())
         {
-            if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("item", out var number) && number.TryGetInt32(out var n)
-                && ParseSingle(item) is { Supported: { } supported } verdict)
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("item", out var number)
+                || number.ValueKind != JsonValueKind.Number || !number.TryGetInt32(out var n))
+            {
+                continue;
+            }
+
+            if (!seen.Add(n))
+            {
+                repeated.Add(n);
+                continue;
+            }
+
+            if (ParseSingle(item) is { Supported: { } supported } verdict)
             {
                 result[n] = (supported, verdict.Reason);
             }
+        }
+
+        foreach (var n in repeated)
+        {
+            result.Remove(n);
         }
 
         return result;

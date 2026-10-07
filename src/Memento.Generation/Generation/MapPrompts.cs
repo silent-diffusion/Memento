@@ -100,13 +100,14 @@ public static partial class MapPrompts
             ModuleTask.Quotes => (QuotesSystem, QuotesSchema(bounded), new[] { PayloadSectionKind.Highlights }),
             ModuleTask.NextMeeting => (NextMeetingSystem, NextSchema(bounded), new[] { PayloadSectionKind.Details }),
             _ => (
-                PointsSystem(task.PointsType!, task.Modules[0].ResolveTitle(catalog), ModuleTask.PerChunk(task.Length)),
+                PointsSystem(task.PointsType!, VerifyPrompts.Inline(task.Modules[0].ResolveTitle(catalog)).Replace('"', '\''), ModuleTask.PerChunk(task.Length)),
                 PointsSchema(bounded ? ModuleTask.PerChunk(task.Length) : null),
                 new[] { PayloadSectionKind.Instructions, PayloadSectionKind.Details, PayloadSectionKind.Participants, PayloadSectionKind.Agenda }),
         };
         if (task.Instructions.Length > 0)
         {
-            system += "\n" + UserRulesNote + "\n<section_instructions>\n" + task.Instructions + "\n</section_instructions>";
+            // A template can be imported, so its instructions must not be able to close the block they sit in.
+            system += "\n" + UserRulesNote + "\n<section_instructions>\n" + PayloadComposer.Neutralise(task.Instructions) + "\n</section_instructions>";
         }
 
         var user = new StringBuilder();
@@ -162,7 +163,7 @@ public static partial class MapPrompts
             case ModuleTask.AgendaCoverage:
                 foreach (var item in Array(json, "items"))
                 {
-                    if (item.TryGetProperty("id", out var id) && id.TryGetInt32(out var number)
+                    if (item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number && id.TryGetInt32(out var number)
                         && item.TryGetProperty("discussed", out var discussed) && discussed.ValueKind == JsonValueKind.True)
                     {
                         claims.Add(new Claim
