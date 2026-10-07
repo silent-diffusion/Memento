@@ -55,6 +55,12 @@ public sealed record ProjectManifest
     /// <summary>Set when the project was repaired at launch after an interrupted recording.</summary>
     public ProjectRecovery? Recovery { get; init; }
 
+    /// <summary>The last failure of each failed stage (M2), with what was kept and the remedies offered.</summary>
+    public IReadOnlyList<ProjectStageFailure> Failures { get; init; } = [];
+
+    /// <summary>How the next transcription pass runs when it differs from Settings (M2); <c>null</c> otherwise.</summary>
+    public ProcessingRequest? Processing { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

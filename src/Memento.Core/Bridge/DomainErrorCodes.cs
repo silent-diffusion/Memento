@@ -28,4 +28,29 @@ public static class DomainErrorCodes
 
     /// <summary>A second <c>recording.start</c> while one session is active.</summary>
     public const string RecordingAlreadyActive = "recording.alreadyActive";
+
+    /// <summary>The recording has no transcript yet (M2).</summary>
+    public const string TranscriptNone = "transcript.none";
+
+    public const string TranscriptSegmentNotFound = "transcript.segmentNotFound";
+    public const string TranscriptSpeakerNotFound = "transcript.speakerNotFound";
+    public const string TranscriptVersionNotFound = "transcript.versionNotFound";
+
+    /// <summary>No catalog model has that id.</summary>
+    public const string ModelsNotFound = "models.notFound";
+
+    /// <summary><c>models.remove</c> while a stage is using the model.</summary>
+    public const string ModelsInUse = "models.inUse";
+
+    /// <summary>The download could not start or connect; <c>detail</c> is the cause.</summary>
+    public const string ModelsDownloadFailed = "models.downloadFailed";
+
+    /// <summary><c>models.install</c> while another model is downloading; <c>detail</c> is that model's id (M2 clarification 6).</summary>
+    public const string ModelsBusy = "models.busy";
+
+    /// <summary>Not enough free space for the model.</summary>
+    public const string ModelsNoSpace = "models.noSpace";
+
+    /// <summary>The engine or model needed is not installed or available; <c>detail</c> says what to install or turn on.</summary>
+    public const string EngineUnavailable = "engine.unavailable";
 }

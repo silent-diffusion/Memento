@@ -19,6 +19,12 @@ public interface ILibraryIndex
 
     Task RemoveAsync(string recordingId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Replaces the transcript text the library search matches (and the renamed speakers it finds as people). Kept
+    /// apart from <see cref="UpsertAsync"/> so frequent manifest writes never re-read a long transcript.
+    /// </summary>
+    Task SetTranscriptAsync(string recordingId, string text, IReadOnlyList<string> renamedSpeakers, CancellationToken cancellationToken);
+
     /// <summary>The Library list: every state except <c>recording</c> (BRIDGE.md), filtered and sorted.</summary>
     Task<LibraryQueryResult> QueryAsync(LibraryQuery query, CancellationToken cancellationToken);
 

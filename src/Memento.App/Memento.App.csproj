@@ -30,7 +30,39 @@
   <ItemGroup>
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
     <ProjectReference Include="..\Memento.Audio\Memento.Audio.csproj" />
+    <ProjectReference Include="..\Memento.Transcription\Memento.Transcription.csproj" />
+    <!-- Built first, but not referenced: the worker runs as its own process from the "worker" folder (below). -->
+    <ProjectReference Include="..\Memento.Worker\Memento.Worker.csproj" ReferenceOutputAssembly="false" Private="false" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
+
+  <!--
+    Memento.Worker.exe lives in <app>\worker\ with its own dependencies (Whisper.net brings System.Text.Json 10 and
+    Microsoft.Extensions.AI, which must not replace the app's own assemblies). A build copies the worker's build
+    output there; a publish publishes the worker self-contained there, so Velopack packs it with the app.
+  -->
+  <Target Name="MementoCopyWorker" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="..\Memento.Worker\Memento.Worker.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_MementoWorkerTarget" />
+    </MSBuild>
+    <PropertyGroup>
+      <_MementoWorkerDir>@(_MementoWorkerTarget->'%(RootDir)%(Directory)')</_MementoWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_MementoWorkerFile Include="$(_MementoWorkerDir)**\*" Exclude="$(_MementoWorkerDir)**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_MementoWorkerFile)" DestinationFiles="@(_MementoWorkerFile->'$(OutDir)worker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- A separate dotnet process, so the worker restores its own self-contained runtime pack. -->
+  <Target Name="MementoPublishWorker" AfterTargets="Publish" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_MementoDotnet Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</_MementoDotnet>
+      <_MementoDotnet Condition="'$(DOTNET_HOST_PATH)' == ''">dotnet</_MementoDotnet>
+      <_MementoWorkerPublishDir>$([MSBuild]::NormalizeDirectory('$(PublishDir)', 'worker'))</_MementoWorkerPublishDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_MementoWorkerPublishDir)" />
+    <Exec Command="&quot;$(_MementoDotnet)&quot; publish &quot;$(MSBuildThisFileDirectory)..\Memento.Worker\Memento.Worker.csproj&quot; -c $(Configuration) -r win-x64 --self-contained -p:PublishReadyToRun=false -p:DebugType=none -o &quot;$(_MementoWorkerPublishDir.TrimEnd('\'))&quot; --nologo -v:minimal" />
+  </Target>
 
   <ItemGroup>
     <Resource Include="..\..\build\icons\memento.ico" Link="memento.ico" />

@@ -25,6 +25,15 @@ public sealed record AppSettings
     /// <summary>Settings › Recording (M1). Missing in M0 files, which then read with the defaults.</summary>
     public RecordingSettings Recording { get; init; } = new();
 
+    /// <summary>Settings › Transcription (M2). Missing in M1 files, which then read with the defaults.</summary>
+    public TranscriptionSettings Transcription { get; init; } = new();
+
+    /// <summary>Settings › Speakers (M2).</summary>
+    public SpeakerSettings Speakers { get; init; } = new();
+
+    /// <summary>Settings › Documents › History (M2).</summary>
+    public HistorySettings History { get; init; } = new();
+
     // A setter rather than init: System.Text.Json cannot bind extension data through init-only members.
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

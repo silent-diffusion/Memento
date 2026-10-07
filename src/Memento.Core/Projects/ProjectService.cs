@@ -4,6 +4,7 @@ using Memento.Core.Formatting;
 using Memento.Core.Library;
 using Memento.Core.Processing;
 using Memento.Core.Recording;
+using Memento.Core.Transcripts;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Projects;
@@ -19,7 +20,8 @@ public sealed partial class ProjectService(
     RecordingCoordinator recordings,
     ProcessingOrchestrator processing,
     TimeProvider time,
-    ILogger<ProjectService> logger)
+    ILogger<ProjectService> logger,
+    TranscriptStore? transcripts = null)
 {
     public const int MaxTitleLength = 200;
     public const int MaxTextLength = 4000;
@@ -175,6 +177,7 @@ public sealed partial class ProjectService(
             ValidateNote(patch.Note),
             ValidateOrigin(patch.Origin),
             patch.SegmentId);
+        highlight = highlight with { SegmentId = highlight.SegmentId ?? await SegmentAtAsync(recordingId, highlight.AtMs, cancellationToken) };
         var doc = await UpdateAnnotationsAsync(recordingId, d => d with { Highlights = Sorted(d.Highlights.Append(highlight)) }, cancellationToken);
         return doc.Highlights;
     }
@@ -186,6 +189,7 @@ public sealed partial class ProjectService(
         var at = patch.AtMs is { } ms ? ValidateAt(ms) : (long?)null;
         var note = patch.Note is null ? null : ValidateNote(patch.Note);
         var origin = patch.Origin is null ? null : ValidateOrigin(patch.Origin);
+        var moved = at is { } newAt ? await SegmentAtAsync(recordingId, newAt, cancellationToken) : null;
         var doc = await UpdateAnnotationsAsync(
             recordingId,
             d =>
@@ -196,7 +200,7 @@ public sealed partial class ProjectService(
                     AtMs = at ?? existing.AtMs,
                     Note = note ?? existing.Note,
                     Origin = origin ?? existing.Origin,
-                    SegmentId = patch.SegmentId ?? existing.SegmentId,
+                    SegmentId = patch.SegmentId ?? moved ?? existing.SegmentId,
                 };
                 return d with { Highlights = Sorted(d.Highlights.Select(h => h.Id == id ? changed : h)) };
             },
@@ -421,6 +425,26 @@ public sealed partial class ProjectService(
 
         await catalog.TouchedAsync(recordingId, cancellationToken);
         return doc;
+    }
+
+    /// <summary>Once there is a transcript, a highlight points at the line at its time (BRIDGE.md M2 clarification 5).</summary>
+    private async Task<string?> SegmentAtAsync(string recordingId, long atMs, CancellationToken cancellationToken)
+    {
+        if (transcripts is null || !ProjectId.IsValid(recordingId))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await transcripts.LoadAsync(recordingId, cancellationToken) is { } transcript
+                ? HighlightSegments.SegmentAt(transcript.Segments, atMs / 1000.0)
+                : null;
+        }
+        catch (ProjectSchemaException)
+        {
+            return null;
+        }
     }
 
     private async Task AppendHistoryQuietlyAsync(string recordingId, HistoryEntry entry, CancellationToken cancellationToken)

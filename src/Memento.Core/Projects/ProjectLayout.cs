@@ -14,5 +14,8 @@ public static class ProjectLayout
     public const string AttachmentsFolder = "attachments";
     public const string VersionsFolder = "versions";
     public const string TranscriptFile = "transcript.json";
+
+    /// <summary>Segments of a pass that has not finished yet, so an interrupted pass resumes where it stopped.</summary>
+    public const string TranscriptPartialFile = "transcript.partial.json";
     public const string DocumentsFolder = "documents";
 }

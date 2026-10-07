@@ -21,6 +21,9 @@ Releases/
 
 # Models, logs, local data (never commit)
 models/
+# ...but not the model manager's source and tests (the Models namespace).
+!src/**/Models/
+!tests/**/Models/
 logs/
 *.log
 *.db

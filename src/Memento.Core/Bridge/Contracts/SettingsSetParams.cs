@@ -14,6 +14,15 @@ public sealed record SettingsSetParams
     /// <summary><c>"comfortable"</c> or <c>"compact"</c>.</summary>
     public string? ListDensity { get; init; }
 
-    /// <summary>Settings › Recording, itself partial.</summary>
+    /// <summary>Settings › Recording, replaced whole when present.</summary>
     public RecordingSettingsPatch? Recording { get; init; }
+
+    /// <summary>Settings › Transcription; each field present is changed, the others keep their value.</summary>
+    public TranscriptionSettingsPatch? Transcription { get; init; }
+
+    /// <summary>Settings › Speakers; each field present is changed, the others keep their value.</summary>
+    public SpeakersSettingsPatch? Speakers { get; init; }
+
+    /// <summary>Settings › Documents › History; each field present is changed, the others keep their value.</summary>
+    public HistorySettingsPatch? History { get; init; }
 }

@@ -1,0 +1,17 @@
+[
+  {
+    "start": 5.0, "end": 6.0, "text": "Okay, yes.", "minProbability": 0.4,
+    "tokens": [
+      { "text": "Okay", "start": 4.0, "end": 5.2, "p": 0.40 },
+      { "text": ",", "start": 5.2, "end": 5.2, "p": 0.90 },
+      { "text": " yes", "start": 5.9, "end": 5.5, "p": 0.85 },
+      { "text": ".", "start": 5.5, "end": 9.0, "p": 0.95 }
+    ]
+  },
+  {
+    "start": 6.0, "end": 7.0, "text": " [BLANK_AUDIO]", "minProbability": 0.2,
+    "tokens": [
+      { "text": "[_BEG_]", "start": 6.0, "end": 6.0, "p": 0.2 }
+    ]
+  }
+]

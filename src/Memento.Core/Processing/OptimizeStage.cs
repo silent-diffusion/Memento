@@ -27,7 +27,7 @@ public sealed partial class OptimizeStage(
     BridgeEventPublisher publisher,
     TimeProvider time,
     ILogger<OptimizeStage> logger,
-    IAudioFileVerifier? verifier = null)
+    IAudioFileVerifier? verifier = null) : IProcessingStage
 {
     /// <summary>Lossy files carry encoder priming and padding (+11 ms AAC, +37 ms MP3; ENGINE-NOTES.md §A).</summary>
     private const long DurationToleranceMs = 250;
@@ -47,6 +47,25 @@ public sealed partial class OptimizeStage(
 
     /// <summary>The queued stage, as the processing card shows it.</summary>
     public static StageStatus Queued => new(StageNames.Optimize, StageStates.Queued, null, "Queued");
+
+    public string Name => StageNames.Optimize;
+
+    /// <summary>Always last: the transcript is made from the lossless files first.</summary>
+    public int Order => 100;
+
+    public bool IsHeavy => false;
+
+    public bool AppliesTo(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return AppliesTo(settings.Recording.Storage);
+    }
+
+    public Task RunAsync(StageRun run, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        return RunAsync(run.RecordingId, cancellationToken);
+    }
 
     /// <summary>
     /// Runs the stage for one recording with the storage settings as they are now. Never throws for a conversion

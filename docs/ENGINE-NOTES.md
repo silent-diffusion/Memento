@@ -62,6 +62,35 @@ Measured on the reference machine: Windows 11 (26200), .NET 8.0.425, AMD Ryzen 7
 - Clean 28 px text: 9/11 lines exact, CER 1.6%. Photo-like (rotated 3.5°, noise, blur): 10/11, CER 1.3%, skew reported in `TextAngle`. 12 px text: CER 8%. Upscale small images first. "Q&A" was dropped every time.
 - `OcrWord.BoundingRect` exists; `OcrLine` has no rectangle (union the words). No confidence at any level, so results are always shown for review; Tesseract is the engine that offers per-word confidence.
 
+## G. M2 implementation (transcription and speakers in the app)
+
+Measured through the real orchestrator and `Memento.Worker.exe` (`tools/TranscriptionCheck`), 2026-10-06. **The PC was shared during every run**: another session's local-LLM benchmark held the RTX 3060 at 92–96 % utilisation and 87–88 °C, and other builds used the CPU, so these numbers are 3–5× slower than the idle spike figures in §D/§E and should be re-measured on an idle PC.
+
+| Run | Audio | Result |
+|---|---|---|
+| large-v3-turbo, Vulkan (RTX 3060) | 5:00 one reader | pass 57.2 s (RTF 0.19; 42 s in a direct worker run with a warm shader cache), 79 segments, 833 words, 4.1 % below 0.5 confidence; 1 speaker |
+| large-v3-turbo, Vulkan | 2:58 two readers | RTF 0.37 (first run on that file); 400 words, 4.3 % below 0.5; 2 speakers, talk time 46 % / 54 % (truth 50 / 50 by turn length) |
+| small, Vulkan | 5:00 | 17.5 s worker time (RTF 0.058); 815 words, 2.7 % below 0.5 |
+| small, CPU (8 threads, below-normal priority) | 5:00 | RTF 0.86; 815 words, 2.7 % below 0.5 |
+| sherpa-onnx diarization, CPU 4 threads | 5:00 / 2:58 | 86–117 s / 52–71 s (RTF 0.29–0.40) |
+| Model downloads through the model manager | turbo 1.62 GB | 39 s (39.5 MiB/s), SHA-256 verified; speaker models 1.5–1.8 s |
+| **Re-measured with the GPU idle** (worker alone): large-v3-turbo, Vulkan | 5:00 | 13.9 s of transcription (RTF 0.046), 19.5 s for the whole job including the energy pass and model load (0.065) |
+| Re-measured, quieter CPU: small, CPU, 8 threads, normal priority | 5:00 | 108.5 s (RTF 0.36; the spike's 0.19–0.26 used `en` instead of auto-detect) |
+| Killed mid-pass (13-minute file, two windows) | 12:58 | 131 segments up to 9:57 kept as a partial transcript; failure offered `cpu`, `retry`; Retry on CPU continued from window 2 and completed (143 segments) |
+| Real app, 2 minutes, Realtek microphone + system playing the two-reader file | 2:00 | transcript, speakers and topics in 77 s after stop; 22 segments (13 mic, 9 system); the laptop microphone also picked up the speakers, so both tracks carry the same speech and get separate speakers (by design) |
+
+Rules learned while building it:
+
+- **Vulkan device order is ggml's, not DXGI's.** The worker loads the model once, reads the `ggml_vulkan: N = <name>` lines from the native log and reloads on the device whose name matches the discrete GPU the host chose from DXGI; here device 0 is the NVIDIA card and 1 the AMD iGPU. DXGI reports the iGPU's shared budget (≈ 23 GB) as "free local memory", so "discrete" is decided by vendor (NVIDIA) or ≥ 2 GB dedicated memory, never by free memory.
+- **sherpa-onnx confidence is a similarity score, not a probability**: about 0.5–0.8 for correctly separated readers, and −2 when a track has a single cluster. Used raw, every line read as uncertain; it is mapped linearly (0.2 → 0, 0.6 → 1, −2 → 1).
+- **Whisper.net brings System.Text.Json 10 and Microsoft.Extensions.AI**, so the worker lives in its own `worker\` folder (self-contained) and never shares assemblies with the app.
+- Native libraries may print to stdout; the worker keeps the original stdout handle for the protocol and points the process's stdout at stderr before loading them. The host also ignores any line that does not start with `{"type":`.
+- whisper.cpp reports its own percentage per call (`WithProgressHandler`); without it a recording shorter than one 10-minute window shows 0 % until done.
+- Prompted large-v3-turbo again dropped the 15-second LibriVox announcement at the start of the 5-minute sample (small kept it). The gap is under the 20-second coverage threshold, so it is not flagged.
+- Digital silence (loopback tracks are padded with zeros) must count toward the speech-energy noise floor, or a track whose only non-zero frames are speech has no speech at all.
+- The CPU "PC is busy" measure subtracts the worker's own processor time, or a CPU transcription would pause itself.
+- The repository's `models/` ignore rule also matched `src/Memento.Core/Models/`; source folders named Models are now excepted in `.gitignore`.
+
 ## Packages verified
 
 | Package | Version | License |
@@ -69,3 +98,4 @@ Measured on the reference machine: Windows 11 (26200), .NET 8.0.425, AMD Ryzen 7
 | NAudio | 2.4.0 | MIT |
 | Whisper.net, Whisper.net.Runtime, Whisper.net.Runtime.Vulkan | 1.9.1 | MIT |
 | org.k2fsa.sherpa.onnx (+ runtime.win-x64) | 1.13.8 | Apache-2.0 |
+| NtvLibs.MSVCP.{vcruntime140, vcruntime140_1, msvcp140, vcomp140}.runtime.win-x64 | 14.42.34430 | MIT packaging; Microsoft VC++ runtime redistributable terms for the DLLs |
