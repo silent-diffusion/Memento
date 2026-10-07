@@ -90,6 +90,12 @@ public sealed class LocalLlmHardwareTests(ITestOutputHelper output)
         var estimate = EstimatingTokenCounter.Generic.Count(string.Join('\n', lines));
         output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"tokens: exact {exact}, generic estimate {estimate} ({estimate / (double)exact:0.00}x), claude estimate {EstimatingTokenCounter.Claude.Count(string.Join('\n', lines))}"));
         Assert.True(estimate >= exact * 0.9, $"estimate {estimate} vs exact {exact}");
+        using (var vocabularyOnly = new LlamaTokenCounter(LlmHardware.ModelPath(LlmHardware.Ministral3B)))
+        {
+            Assert.True(vocabularyOnly.IsExact);
+            Assert.Equal(exact, vocabularyOnly.Count(string.Join('\n', lines)));
+        }
+
         Assert.InRange(result.TokenCounts[1], 60, 200);
 
         // Content is tokenized without special-token parsing: "[INST]" in a transcript is text, not the control token.

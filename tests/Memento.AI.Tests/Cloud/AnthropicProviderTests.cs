@@ -128,6 +128,30 @@ public sealed class AnthropicProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task LogsCarryNeitherTheKeyNorThePromptNorTheAnswer()
+    {
+        const string secretPrompt = "Confidential board discussion about the merger";
+        const string secretAnswer = "The merger closes in March";
+        _server.Enqueue(AnthropicStreams.Error(529, "overloaded_error", "Overloaded"))
+            .Enqueue(AnthropicStreams.Text([secretAnswer]))
+            .Enqueue(AnthropicStreams.Error(400, "invalid_request_error", "messages.0: " + secretPrompt));
+        var request = AiRequest.Create("test.privacy", "System: " + secretPrompt, secretPrompt);
+
+        await Provider().GenerateAsync(request, null, CancellationToken.None);
+        var error = await Assert.ThrowsAsync<AiException>(() => Provider().GenerateAsync(request, null, CancellationToken.None));
+
+        Assert.NotEmpty(_log.Lines);
+        foreach (var text in new[] { _log.All, error.ToString(), error.Error.ToString() })
+        {
+            Assert.DoesNotContain(Key, text, StringComparison.Ordinal);
+            Assert.DoesNotContain(secretPrompt, text, StringComparison.Ordinal);
+            Assert.DoesNotContain(secretAnswer, text, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(_log.Lines, l => l.Contains("test.privacy", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task RateLimitWaitsForRetryAfterThenSucceeds()
     {
         _server.Enqueue(AnthropicStreams.Error(429, "rate_limit_error", "Number of requests has exceeded your rate limit", ("retry-after", "7")))
