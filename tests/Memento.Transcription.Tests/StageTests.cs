@@ -660,6 +660,44 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task PausesBeforeAnyTrackIsDoneLeaveOneStartLineInHistory()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        var attempts = 0;
+        var started = Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource()).ToArray();
+        var diarizer = TwoTrackDiarizer((_, _) => Task.FromResult(true));
+        _host.Workers.Script = async (job, context, cancel) =>
+        {
+            if (job.Kind == WorkerJobKinds.Diarize && Interlocked.Increment(ref attempts) <= started.Length)
+            {
+                // The PC gets busy before the first track is done, three times in a row.
+                started[attempts - 1].TrySetResult();
+                await Task.Delay(Timeout.Infinite, cancel);
+            }
+
+            return await diarizer(job, context, cancel);
+        };
+
+        var id = await _host.RecordAsync("Busy again and again", 2, Mic, SystemAudio);
+        foreach (var start in started)
+        {
+            await start.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            _host.Gate.SetManual(true);
+            await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Speakers).Label == "Paused · Paused by you", "speakers to pause");
+            _host.Gate.SetManual(false);
+        }
+
+        await IdleAsync();
+
+        Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var starts = history.Where(h => h.Stage == "speakers" && h.Event == "started").ToList();
+        Assert.Equal(["Identifying speakers"], starts.Select(h => h.Summary));
+        Assert.Single(history, h => h.Stage == "speakers" && h.Event == "completed");
+    }
+
+    [Fact]
     public async Task WithAnExpectedCountVoicesOnSeveralTracksAreGroupedToThatCount()
     {
         InstallAll();
