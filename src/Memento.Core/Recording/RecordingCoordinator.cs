@@ -42,6 +42,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     private readonly RecordingCoordinatorOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger<RecordingCoordinator> _logger;
+    private readonly LibraryOpener? _opener;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConcurrentDictionary<string, Finalizing> _finalizing = new(StringComparer.Ordinal);
     private ActiveRecording? _active;
@@ -61,8 +62,10 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         FooterStatusService footer,
         RecordingCoordinatorOptions options,
         TimeProvider time,
-        ILogger<RecordingCoordinator> logger)
+        ILogger<RecordingCoordinator> logger,
+        LibraryOpener? opener = null)
     {
+        _opener = opener;
         _engine = engine;
         _sources = sources;
         _store = store;
@@ -132,6 +135,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             var type = ValidateType(parameters.Type);
             var title = ValidateTitle(parameters.Title, type);
             var sources = await ResolveSourcesAsync(sourceIds, cancellationToken);
+            if (_opener is not null)
+            {
+                await _opener.EnsureOpenAsync("The recording did not start and nothing was recorded.", cancellationToken);
+            }
+
             EnsureRoomToStart();
 
             var manifest = await _store.CreateAsync(new ProjectCreateRequest(title, type, _time.GetLocalNow(), ProjectStates.Recording), cancellationToken);
@@ -297,7 +305,15 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         {
             var active = Require(sessionId);
             var result = await active.Session.StopAsync(CancellationToken.None);
-            await CompleteLockedAsync(active, result, result.StoppedBy, result.ElapsedMs);
+            if (!await CompleteLockedAsync(active, result, result.StoppedBy, result.ElapsedMs))
+            {
+                var folder = _store.GetProjectFolder(active.RecordingId);
+                throw new BridgeException(
+                    DomainErrorCodes.LibraryUnavailable,
+                    $"The recording stopped at {HumanFormat.Clock(result.ElapsedMs)}, but its folder {folder} could not be reached, so it is not finished yet. Everything recorded is kept in its files; Memento finishes it the next time it starts with the library's drive connected.",
+                    folder);
+            }
+
             return active.RecordingId;
         }
         finally
@@ -619,18 +635,40 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         };
     }
 
-    /// <summary>Called with <see cref="_gate"/> held, once per session.</summary>
-    private async Task CompleteLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs)
+    /// <summary>
+    /// Called with <see cref="_gate"/> held, once per session. Returns <c>false</c> when the project folder could not
+    /// be written (its drive went away): the session is over and the page is told, the files and
+    /// <c>recording.state.json</c> stay as they are, and recovery finishes the recording at the next launch.
+    /// </summary>
+    private async Task<bool> CompleteLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs)
     {
         if (active.Completed)
         {
-            return;
+            return true;
         }
 
         active.Completed = true;
         Volatile.Write(ref _active, null);
         await active.StopLoopsAsync();
+        try
+        {
+            await RecordStopLockedAsync(active, result, reason, atMs);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException)
+        {
+            LogStopNotSaved(ex, active.RecordingId);
+            _board.SetRecording(RecordingFooterStatus.Idle);
+            _board.SetProcessingPaused(null);
+            _footer.Publish(force: true);
+            _publisher.PublishRecordingState(BuildPayload(active, "stopped", result.Tracks, result.ElapsedMs));
+            _ = Task.Run(() => active.Session.DisposeAsync().AsTask(), CancellationToken.None);
+            return false;
+        }
+    }
 
+    private async Task RecordStopLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs)
+    {
         var tracks = result.Tracks;
         var pauses = result.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList();
         await _catalog.UpdateAsync(
@@ -871,6 +909,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId} stopped by the host ({Reason}) at {AtMs} ms: {Detail}")]
     private partial void LogHostStopped(string recordingId, string reason, long atMs, string detail);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId} stopped, but its folder could not be written; it stays for recovery at the next launch")]
+    private partial void LogStopNotSaved(Exception exception, string recordingId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Handling the host stop of recording {RecordingId} failed")]
     private partial void LogHostStopFailed(Exception exception, string recordingId);

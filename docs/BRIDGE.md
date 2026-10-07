@@ -488,4 +488,4 @@ Settings snapshot: `general` adds `autoUpdate: boolean` (default `true`), merged
 
 ## Error codes (H1)
 
-`updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).
+`library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).

@@ -117,6 +117,12 @@ public static class DomainErrorCodes
     /// <summary>Windows could not store or remove an API key with DPAPI; nothing was changed.</summary>
     public const string AiKeyWriteFailed = "ai.keyWriteFailed";
 
+    /// <summary>
+    /// The library folder chosen in Settings is missing (its drive is not connected, or it was moved or renamed); nothing
+    /// was done. <c>detail</c> is the folder.
+    /// </summary>
+    public const string LibraryUnavailable = "library.unavailable";
+
     /// <summary>This copy was not installed with Setup (a build folder, the portable zip), so it cannot update itself.</summary>
     public const string UpdatesUnavailable = "updates.unavailable";
 

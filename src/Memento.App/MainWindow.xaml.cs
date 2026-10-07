@@ -61,8 +61,11 @@ internal sealed partial class MainWindow : Window
         ILibraryLocation library,
         ISettingsStore settings,
         DroppedFiles dropped,
+        LibraryOpener opener,
         ILogger<MainWindow> logger)
     {
+        ArgumentNullException.ThrowIfNull(opener);
+        opener.Opened += (_, _) => Dispatcher.BeginInvoke(() => MapLibrary(WebView.CoreWebView2));
         _theme = theme;
         _bridge = bridge;
         _footer = footer;
@@ -198,6 +201,14 @@ internal sealed partial class MainWindow : Window
         var folder = LibraryUrls.MappedFolder(_library.Root);
         if (string.Equals(folder, _mappedLibrary, StringComparison.OrdinalIgnoreCase))
         {
+            return;
+        }
+
+        if (!Directory.Exists(_library.Root) && !LibraryAvailability.IsDefault(_library.Root))
+        {
+            // The library's drive is not connected (or the folder was moved): nothing to serve, and nothing is created
+            // in its place. The page says so through library.list; the mapping follows once the library is back.
+            LogLibraryNotMapped(_library.Root);
             return;
         }
 
@@ -342,6 +353,9 @@ internal sealed partial class MainWindow : Window
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Project folders in {Folder} served at https://library.memento/")]
     private partial void LogLibraryMapped(string folder);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The library {Root} is not available; library.memento is not mapped")]
+    private partial void LogLibraryNotMapped(string root);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Interface files are missing from {Folder}")]
     private partial void LogUiMissing(string folder);

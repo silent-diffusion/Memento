@@ -92,6 +92,7 @@ export const ERROR_CODES = [
   'app.startupRefused',
   'ai.keyWriteFailed',
   // H1
+  'library.unavailable',
   'updates.unavailable',
   'updates.notReady',
   'updates.busy',

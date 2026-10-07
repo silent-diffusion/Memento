@@ -8,7 +8,7 @@ namespace Memento.Core.Bridge.Methods;
 /// <c>library.list</c> → <see cref="LibraryListResult"/>: the recordings matching the search and type filter, sorted,
 /// with totals that reflect the filter. Date grouping is the UI's job.
 /// </summary>
-public sealed class LibraryListMethod(ILibraryIndex index) : BridgeMethod<LibraryListParams, LibraryListResult>
+public sealed class LibraryListMethod(ILibraryIndex index, LibraryOpener? opener = null) : BridgeMethod<LibraryListParams, LibraryListResult>
 {
     public override string Name => BridgeMethodNames.LibraryList;
 
@@ -34,6 +34,11 @@ public sealed class LibraryListMethod(ILibraryIndex index) : BridgeMethod<Librar
         if (parameters.Type is { Length: > 64 })
         {
             throw new BridgeException(BridgeErrorCodes.InvalidParams, "A recording type name can be at most 64 characters.");
+        }
+
+        if (opener is not null)
+        {
+            await opener.EnsureOpenAsync("Memento cannot show it until it is back.", cancellationToken);
         }
 
         var result = await index.QueryAsync(new LibraryQuery(parameters.Query, parameters.Type, sort), cancellationToken);
