@@ -5,6 +5,8 @@ import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Project, RecordingDetails, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
 import { DetailsSheet } from '../../components/DetailsSheet';
+import type { AgendaMode } from '../../components/agenda/useAgendaImport';
+import { StatusFooter } from '../../components/StatusFooter';
 import { CheckIcon, DocumentPlusIcon, MoreIcon } from '../../components/icons';
 import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
@@ -39,12 +41,6 @@ export function reviewMeta(project: Project, now: Date): string {
   ].join(' · ');
 }
 
-const EXPORT_NOTICE = {
-  kind: 'notice' as const,
-  title: 'Export arrives in a later version',
-  body: 'Copies of the audio, the separate tracks, the transcript and the details will be written to a folder you choose. Until then the recording stays complete and safe inside Memento on this PC.',
-};
-
 const DOCUMENT_NOTICE = {
   kind: 'notice' as const,
   title: 'Documents arrive in a later version',
@@ -59,6 +55,8 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<DetailsTab>('details');
   const [sheetOpen, setSheetOpen] = useState(false);
+  // M3: Replace in Review › Details opens the sheet at the agenda drop zone.
+  const [sheetAgendaMode, setSheetAgendaMode] = useState<AgendaMode | null>(null);
   const [reload, setReload] = useState(0);
   const [versions, setVersions] = useState<TranscriptVersion[] | null>(null);
   const revealRef = useRef<((segmentId: string) => void) | null>(null);
@@ -227,7 +225,7 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
               class="btn ghost spoke-ghost"
               type="button"
               onClick={() => {
-                store.dialog.value = EXPORT_NOTICE;
+                store.dialog.value = { kind: 'export', recordingId };
               }}
             >
               Export
@@ -396,6 +394,12 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
             }}
             onEditDetails={() => {
               saver?.adopt(recordingId, project.details);
+              setSheetAgendaMode(null);
+              setSheetOpen(true);
+            }}
+            onReplaceAgenda={() => {
+              saver?.adopt(recordingId, project.details);
+              setSheetAgendaMode('drop');
               setSheetOpen(true);
             }}
             onTags={(tags) => {
@@ -407,9 +411,12 @@ export function ReviewScreen({ recordingId }: { recordingId: string }): JSX.Elem
           />
         </div>
       )}
+      {/* M3: Review has no footer (DESIGN.md §3) except while an export it started is running. */}
+      {store.footer.value?.export?.active === true ? <StatusFooter status={store.footer.value} /> : null}
       {sheetOpen && saver !== null ? (
         <DetailsSheet
           saver={saver}
+          agendaMode={sheetAgendaMode}
           onClose={() => {
             setSheetOpen(false);
             setReload((n) => n + 1);

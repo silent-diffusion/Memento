@@ -1,4 +1,4 @@
-import type { EngineStatus, EngineStatusDetail, FooterStatusPayload, StorageStatus } from '../bridge/types';
+import type { EngineStatus, EngineStatusDetail, FooterExportStatus, FooterStatusPayload, StorageStatus } from '../bridge/types';
 import { formatTimecode } from './duration';
 import { formatFreeSpace } from './storage';
 
@@ -99,4 +99,10 @@ export function footerStorageLine(status: FooterStatusPayload | null): StorageLi
     text: status.storage.freeBytes === null ? 'Saving continuously' : `Saving continuously · ${formatFreeSpace(status.storage.freeBytes)} free`,
     low: false,
   };
+}
+
+/** M3: "Exporting Q3 planning sync · 42%" while an export runs (status.footer `export`). */
+export function exportFooterLine(status: FooterExportStatus): string {
+  const title = status.title ?? 'a recording';
+  return status.percent === null ? `Exporting ${title}` : `Exporting ${title} · ${Math.round(status.percent)}%`;
 }

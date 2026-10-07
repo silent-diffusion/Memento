@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo } from 'preact/hooks';
 import type { BridgeClient } from './bridge/client';
 import { DialogHost } from './components/DialogHost';
 import { ToastStack } from './components/Toasts';
@@ -8,6 +8,7 @@ import { RecordScreen } from './screens/record/RecordScreen';
 import { ReviewScreen } from './screens/review/ReviewScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { AppContext, createMemoryRouter, type AppServices } from './state/context';
+import { connectJobEvents } from './state/jobs';
 import { screenKey, type Route, type Router } from './state/router';
 import type { AppStore } from './state/store';
 
@@ -41,6 +42,8 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
     () => ({ bridge, store, router: router ?? createMemoryRouter(store), now: now ?? (() => new Date()) }),
     [bridge, store, router, now],
   );
+  // M3: export, library move and reclaim progress (state/jobs.ts).
+  useEffect(() => connectJobEvents(bridge, store), [bridge, store]);
   const route = store.route.value;
   const modalOpen = store.overlays.value > 0;
   return (

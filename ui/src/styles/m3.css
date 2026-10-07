@@ -1,0 +1,579 @@
+/* M3 surfaces: agenda import (DESIGN.md §14), attachments, the export dialog (§15), the export line in
+   the status footer, the completed Settings sections (§11) and the inline import failure (§17).
+   Colours and shadows come from tokens.css by role (§2.5); nothing here is hand-tuned. */
+
+/* ---------------------------------------------------------------------------------------------
+   Agenda: parsed preview and list
+   --------------------------------------------------------------------------------------------- */
+.agenda-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.agenda-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.agenda-item--nested .agenda-row {
+  padding-left: 18px;
+}
+.agenda-item--too-long .ii,
+.agenda-item--too-long .ii:hover {
+  background: var(--bg);
+  box-shadow: var(--neo-in-xs), 0 0 0 1.5px var(--danger);
+}
+.agenda-limit {
+  margin: 0;
+  padding: 0 8px 2px 52px;
+  font-size: 12px;
+  color: var(--danger);
+}
+.agenda-limit--count {
+  padding: 0 2px;
+}
+.agenda-notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.agenda-reasons {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+.agenda-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.agenda-warnings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.agenda-warnings li::before {
+  content: '·';
+  margin-right: 6px;
+}
+.agenda-apply {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.agenda-apply-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.agenda-apply-actions {
+  display: flex;
+  gap: 8px;
+}
+.agenda-apply-actions .small-btn {
+  height: 32px;
+}
+.btn.p.small-btn {
+  color: #ffffff;
+}
+.agenda-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--danger-soft);
+  color: var(--text);
+  font-size: 13px;
+}
+.agenda-error-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ai-card-link {
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Attachments
+   --------------------------------------------------------------------------------------------- */
+.attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attachments--review {
+  align-items: flex-start;
+}
+.attachments-empty {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.attachment-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 4px;
+  border-radius: 14px;
+}
+.attachment:hover {
+  box-shadow: var(--neo-in-xs);
+}
+.attachment-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.attachment-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.attachment-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.attachment-meta {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.attachment-meta .mono {
+  font-size: 11px;
+}
+.attachment-open {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neo-xs);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  flex: none;
+}
+.attachments-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.attachments-add:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Export dialog (680 px, radius 28, clay list of component rows, bg footer strip)
+   --------------------------------------------------------------------------------------------- */
+.export-dialog {
+  width: min(680px, calc(100vw - 48px));
+  max-height: calc(100vh - 108px);
+  background: var(--surface);
+  border-radius: 28px;
+  box-shadow: var(--neo-card);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  outline: none;
+}
+.export-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 24px 16px;
+}
+.export-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.export-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.export-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.export-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  background: transparent;
+  flex: none;
+}
+.export-body {
+  padding: 0 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: auto;
+  min-height: 0;
+}
+.export-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.export-list {
+  border-radius: 20px;
+  box-shadow: var(--neo-sm);
+}
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  min-height: 52px;
+  box-sizing: border-box;
+}
+.export-row + .export-row {
+  border-top: 1px solid var(--line);
+}
+.export-row .chk {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+}
+.export-row-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  cursor: pointer;
+}
+.export-row-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.export-row.off .export-row-name {
+  color: var(--text-2);
+}
+.export-row-desc {
+  font-size: 12px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-row--unavailable .export-row-text {
+  cursor: default;
+}
+.export-row--unavailable .export-row-name,
+.export-row--unavailable .export-row-size {
+  color: var(--text-3);
+}
+.export-row-size {
+  font-size: 12px;
+  color: var(--text-3);
+  width: 64px;
+  text-align: right;
+  flex: none;
+}
+.export-format {
+  flex: none;
+  min-width: 104px;
+  display: flex;
+  justify-content: flex-end;
+}
+.export-format .select-btn {
+  height: 32px;
+  min-width: 104px;
+  justify-content: space-between;
+  border-radius: 12px;
+}
+.export-format .select-btn:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+.export-format-fixed {
+  height: 32px;
+  min-width: 104px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.export-row.off .export-format-fixed {
+  opacity: 0.5;
+}
+.export-path {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.export-row .small-btn {
+  height: 32px;
+  border-radius: 12px;
+  flex: none;
+}
+.export-row .tog {
+  flex: none;
+}
+.export-loading,
+.export-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.export-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.export-summary {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.export-summary-files {
+  font-weight: 700;
+  color: var(--text);
+}
+.export-actions {
+  display: flex;
+  gap: 8px;
+}
+/* DESIGN.md §17 "Export failed": inline card with the danger icon, what and why, then the fixes. */
+.export-failure {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  color: var(--text-2);
+}
+.export-failure-icon {
+  color: var(--danger);
+  flex: none;
+  margin-top: 1px;
+}
+.export-failure-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.export-failure-lead {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--danger);
+}
+.export-failure-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.export-failure-actions .small-btn {
+  height: 32px;
+  border-radius: 12px;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Status footer: "Exporting {title} · 42%"
+   --------------------------------------------------------------------------------------------- */
+.footer-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-2);
+  min-width: 0;
+}
+.footer-export-track {
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+  flex: none;
+}
+.footer-export-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.toast-dot--ok {
+  background: var(--ok);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Settings (M3 rows)
+   --------------------------------------------------------------------------------------------- */
+.settings-key {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+  display: inline-flex;
+  align-items: center;
+  min-width: 160px;
+}
+.settings-check--locked {
+  color: var(--text-3);
+}
+.settings-inline--ok {
+  color: var(--ok);
+}
+.settings-open {
+  font-size: 13px;
+}
+.settings-progress {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+.settings-progress-label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.settings-progress-track {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.settings-progress-track--banner {
+  margin-top: 8px;
+  background: var(--surface);
+}
+.settings-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.settings-move-banner .banner-text {
+  display: block;
+  flex: 1;
+}
+.move-paths {
+  margin: 4px 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+.move-paths dt {
+  color: var(--text-3);
+  font-weight: 600;
+}
+.move-paths dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Library: Import audio or video failed (DESIGN.md §17 inline)
+   --------------------------------------------------------------------------------------------- */
+.import-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  color: var(--text-2);
+  max-width: 760px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+.import-error-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  margin-top: 6px;
+  flex: none;
+}
+.import-error-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.import-error-lead {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.import-error-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: none;
+}
+.import-error-actions .small-btn {
+  height: 32px;
+}
+.library-main--centred .import-error {
+  margin: 0 auto;
+}

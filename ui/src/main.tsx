@@ -12,6 +12,7 @@ import './styles/spoke.css';
 import './styles/record.css';
 import './styles/details-sheet.css';
 import './styles/review.css';
+import './styles/m3.css';
 import { App } from './App';
 import { createBridgeClient } from './bridge/client';
 import { installPressFeedback } from './pressFeedback';

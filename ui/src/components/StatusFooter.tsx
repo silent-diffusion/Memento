@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import type { FooterStatusPayload } from '../bridge/types';
-import { footerStorageLine, statusLine } from '../format/footer';
+import { exportFooterLine, footerStorageLine, statusLine } from '../format/footer';
 
 interface StatusFooterProps {
   /** Latest `status.footer` from the host; `null` until the first one arrives. */
@@ -22,6 +22,14 @@ export function StatusFooter({ status, lostAtMs = null }: StatusFooterProps): JS
           {left.text}
         </span>
       </span>
+      {status?.export?.active === true ? (
+        <span class="footer-export" role="status">
+          {exportFooterLine(status.export)}
+          <span class="footer-export-track" aria-hidden="true">
+            <span class="footer-export-fill" style={{ width: `${Math.max(0, Math.min(100, status.export.percent ?? 0))}%` }} />
+          </span>
+        </span>
+      ) : null}
       <span class={storage.low ? 'footer-storage footer-storage--low' : 'footer-storage'}>{storage.text}</span>
     </footer>
   );

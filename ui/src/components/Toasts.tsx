@@ -27,7 +27,7 @@ export function ToastStack({ queue }: { queue: ToastQueue }): JSX.Element {
             }
           }}
         >
-          <span class={toast.tone === 'danger' ? 'toast-dot toast-dot--danger' : 'toast-dot'} aria-hidden="true" />
+          <span class={toast.tone === 'danger' ? 'toast-dot toast-dot--danger' : toast.tone === 'ok' ? 'toast-dot toast-dot--ok' : 'toast-dot'} aria-hidden="true" />
           <div class="toast-content">
             <div class="toast-text">
               <span class="toast-title">{toast.title}</span>

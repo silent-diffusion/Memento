@@ -7,6 +7,7 @@ import { createMockModels, engineDetail, type ModelFailureMode } from './mockMod
 import { createMockSession, MockHostError } from './mockSession';
 import { createMockTranscription, type StageFlag } from './mockTranscription';
 import { LIVE_DRAFT_LINES } from './mockTranscripts';
+import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
 import type {
   AnnotationOrigin,
   BridgeEventEnvelope,
@@ -54,6 +55,8 @@ export interface MockOptions {
   /** Milliseconds between steps of simulated passes and downloads (shorter in tests). */
   stepMs?: number;
   now?: () => number;
+  /** M3 failure cases (`?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`, `?import=unsupported`, `?move=busy`). */
+  m3?: Partial<M3Flags>;
 }
 
 const STAGE_FLAGS: readonly StageFlag[] = ['done', 'queued', 'running', 'failed', 'paused'];
@@ -71,6 +74,7 @@ export function mockOptionsFromQuery(search: string): MockOptions {
     lostAfterMs: query.get('lost') === '1' ? 10_000 : null,
     liveTranscript: query.get('live') === '1',
     models: models === 'nospace' ? 'noSpace' : models === 'fail' ? 'network' : 'none',
+    m3: m3FlagsFromQuery(query),
   };
   if (theme === 'dark' || theme === 'light' || theme === 'system') {
     options.theme = theme;
@@ -126,6 +130,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'voice-resnet34' },
     history: { keepVersions: true, keepDays: 90 },
+    ...defaultM3Settings(),
   };
   const isDark = (): boolean => settings.theme === 'dark' || (settings.theme === 'system' && prefersDark());
 
@@ -166,6 +171,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     recording: { active: false, lastCheckpointAt: null, lostSource: null },
     // The host's only reason in M1 (FooterStatusService.LowSpaceReason), sent while space is low.
     processingPaused: (options.lowSpace ?? false) ? 'Low disk space' : null,
+    export: { active: false, percent: null, title: null },
   };
 
   const deliver = (message: BridgeResponse | BridgeEventEnvelope): void => {
@@ -474,6 +480,41 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
   });
 
+  // M3: agenda import, attachments, import, export, library move and reclaim, keys, startup.
+  const m3 = createMockM3({
+    emit,
+    now,
+    projects,
+    find,
+    toProject,
+    tracks: (project) => project.tracks ?? mockTracks(project.summary.id, project.trackSources, project.summary.durationMs),
+    changed,
+    settings: () => settings,
+    setSettings: (next) => {
+      settings = next;
+    },
+    freeBytes: () => footer.storage.freeBytes ?? 0,
+    setFooterExport: (status) => {
+      footer = { ...footer, export: status };
+      emitFooter();
+    },
+    setStages,
+    queueAfterStored: (project) => {
+      transcription.queueNewRecording(project);
+    },
+    transcriptSegments: (recordingId) => transcription.get(recordingId).transcript?.segments.length ?? null,
+    busyTitle: () => {
+      const id = session.activeRecordingId();
+      return id === null ? null : (projects.get(id)?.summary.title ?? 'the current recording');
+    },
+    log: (message) => {
+      logger.info(message);
+    },
+    version: '0.3.0-dev',
+    flags: { ...DEFAULT_M3_FLAGS, ...options.m3 },
+    stepMs: options.stepMs ?? 400,
+  });
+
   const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
 
   /** The M2 blocks: a model must be installed for its engine, and values must be ones Settings offers. */
@@ -533,6 +574,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         speakers: params.speakers ?? settings.speakers,
         history: params.history ?? settings.history,
       };
+      settings = m3.mergeSettings(settings, params);
       if (isDark() !== themeBefore) {
         emit('theme.changed', { isDark: isDark() });
       }
@@ -773,6 +815,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       transcription: transcriptionDetail(),
       speakers: engineDetail(models, settings.speakers.embeddingModelId, 'CPU', transcription.pausedReason()),
     }),
+    ...m3.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

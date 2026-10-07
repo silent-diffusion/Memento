@@ -20,7 +20,8 @@ export function initialFocusTarget(container: HTMLElement): HTMLElement | null {
   return focusableWithin(container).find((el) => !el.classList.contains('d')) ?? null;
 }
 
-function useModal(onEscape: () => void): {
+/** Focus, Esc, Tab trapping and the inert shell for a modal surface (M3: the export dialog uses it directly). */
+export function useModal(onEscape: () => void): {
   ref: { current: HTMLDivElement | null };
   onKeyDown: (event: KeyboardEvent) => void;
 } {

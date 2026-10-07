@@ -25,6 +25,11 @@ export interface DetailsSaver {
   /** Sends a pending change now (closing the sheet, leaving the screen). */
   flush(): Promise<void>;
   dispose(): void;
+  /**
+   * M3: the host changed these fields itself (agenda.apply, agenda.setCovered). Shows them without
+   * sending them back; a pending edit of the same field carries the host's value from now on.
+   */
+  receive(patch: Partial<RecordingDetails>): void;
 }
 
 export function emptyDetails(title: string, type: RecordingType): RecordingDetails {
@@ -148,6 +153,11 @@ export function createDetailsSaver(
       if (recordingId.value !== null && Object.keys(pending).length > 0) {
         void send();
       }
+    },
+    receive(patch) {
+      details.value = { ...details.value, ...patch };
+      const overlap = Object.fromEntries(Object.entries(patch).filter(([key]) => key in pending)) as Partial<RecordingDetails>;
+      pending = { ...pending, ...overlap };
     },
   };
 }

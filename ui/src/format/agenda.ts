@@ -17,7 +17,8 @@ const MARKERS = [
   /^\[[ xX]?\]\s*/,
 ];
 
-function stripMarkers(line: string): string {
+/** Removes leading list markers ("1.", "-", "•", "[ ]") from one line. */
+export function stripMarkers(line: string): string {
   let text = line.trim();
   for (let pass = 0; pass < 4; pass++) {
     const before = text;
@@ -87,10 +88,13 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
   return next;
 }
 
+/** The `source` the host gives pasted text (BRIDGE.md M3, AgendaParsePreview.source). */
+export const PASTED_SOURCE = 'Pasted text';
+
 /** "Pasted text · parsed on this PC", "From agenda.docx · parsed on this PC". */
 export function agendaSourceCaption(source: string | null, parsedLocally: boolean): string {
   const where = parsedLocally ? 'parsed on this PC' : 'extracted with AI';
-  if (source === null || source === '') {
+  if (source === null || source === '' || source === PASTED_SOURCE) {
     return `Pasted text · ${where}`;
   }
   return `From ${source} · ${where}`;

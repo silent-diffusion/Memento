@@ -66,6 +66,25 @@ export const ERROR_CODES = [
   'models.downloadFailed',
   'models.noSpace',
   'engine.unavailable',
+  // M3
+  'agenda.fileTooLarge',
+  'agenda.imageTooLarge',
+  'agenda.unsupportedFormat',
+  'agenda.unreadable',
+  'agenda.protected',
+  'agenda.noText',
+  'agenda.noItems',
+  'agenda.ocrUnavailable',
+  'agenda.itemTooLong',
+  'agenda.tooManyItems',
+  'agenda.dropUnavailable',
+  'attachments.tooLarge',
+  'attachments.notFound',
+  'library.importUnsupported',
+  'library.busy',
+  'export.destinationUnwritable',
+  'export.nothingSelected',
+  'export.notFound',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -609,6 +628,11 @@ export interface SettingsSnapshot {
   transcription: TranscriptionSettings;
   speakers: SpeakerSettings;
   history: HistorySettings;
+  /** M3 */
+  general: GeneralSettings;
+  export: ExportSettings;
+  ai: AiSettings;
+  storage: StorageReclaimSettings;
 }
 
 /**
@@ -626,13 +650,19 @@ export interface SettingsSetParams {
   transcription?: TranscriptionSettings | null;
   speakers?: SpeakerSettings | null;
   history?: HistorySettings | null;
+  /** M3: each block is replaced whole and the UI sends it whole. */
+  general?: GeneralSettings | null;
+  export?: ExportSettings | null;
+  ai?: AiSettingsInput | null;
+  storage?: StorageReclaimSettings | null;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Library and projects
 // ---------------------------------------------------------------------------------------------
 
-export type LibrarySort = 'newest' | 'oldest' | 'longest' | 'title';
+/** `size` (largest first) is proposed for M3: Settings › Storage › Review large recordings. */
+export type LibrarySort = 'newest' | 'oldest' | 'longest' | 'title' | 'size';
 
 export interface LibraryListParams {
   /** Searches titles and people (M2: transcripts). */
@@ -865,6 +895,8 @@ export interface FooterStatusPayload {
   recording: FooterRecordingStatus;
   /** Why processing is paused, in words, or null. M1 hosts send only "Low disk space". */
   processingPaused: string | null;
+  /** M3: the running export, if any. Hosts before M3 leave it out. */
+  export?: FooterExportStatus;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -953,6 +985,359 @@ export interface StorageLowSpacePayload {
 }
 
 // ---------------------------------------------------------------------------------------------
+// M3: agenda import, attachments, media import, export, remaining Settings (BRIDGE.md M3)
+// ---------------------------------------------------------------------------------------------
+
+export type AgendaSourceKind = 'text' | 'pastedText' | 'markdown' | 'csv' | 'tsv' | 'docx' | 'xlsx' | 'pdf' | 'image';
+
+/** One item the local parser found. `level` 0 is a top-level item; `location` like "page 2, line 14". */
+export interface AgendaParsedItem {
+  text: string;
+  uncertain: boolean;
+  uncertainReason: string | null;
+  level: number;
+  location: string | null;
+}
+
+export interface AgendaWarning {
+  code: string;
+  message: string;
+}
+
+export interface AgendaParsePreview {
+  /** The file name, or "Pasted text". */
+  source: string;
+  sourceKind: AgendaSourceKind;
+  title: string | null;
+  items: AgendaParsedItem[];
+  warnings: AgendaWarning[];
+  /** "Windows OCR" when an image was read. */
+  ocrEngine: string | null;
+  /** Handle the host keeps for the original file until agenda.apply or agenda.discard. */
+  attachmentToken: string | null;
+}
+
+export type AttachmentKind = 'agenda' | 'file';
+
+export interface Attachment {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  addedAt: string;
+  kind: AttachmentKind;
+  contentType: string | null;
+}
+
+export type AudioExportFormat = 'flac' | 'wav' | 'mp3';
+export type TranscriptExportFormat = 'json' | 'markdown' | 'text' | 'srt';
+export type DocumentExportFormat = 'docx' | 'pdf' | 'markdown';
+
+export interface ExportAudioChoice {
+  on: boolean;
+  format: AudioExportFormat;
+  /** MP3 only; null for FLAC and WAV. */
+  bitrateKbps: number | null;
+}
+
+export interface ExportSelection {
+  audioMixed: ExportAudioChoice;
+  tracks: ExportAudioChoice;
+  transcript: { on: boolean; formats: TranscriptExportFormat[] };
+  /** M4 fills this; M3 exports nothing here. */
+  documents: { on: boolean; documentIds: string[]; format: DocumentExportFormat };
+  details: { on: boolean };
+  attachments: { on: boolean };
+}
+
+/** The components of an export, named as the keys of ExportSelection. */
+export type ExportComponent = keyof ExportSelection;
+
+export interface ExportEstimateItem {
+  /** Proposed for M3 (not yet in BRIDGE.md): which row of the dialog the file belongs to. */
+  component: ExportComponent;
+  /** The file name as it will be written. */
+  name: string;
+  bytes: number;
+}
+
+/** Proposed for M3: BRIDGE.md has plain strings ("Transcript (not transcribed yet)"). */
+export interface ExportUnavailable {
+  component: ExportComponent;
+  /** "Not transcribed yet", "No attachments". */
+  reason: string;
+}
+
+/** Sizes for lossy formats are estimates. */
+export interface ExportEstimate {
+  files: number;
+  bytes: number;
+  items: ExportEstimateItem[];
+  unavailable: ExportUnavailable[];
+}
+
+/** `createSubfolder`: a folder named after the recording (sanitised title + date) inside `folder`. */
+export interface ExportDestination {
+  folder: string;
+  createSubfolder: boolean;
+}
+
+export interface LibraryUsageLargest {
+  recordingId: string;
+  title: string;
+  sizeBytes: number;
+}
+
+export interface LibraryUsage {
+  totalBytes: number;
+  freeBytes: number;
+  count: number;
+  largest: LibraryUsageLargest | null;
+}
+
+export interface AgendaImportFileParams {
+  /** Proposed for M3: null while the recording does not exist yet; parsing does not need it. */
+  recordingId: string | null;
+  /** Without a path the host shows the file picker. */
+  path?: string;
+}
+
+export interface AgendaImportDroppedParams {
+  recordingId: string | null;
+  /** The dropped File objects' names; the host matches them to the pending WebView2 drop. */
+  paths: string[];
+}
+
+export interface AgendaImportResult {
+  preview: AgendaParsePreview | null;
+  cancelled: boolean;
+}
+
+export interface AgendaParseTextParams {
+  recordingId: string | null;
+  text: string;
+}
+
+export interface AgendaParseTextResult {
+  preview: AgendaParsePreview;
+}
+
+export interface AgendaApplyItem {
+  text: string;
+  uncertain: boolean;
+  uncertainReason: string | null;
+}
+
+/** At most AGENDA_MAX_ITEMS items of at most AGENDA_MAX_ITEM_LENGTH characters. */
+export interface AgendaApplyParams {
+  recordingId: string;
+  items: AgendaApplyItem[];
+  source: string;
+  sourceKind: AgendaSourceKind;
+  attachmentToken: string | null;
+}
+
+export interface AgendaDiscardParams {
+  attachmentToken: string;
+}
+
+export interface AgendaSetCoveredParams {
+  recordingId: string;
+  itemId: string;
+  covered: boolean;
+}
+
+export interface AgendaResult {
+  agenda: Agenda;
+}
+
+/** The host refuses longer items (agenda.itemTooLong) and more items (agenda.tooManyItems). */
+export const AGENDA_MAX_ITEM_LENGTH = 200;
+export const AGENDA_MAX_ITEMS = 200;
+
+export interface AttachmentsListResult {
+  attachments: Attachment[];
+}
+
+export interface AttachmentsAddParams {
+  recordingId: string;
+  /** Without a path the host shows the file picker. 100 MB per file (attachments.tooLarge). */
+  path?: string;
+}
+
+export interface AttachmentsAddResult {
+  attachment: Attachment | null;
+  cancelled: boolean;
+}
+
+export interface AttachmentIdParams {
+  recordingId: string;
+  attachmentId: string;
+}
+
+export interface LibraryImportMediaParams {
+  /** Without a path the host shows the file picker. */
+  path?: string;
+  title?: string;
+  type?: RecordingType;
+}
+
+export interface LibraryImportMediaResult {
+  recordingId: string | null;
+  cancelled: boolean;
+}
+
+export interface ProjectChangeTypeParams {
+  recordingId: string;
+  /** A built-in type or a custom name of 1 to 40 characters. */
+  type: RecordingType;
+}
+
+export interface ExportEstimateParams {
+  recordingId: string;
+  selection: ExportSelection;
+}
+
+export interface ExportRunParams {
+  recordingId: string;
+  selection: ExportSelection;
+  destination: ExportDestination;
+  /** Stores selection and destination as the Settings › Export defaults. */
+  remember: boolean;
+}
+
+export interface JobResult {
+  jobId: string;
+}
+
+export interface JobIdParams {
+  jobId: string;
+}
+
+export interface LibraryRebuildIndexResult {
+  recordings: number;
+}
+
+export interface LibraryMoveParams {
+  newPath: string;
+}
+
+export type ReclaimCodec = 'aac' | 'mp3';
+
+export interface StorageReclaimParams {
+  /** null: every recording older than settings.storage.reclaimOlderThanDays. */
+  recordingIds: string[] | null;
+  downmixMono: boolean;
+  codec: ReclaimCodec;
+  bitrateKbps: number;
+}
+
+export type AiProvider = 'anthropic' | 'openai';
+
+export interface AiSetKeyParams {
+  provider: AiProvider;
+  key: string;
+}
+
+export interface AiProviderParams {
+  provider: AiProvider;
+}
+
+/** The key itself is never returned. */
+export interface AiKeyResult {
+  hasKey: boolean;
+}
+
+export interface AppStartupParams {
+  startWithWindows: boolean;
+}
+
+export type JobState = 'running' | 'done' | 'failed' | 'cancelled';
+
+export interface ExportProgressPayload {
+  jobId: string;
+  recordingId: string;
+  percent: number;
+  currentFile: string | null;
+  state: JobState;
+  message: string | null;
+  outputFolder: string | null;
+  files: number;
+  bytes: number;
+}
+
+export interface LibraryMoveProgressPayload {
+  jobId: string;
+  percent: number;
+  state: JobState;
+  message: string | null;
+  newPath: string;
+}
+
+export interface StorageReclaimProgressPayload {
+  jobId: string;
+  percent: number;
+  state: JobState;
+  message: string | null;
+  recordingsDone: number;
+  bytesFreed: number;
+}
+
+/** status.footer (M3): "Exporting {title} · 42%". */
+export interface FooterExportStatus {
+  active: boolean;
+  percent: number | null;
+  title: string | null;
+}
+
+export interface GeneralSettings {
+  startWithWindows: boolean;
+  /** Stored now; applied in M5. */
+  keepRunningInTray: boolean;
+  language: 'en';
+}
+
+export interface ExportSettings {
+  saveCopiesOutside: boolean;
+  defaultFolder: string | null;
+  askWhereEachTime: boolean;
+  createSubfolder: boolean;
+  defaults: ExportSelection;
+}
+
+/** What may be sent to an external AI service. Audio and video never are. */
+export interface AiShareSettings {
+  transcript: boolean;
+  details: boolean;
+  participants: boolean;
+  agenda: boolean;
+  highlights: boolean;
+  attachments: boolean;
+}
+
+export interface AiProviderStatus {
+  hasKey: boolean;
+}
+
+/** What settings.set accepts for `ai`: the providers are read-only (keys go through ai.setKey). */
+export interface AiSettingsInput {
+  /** false by default */
+  enabled: boolean;
+  askBeforeSend: boolean;
+  keepRecord: boolean;
+  share: AiShareSettings;
+}
+
+export interface AiSettings extends AiSettingsInput {
+  /** Read side only: whether a key is stored, never the key. */
+  providers: Record<AiProvider, AiProviderStatus>;
+}
+
+export interface StorageReclaimSettings {
+  /** null: never. */
+  reclaimOlderThanDays: number | null;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Maps
 // ---------------------------------------------------------------------------------------------
 
@@ -1009,6 +1394,30 @@ export interface BridgeMethods {
   'models.cancelInstall': { params: ModelIdParams; result: EmptyResult };
   'models.remove': { params: ModelIdParams; result: EmptyResult };
   'engine.status': { params: EmptyParams; result: EngineStatusResult };
+  // M3
+  'agenda.importFile': { params: AgendaImportFileParams; result: AgendaImportResult };
+  'agenda.importDropped': { params: AgendaImportDroppedParams; result: AgendaImportResult };
+  'agenda.parseText': { params: AgendaParseTextParams; result: AgendaParseTextResult };
+  'agenda.apply': { params: AgendaApplyParams; result: Project };
+  'agenda.discard': { params: AgendaDiscardParams; result: EmptyResult };
+  'agenda.setCovered': { params: AgendaSetCoveredParams; result: AgendaResult };
+  'attachments.list': { params: RecordingIdParams; result: AttachmentsListResult };
+  'attachments.add': { params: AttachmentsAddParams; result: AttachmentsAddResult };
+  'attachments.remove': { params: AttachmentIdParams; result: EmptyResult };
+  'attachments.open': { params: AttachmentIdParams; result: EmptyResult };
+  'library.importMedia': { params: LibraryImportMediaParams; result: LibraryImportMediaResult };
+  'project.changeType': { params: ProjectChangeTypeParams; result: Project };
+  'export.estimate': { params: ExportEstimateParams; result: ExportEstimate };
+  'export.run': { params: ExportRunParams; result: JobResult };
+  'export.cancel': { params: JobIdParams; result: EmptyResult };
+  'export.openFolder': { params: JobIdParams; result: EmptyResult };
+  'library.usage': { params: EmptyParams; result: LibraryUsage };
+  'library.rebuildIndex': { params: EmptyParams; result: LibraryRebuildIndexResult };
+  'library.move': { params: LibraryMoveParams; result: JobResult };
+  'storage.reclaim': { params: StorageReclaimParams; result: JobResult };
+  'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
+  'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
+  'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -1025,6 +1434,10 @@ export interface BridgeEvents {
   'transcript.changed': TranscriptChangedPayload;
   'models.progress': ModelsProgressPayload;
   'recording.liveTranscript': RecordingLiveTranscriptPayload;
+  // M3
+  'export.progress': ExportProgressPayload;
+  'library.moveProgress': LibraryMoveProgressPayload;
+  'storage.reclaimProgress': StorageReclaimProgressPayload;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -1085,6 +1498,29 @@ export const METHOD_NAMES = [
   'models.cancelInstall',
   'models.remove',
   'engine.status',
+  'agenda.importFile',
+  'agenda.importDropped',
+  'agenda.parseText',
+  'agenda.apply',
+  'agenda.discard',
+  'agenda.setCovered',
+  'attachments.list',
+  'attachments.add',
+  'attachments.remove',
+  'attachments.open',
+  'library.importMedia',
+  'project.changeType',
+  'export.estimate',
+  'export.run',
+  'export.cancel',
+  'export.openFolder',
+  'library.usage',
+  'library.rebuildIndex',
+  'library.move',
+  'storage.reclaim',
+  'ai.setKey',
+  'ai.clearKey',
+  'app.setStartup',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -1100,4 +1536,7 @@ export const EVENT_NAMES = [
   'transcript.changed',
   'models.progress',
   'recording.liveTranscript',
+  'export.progress',
+  'library.moveProgress',
+  'storage.reclaimProgress',
 ] as const satisfies readonly EventName[];

@@ -12,8 +12,8 @@ export interface ToastAction {
 }
 
 export interface ToastInput {
-  /** `accent` dot for warnings, `danger` for failures. */
-  tone: 'warning' | 'danger';
+  /** `accent` dot for warnings, `danger` for failures; M3: `ok` for a finished background job (export). */
+  tone: 'warning' | 'danger' | 'ok';
   title: string;
   body: string;
   actions?: ToastAction[];

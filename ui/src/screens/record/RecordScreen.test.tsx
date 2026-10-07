@@ -234,8 +234,8 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(sheet().textContent).toContain('Drop an agenda here');
     expect(sheet().textContent).toContain('Word, PDF, Excel, CSV, Markdown, plain text, or a photo of a printed agenda');
     expect(sheet().textContent).toContain('Parsed on this PC. Nothing is uploaded.');
-    expect(button('Choose a file').disabled).toBe(true);
-    expect(sheet().textContent).toContain('File import arrives in a later version');
+    // M3: file import is live (agenda.importFile); pasted text is parsed by the host (agenda.parseText).
+    expect(button('Choose a file').disabled).toBe(false);
 
     await act(async () => {
       button('Paste text').click();
@@ -255,6 +255,7 @@ describe('Recording session (against the browser-preview host)', () => {
       await Promise.resolve();
     });
     const items = (): string[] => [...sheet().querySelectorAll<HTMLInputElement>('.agenda-item .ii')].map((i) => i.value);
+    await until(() => items().length === 4);
     expect(items()).toEqual(['Q2 recap', 'Hiring plan', 'Launch date', 'Budget asks']);
     expect(sheet().querySelector('.sheet-caption')?.textContent).toContain('Pasted text · parsed on this PC');
     expect(sheet().querySelector('.agenda-item.low')).toBeNull();
@@ -276,6 +277,8 @@ describe('Recording session (against the browser-preview host)', () => {
       button('Done').click();
       await Promise.resolve();
     });
+    // Done applies the parsed agenda first (before the recording exists it goes with the details).
+    await until(() => document.querySelector('.sheet') === null);
     const agenda = (): string[] => [...container.querySelectorAll('.rec-agenda-item')].map((b) => b.className.replace('rec-agenda-item rec-agenda-item--', ''));
     expect(agenda()).toEqual(['current', 'upcoming', 'upcoming', 'upcoming']);
 
