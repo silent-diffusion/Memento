@@ -74,6 +74,10 @@ Measured through the real orchestrator and `Memento.Worker.exe` (`tools/Transcri
 | small, CPU (8 threads, below-normal priority) | 5:00 | RTF 0.86; 815 words, 2.7 % below 0.5 |
 | sherpa-onnx diarization, CPU 4 threads | 5:00 / 2:58 | 86–117 s / 52–71 s (RTF 0.29–0.40) |
 | Model downloads through the model manager | turbo 1.62 GB | 39 s (39.5 MiB/s), SHA-256 verified; speaker models 1.5–1.8 s |
+| **Re-measured with the GPU idle** (worker alone): large-v3-turbo, Vulkan | 5:00 | 13.9 s of transcription (RTF 0.046), 19.5 s for the whole job including the energy pass and model load (0.065) |
+| Re-measured, quieter CPU: small, CPU, 8 threads, normal priority | 5:00 | 108.5 s (RTF 0.36; the spike's 0.19–0.26 used `en` instead of auto-detect) |
+| Killed mid-pass (13-minute file, two windows) | 12:58 | 131 segments up to 9:57 kept as a partial transcript; failure offered `cpu`, `retry`; Retry on CPU continued from window 2 and completed (143 segments) |
+| Real app, 2 minutes, Realtek microphone + system playing the two-reader file | 2:00 | transcript, speakers and topics in 77 s after stop; 22 segments (13 mic, 9 system); the laptop microphone also picked up the speakers, so both tracks carry the same speech and get separate speakers (by design) |
 
 Rules learned while building it:
 
