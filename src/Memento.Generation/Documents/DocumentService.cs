@@ -358,12 +358,21 @@ public sealed partial class DocumentService(
         var extension = DocumentExporter.FileExtension(format);
         if (path is not null)
         {
-            if (!Path.IsPathFullyQualified(path) || Path.GetDirectoryName(path) is not { } folder || !Directory.Exists(folder))
+            if (!Path.IsPathFullyQualified(path) || path.StartsWith(@"\\", StringComparison.Ordinal) || Path.GetDirectoryName(path) is not { } folder || !Directory.Exists(folder))
             {
-                throw new BridgeException(DomainErrorCodes.ExportDestinationUnwritable, "The document can only be exported to a full path in a folder that exists. Nothing was written; choose the folder again.", path);
+                throw new BridgeException(DomainErrorCodes.ExportDestinationUnwritable, "The document can only be exported to a full path in a folder that exists on this PC. Nothing was written; choose the folder again.", path);
             }
 
-            return string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase) ? path : path + extension;
+            // The path comes from the page: never over an existing file (a user's own .docx elsewhere), "name (2).docx" instead.
+            var file = string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase) ? path : path + extension;
+            var stemOf = Path.GetFileNameWithoutExtension(file);
+            var unique = file;
+            for (var n = 2; File.Exists(unique) || Directory.Exists(unique); n++)
+            {
+                unique = Path.Combine(folder, string.Create(CultureInfo.InvariantCulture, $"{stemOf} ({n}){extension}"));
+            }
+
+            return unique;
         }
 
         var destination = settings.Current.Export.DefaultFolder is { Length: > 0 } configured && Directory.Exists(configured)

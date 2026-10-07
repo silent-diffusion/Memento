@@ -106,6 +106,24 @@ public sealed class DocumentsBridgeTests : IDisposable
         Assert.Equal(DomainErrorCodes.ProjectNotFound, (await _host.ErrorAsync("documents.list", new { recordingId = "20260101-000000-aaaaaa" })).GetProperty("code").GetString());
     }
 
+    /// <summary>Security audit 2026-10-07, SA-09: a path from the page never replaces an existing file.</summary>
+    [Fact]
+    public async Task ExportNeverOverwritesAnExistingFile()
+    {
+        var (id, documentId) = await GenerateAsync();
+        var folder = _host.Directory.File("theirs");
+        Directory.CreateDirectory(folder);
+        var theirs = Path.Combine(folder, "report.docx");
+        await File.WriteAllTextAsync(theirs, "the user's own report");
+
+        var result = await _host.ResultAsync("documents.export", new { recordingId = id, documentId, format = "docx", path = theirs });
+        var unc = await _host.ErrorAsync("documents.export", new { recordingId = id, documentId, format = "docx", path = "\\\\203.0.113.9\\share\\report.docx" });
+
+        Assert.Equal(Path.Combine(folder, "report (2).docx"), result.GetProperty("path").GetString());
+        Assert.Equal("the user's own report", await File.ReadAllTextAsync(theirs));
+        Assert.Equal(DomainErrorCodes.ExportDestinationUnwritable, unc.GetProperty("code").GetString());
+    }
+
     [Fact]
     public async Task ExportWritesWordMarkdownAndPdfWithTheirHashes()
     {
