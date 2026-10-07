@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Memento.Worker.exe: one process per transcription or speaker job (ARCHITECTURE.md §1), so a native abort in
-    whisper.cpp or onnxruntime cannot take the app down and video memory is released when the job ends. The host
+    Memento.Worker.exe: one process per transcription, speaker or local language-model job (ARCHITECTURE.md §1, §8), so a
+    native abort in whisper.cpp, onnxruntime or llama.cpp cannot take the app down and video memory is released when the job ends. The host
     launches it from the "worker" folder beside Memento.exe and speaks JSON lines over stdin/stdout (WorkerClient).
     Whisper.net runs with the Vulkan and CPU runtimes only (no CUDA); sherpa-onnx does speaker identification.
   -->
@@ -35,6 +35,8 @@
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
     <ProjectReference Include="..\Memento.Audio\Memento.Audio.csproj" />
     <ProjectReference Include="..\Memento.Transcription\Memento.Transcription.csproj" />
+    <!-- The local language model for document generation (llm jobs): LLamaSharp with the Vulkan and CPU builds. -->
+    <ProjectReference Include="..\Memento.AI.Local\Memento.AI.Local.csproj" />
   </ItemGroup>
 
   <!--
@@ -46,7 +48,9 @@
     the trimmer's analysis of the native-interop packages). Memento.Core brings SQLite for the library index, which
     only the app opens, and DPAPI; Whisper.net brings Microsoft.Extensions.AI; the self-contained runtime brings QUIC,
     HTTP and sockets, XML and data-contract serialization, System.Drawing, the debugger and dump DLLs and Visual Basic.
-    The worker's jobs (decode, transcribe, diarize, JSON over stdin/stdout) touch none of them: the list was checked
+    LLamaSharp brings mtmd.dll (llama.cpp's multimodal library, about 1 MB per CPU and Vulkan variant), which text
+    generation never loads (ENGINE-NOTES.md §H).
+    The worker's jobs (decode, transcribe, diarize, llm, JSON over stdin/stdout) touch none of them: the list was checked
     against the DLLs a running worker had loaded during transcription and speaker jobs (tools/e2e/m3-flow.mjs records
     them in its summary). Removed from the publish and from the runtime-pack list that becomes the deps.json.
   -->
@@ -64,6 +68,7 @@
       ;System.Linq.Parallel.dll;System.Transactions.Local.dll;System.Transactions.dll;Microsoft.CSharp.dll;
       ;System.Drawing.Common.dll;System.Drawing.dll;Microsoft.Win32.SystemEvents.dll;
       ;System.Security.Cryptography.ProtectedData.dll;Microsoft.Extensions.AI.Abstractions.dll;
+      ;mtmd.dll;
     </MementoWorkerUnused>
   </PropertyGroup>
 

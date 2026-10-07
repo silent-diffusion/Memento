@@ -10,6 +10,11 @@ namespace Memento.AI.Local;
 [JsonSerializable(typeof(LocalLlmWorkerCommand))]
 [JsonSerializable(typeof(LocalLlmWorkerReply))]
 [JsonSerializable(typeof(LocalModelCatalogDocument))]
+[JsonSerializable(typeof(LocalLlmJob))]
+[JsonSerializable(typeof(LocalLlmResult))]
+[JsonSerializable(typeof(LocalLlmDeviceInfo))]
+[JsonSerializable(typeof(LocalLlmProgress))]
+[JsonSerializable(typeof(LocalModelProfile))]
 public sealed partial class LocalLlmJsonContext : JsonSerializerContext
 {
 }
