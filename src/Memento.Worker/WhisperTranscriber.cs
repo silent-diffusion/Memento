@@ -94,6 +94,9 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
             .WithTokenTimestamps()
             .WithProbabilities()
             .WithPrompt(job.Prompt)
+            // whisper.cpp asks before each 30-second encoder run; answering false ends the window at once, so a
+            // cancel (a busy pause, Cancel, closing Memento) stops within seconds instead of after the whole window.
+            .WithEncoderBeginHandler(_ => !cancellationToken.IsCancellationRequested)
             .WithLanguage(string.IsNullOrWhiteSpace(job.Language) ? "auto" : job.Language)
             .WithProgressHandler(progress =>
             {
@@ -131,6 +134,14 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
                             language ??= string.IsNullOrWhiteSpace(segment.Language) ? null : segment.Language;
                             raw.Add(WordBuilder.ToSegment(ToRaw(segment), offset, keepWords: true));
                         }
+
+                        // A window ended early by a cancel is never reported as finished.
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException and not WorkerFailure && cancellationToken.IsCancellationRequested)
+                    {
+                        // The encoder-begin handler ended the window because the job was cancelled.
+                        throw new OperationCanceledException("Cancelled during a window.", ex, cancellationToken);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException and not WorkerFailure)
                     {
