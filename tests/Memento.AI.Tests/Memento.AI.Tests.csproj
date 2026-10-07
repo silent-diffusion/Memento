@@ -7,6 +7,8 @@
     <IsTestProject>true</IsTestProject>
     <!-- LLamaSharp's native libraries are x64; run the test host as x64 on every machine. -->
     <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Memento.AI\Memento.AI.csproj" />
+    <ProjectReference Include="..\..\src\Memento.AI.Local\Memento.AI.Local.csproj" />
   </ItemGroup>
 
   <ItemGroup>

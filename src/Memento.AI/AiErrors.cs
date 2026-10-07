@@ -122,6 +122,22 @@ public static class AiErrors
         $"The graphics card has {Gigabytes(freeBytes)} of free memory and {model} needs {Gigabytes(neededBytes)}. {LocalSafe} Close apps that use the graphics card, or run the model on the processor.",
         Diagnostic: string.Create(CultureInfo.InvariantCulture, $"free={freeBytes} needed={neededBytes}"));
 
+    /// <summary>An allocation on the graphics card failed (null context handle, failed weight upload, no KV slot).</summary>
+    public static AiError GpuOutOfMemory(string provider, string model, long? freeBytes, string diagnostic) => new(
+        AiErrorCodes.NotEnoughVram,
+        provider,
+        freeBytes is { } free and > 0
+            ? $"The graphics card ran out of memory while loading {model} ({Gigabytes(free)} was free). {LocalSafe} Close apps that use the graphics card, or run the model on the processor."
+            : $"The graphics card ran out of memory while loading {model}. {LocalSafe} Close apps that use the graphics card, or run the model on the processor.",
+        Diagnostic: diagnostic);
+
+    /// <summary>The graphics card cannot be used at all (no Vulkan driver).</summary>
+    public static AiError GpuUnavailable(string provider, string model) => new(
+        AiErrorCodes.NotEnoughVram,
+        provider,
+        $"The graphics card could not be used for {model} (no Vulkan driver was found). {LocalSafe} Update the graphics driver, or run the model on the processor.",
+        Diagnostic: "Vulkan backend unavailable");
+
     public static AiError VramSpilled(string provider, string model, long sharedBytes) => new(
         AiErrorCodes.NotEnoughVram,
         provider,

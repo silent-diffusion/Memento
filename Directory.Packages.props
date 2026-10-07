@@ -45,6 +45,16 @@
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageVersion Include="PdfPig" Version="0.1.16" />
   </ItemGroup>
+  <ItemGroup Label="AI">
+    <!--
+      The local LLM provider (Memento.AI.Local, loaded by Memento.Worker only): LLamaSharp with the Windows Vulkan and
+      CPU backends referenced directly; the LLamaSharp.Backend.Vulkan meta-package adds 65 MB of Linux binaries
+      (ENGINE-NOTES.md section H). The cloud providers use HttpClient only, so the app keeps its .NET 8 assemblies.
+    -->
+    <PackageVersion Include="LLamaSharp" Version="0.27.0" />
+    <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+    <PackageVersion Include="LLamaSharp.Backend.Vulkan.Windows" Version="0.27.0" />
+  </ItemGroup>
   <ItemGroup Label="Tests">
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
