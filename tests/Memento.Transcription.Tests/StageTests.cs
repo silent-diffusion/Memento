@@ -194,6 +194,22 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task StoringMarksTheFollowingStagesQueuedInTheSameWriteSoTheCardNeverBlinksOut()
+    {
+        InstallAll();
+
+        await RecordAndProcessAsync();
+
+        // The first progress that has stored done already lists the stages after it as queued.
+        var storedDone = await _host.Sink.WaitForAsync(
+            "processing.progress",
+            p => p.GetProperty("stages").EnumerateArray().Any(s => s.GetProperty("stage").GetString() == "stored" && s.GetProperty("state").GetString() == "done"));
+        Assert.Equal(
+            ["stored:done", "transcript:queued", "speakers:queued", "topics:queued"],
+            storedDone.GetProperty("stages").EnumerateArray().Select(s => $"{s.GetProperty("stage").GetString()}:{s.GetProperty("state").GetString()}"));
+    }
+
+    [Fact]
     public async Task AFinishedTopicsStageIsLeftOutOfTheLibraryRowLikeStored()
     {
         InstallAll();
