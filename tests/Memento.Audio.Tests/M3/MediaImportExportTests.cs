@@ -83,6 +83,27 @@ public sealed class MediaImportExportTests : IDisposable
     }
 
     [MediaFoundationFact]
+    public async Task AudioBelow44kHzIsResampledSoItIsStoredAsFlac()
+    {
+        // LibriVox-style speech: 22.05 kHz mono. The Windows FLAC encoder takes 44.1 kHz and up.
+        var source = _dir.File("speech.wav");
+        Signals.WriteFloatWavAsInt24(source, 22_050, 1, Signals.Sine(22_050, 1, 2, 300, 0.3));
+        var imports = _services.GetRequiredService<MediaImportService>();
+
+        var result = await imports.ImportAsync(new LibraryImportMediaParams { Path = source }, CancellationToken.None);
+        await imports.WhenIdleAsync();
+
+        var manifest = await _services.GetRequiredService<IProjectStore>().LoadAsync(result.RecordingId!, CancellationToken.None);
+        var track = Assert.Single(manifest.Tracks);
+        Assert.Equal(("flac", 44_100, 1), (track.Codec, track.SampleRate, track.Channels));
+        Assert.Equal("mix.flac", manifest.Mix!.File);
+        Assert.InRange(manifest.DurationMs, 1_950, 2_050);
+        Assert.Equal((44_100, 44_100, 48_000, 48_000, 44_100, 96_000), (Rate(22_050), Rate(11_025), Rate(16_000), Rate(8_000), Rate(44_100), Rate(96_000)));
+
+        static int Rate(int source) => MediaFoundationMediaDecoder.StoredSampleRate(source);
+    }
+
+    [MediaFoundationFact]
     public async Task AFileWindowsCannotReadIsInvalidData()
     {
         var junk = _dir.File("junk.mp3");
