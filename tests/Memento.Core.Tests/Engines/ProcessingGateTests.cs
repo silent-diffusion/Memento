@@ -41,6 +41,40 @@ public sealed class ProcessingGateTests
     }
 
     [Fact]
+    public void AGpuPassIsNotPausedForABusyProcessorButStillForARecordingAndLowSpace()
+    {
+        var gate = new ProcessingGate(_time);
+        gate.Sample(true, false, false, 95);
+        _time.Advance(TimeSpan.FromSeconds(10));
+        gate.Sample(true, false, false, 95);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+
+        // The pass about to run is on the graphics card: the busy processor does not hold it.
+        var changes = 0;
+        gate.Changed += (_, _) => changes++;
+        gate.SetHeavyOnGpu(true);
+        Assert.True(gate.HeavyOnGpu);
+        Assert.Null(gate.Reason);
+        Assert.True(gate.WhenOpenAsync(CancellationToken.None).IsCompleted);
+        Assert.Equal(1, changes);
+        _time.Advance(TimeSpan.FromSeconds(30));
+        gate.Sample(true, false, false, 99);
+        Assert.Null(gate.Reason);
+
+        // A recording still pauses it (while "Pause when busy" is on), and so does low disk space.
+        gate.Sample(true, true, false, 99);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+        gate.Sample(true, false, true, 99);
+        Assert.Equal(ProcessingGate.LowSpaceReason, gate.Reason);
+        gate.Sample(true, false, false, 99);
+        Assert.Null(gate.Reason);
+
+        // A stage on the processor next (speakers) waits for the busy processor again.
+        gate.SetHeavyOnGpu(false);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+    }
+
+    [Fact]
     public void TheProcessorMustBeBusyForTenSeconds()
     {
         var gate = new ProcessingGate(_time);

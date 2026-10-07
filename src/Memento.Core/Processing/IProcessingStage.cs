@@ -20,6 +20,13 @@ public interface IProcessingStage
     /// <summary>Uses the GPU or most of the processor, so it waits while the processing gate is closed.</summary>
     bool IsHeavy { get; }
 
+    /// <summary>
+    /// Whether this stage would run on the graphics card for <paramref name="recordingId"/> now. A GPU pass is not
+    /// paused for a busy processor (<see cref="Engines.ProcessingGate.SetHeavyOnGpu"/>). Stages on the processor keep
+    /// the default.
+    /// </summary>
+    Task<bool> UsesGpuAsync(string recordingId, CancellationToken cancellationToken) => Task.FromResult(false);
+
     /// <summary>Whether a recording stored now gets this stage with these settings.</summary>
     bool AppliesTo(AppSettings settings);
 

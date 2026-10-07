@@ -2,8 +2,9 @@ namespace Memento.Core.Engines;
 
 /// <summary>
 /// Decides whether heavy processing stages (transcription, speakers) may run now: not while the user paused processing,
-/// not while a recording is active or the processor has been over 85% busy for 10 seconds (when "pause when busy" is on),
-/// and not while the library drive is low on space. Resumes by itself when the reason goes away.
+/// not while a recording is active or the processor has been over 85% busy for 10 seconds (when "pause when busy" is on;
+/// a stage on the graphics card is exempt from the processor check, see <see cref="SetHeavyOnGpu"/>), and not while the
+/// library drive is low on space. Resumes by itself when the reason goes away.
 /// </summary>
 public sealed class ProcessingGate
 {
@@ -28,6 +29,7 @@ public sealed class ProcessingGate
     private bool _lowSpace;
     private bool _cpuBusy;
     private bool _busyReleased;
+    private bool _heavyOnGpu;
     private DateTimeOffset? _busySince;
     private DateTimeOffset? _calmSince;
     private string? _reason;
@@ -76,6 +78,25 @@ public sealed class ProcessingGate
 
     /// <summary><c>processing.pause</c> / <c>processing.resume</c>.</summary>
     public void SetManual(bool paused) => Update(() => _manual = paused);
+
+    /// <summary>
+    /// Whether the heavy stage that runs (or is about to) uses the graphics card. A pass on the GPU barely loads the
+    /// processor, so a busy processor does not pause it; a recording (while "Pause when busy" is on), low disk space
+    /// and a pause by the user still do.
+    /// </summary>
+    public void SetHeavyOnGpu(bool onGpu) => Update(() => _heavyOnGpu = onGpu);
+
+    /// <summary>The value last given to <see cref="SetHeavyOnGpu"/>.</summary>
+    public bool HeavyOnGpu
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _heavyOnGpu;
+            }
+        }
+    }
 
     /// <summary>
     /// <c>processing.resume</c> (BRIDGE.md M2 clarification 4): lifts a pause by the user and also releases a "PC is busy"
@@ -154,7 +175,8 @@ public sealed class ProcessingGate
         lock (_sync)
         {
             change();
-            var reason = _manual ? ManualReason : _lowSpace ? LowSpaceReason : (_recording || _cpuBusy) && !_busyReleased ? BusyReason : null;
+            var busy = _recording || (_cpuBusy && !_heavyOnGpu);
+            var reason = _manual ? ManualReason : _lowSpace ? LowSpaceReason : busy && !_busyReleased ? BusyReason : null;
             changed = reason != _reason;
             _reason = reason;
             if (reason is null)

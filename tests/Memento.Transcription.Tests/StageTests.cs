@@ -716,6 +716,24 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task TheTranscriptStageSaysWhenItWouldRunOnTheGraphicsCard()
+    {
+        InstallAll();
+        var id = await RecordAndProcessAsync();
+        var stage = _host.Get<IEnumerable<IProcessingStage>>().Single(s => s.Name == StageNames.Transcript);
+
+        // A GPU with room for the model: the pass is a GPU pass, which a busy processor does not pause.
+        Assert.True(await stage.UsesGpuAsync(id, CancellationToken.None));
+
+        // "Retry on the processor" runs it on the CPU, and so does a PC without a graphics card.
+        await _host.Store.UpdateAsync(id, m => m with { Processing = new ProcessingRequest(ForceCpu: true) }, CancellationToken.None);
+        Assert.False(await stage.UsesGpuAsync(id, CancellationToken.None));
+        await _host.Store.UpdateAsync(id, m => m with { Processing = null }, CancellationToken.None);
+        _host.Probe.Snapshot = Memento.Core.Engines.ResourceSnapshot.Empty;
+        Assert.False(await stage.UsesGpuAsync(id, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task TurningTranscriptionOffQueuesNothing()
     {
         InstallAll();

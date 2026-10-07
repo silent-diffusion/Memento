@@ -577,6 +577,12 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (stage.IsHeavy)
+                {
+                    // A pass on the graphics card does not wait for a busy processor (it still waits for a recording).
+                    _gate.SetHeavyOnGpu(await UsesGpuQuietlyAsync(stage, running.RecordingId, cancellationToken));
+                }
+
                 if (stage.IsHeavy && _gate.Reason is { } reason)
                 {
                     // BRIDGE.md M2 clarification 4: a waiting stage stays active and keeps its percentage.
@@ -666,6 +672,20 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
                     stageDone.TrySetResult();
                 }
             }
+        }
+    }
+
+    private async Task<bool> UsesGpuQuietlyAsync(IProcessingStage stage, string recordingId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await stage.UsesGpuAsync(recordingId, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException or ProjectSchemaException)
+        {
+            // The stage reads the project itself and reports the problem; until then it counts as a processor stage.
+            LogStageFailed(ex, recordingId);
+            return false;
         }
     }
 

@@ -36,6 +36,11 @@ internal sealed class FakeStage(string name, int order, bool heavy, StageStatusW
     /// <summary>Every run across stages, in order, shared by the stages of one test.</summary>
     public List<string>? Log { get; set; }
 
+    /// <summary>What <see cref="UsesGpuAsync"/> answers: the stage runs on the graphics card.</summary>
+    public bool OnGpu { get; set; }
+
+    public Task<bool> UsesGpuAsync(string recordingId, CancellationToken cancellationToken) => Task.FromResult(OnGpu);
+
     public bool AppliesTo(AppSettings settings) => Enabled;
 
     public async Task RunAsync(StageRun run, CancellationToken cancellationToken)

@@ -43,6 +43,15 @@ public sealed partial class TranscriptStage(
 
     public bool IsHeavy => true;
 
+    /// <summary>The device this pass would choose now: the GPU unless the request forces the processor or none fits.</summary>
+    public async Task<bool> UsesGpuAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        var manifest = await store.LoadAsync(recordingId, cancellationToken);
+        var request = manifest.Processing ?? new ProcessingRequest();
+        var modelId = request.ModelId ?? selector.EffectiveModelId(settings.Current.Transcription);
+        return models.Resolve(modelId) is not null && selector.SelectDevice(modelId, request.ForceCpu).UseGpu;
+    }
+
     public bool AppliesTo(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
