@@ -53,4 +53,49 @@ public static class DomainErrorCodes
 
     /// <summary>The engine or model needed is not installed or available; <c>detail</c> says what to install or turn on.</summary>
     public const string EngineUnavailable = "engine.unavailable";
+
+    /// <summary>The agenda file is over the 25 MB limit (M3).</summary>
+    public const string AgendaFileTooLarge = "agenda.fileTooLarge";
+
+    /// <summary>The agenda image is wider or taller than 10,000 pixels.</summary>
+    public const string AgendaImageTooLarge = "agenda.imageTooLarge";
+
+    public const string AgendaUnsupportedFormat = "agenda.unsupportedFormat";
+    public const string AgendaUnreadable = "agenda.unreadable";
+    public const string AgendaProtected = "agenda.protected";
+    public const string AgendaNoText = "agenda.noText";
+    public const string AgendaNoItems = "agenda.noItems";
+
+    /// <summary>No text recognition for an image; <c>detail</c> says how to add the OCR language in Windows Settings.</summary>
+    public const string AgendaOcrUnavailable = "agenda.ocrUnavailable";
+
+    /// <summary><c>agenda.apply</c> with an item over 200 characters; <c>detail</c> is its 1-based position.</summary>
+    public const string AgendaItemTooLong = "agenda.itemTooLong";
+
+    /// <summary><c>agenda.apply</c> with more than 200 items.</summary>
+    public const string AgendaTooManyItems = "agenda.tooManyItems";
+
+    /// <summary>The dropped file's path did not reach the host; the UI falls back to the picker.</summary>
+    public const string AgendaDropUnavailable = "agenda.dropUnavailable";
+
+    /// <summary>An attachment over the 100 MB limit.</summary>
+    public const string AttachmentsTooLarge = "attachments.tooLarge";
+
+    /// <summary>The attachment id names no attachment of the recording; <c>detail</c> is the id.</summary>
+    public const string AttachmentsNotFound = "attachments.notFound";
+
+    /// <summary>Media Foundation cannot decode the file chosen for <c>library.importMedia</c>.</summary>
+    public const string LibraryImportUnsupported = "library.importUnsupported";
+
+    /// <summary><c>library.move</c> (or another library-wide job) while recording, processing or exporting.</summary>
+    public const string LibraryBusy = "library.busy";
+
+    /// <summary>The export folder cannot be written; <c>detail</c> says why. Nothing was written.</summary>
+    public const string ExportDestinationUnwritable = "export.destinationUnwritable";
+
+    /// <summary><c>export.run</c> with nothing ticked that can be written.</summary>
+    public const string ExportNothingSelected = "export.nothingSelected";
+
+    /// <summary>The job id names no export of this session.</summary>
+    public const string ExportNotFound = "export.notFound";
 }

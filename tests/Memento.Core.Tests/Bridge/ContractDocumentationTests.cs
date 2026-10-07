@@ -75,6 +75,16 @@ public sealed partial class ContractDocumentationTests
     private static List<string> M2DocumentedCodes() =>
         BacktickedCode().Matches(Sections("## Error codes (M2)")).Select(m => m.Groups[1].Value).ToList();
 
+    /// <summary>The codes in backticks in BRIDGE.md's "## Error codes (M3)" section.</summary>
+    private static List<string> M3DocumentedCodes() =>
+        BacktickedCode().Matches(Sections("## Error codes (M3)")).Select(m => m.Groups[1].Value).ToList();
+
+    [Fact]
+    public void EveryM3CodeInBridgeMdIsAHostCode()
+    {
+        Assert.Equal(M3DocumentedCodes().Order(StringComparer.Ordinal), HostErrorCodes().Intersect(M3DocumentedCodes(), StringComparer.Ordinal).Order(StringComparer.Ordinal));
+    }
+
     [GeneratedRegex("`([a-z]+\\.[a-zA-Z.]+)`")]
     private static partial Regex BacktickedCode();
 
@@ -101,6 +111,13 @@ public sealed partial class ContractDocumentationTests
         if (!ui.Intersect(m2, StringComparer.Ordinal).Any())
         {
             expected = expected.Except(m2, StringComparer.Ordinal).ToList();
+        }
+
+        // M3 lands the same way: the host's codes first, the UI's list at its own change.
+        var m3 = M3DocumentedCodes();
+        if (!ui.Intersect(m3, StringComparer.Ordinal).Any())
+        {
+            expected = expected.Except(m3, StringComparer.Ordinal).ToList();
         }
 
         expected = expected.Except(ClarificationCodes.Except(ui, StringComparer.Ordinal), StringComparer.Ordinal).ToList();

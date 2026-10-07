@@ -56,4 +56,28 @@ public static class BridgeMethodNames
     public const string ModelsCancelInstall = "models.cancelInstall";
     public const string ModelsRemove = "models.remove";
     public const string EngineStatus = "engine.status";
+
+    public const string AgendaImportFile = "agenda.importFile";
+    public const string AgendaImportDropped = "agenda.importDropped";
+    public const string AgendaParseText = "agenda.parseText";
+    public const string AgendaApply = "agenda.apply";
+    public const string AgendaDiscard = "agenda.discard";
+    public const string AgendaSetCovered = "agenda.setCovered";
+    public const string AttachmentsList = "attachments.list";
+    public const string AttachmentsAdd = "attachments.add";
+    public const string AttachmentsRemove = "attachments.remove";
+    public const string AttachmentsOpen = "attachments.open";
+    public const string LibraryImportMedia = "library.importMedia";
+    public const string ProjectChangeType = "project.changeType";
+    public const string ExportEstimate = "export.estimate";
+    public const string ExportRun = "export.run";
+    public const string ExportCancel = "export.cancel";
+    public const string ExportOpenFolder = "export.openFolder";
+    public const string LibraryUsage = "library.usage";
+    public const string LibraryRebuildIndex = "library.rebuildIndex";
+    public const string LibraryMove = "library.move";
+    public const string StorageReclaim = "storage.reclaim";
+    public const string AiSetKey = "ai.setKey";
+    public const string AiClearKey = "ai.clearKey";
+    public const string AppSetStartup = "app.setStartup";
 }
