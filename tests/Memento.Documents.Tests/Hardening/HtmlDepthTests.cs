@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Memento.Documents.Render;
 using Memento.Documents.Render.Html;
+using Memento.Documents.Tests.Support;
 
 namespace Memento.Documents.Tests.Hardening;
 
@@ -20,7 +21,7 @@ public sealed class HtmlDepthTests
         var blocks = HtmlToBlocks.ParseBlocks(html);
         var paper = HtmlToBlocks.ParsePaper(html);
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.True(watch.Elapsed < WallClock.Limit(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
         Assert.NotNull(blocks);
         Assert.NotNull(paper);
     }
@@ -56,7 +57,7 @@ public sealed class HtmlDepthTests
 
         var blocks = HtmlToBlocks.ParseBlocks(html);
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.True(watch.Elapsed < WallClock.Limit(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
         Assert.Single(blocks);
     }
 }

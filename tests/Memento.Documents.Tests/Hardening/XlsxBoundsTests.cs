@@ -59,7 +59,7 @@ public sealed class XlsxBoundsTests
 
         var result = await Parse(xlsx);
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.True(watch.Elapsed < WallClock.Limit(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
         Assert.Contains(result.Items, i => i.Text == "Bottom");
     }
 

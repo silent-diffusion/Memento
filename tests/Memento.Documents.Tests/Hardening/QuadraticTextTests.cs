@@ -10,7 +10,7 @@ namespace Memento.Documents.Tests.Hardening;
 /// <summary>Text handling stays linear: quote marks, wrapped lines and wide or long tables cost per character, not per character squared.</summary>
 public sealed class QuadraticTextTests
 {
-    private static readonly TimeSpan Quick = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Quick = WallClock.Limit(5);
 
     [Theory]
     [InlineData("> > Welcome", "Welcome")]
@@ -29,7 +29,7 @@ public sealed class QuadraticTextTests
 
         Assert.Equal("x", TextLines.StripQuote(new string('>', 100_000) + "x"));
         Assert.Equal("x", TextLines.StripQuoteMarks(string.Concat(Enumerable.Repeat("> ", 100_000)) + "x"));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        Assert.True(watch.Elapsed < WallClock.Limit(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
     }
 
     [Fact]

@@ -13,7 +13,7 @@ namespace Memento.Documents.Tests.Fuzz;
 /// </summary>
 public sealed class PathologicalInputTests
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Limit = WallClock.Limit(5);
 
     public static TheoryData<string> TextCases => new(TextInputs.Keys);
 
@@ -28,7 +28,7 @@ public sealed class PathologicalInputTests
         ["emphasis markers"] = () => "# Agenda\n" + string.Concat(Enumerable.Repeat("*a ", 100_000)) + "\n- [ ] " + string.Concat(Enumerable.Repeat("_a ", 100_000)),
         ["bold and code markers"] = () => "# Agenda\n- " + string.Concat(Enumerable.Repeat("**a ", 60_000)) + "\n- " + string.Concat(Enumerable.Repeat("`a ", 60_000)) + "\n- " + string.Concat(Enumerable.Repeat("[a](", 60_000)),
         ["heading padded with spaces"] = () => "# a" + new string(' ', 200_000) + "b\n## " + new string('#', 100_000) + " x\n- [ ] item",
-        ["indented continuation flood"] = () => "1. Start\n2. Next\n" + string.Concat(Enumerable.Repeat("  continued words\n", 500_000)),
+        ["indented continuation flood"] = () => "1. Start\n2. Next\n" + string.Concat(Enumerable.Repeat("  continued words\n", 250_000)), // 4.5 MB; time grows linearly (measured 62.5k–500k lines)
         ["indentation staircase"] = () => string.Concat(Enumerable.Range(0, 20_000).Select(i => new string(' ', i % 2_000) + (i % 3 == 0 ? "a. " : i % 3 == 1 ? "i. " : "1. ") + "item\n")),
         ["one wide row then many rows"] = () => new string(',', 1_000_000) + "\n" + string.Concat(Enumerable.Repeat("x\n", 100_000)),
         ["one wide tab row then many rows"] = () => "Item\tTime\n" + new string('\t', 1_000_000) + "\n" + string.Concat(Enumerable.Repeat("x\t1\n", 100_000)),

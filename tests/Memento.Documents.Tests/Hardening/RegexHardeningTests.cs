@@ -14,7 +14,7 @@ namespace Memento.Documents.Tests.Hardening;
 /// </summary>
 public sealed class RegexHardeningTests
 {
-    private static readonly TimeSpan Quick = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Quick = WallClock.Limit(5);
 
     [Fact]
     public void EveryAgendaPatternHasAMatchTimeout()
@@ -44,7 +44,7 @@ public sealed class RegexHardeningTests
         var watch = Stopwatch.StartNew();
 
         Assert.False(MarkerParser.TryParseTrailingTime(text, out _, out _));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        Assert.True(watch.Elapsed < WallClock.Limit(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
     }
 
     [Theory]
@@ -85,7 +85,7 @@ public sealed class RegexHardeningTests
         MarkdownInline.Strip(string.Concat(Enumerable.Repeat("<a ", 1_300)));
         MarkdownInline.Strip(new string('`', 3_900));
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        Assert.True(watch.Elapsed < WallClock.Limit(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
     }
 
     [Theory]
@@ -116,7 +116,7 @@ public sealed class RegexHardeningTests
         var watch = Stopwatch.StartNew();
 
         Assert.False(MarkdownAgendaParser.LooksLikeMarkdown(text));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        Assert.True(watch.Elapsed < WallClock.Limit(2), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
     }
 
     private static async Task Quickly(Func<Task> parse)

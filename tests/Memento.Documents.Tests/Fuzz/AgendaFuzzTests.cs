@@ -25,7 +25,7 @@ public sealed class AgendaFuzzTests(ITestOutputHelper output)
 {
     public const int Iterations = 500;
 
-    private static readonly TimeSpan MaxRun = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan MaxRun = WallClock.Limit(5);
 
     public static TheoryData<string> Targets => new(FuzzTargets.Names);
 
