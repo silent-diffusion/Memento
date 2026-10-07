@@ -35,12 +35,13 @@ public sealed class DelimitedAgendaParser : IAgendaParser
             (options.SourceKind is null && (AgendaResults.HasExtension(options.FileName ?? string.Empty, ".tsv", ".tab") ||
                                             AgendaResults.HasContentType(options.ContentType, "text/tab-separated-values")));
         var delimiter = DelimitedReader.DetectDelimiter(text, tsv);
-        var rows = DelimitedReader.Read(text, delimiter, cancellationToken)
+        var rows = DelimitedReader.Read(text, delimiter, cancellationToken, out var truncated)
             .Select((cells, index) => new TableRow(cells, new AgendaSourceLocation { Row = index + 1 }))
             .ToList();
         var table = AgendaTableReader.Read(rows, cancellationToken);
         var structured = AgendaStructurer.Structure(table.Lines, cancellationToken);
         var kind = delimiter == '\t' ? AgendaSourceKind.Tsv : AgendaSourceKind.Csv;
-        return AgendaResults.Create(kind, options, structured, [.. warnings, .. table.Warnings]);
+        IEnumerable<AgendaParseWarning> cut = truncated ? [AgendaTableReader.TruncatedWarning()] : [];
+        return AgendaResults.Create(kind, options, structured, [.. warnings, .. cut, .. table.Warnings]);
     }
 }

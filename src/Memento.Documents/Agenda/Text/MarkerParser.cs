@@ -111,7 +111,8 @@ internal static partial class MarkerParser
     {
         time = string.Empty;
         rest = text;
-        if (text.Length > RegexGuard.MaxLineLength)
+        // A time ends in a digit, or in "m" or "." of a meridiem; anything else cannot end in one.
+        if (text.Length is < 5 or > RegexGuard.MaxLineLength || !(char.IsAsciiDigit(text[^1]) || text[^1] is 'm' or 'M' or '.'))
         {
             return false;
         }

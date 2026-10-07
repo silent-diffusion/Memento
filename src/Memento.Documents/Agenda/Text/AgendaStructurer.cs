@@ -13,6 +13,9 @@ internal static partial class AgendaStructurer
 {
     private const int ImplicitHeadingLevel = 100;
 
+    /// <summary>Ten times the length at which an item is marked too long.</summary>
+    private const int MaxJoinedLength = AgendaLimits.LongItemLength * 10;
+
     public static StructuredAgenda Structure(IReadOnlyList<SourceLine> lines, CancellationToken cancellationToken)
     {
         var entries = Classify(lines, cancellationToken);
@@ -325,7 +328,9 @@ internal static partial class AgendaStructurer
                 continue;
             }
 
-            if (previous is not null && entry.Marker is null && entry.Time is null && entry.Line.MayContinue && !entry.PrecededByBlank &&
+            // An item that has grown past MaxJoinedLength takes no more wrapped lines: each join copies the text, so an
+            // unbounded run of continuation lines would be quadratic. The rest become items of their own.
+            if (previous is not null && previous.Text.Length < MaxJoinedLength && entry.Marker is null && entry.Time is null && entry.Line.MayContinue && !entry.PrecededByBlank &&
                 (previous.Marker is not null || previous.Time is not null) &&
                 (entry.Indent > previous.Indent || (StartsLowercase(entry.Text) && !EndsSentence(previous.Text) && entry.Indent >= previous.Indent)))
             {

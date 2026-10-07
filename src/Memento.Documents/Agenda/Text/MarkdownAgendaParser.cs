@@ -31,7 +31,7 @@ public sealed partial class MarkdownAgendaParser : IAgendaParser
     {
         foreach (var line in TextLines.Split(text))
         {
-            if (line.Length <= RegexGuard.MaxLineLength &&
+            if (line.Length is > 2 and <= RegexGuard.MaxLineLength &&
                 (RegexGuard.IsMatch(AtxHeadingPattern(), line) || RegexGuard.IsMatch(TaskPattern(), line) || RegexGuard.IsMatch(TableSeparatorPattern(), line)))
             {
                 return true;
@@ -147,11 +147,8 @@ public sealed partial class MarkdownAgendaParser : IAgendaParser
                 }
             }
 
-            var (indent, content) = TextLines.Measure(line);
-            while (content.StartsWith('>'))
-            {
-                content = content[1..].TrimStart();
-            }
+            var (indent, measured) = TextLines.Measure(line);
+            var content = TextLines.StripQuoteMarks(measured);
 
             var stripped = MarkdownInline.Strip(content).Trim();
             if (content.EndsWith("  ", StringComparison.Ordinal) || content.EndsWith('\\'))

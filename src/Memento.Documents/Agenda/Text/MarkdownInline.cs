@@ -5,11 +5,14 @@ namespace Memento.Documents.Agenda.Text;
 /// <summary>Strips Markdown inline markup (emphasis, code, links, images, HTML tags) down to the words.</summary>
 internal static partial class MarkdownInline
 {
+    /// <summary>Text with none of these has no inline markup, so most lines skip the patterns entirely.</summary>
+    private static readonly System.Buffers.SearchValues<char> MarkupCharacters = System.Buffers.SearchValues.Create("<[`*_~\\&");
+
     public static string Strip(string text)
     {
         // A line longer than any agenda item is left as written (it is marked as too long anyway); every pattern's
         // repetition is bounded too, so a run of "*a " or "[a" costs a fixed amount per character, not the whole line.
-        if (text.Length == 0 || text.Length > RegexGuard.MaxLineLength)
+        if (text.Length == 0 || text.Length > RegexGuard.MaxLineLength || text.AsSpan().IndexOfAny(MarkupCharacters) < 0)
         {
             return text;
         }

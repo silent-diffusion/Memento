@@ -14,12 +14,29 @@ internal static partial class AgendaTableReader
     /// <summary>The heading level of a section row: below a document's own headings, above headings found in the text.</summary>
     public const int SectionHeadingLevel = 50;
 
+    /// <summary>The most table rows read as an agenda.</summary>
+    public const int MaxRows = 10_000;
+
+    /// <summary>The most table columns read as an agenda.</summary>
+    public const int MaxColumns = 64;
+
     public static TableReadResult Read(IReadOnlyList<TableRow> rawRows, CancellationToken cancellationToken)
     {
-        var rows = rawRows.Select(r => r with { Cells = r.Cells.Select(c => (c ?? string.Empty).Trim()).ToList() }).ToList();
+        // Every column is scored over every row, so the table is cut to what an agenda can be: a CSV row of a million
+        // commas or a sheet of a million rows would otherwise cost width × rows.
+        var truncated = rawRows.Count > MaxRows || rawRows.Any(r => r.Cells.Count > MaxColumns);
+        var rows = rawRows
+            .Take(MaxRows)
+            .Select(r => r with { Cells = r.Cells.Take(MaxColumns).Select(c => (c ?? string.Empty).Trim()).ToList() })
+            .ToList();
         var width = rows.Count == 0 ? 0 : rows.Max(r => r.Cells.Count);
         var lines = new List<SourceLine>();
         var warnings = new List<AgendaParseWarning>();
+        if (truncated)
+        {
+            warnings.Add(TruncatedWarning());
+        }
+
         if (width == 0)
         {
             return new TableReadResult(lines, warnings, false);
@@ -148,6 +165,11 @@ internal static partial class AgendaTableReader
         return new TableReadResult(lines, warnings, hasAgendaHeader);
     }
 
+    /// <summary>The warning for a table cut to <see cref="MaxRows"/> rows and <see cref="MaxColumns"/> columns.</summary>
+    public static AgendaParseWarning TruncatedWarning() => new(
+        AgendaWarningCodes.Unparsed,
+        string.Create(CultureInfo.InvariantCulture, $"The table is larger than an agenda, so only its first {MaxRows:N0} rows and {MaxColumns} columns were read. Save the agenda part on its own and import it if items are missing."));
+
     /// <summary>Spreadsheet-style column letters: 0 → A, 26 → AA.</summary>
     public static string ColumnLetter(int index)
     {
@@ -168,13 +190,13 @@ internal static partial class AgendaTableReader
         // A cell with several lines: the first is the item, marked lines below it are sub-items, plain ones wrap.
         var parts = TextLines.Split(cell).Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
         var reasons = reason is null ? (IReadOnlyList<string>)[] : [reason];
-        var head = parts[0];
         var index = 1;
         while (index < parts.Count && !MarkerParser.TryParseMarker(parts[index], out _, out _))
         {
-            head += " " + parts[index];
             index++;
         }
+
+        var head = string.Join(' ', parts.Take(index));
 
         lines.Add(new SourceLine(head, location) { Time = time, Marker = marker, MayContinue = false, Reasons = reasons });
         for (; index < parts.Count; index++)
