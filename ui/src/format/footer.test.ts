@@ -29,8 +29,13 @@ describe('footer lines', () => {
     expect(storageLine(null)).toEqual({ text: 'Everything is stored on this PC', low: false });
   });
 
-  it('says plainly when no engine is set up', () => {
-    expect(engineLine({ ready: false, device: null, detail: { ...DETAIL, ready: false, device: null, model: 'large-v3' } })).toEqual({
+  it('says plainly when no model is installed', () => {
+    // The host names the model it would use even while it is not installed.
+    expect(engineLine({ ready: false, device: null, detail: { ...DETAIL, ready: false, device: null, model: 'whisper-large-v3-turbo' } })).toEqual({
+      text: 'No transcription model installed',
+      tone: 'neutral',
+    });
+    expect(engineLine({ ready: false, device: null } as unknown as Parameters<typeof engineLine>[0])).toEqual({
       text: 'Local transcription is not set up yet',
       tone: 'neutral',
     });

@@ -238,6 +238,7 @@ interface ModelInfo {
   role: 'segmentation' | 'embedding' | null;     // speaker models: segmentation is always needed, the embedding (voice) model is the Settings choice
 }
 interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: string | null; freeVramBytes: number | null; model: string | null; paused: string | null }
+// model: the catalog id the engine would use, named even while it is not installed (ready is then false).
 ```
 
 `StageName` gains `transcript`, `speakers` and `topics` as running stages. `HistoryEntry.stage` gains `transcript`, `speakers`, `topics`; `detail` carries engine, model, device, duration and segment count.

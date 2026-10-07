@@ -45,7 +45,9 @@ export function engineLine(engine: EngineStatus | null): EngineLine {
     const device = detail === null ? engine.device : (deviceWording(detail) ?? engine.device);
     return { text: device === null ? 'Local transcription ready' : `Local transcription ready · ${device}`, tone: 'ok' };
   }
-  if (detail !== null && detail.model === null) {
+  // The host names the model it would use (`detail.model`) even while it is not installed; not ready
+  // with a detail means that model is missing.
+  if (detail !== null) {
     return { text: 'No transcription model installed', tone: 'neutral' };
   }
   return { text: 'Local transcription is not set up yet', tone: 'neutral' };

@@ -399,7 +399,7 @@ export interface EngineStatusDetail {
   gpuName: string | null;
   /** Null on CPU-only machines. */
   freeVramBytes: number | null;
-  /** The model id in use. */
+  /** The catalog id the engine would use, named even while it is not installed (`ready` is then false). */
   model: string | null;
   /** Why processing is paused, in words ("PC is busy"), or null. */
   paused: ProcessingPausedReason | null;

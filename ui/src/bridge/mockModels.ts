@@ -295,7 +295,8 @@ export function engineDetail(
     device: ready ? device : null,
     gpuName: device === 'GPU' ? 'NVIDIA GeForce RTX 4070' : null,
     freeVramBytes: device === 'GPU' ? Math.round(9.2 * GB) : null,
-    model: ready ? modelId : null,
+    // Like the host: the model it would use, installed or not.
+    model: modelId,
     paused,
   };
 }

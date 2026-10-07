@@ -129,7 +129,7 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
   it('shows the first run with no model installed, and installs one', async () => {
     await open('transcription', { modelsInstalled: 'none' });
     await until(() => container.querySelectorAll('.model-card').length === 4);
-    await until(() => container.querySelector('[data-testid="engine-value"]')?.textContent === 'Not ready');
+    await until(() => container.querySelector('[data-testid="engine-value"]')?.textContent === 'No model installed');
     expect(container.textContent).toContain('Install a model below');
     expect([...container.querySelectorAll('.model-card .model-facts')].every((f) => f.textContent.endsWith('Not installed'))).toBe(true);
     await click(button('Install Large v3 Turbo, 1.5 GB'));
@@ -193,8 +193,8 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
       note: null,
     });
     expect(engineWording({ transcription: { ...detail, paused: 'PC is busy' }, speakers: detail }).value).toBe('Paused · PC is busy');
-    expect(engineWording({ transcription: { ...detail, ready: false, device: null, model: null }, speakers: detail })).toEqual({
-      value: 'Not ready',
+    expect(engineWording({ transcription: { ...detail, ready: false, device: null }, speakers: detail })).toEqual({
+      value: 'No model installed',
       note: 'Install a model below',
     });
   });

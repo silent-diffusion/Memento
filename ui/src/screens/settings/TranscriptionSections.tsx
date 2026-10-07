@@ -39,7 +39,7 @@ export function engineWording(status: EngineStatusResult | null): { value: strin
   }
   const device = deviceWording(t);
   if (!t.ready || device === null) {
-    return { value: 'Not ready', note: 'Install a model below' };
+    return { value: 'No model installed', note: 'Install a model below' };
   }
   return { value: `Local · ${device}`, note: t.freeVramBytes === null ? null : `${formatSize(t.freeVramBytes)} video memory free` };
 }
@@ -155,7 +155,7 @@ export function TranscriptionSection(): JSX.Element {
             value={t.cpuFallbackModelId}
             options={
               cpuModels.length === 0
-                ? [{ value: t.cpuFallbackModelId, label: t.cpuFallbackModelId }]
+                ? [{ value: t.cpuFallbackModelId, label: `${models.state.models.find((m) => m.id === t.cpuFallbackModelId)?.name ?? t.cpuFallbackModelId} · not installed` }]
                 : cpuModels.map((m) => ({ value: m.id, label: `${m.name} · ${m.accuracyNote}` }))
             }
             onChange={(cpuFallbackModelId) => {
