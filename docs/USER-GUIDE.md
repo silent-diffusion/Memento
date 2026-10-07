@@ -66,6 +66,7 @@ The laptop microphone also hears your speakers. That is fine: both tracks are ke
 - Turn a source on or off at any time; the other tracks are not affected.
 - **Details and agenda** opens the details: participants, purpose, platform, and an agenda you can tick off as you cover it.
 - If a device disappears (a headset is unplugged, a microphone is disabled), only its track stops. A message names the device and the time, and the other sources keep recording. Turn the source on again when the device is back to continue it as a new track.
+- Keep the PC from sleeping while you record: nothing can be heard while it sleeps. If it does sleep, the time it slept is kept as silence on every track, so the tracks stay in step with each other.
 - If the drive runs low on space, a banner says how much is left; recording continues and transcription waits. If the drive fills up, the recording stops at a stated time and everything up to then is kept.
 
 Transcription and other work never slow a recording down: while you record, they wait (if **Pause when the PC is busy** is on, which it is by default).
