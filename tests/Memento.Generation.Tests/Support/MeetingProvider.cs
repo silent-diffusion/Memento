@@ -317,7 +317,7 @@ internal sealed partial class MeetingProvider(AiProviderKind kind = AiProviderKi
             supported |= truths.Any(t => t.Kind == "decision" && t.Matches(claim));
         }
 
-        return new JsonObject { ["reason"] = supported ? "The excerpt states it." : "The excerpt does not say this.", ["supported"] = supported };
+        return new JsonObject { ["reason"] = supported ? "The excerpt states it." : "The excerpt does not say this.", ["verdict"] = supported ? "supported" : "not supported", ["supported_part"] = null };
     }
 
     [GeneratedRegex(@"^\[(\d+)\] ", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
@@ -332,6 +332,6 @@ internal sealed partial class MeetingProvider(AiProviderKind kind = AiProviderKi
     [GeneratedRegex(@"^The deadline stated for this task is ""(.+)"": (.+)$", RegexOptions.CultureInvariant)]
     private static partial Regex DueClaim();
 
-    [GeneratedRegex(@"^The people in this excerpt talk about the agenda topic ""(.+)"" \(", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^The people in this excerpt talk about the agenda topic ""(.+)"", or about part of it \(", RegexOptions.CultureInvariant)]
     private static partial Regex AgendaClaim();
 }

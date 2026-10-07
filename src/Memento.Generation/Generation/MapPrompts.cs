@@ -33,7 +33,7 @@ public static partial class MapPrompts
         - If there are no decisions or no action items, return empty lists. Do not invent anything.
         {{{Grounding}}}
         Answer with JSON only, in this shape:
-        {"decisions":[{"decision":"...","citation":{"line":12,"quote":"..."}}],"action_items":[{"task":"...","owner":"..." or null,"due":"..." or null,"citation":{"line":12,"quote":"..."}}]}
+        {"action_items":[{"task":"...","owner":"..." or null,"due":"..." or null,"citation":{"line":12,"quote":"..."}}],"decisions":[{"decision":"...","citation":{"line":12,"quote":"..."}}]}
         """;
 
     public static string AgendaSystem => """
@@ -100,8 +100,8 @@ public static partial class MapPrompts
             ModuleTask.Quotes => (QuotesSystem, QuotesSchema(bounded), new[] { PayloadSectionKind.Highlights }),
             ModuleTask.NextMeeting => (NextMeetingSystem, NextSchema(bounded), new[] { PayloadSectionKind.Details }),
             _ => (
-                PointsSystem(task.PointsType!, task.Modules[0].ResolveTitle(catalog), ModuleTask.PerChunk(task.Length)),
-                PointsSchema(bounded ? ModuleTask.PerChunk(task.Length) : null),
+                PointsSystem(task.PointsType!, task.Modules[0].ResolveTitle(catalog), task.PointsPerChunk),
+                PointsSchema(bounded ? task.PointsPerChunk : null),
                 new[] { PayloadSectionKind.Instructions, PayloadSectionKind.Details, PayloadSectionKind.Participants, PayloadSectionKind.Agenda }),
         };
         if (task.Instructions.Length > 0)
@@ -275,9 +275,9 @@ public static partial class MapPrompts
 
     private static JsonElement CommitmentsSchema(bool bounded) => Schema("""
         {"type":"object","properties":{
-          "decisions":{"type":"array",@MAX12@"items":{"type":"object","properties":{"decision":{"type":"string"},"citation":@CITATION@},"required":["decision","citation"],"additionalProperties":false}},
-          "action_items":{"type":"array",@MAX15@"items":{"type":"object","properties":{"task":{"type":"string"},"owner":{"type":["string","null"]},"due":{"type":["string","null"]},"citation":@CITATION@},"required":["task","owner","due","citation"],"additionalProperties":false}}
-        },"required":["decisions","action_items"],"additionalProperties":false}
+          "action_items":{"type":"array",@MAX15@"items":{"type":"object","properties":{"task":{"type":"string"},"owner":{"type":["string","null"]},"due":{"type":["string","null"]},"citation":@CITATION@},"required":["task","owner","due","citation"],"additionalProperties":false}},
+          "decisions":{"type":"array",@MAX12@"items":{"type":"object","properties":{"decision":{"type":"string"},"citation":@CITATION@},"required":["decision","citation"],"additionalProperties":false}}
+        },"required":["action_items","decisions"],"additionalProperties":false}
         """, bounded, max: null);
 
     private static JsonElement AgendaSchema() => Schema("""

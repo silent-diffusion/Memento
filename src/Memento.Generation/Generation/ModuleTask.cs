@@ -23,6 +23,9 @@ public sealed record ModuleTask(string Family, IReadOnlyList<TemplateModule> Mod
     /// <summary>The module type a points pass writes (<c>executiveSummary</c>).</summary>
     public string? PointsType => IsPoints ? Modules[0].Type : null;
 
+    /// <summary>Points asked for per chunk: the meeting purpose is one line, so one; otherwise by length.</summary>
+    public int PointsPerChunk => PointsType == ModuleIds.MeetingPurpose ? 1 : PerChunk(Length);
+
     /// <summary>The longest length any reading module asks for.</summary>
     public ModuleLength Length => Modules.Select(m => m.Length).OrderByDescending(Rank).First();
 

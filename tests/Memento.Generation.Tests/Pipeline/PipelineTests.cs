@@ -59,6 +59,26 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task ASummaryModuleOnlyHasItsLengthsWorthOfStatementsChecked()
+    {
+        var (outcome, _) = await RunAsync(BuiltInTemplates.MeetingMinutes);
+
+        // The executive summary is short (three statements) and the meeting purpose one line: candidates beyond that are
+        // never asked about, and are recorded as left out for length rather than as unchecked or unsupported.
+        foreach (var (moduleId, cap) in new[] { ("m01", 3), ("m02", 1) })
+        {
+            var claims = outcome.Claims.Where(c => c.ModuleId == moduleId).ToList();
+            var asked = claims.Where(c => c.Verdict != Verdicts.NotChecked).ToList();
+            Assert.True(claims.Count > asked.Count, $"{moduleId}: {claims.Count} candidates, {asked.Count} asked");
+            Assert.True(claims.Count(c => c.Kept) <= cap);
+            Assert.All(claims.Except(asked), c => Assert.Equal(GenerationPipeline.LeftOutForLength, c.Note));
+        }
+
+        // Decisions and action items are always checked in full (a claim whose citation was removed cannot be).
+        Assert.All(outcome.Claims.Where(c => c.ModuleId is "m06" or "m07" && c.SegmentId is not null), c => Assert.NotEqual(Verdicts.NotChecked, c.Verdict));
+    }
+
+    [Fact]
     public async Task UndiscussedAgendaItemsAreReportedAsNotReached()
     {
         var (outcome, _) = await RunAsync(BuiltInTemplates.MeetingMinutes);
@@ -172,13 +192,13 @@ public sealed class PipelineTests
 
     private static ModuleBlock Module(PipelineOutcome outcome, string id) => outcome.Rows.SelectMany(r => r.Modules).Single(m => m.Id == id);
 
-    internal static async Task<(PipelineOutcome Outcome, MeetingProvider Provider)> RunAsync(DocumentTemplate template, IAiProvider? provider = null, int chunkTokens = 3000, bool batchVerify = false)
+    internal static async Task<(PipelineOutcome Outcome, MeetingProvider Provider)> RunAsync(DocumentTemplate template, IAiProvider? provider = null, int chunkTokens = 3000, bool batchVerify = false, int? verifyBatch = null)
     {
         var meeting = provider as MeetingProvider ?? (provider as TruncatingProvider)?.Inner ?? new MeetingProvider();
         var material = SyntheticMeeting.Material();
         var payload = PayloadComposer.Compose(material.ToPayloadInputs(null), SyntheticMeeting.AllInputs);
         var facts = new GenerationFacts(material.Details.Title, null, DataModuleComposer.Participants(material), material.Details.Agenda.Items, []);
-        var input = new PipelineInput(template, material, payload, SyntheticMeeting.AllInputs, provider ?? meeting, facts, chunkTokens, 1400, !batchVerify, batchVerify);
+        var input = new PipelineInput(template, material, payload, SyntheticMeeting.AllInputs, provider ?? meeting, facts, chunkTokens, 1400, !batchVerify, verifyBatch ?? (batchVerify ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize));
         var outcome = await new GenerationPipeline(ModuleCatalog.Default).RunAsync(input, null, CancellationToken.None);
         return (outcome, meeting);
     }

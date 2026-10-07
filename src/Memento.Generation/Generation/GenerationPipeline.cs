@@ -29,8 +29,14 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
     /// <summary>Questions per cloud verification request.</summary>
     public const int VerifyBatchSize = 25;
 
+    /// <summary>Questions per local verification request, within one module family (ENGINE-NOTES.md §I).</summary>
+    public const int LocalVerifyBatchSize = 6;
+
     /// <summary>Merged copies tried in place of an unsupported claim.</summary>
     public const int MaxAlternates = 3;
+
+    /// <summary>Why a statement is not in its module although nothing was wrong with it.</summary>
+    public const string LeftOutForLength = "left out to keep the section within its length";
 
     public async Task<PipelineOutcome> RunAsync(PipelineInput input, IProgress<PipelineProgress>? progress, CancellationToken cancellationToken)
     {
@@ -59,6 +65,13 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             claims.AddRange(await MapAsync(input, tasks, chunks, runner, transcript, warnings, progress, cancellationToken));
         }
 
+        // Agenda coverage also from the agenda items' own words in the transcript and in the other passes' citations.
+        if (tasks.Any(t => t.Family == ModuleTask.AgendaCoverage))
+        {
+            var lines = chunks.SelectMany(c => c.Lines.Select(l => (Line: l, Chunk: c.Index))).GroupBy(l => l.Line.ShortId).Select(g => g.First()).ToList();
+            claims.AddRange(AgendaMatcher.Candidates(input.Facts.Agenda, lines, claims));
+        }
+
         var mapMs = clock.ElapsedMilliseconds;
 
         // 3. Reduce per family (citations were repaired as each answer was read).
@@ -68,8 +81,8 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         // hide a right later one).
         clock.Restart();
         var unique = byFamily.Values.SelectMany(c => c).ToList();
-        await VerifyAsync(input, unique, transcript, runner, progress, cancellationToken);
-        var unsupported = unique.Where(c => c.Verdict != Verdicts.Supported && c.Alternates.Count > 0).ToList();
+        var unasked = await VerifyWithinLengthAsync(input, tasks, byFamily, transcript, runner, progress, cancellationToken);
+        var unsupported = unique.Where(c => c.Verdict != Verdicts.Supported && c.Alternates.Count > 0 && !unasked.Contains(c)).ToList();
         if (unsupported.Count > 0)
         {
             await VerifyAsync(input, unsupported.SelectMany(c => c.Alternates.Take(MaxAlternates)).ToList(), transcript, runner, progress, cancellationToken);
@@ -93,6 +106,10 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         foreach (var claim in unique)
         {
             GroundingValidator.Validate(claim, transcript, input.Facts.People);
+            if (unasked.Contains(claim))
+            {
+                claim.DropReason = LeftOutForLength;
+            }
         }
 
         var rows = new List<DocumentRow>();
@@ -125,7 +142,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
                     if (!kept.Contains(candidate) && copy.Kept)
                     {
                         copy.Kept = false;
-                        copy.DropReason = "left out to keep the section within its length";
+                        copy.DropReason = LeftOutForLength;
                     }
 
                     copies.Add(copy);
@@ -263,56 +280,115 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         }
 
         Report(progress, "verifying", null, 60, "Checking each claim against the moment it cites");
-        var verdicts = new Dictionary<VerifyQuestion, (bool Supported, string? Reason)>();
-        if (input.BatchVerify)
+
+        // A cloud model takes large numbered batches; the local model one batch per module family (claims of one kind,
+        // at the size measured not to cost accuracy), or one question per request.
+        var groups = input.VerifyBatch <= 1
+            ? questions.Select(q => new[] { q }).ToList()
+            : input.Bounded
+                ? questions.GroupBy(q => q.Claim.Family, StringComparer.Ordinal).SelectMany(g => g.Chunk(input.VerifyBatch)).ToList()
+                : questions.Chunk(input.VerifyBatch).ToList();
+        var requests = groups.Select(g => input.VerifyBatch <= 1
+            ? VerifyPrompts.ForQuestion(g[0], SpanOf(g[0], transcript))
+            : VerifyPrompts.Batch(g.Select(q => (q, SpanOf(q, transcript))).ToList(), input.Bounded)).ToList();
+        var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
+        var answers = new Dictionary<VerifyQuestion, VerifyAnswer>();
+        for (var r = 0; r < groups.Count; r++)
         {
-            var batches = questions.Chunk(VerifyBatchSize).ToList();
-            var requests = batches.Select(b => VerifyPrompts.Batch(b.Select(q => (q, SpanOf(q, transcript))).ToList())).ToList();
-            var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
-            for (var b = 0; b < batches.Count; b++)
+            if (responses[r].StopReason != AiStopReason.Completed || responses[r].Json is not { } json)
             {
-                if (responses[b].StopReason == AiStopReason.Completed && responses[b].Json is { } json)
+                continue;
+            }
+
+            if (input.VerifyBatch <= 1)
+            {
+                if (VerifyPrompts.ParseSingle(json) is { } answer)
                 {
-                    foreach (var (item, verdict) in VerifyPrompts.ParseBatch(json))
-                    {
-                        if (item >= 1 && item <= batches[b].Length)
-                        {
-                            verdicts[batches[b][item - 1]] = verdict;
-                        }
-                    }
+                    answers[groups[r][0]] = answer;
+                }
+
+                continue;
+            }
+
+            foreach (var (item, answer) in VerifyPrompts.ParseBatch(json))
+            {
+                if (item >= 1 && item <= groups[r].Length)
+                {
+                    answers[groups[r][item - 1]] = answer;
                 }
             }
         }
-        else
+
+        // Two votes on a borderline answer: "partly" where no shorter text can stand in (a decision, an action item, an
+        // owner, a date, agenda coverage) is asked again as a plain yes/no over a wider span.
+        var borderline = questions.Where(q => answers.GetValueOrDefault(q) is { Grade: VerifyAnswer.Partly } && !(q.Field == VerifyQuestion.ClaimField && q.Claim.Kind == ClaimKinds.Point)).ToList();
+        if (borderline.Count > 0)
         {
-            var requests = questions.Select(q => VerifyPrompts.ForQuestion(q, SpanOf(q, transcript))).ToList();
-            var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
-            for (var i = 0; i < responses.Count; i++)
+            var second = await runner.RunAsync(borderline.Select(q => VerifyPrompts.SecondVote(q.Statement, WideSpanOf(q, transcript))).ToList(), null, cancellationToken);
+            for (var i = 0; i < borderline.Count; i++)
             {
-                if (responses[i].StopReason == AiStopReason.Completed && responses[i].Json is { } json && VerifyPrompts.ParseSingle(json) is { Supported: { } supported } verdict)
+                if (second[i].StopReason == AiStopReason.Completed && second[i].Json is { } json && VerifyPrompts.ParseSingle(json) is { IsSupported: true } vote)
                 {
-                    verdicts[questions[i]] = (supported, verdict.Reason);
+                    answers[borderline[i]] = new VerifyAnswer(VerifyAnswer.Supported, vote.Reason, null);
                 }
             }
         }
 
         foreach (var question in questions)
         {
-            var verdict = verdicts.TryGetValue(question, out var v) ? (v.Supported ? Verdicts.Supported : Verdicts.Unsupported) : Verdicts.NotChecked;
-            switch (question.Field)
-            {
-                case VerifyQuestion.OwnerField:
-                    question.Claim.OwnerVerdict = verdict;
-                    break;
-                case VerifyQuestion.DueField:
-                    question.Claim.DueVerdict = verdict;
-                    break;
-                default:
-                    question.Claim.Verdict = verdict;
-                    question.Claim.Reason = v.Reason;
-                    break;
-            }
+            Apply(question, answers.GetValueOrDefault(question), transcript);
         }
+    }
+
+    /// <summary>The second vote's span: one more line either side (two more after an agenda item's start).</summary>
+    private static string WideSpanOf(VerifyQuestion question, TranscriptIndex transcript) =>
+        question.Claim.Kind == ClaimKinds.Agenda ? transcript.Excerpt(question.Line, 1, 8) : transcript.Excerpt(question.Line, 3, 3);
+
+    /// <summary>
+    /// Records an answer on its claim. "Partly" keeps a summary point with the unsupported detail removed, when the
+    /// shorter text adds no word that is neither the claim's nor the excerpt's; for every other kind (decisions, action
+    /// items, owners, dates, agenda coverage, the next meeting) "partly" is not supported.
+    /// </summary>
+    internal static void Apply(VerifyQuestion question, VerifyAnswer? answer, TranscriptIndex transcript)
+    {
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(transcript);
+        var claim = question.Claim;
+        var verdict = answer is null ? Verdicts.NotChecked : answer.IsSupported ? Verdicts.Supported : Verdicts.Unsupported;
+        switch (question.Field)
+        {
+            case VerifyQuestion.OwnerField:
+                claim.OwnerVerdict = verdict;
+                return;
+            case VerifyQuestion.DueField:
+                claim.DueVerdict = verdict;
+                return;
+        }
+
+        if (answer is { Grade: VerifyAnswer.Partly } && Trimmed(claim, answer.SupportedPart, SpanOf(question, transcript)) is { } shorter)
+        {
+            claim.Notes.Add("shortened to what the cited moment supports");
+            claim.Text = shorter;
+            verdict = Verdicts.Supported;
+        }
+
+        claim.Verdict = verdict;
+        claim.Reason = answer?.Reason;
+    }
+
+    /// <summary>The supported part of a summary point, or <c>null</c> when it cannot stand in for the claim.</summary>
+    internal static string? Trimmed(Claim claim, string? part, string excerpt)
+    {
+        ArgumentNullException.ThrowIfNull(claim);
+        if (claim.Kind != ClaimKinds.Point || string.IsNullOrWhiteSpace(part) || TextMatch.Normalize(part) == TextMatch.Normalize(claim.Text))
+        {
+            return null;
+        }
+
+        var words = TextMatch.Words(part);
+        var allowed = TextMatch.Words(claim.Text);
+        allowed.UnionWith(TextMatch.Words(excerpt));
+        return words.Count >= 2 && words.All(allowed.Contains) ? part.Trim() : null;
     }
 
     /// <summary>
@@ -330,22 +406,80 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
     };
 
     /// <summary>The kept claims within the module's length, spread evenly over the recording when there are more.</summary>
-    private static List<Claim> Cap(TemplateModule module, List<Claim> kept)
+    private static List<Claim> Cap(TemplateModule module, List<Claim> kept) => Spread(kept, CapOf(module));
+
+    /// <summary>How many statements a module shows (the meeting purpose is one line).</summary>
+    internal static int CapOf(TemplateModule module) => module.Type switch
     {
-        var cap = module.Type switch
+        ModuleIds.Decisions or ModuleIds.ActionItems or ModuleIds.Owner or ModuleIds.Deadline or ModuleIds.FollowUpEmail => ModuleTask.Cap(module.Length) * 4,
+        ModuleIds.Agenda => int.MaxValue,
+        ModuleIds.Quote => module.Length switch { ModuleLength.Short => 1, ModuleLength.Long => 4, _ => 2 },
+        ModuleIds.MeetingPurpose => 1,
+        _ => ModuleTask.Cap(module.Length),
+    };
+
+    /// <summary>At most <paramref name="count"/> of the claims, spread evenly over the recording.</summary>
+    internal static List<Claim> Spread(IReadOnlyList<Claim> claims, int count)
+    {
+        if (claims.Count <= count)
         {
-            ModuleIds.Decisions or ModuleIds.ActionItems or ModuleIds.Owner or ModuleIds.Deadline or ModuleIds.FollowUpEmail => ModuleTask.Cap(module.Length) * 4,
-            ModuleIds.Agenda => int.MaxValue,
-            ModuleIds.Quote => module.Length switch { ModuleLength.Short => 1, ModuleLength.Long => 4, _ => 2 },
-            _ => ModuleTask.Cap(module.Length),
-        };
-        if (kept.Count <= cap)
-        {
-            return kept;
+            return [.. claims];
         }
 
-        var step = (double)kept.Count / cap;
-        return Enumerable.Range(0, cap).Select(i => kept[(int)Math.Floor(i * step)]).ToList();
+        var step = (double)claims.Count / count;
+        return Enumerable.Range(0, count).Select(i => claims[(int)Math.Floor(i * step)]).ToList();
+    }
+
+    /// <summary>
+    /// Verifies every claim a module can show. A summary-like module (one map pass per module) shows at most its length's
+    /// worth of statements, so only that many are checked first, spread over the recording, and then only as many more
+    /// as replace the ones the transcript does not support (two rounds). The rest are never asked about and are left out
+    /// for length. Decisions, action items, the agenda and the next meeting are always checked in full.
+    /// </summary>
+    /// <returns>The claims left unchecked.</returns>
+    private static async Task<HashSet<Claim>> VerifyWithinLengthAsync(PipelineInput input, IReadOnlyList<ModuleTask> tasks, Dictionary<string, List<Claim>> byFamily, TranscriptIndex transcript, RequestRunner runner, IProgress<PipelineProgress>? progress, CancellationToken cancellationToken)
+    {
+        var first = new List<Claim>();
+        var waiting = new Dictionary<string, (int Cap, List<Claim> Unasked)>(StringComparer.Ordinal);
+        foreach (var (family, claims) in byFamily)
+        {
+            var task = tasks.FirstOrDefault(t => t.Family == family);
+            var cap = task is { IsPoints: true } && task.Modules.Count == 1 ? CapOf(task.Modules[0]) : int.MaxValue;
+            if (claims.Count <= cap)
+            {
+                first.AddRange(claims);
+                continue;
+            }
+
+            var chosen = Spread(claims, cap);
+            first.AddRange(chosen);
+            waiting[family] = (cap, claims.Where(c => !chosen.Contains(c)).ToList());
+        }
+
+        await VerifyAsync(input, first, transcript, runner, progress, cancellationToken);
+        for (var round = 0; round < 2 && waiting.Count > 0; round++)
+        {
+            var more = new List<Claim>();
+            foreach (var (family, (cap, unasked)) in waiting)
+            {
+                var missing = cap - byFamily[family].Count(c => c.Verdict == Verdicts.Supported);
+                if (missing > 0 && unasked.Count > 0)
+                {
+                    var next = Spread(unasked, missing);
+                    unasked.RemoveAll(next.Contains);
+                    more.AddRange(next);
+                }
+            }
+
+            if (more.Count == 0)
+            {
+                break;
+            }
+
+            await VerifyAsync(input, more, transcript, runner, progress, cancellationToken);
+        }
+
+        return waiting.Values.SelectMany(w => w.Unasked).ToHashSet();
     }
 
     private static ModuleBlock Module(TemplateModule module, string title, Provenance provenance, IReadOnlyList<Memento.Documents.Model.Blocks.Block> blocks) => new()

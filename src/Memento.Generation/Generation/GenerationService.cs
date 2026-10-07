@@ -270,7 +270,7 @@ public sealed partial class GenerationService(
                 status.ChunkTokens,
                 status.MapOutputTokens,
                 Bounded: !status.IsCloud,
-                BatchVerify: status.IsCloud);
+                VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize);
             var progress = new InlineProgress<PipelineProgress>(p => Publish(job, p.Stage, p.ModuleId, p.Percent, p.Message));
             var outcome = await pipeline.RunAsync(input, progress, token);
             token.ThrowIfCancellationRequested();
