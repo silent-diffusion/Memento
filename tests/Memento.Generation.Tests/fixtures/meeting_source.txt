@@ -1,0 +1,120 @@
+# Synthetic meeting (fictional company Fernhollow Software, fictional people). Format: Speaker|text|tags
+Dana Okafor|Okay, I think that's everyone. Thanks for making the time. This is our weekly product sync for Ledgerly, and we have a lot to get through, so let's go in agenda order and start with the 3.2 release.|
+Luis Brandt|Sure. Quick status. Everything on the 3.2 board is code-complete except recurring invoice templates. The PDF export rewrite landed on Monday, the new tax fields are in, and QA has signed off on the multi-currency fixes.|
+Mei Tanaka|Is the PDF export rewrite visible to users? I want to make sure the new invoice layout matches the mockups.|
+Luis Brandt|Visible, yes. It uses your spacing tokens, and the totals table is the version you signed off in September.|
+Mei Tanaka|Great, then I'm happy with that part.|
+Sam Whitfield|And the multi-currency fix, does it cover the rounding issue the Dutch customers reported?|
+Luis Brandt|It does. Rounding now happens once on the invoice total instead of on every line. We tested it with the exact invoices from those tickets, and QA is already re-checking the Canadian provinces this week, so that's covered.|
+Sam Whitfield|That's good news. I've had three escalations on rounding this month alone.|
+Luis Brandt|Performance is the other thing worth mentioning. Opening a large invoice used to take about four seconds on older laptops, and with the new renderer it's under one second. We measured it on the slowest machine in the office.|
+Mei Tanaka|That will be noticeable. People complained about the spinner constantly in the last survey.|
+Dana Okafor|Do we have anything else at risk for 3.2, apart from templates?|
+Luis Brandt|Not really. The tax fields had a scare last week with the import of old invoices, but that turned out to be a test data problem, not a code problem.|
+Dana Okafor|Good. And recurring templates, where are those really?|
+Luis Brandt|Honestly, about sixty percent. The scheduling engine works, but the edge cases around month-end dates and time zones are not done. If we keep it in, I don't see us shipping before the end of November.|
+Mei Tanaka|From the design side the template editor screens are finished, but we never got to test them with real customers. I'd be nervous shipping it untested.|
+Sam Whitfield|Support-wise, people do ask for recurring invoices, but they're asking much louder for the offline fixes. If I had to pick, I'd rather get 3.2 out early.|
+Dana Okafor|Okay. So the real question is the date. Luis, if we pull recurring templates out, what date can you commit to?|
+Luis Brandt|Without templates we could do a release candidate on November fifth and ship the following week. November twelfth is realistic.|
+Dana Okafor|Then let's make it official. We ship 3.2 on Thursday, November twelfth.|D1
+Luis Brandt|Works for me.|D1
+Dana Okafor|And recurring invoice templates move out of 3.2 and into 3.3. That's decided.|D2
+Mei Tanaka|Fine by me. Untested is worse than late.|
+Sam Whitfield|Just so I know what to say to the customers who were waiting for templates, is 3.3 still roughly a quarter away?|
+Luis Brandt|Roughly, yes, but I wouldn't promise anyone a date yet.|
+Sam Whitfield|Understood.|
+Dana Okafor|Luis, what do you need to make the split happen?|A1
+Luis Brandt|I'll cut the 3.3 branch and put the recurring template code behind a feature flag, so it doesn't leak into the release build. I can have that done by Friday.|A1
+Dana Okafor|Great, thanks. The roadmap page already says later this year for templates, so nothing changes there.|
+Dana Okafor|Next, the offline mode backlog. Sam, you've been living in those tickets.|
+Sam Whitfield|Yes. We have forty-one open tickets tagged offline. The big cluster, maybe two thirds, is sync conflicts. Someone edits an invoice on a laptop while offline, someone else edits the same invoice on the web, and when the laptop reconnects one of the edits silently disappears.|
+Sam Whitfield|To give you a feel for it, one customer lost a whole afternoon of edits on twelve invoices. She only noticed when her client queried a total.|
+Luis Brandt|Right. Today the client just overwrites whatever is on the server. There's no conflict detection at all. To be fair to past us, offline mode was built when most customers had one device. Now the average account has two point three devices.|
+Luis Brandt|There's also a second, smaller cluster, attachments not syncing when the file is larger than ten megabytes. That one is a plain bug, and it's already fixed on the 3.2 branch.|
+Mei Tanaka|Silently losing data is the worst possible experience. Even a clumsy warning would be better than that.|
+Luis Brandt|We looked at three options. Full merge, field by field, which is a lot of work. Locking an invoice while someone is offline, which is a terrible experience. Or last write wins, but we keep a conflict log so the overwritten version can be restored.|
+Dana Okafor|And the full merge, what would that cost us, roughly?|
+Luis Brandt|My guess is two engineers for a quarter, and we'd still have strange edge cases with line items. It's the kind of project that never quite ends.|
+Dana Okafor|What does the conflict log look like for the user?|
+Mei Tanaka|I sketched it. A small banner on the invoice that says this invoice was changed on another device, with a link to view and restore the other version. It's cheap to build. One detail, the banner should never block the invoice. People need to keep working and decide later.|
+Sam Whitfield|And it should show who made the other change and when. That's always the first question I get. Honestly, that would kill most of my tickets. People mainly want their numbers back.|
+Mei Tanaka|What about mobile? Does the banner need a mobile version too?|
+Luis Brandt|The mobile app doesn't support offline editing at all, so no, not for now.|
+Dana Okafor|Then let's go with last write wins plus the conflict log for 3.2. Full merge can be a later project if we ever need it.|D3
+Luis Brandt|Agreed. I'll need to write it up properly, though. There are open questions about how long we keep the old versions.|D3
+Dana Okafor|How long would you keep them?|
+Luis Brandt|Thirty days is my instinct, but the storage cost depends on attachment sizes.|
+Dana Okafor|Can you write the design doc for the conflict log?|A4
+Luis Brandt|Yes, I'll have the design doc ready by Monday, including the retention question.|A4
+Sam Whitfield|I can help with prioritising. I'll pull the top twenty offline sync tickets, with customer names and steps to reproduce, and send the list to Luis by tomorrow.|A3
+Luis Brandt|That would be really useful.|A3
+Sam Whitfield|Also, the help-center article on offline mode is badly out of date. It still says conflicts are impossible. Someone should update that article.|U1
+Dana Okafor|Yeah, that's embarrassing.|U1
+Mei Tanaka|And the release notes need to explain the new sync conflict behaviour, or people will think the banner is a bug.|U3
+Luis Brandt|True.|
+Dana Okafor|Good point. Okay, let's keep moving, we're already a third of the way through our time.|
+Dana Okafor|Pricing page. Mei, you had the new layouts.|
+Mei Tanaka|I did. Some background first. In testing the current page, four out of six people could not tell which plan included multi-currency. The comparison table is simply too long.|
+Dana Okafor|Before we go through them, what are we optimising for, conversion or fewer support tickets?|
+Mei Tanaka|Both, but mostly clarity. Sign-up conversion from the pricing page is about three point one percent, which is below what the industry reports for tools like ours.|
+Sam Whitfield|And clarity helps my team directly. Half of the pre-sales chats are people asking which plan they need.|
+Mei Tanaka|So, three versions. Version A keeps the current layout with a shorter table. Version B has a monthly and annual toggle, with monthly as the default, and it cuts the comparison table from twenty-two rows to nine, grouped by what people actually ask about. Version C removes the annual-only Business plan entirely and folds its features into Pro.|
+Sam Whitfield|The annual-only Business plan generates a lot of confused tickets. People sign up thinking they can pay monthly, and then they ask for refunds. Refund requests from that plan were thirty-four last month. That's real money and a lot of my team's time.|
+Dana Okafor|How many Business customers do we actually have?|
+Luis Brandt|About three hundred and ten, last time I checked. Fewer than I expected. From an engineering point of view the toggle is trivial. Removing the Business plan touches billing, but only for new sign-ups.|
+Luis Brandt|Is there any risk with the toggle and our coupon codes? Some coupons only apply to annual billing.|
+Mei Tanaka|Good question. In my mockups the coupon field stays the same, and the price updates when you switch the toggle.|
+Luis Brandt|Then billing should handle it. The coupon logic already checks the billing period.|
+Mei Tanaka|My recommendation is a combination. Drop the annual-only plan, and use the toggle from version B, with monthly selected by default.|
+Dana Okafor|I like that. Okay, decision. We remove the annual-only Business plan from the pricing page, and we show a monthly and annual toggle with monthly as the default.|D4
+Mei Tanaka|I'll turn version B with those changes into final mockups. I can have them to everyone by next Wednesday.|A2
+Dana Okafor|Perfect.|
+Mei Tanaka|I'd also like to test the toggle itself. I'll run five usability sessions on it with existing customers.|A6
+Dana Okafor|Great.|
+Luis Brandt|While we're on pricing, should we talk about the Pro price? We've been at fifteen dollars for two years.|F1
+Sam Whitfield|Competitors are all at eighteen to twenty now.|F1
+Dana Okafor|Honestly, I think we should go to nineteen.|F1
+Luis Brandt|Nineteen sounds right to me.|F1
+Mei Tanaka|Same.|F1
+Dana Okafor|Actually, wait. Let's not lock that in today. Finance needs to see the churn numbers from the last increase first. We park the price change until the pricing review in late November.|F1
+Luis Brandt|Fair enough.|F1
+Sam Whitfield|One more thing on pricing. We need to tell the sales team about the annual plan change before the page goes live, otherwise they'll keep pitching it.|U2
+Dana Okafor|Yes, definitely. Okay.|U2
+Dana Okafor|Support trends. Sam?|
+Sam Whitfield|Overall ticket volume is up eighteen percent month over month. Mostly offline sync, which we just covered, and bank feed disconnections. Most of the disconnections are the bank forcing re-authentication every ninety days, which we can't change, and Tallyhouse should help there because their feeds don't expire.|
+Sam Whitfield|The bank feed ones are frustrating because the error message just says connection failed, so people assume it's our bug.|
+Sam Whitfield|The other change is timing. About a quarter of new tickets now arrive on Saturday or Sunday, mostly from small businesses doing their books on the weekend.|
+Luis Brandt|That surprises me. When we launched, nearly everyone was an accountant working office hours.|
+Sam Whitfield|The customer mix has changed a lot. More than half of new sign-ups this year are sole traders and very small shops.|
+Dana Okafor|That matches what marketing said at the last all-hands.|
+Mei Tanaka|And right now nobody answers until Monday morning?|
+Sam Whitfield|Right. First response time on weekend tickets is around fifty hours.|
+Luis Brandt|That's brutal.|
+Mei Tanaka|Do we know what the weekend tickets are about? If they're mostly how-to questions, better in-app help might be enough.|
+Sam Whitfield|Mostly how-to questions, yes, and some bank feed errors. I'd like to start weekend coverage, one person on Saturday and one on Sunday, rotating.|F2
+Dana Okafor|So we're doing weekend coverage then?|F2
+Sam Whitfield|Well, I'd like to.|F2
+Dana Okafor|Let me be careful here. I don't want to commit the team to weekend shifts on one month of data. Let's look at two more weeks of ticket data and revisit this on the thirtieth. It's not decided yet.|F2
+Sam Whitfield|Okay, that's reasonable.|F2
+Luis Brandt|Could we at least add an auto-reply on weekends that sets expectations?|
+Sam Whitfield|We already have one. It just says we're closed until Monday.|
+Dana Okafor|Last topic, Tallyhouse. Luis, where are we?|
+Luis Brandt|Their API gives us two things. A read-only bank feed, so transactions flow into Ledgerly automatically, and payment initiation, so users could pay bills from inside Ledgerly. The payment side needs a much heavier compliance review on our side. Their documentation is good, by the way. Webhooks for new transactions, and they handle the bank connections themselves.|
+Sam Whitfield|Customers mostly want the transactions to show up. I've barely seen anyone ask to pay bills from inside the app.|
+Sam Whitfield|How many of our customers would actually connect a bank, do we know?|
+Luis Brandt|In the beta survey about seventy percent said they would, but that was a small sample.|
+Dana Okafor|Even half of that would be a big deal for retention.|
+Mei Tanaka|Payments also means a lot of new screens. Confirmation flows, error states. That's months of design work. For read-only I need maybe two screens, connect your bank and a review list for imported transactions, and I can reuse the CSV import screen.|
+Dana Okafor|And their pricing?|
+Luis Brandt|Per connected account, roughly forty cents a month at our volume. Sam's team would save more than that in tickets.|
+Dana Okafor|Then let's be disciplined. We go with the read-only bank feed first. No payment initiation in the first version.|D5
+Luis Brandt|Agreed. That cuts the compliance work to almost nothing.|D5
+Dana Okafor|I'll email our contact at Tallyhouse this week to confirm the read-only scope and ask for sandbox credentials.|A5
+Luis Brandt|Once we have the sandbox, I'd estimate three weeks of work.|
+Dana Okafor|Okay, we're almost out of time, so let me recap. 3.2 ships November twelfth, and recurring templates move to 3.3. Sync conflicts use last write wins with a conflict log. The pricing page drops the annual-only plan and gets the toggle with monthly as the default. And Tallyhouse starts read-only.|D1 D2 D3 D4 D5 R
+Dana Okafor|On actions. Luis cuts the 3.3 branch and flags the template code by Friday, and writes the conflict log design doc by Monday. Sam sends the top twenty sync tickets to Luis by tomorrow. Mei sends final pricing mockups by next Wednesday and runs the usability sessions. And I'll email Tallyhouse this week.|A1 A4 A3 A2 A6 A5 R
+Dana Okafor|The Pro price increase is parked until the pricing review, and weekend support coverage comes back on the thirtieth.|F1 F2 R
+Mei Tanaka|Sounds right.|
+Luis Brandt|Thanks, everyone.|
+Sam Whitfield|Thanks, bye.|

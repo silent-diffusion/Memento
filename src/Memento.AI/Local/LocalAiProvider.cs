@@ -196,7 +196,7 @@ public sealed class LocalAiProvider : IAiProvider
                 LocalLlmProgress.Generating => AiProgressStage.Generating,
                 _ => AiProgressStage.Sending,
             };
-            target.Report(new AiProgress(stage, progress.Delta, progress.OutputTokens));
+            target.Report(new AiProgress(stage, progress.Delta, progress.OutputTokens, Index: progress.PromptIndex >= 0 ? progress.PromptIndex : null));
         }
     }
 }

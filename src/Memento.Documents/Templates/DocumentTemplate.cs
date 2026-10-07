@@ -39,6 +39,9 @@ public sealed record DocumentTemplate
 
     public TemplateOutput Output { get; init; } = new();
 
+    /// <summary>When it was last saved; <c>null</c> for a built-in that was never changed.</summary>
+    public DateTimeOffset? ModifiedAt { get; init; }
+
     /// <summary>Set by the store: one of the templates that ship with Memento.</summary>
     public bool BuiltIn { get; init; }
 

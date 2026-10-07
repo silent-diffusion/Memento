@@ -9,7 +9,10 @@ public sealed record TemplateInputs
     /// <summary>The transcript with speakers.</summary>
     public bool Transcript { get; init; } = true;
 
-    /// <summary>Participants and the recording details.</summary>
+    /// <summary>The recording details (title, date, purpose, platform, notes).</summary>
+    public bool Details { get; init; } = true;
+
+    /// <summary>The participants from the recording details.</summary>
     public bool Participants { get; init; } = true;
 
     public bool Agenda { get; init; } = true;
@@ -19,6 +22,9 @@ public sealed record TemplateInputs
 
     /// <summary>Imported documents (attachments).</summary>
     public bool ImportedDocuments { get; init; }
+
+    /// <summary>The recording's other documents, as text.</summary>
+    public bool PreviousDocuments { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
