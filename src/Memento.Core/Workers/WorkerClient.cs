@@ -81,10 +81,11 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
             }
 
             await using var registration = cancellationToken.Register(() => _ = StopAsync(process));
+            var reader = new ProtocolLineReader(process.Output);
             while (true)
             {
                 string? line;
-                var read = process.Output.ReadLineAsync(CancellationToken.None).AsTask();
+                var read = reader.ReadLineAsync(CancellationToken.None).AsTask();
                 try
                 {
                     line = await read.WaitAsync(_options.QuietLimit, CancellationToken.None);
@@ -107,6 +108,12 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
                 if (line is null)
                 {
                     break;
+                }
+
+                if (reader.LastDiscardedLength is { } dropped)
+                {
+                    LogOversizedLine(process.Id, dropped);
+                    continue;
                 }
 
                 var reply = Parse(line);
@@ -287,6 +294,9 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Worker wrote a {Length}-character line that is not part of the protocol")]
     private partial void LogStrayLine(int length);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker {Pid} wrote a {Length}-character line, longer than the protocol allows; it was dropped")]
+    private partial void LogOversizedLine(int pid, long length);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Worker wrote a damaged protocol line")]
     private partial void LogBadLine(Exception exception);

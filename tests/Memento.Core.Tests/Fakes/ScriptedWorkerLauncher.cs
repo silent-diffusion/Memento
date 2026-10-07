@@ -204,7 +204,30 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
 
     private sealed class ChannelReaderText(ChannelReader<string?> reader) : TextReader
     {
+        private string _pending = string.Empty;
+        private int _offset;
+
         public override string? ReadLine() => ReadLineAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+        /// <summary>Serves the scripted lines as characters, each followed by <c>\n</c> (what a line reader sees from a pipe).</summary>
+        public override async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_offset == _pending.Length)
+            {
+                if (await ReadLineAsync(cancellationToken) is not { } line)
+                {
+                    return 0;
+                }
+
+                _pending = line + "\n";
+                _offset = 0;
+            }
+
+            var count = Math.Min(buffer.Length, _pending.Length - _offset);
+            _pending.AsMemory(_offset, count).CopyTo(buffer);
+            _offset += count;
+            return count;
+        }
 
         public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
         {
