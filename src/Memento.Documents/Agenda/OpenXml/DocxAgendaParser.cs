@@ -37,10 +37,11 @@ public sealed class DocxAgendaParser : IAgendaParser
     private static AgendaParseResult Parse(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+        PackageGuard.Check(stream, options, "a Word document", cancellationToken);
         WordprocessingDocument document;
         try
         {
-            document = WordprocessingDocument.Open(stream, false, new OpenSettings { AutoSave = false });
+            document = WordprocessingDocument.Open(stream, false, PackageGuard.OpenSettings());
         }
         catch (Exception e) when (e is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException)
         {

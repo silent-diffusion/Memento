@@ -15,6 +15,12 @@ internal static class AgendaErrors
                 ? $"{DisplayName(options)} is {Megabytes(size)}, larger than the {Megabytes(options.MaxFileBytes)} limit for an agenda. Nothing was imported. Save just the agenda pages in a smaller file, or paste the items as text."
                 : $"{DisplayName(options)} is larger than the {Megabytes(options.MaxFileBytes)} limit for an agenda. Nothing was imported. Save just the agenda pages in a smaller file, or paste the items as text.");
 
+    /// <summary>A Word or Excel package that would unpack to more than the agenda limits (a ZIP bomb, or simply far too big).</summary>
+    public static AgendaImportException PackageTooLarge(AgendaParseOptions options, string what, string detail) =>
+        new(
+            AgendaErrorCodes.FileTooLarge,
+            $"{DisplayName(options)} is {what} that {detail}, more than Memento unpacks for an agenda. Nothing was imported. Copy the agenda into a new document and import that, or paste the items as text.");
+
     public static AgendaImportException ImageTooLarge(AgendaParseOptions options, long width, long height) =>
         new(
             AgendaErrorCodes.ImageTooLarge,
