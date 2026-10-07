@@ -86,7 +86,9 @@ Rules learned while building it:
 - **Whisper.net brings System.Text.Json 10 and Microsoft.Extensions.AI**, so the worker lives in its own `worker\` folder (self-contained) and never shares assemblies with the app.
 - Native libraries may print to stdout; the worker keeps the original stdout handle for the protocol and points the process's stdout at stderr before loading them. The host also ignores any line that does not start with `{"type":`.
 - whisper.cpp reports its own percentage per call (`WithProgressHandler`); without it a recording shorter than one 10-minute window shows 0 % until done.
-- Prompted large-v3-turbo again dropped the 15-second LibriVox announcement at the start of the 5-minute sample (small kept it). The gap is under the 20-second coverage threshold, so it is not flagged.
+- Prompted large-v3-turbo again dropped the 15-second LibriVox announcement at the start of the 5-minute sample (small kept it). The coverage threshold was 20 s then, so it was not flagged; it is 10 s since the M2 integration, and Review offers "Transcribe again with Small" at the gap.
+- whisper.cpp can loop on one line ("Thank you." over and over); a run of three or more identical lines on a track keeps the first, and History lists what was dropped.
+- A worker that loses the graphics card mid-job must be gone before the next one loads a model: the host lets one GPU job run at a time and waits for the previous worker to exit, the worker holds a machine-wide lock (`Local\Memento.Worker.Gpu`) while it may use the card, and every worker runs in a kill-on-close job object, so Windows ends it with Memento.
 - Digital silence (loopback tracks are padded with zeros) must count toward the speech-energy noise floor, or a track whose only non-zero frames are speech has no speech at all.
 - The CPU "PC is busy" measure subtracts the worker's own processor time, or a CPU transcription would pause itself.
 - The repository's `models/` ignore rule also matched `src/Memento.Core/Models/`; source folders named Models are now excepted in `.gitignore`.

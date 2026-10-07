@@ -27,7 +27,7 @@ Acceptance: a 4-hour, three-track recording completes with bounded memory; killi
 
 Delivered with two decisions: finalize always stores lossless FLAC, and a smaller AAC/MP3 choice is applied afterwards by a separate `optimize` stage that verifies the new files before removing the FLAC ones. Deferred: "Keep only the mix" is stored in Settings but not applied (separate tracks are always kept); the 4-hour real-device run moves to the M5 soak tests (M1 has a 30-minute three-track soak and the killed-process recovery check); "Import audio or video" on the empty Library arrives with M3.
 
-## M2 — Transcription and speakers (0.3.0)
+## M2 — Transcription and speakers — Done (0.3.0)
 
 - Model manager (catalog, download with SHA-256, install state, removal) and Settings › Transcription UI including model size, installed state and GPU/CPU.
 - Whisper.net stage with word timestamps and confidences, Vulkan with CPU fallback, chunked long-form processing, pause when busy / low disk, restartable with partial results.
@@ -38,6 +38,8 @@ Delivered with two decisions: finalize always stores lossless FLAC, and a smalle
 - Live transcript panel during recording (optional, rough draft).
 
 Acceptance: a 2-hour meeting transcribes end-to-end on this machine's GPU and on CPU; edits persist and survive restart; renaming a speaker updates every segment within one frame.
+
+Delivered with Whisper.net (Vulkan, then CPU) and sherpa-onnx diarization in a separate `Memento.Worker` process (one graphics-card job at a time, ended with Memento), coverage-gap notices from 10 s with "Transcribe again with another model", a filter for lines the engine repeats in a loop, per-window and per-track resume after a busy pause or a crash, and voices grouped across tracks when the expected speaker count is set. Deferred: the live transcript during recording (the Recording screen's card says it is off; the setting is stored), remembering renamed speakers across recordings (stored in Settings, not applied; with "Remember speakers by voice" in Later), and chapter suggestions from the transcript (chapters stay manual; topics are suggested locally). The 2-hour GPU and CPU runs move to the M5 soak tests; M2 was checked end to end with 2- and 3-minute real-device recordings and 5- and 13-minute files through `tools/TranscriptionCheck`.
 
 ## M3 — Details, agenda, settings, export (0.4.0)
 

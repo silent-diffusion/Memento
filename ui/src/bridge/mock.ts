@@ -535,7 +535,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   }
 
   const handlers: Handlers = {
-    'app.version': () => ({ version: '0.2.0-dev', osVersion: 'Browser preview', isDarkTheme: isDark() }),
+    'app.version': () => ({ version: '0.3.0-dev', osVersion: 'Browser preview', isDarkTheme: isDark() }),
     'app.openExternal': (params) => {
       logger.info(`[bridge:mock] would open ${params.url}`);
       return { opened: false };
