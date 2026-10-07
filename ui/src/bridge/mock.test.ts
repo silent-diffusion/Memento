@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeLogger } from './client';
 import { createMockTransport, type MockOptions } from './mock';
-import { ERROR_CODES, type BridgeError, type MethodName, type MethodParams, type MethodResult, type StageStatus } from './types';
+import { ERROR_CODES, type BridgeError, type MethodName, type MethodParams, type MethodResult } from './types';
 
 const quiet: BridgeLogger = { info: () => undefined, warn: () => undefined };
 const SAMPLE = '20261006-100000-q3plan';

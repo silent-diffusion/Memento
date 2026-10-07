@@ -11,6 +11,8 @@ interface SpokeHeaderProps {
   /** In place of the title: a title input and its controls (Record, Builder). */
   titleEditor?: ComponentChildren;
   meta?: string;
+  /** After the meta text, e.g. Review's "Reviewed" pill. */
+  metaExtra?: ComponentChildren;
   /** Right-aligned actions: ghost buttons first, the one primary action last. */
   actions?: ComponentChildren;
   /**
@@ -24,7 +26,7 @@ interface SpokeHeaderProps {
  * The spoke header (DESIGN.md §3): back control first in the tab order, a 24 px groove, the title,
  * then actions. The back control is focused when the spoke opens.
  */
-export function SpokeHeader({ backLabel, onBack, title, titleEditor, meta, actions, focusBack = true }: SpokeHeaderProps): JSX.Element {
+export function SpokeHeader({ backLabel, onBack, title, titleEditor, meta, metaExtra, actions, focusBack = true }: SpokeHeaderProps): JSX.Element {
   const back = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     // A dialog that opened with the screen (recovery at launch) keeps its focus.
@@ -42,7 +44,12 @@ export function SpokeHeader({ backLabel, onBack, title, titleEditor, meta, actio
       {titleEditor === undefined ? (
         <div class="spoke-title-block">
           <span class="spoke-title">{title}</span>
-          {meta === undefined ? null : <span class="spoke-meta">{meta}</span>}
+          {meta === undefined ? null : (
+            <span class="spoke-meta-row">
+              <span class="spoke-meta">{meta}</span>
+              {metaExtra ?? null}
+            </span>
+          )}
         </div>
       ) : (
         <div class="spoke-title-edit">{titleEditor}</div>

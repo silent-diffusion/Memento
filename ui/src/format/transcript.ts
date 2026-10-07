@@ -1,7 +1,7 @@
 // Transcript helpers (DESIGN.md §5.12, §9): where low-confidence words and search matches fall in a
 // segment's text, the playhead's segment, word re-alignment after an edit, talk-time shares, and the
 // wording of the transcript stage while it runs.
-import type { Speaker, SpeakerColour, StageStatus, TranscriptSegment, TranscriptWord } from '../bridge/types';
+import type { Speaker, SpeakerColour, StageStatus, TranscriptSegment, TranscriptVersionReason, TranscriptWord } from '../bridge/types';
 
 /** Below this a speaker assignment is shown as uncertain (dotted ring, "Speaker uncertain"). */
 export const UNCERTAIN_SPEAKER = 0.7;
@@ -306,6 +306,18 @@ export function matchCountText(current: number, count: number): string {
     return 'No matches';
   }
   return current < 0 ? `${count} ${count === 1 ? 'match' : 'matches'}` : `${current + 1} of ${count}`;
+}
+
+const VERSION_REASONS: Record<TranscriptVersionReason, string> = {
+  transcribed: 'First transcript',
+  retranscribed: 'Transcribed again',
+  edited: 'Edited by you',
+  restored: 'Restored from an earlier version',
+};
+
+/** How a kept transcript version came about, in words. */
+export function versionReasonText(reason: string): string {
+  return (VERSION_REASONS as Record<string, string | undefined>)[reason] ?? reason;
 }
 
 /** True when a host label says the stage is waiting for the PC ("Paused · PC is busy"). */

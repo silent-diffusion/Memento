@@ -2,13 +2,15 @@
 // renders/Review.dc.html.
 import { Fragment, type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Chapter, Highlight, HistoryEntry, Project, Topic } from '../../bridge/types';
+import type { Chapter, Highlight, HistoryEntry, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
 import { TagEditor } from '../../components/DetailsSheet';
-import { DocumentIcon, PencilIcon, PlusIcon } from '../../components/icons';
+import { DocumentIcon, MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
+import { ActionMenu } from '../../components/Menus';
 import { formatDuration } from '../../format/duration';
 import { activeChapterIndex, chapterInsertIndex, historyTone } from '../../format/player';
 import { typeName } from '../../format/recording';
+import { speakerColourVar, talkShare, versionReasonText } from '../../format/transcript';
 import { calendarDaysBetween, formatClock, formatShortDate, parseIso } from '../../format/when';
 
 // ---------------------------------------------------------------------------------------------
@@ -81,6 +83,10 @@ interface OutlineProps {
   onAddTopic: (label: string) => void;
   onRemoveTopic: (topic: Topic) => void;
   onRenamePerson: (index: number, name: string) => void;
+  /** The transcript's speakers once speakers are identified; null shows the participants instead. */
+  speakers: Speaker[] | null;
+  onRenameSpeaker: (speaker: Speaker, name: string) => void;
+  onMergeSpeakers: (from: Speaker, into: Speaker) => void;
 }
 
 const SPEAKER_COLOURS = ['var(--sp1)', 'var(--sp2)', 'var(--sp3)', 'var(--sp4)'] as const;
@@ -120,13 +126,99 @@ function HighlightRow({ highlight, onSeek }: { highlight: Highlight; onSeek: (ms
   );
 }
 
-export function OutlinePane({ project, positionMs, onSeek, onAddChapter, onAddTopic, onRemoveTopic, onRenamePerson }: OutlineProps): JSX.Element {
+/** People from the transcript (DESIGN.md §9): dot, name, talk-time share, rename, merge. */
+function SpeakerList({ speakers, onRename, onMerge }: { speakers: Speaker[]; onRename: OutlineProps['onRenameSpeaker']; onMerge: OutlineProps['onMergeSpeakers'] }): JSX.Element {
+  const [renaming, setRenaming] = useState<string | null>(null);
+  return (
+    <>
+      {speakers.map((speaker) => (
+        <div key={speaker.id} class="person" data-speaker-id={speaker.id}>
+          <span class="person-dot" aria-hidden="true" style={{ background: speakerColourVar(speaker.color) }} />
+          {renaming === speaker.id ? (
+            <InlineInput
+              label={`New name for ${speaker.name}`}
+              initial={speaker.name}
+              placeholder="Name"
+              class="person-input"
+              onCommit={(next) => {
+                setRenaming(null);
+                if (next !== speaker.name) {
+                  onRename(speaker, next);
+                }
+              }}
+              onCancel={() => {
+                setRenaming(null);
+              }}
+            />
+          ) : (
+            <>
+              <span class="person-name">{speaker.name}</span>
+              <span class="person-share" title="Share of talk time">
+                {talkShare(speaker, speakers)}
+              </span>
+              <button
+                class="icon-btn person-rename"
+                type="button"
+                aria-label={`Rename ${speaker.name}`}
+                onClick={() => {
+                  setRenaming(speaker.id);
+                }}
+              >
+                <PencilIcon size={13} />
+              </button>
+              {speakers.length > 1 ? (
+                <ActionMenu
+                  label={`Merge ${speaker.name} into someone else`}
+                  triggerClass="icon-btn person-rename person-merge"
+                  actions={[
+                    {
+                      label: `Merge ${speaker.name} into`,
+                      run: () => undefined,
+                      children: speakers
+                        .filter((s) => s.id !== speaker.id)
+                        .map((into) => ({
+                          label: into.name,
+                          run: () => {
+                            onMerge(speaker, into);
+                          },
+                        })),
+                    },
+                  ]}
+                >
+                  <MergeIcon size={13} />
+                </ActionMenu>
+              ) : null}
+            </>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+export function OutlinePane({
+  project,
+  positionMs,
+  onSeek,
+  onAddChapter,
+  onAddTopic,
+  onRemoveTopic,
+  onRenamePerson,
+  speakers,
+  onRenameSpeaker,
+  onMergeSpeakers,
+}: OutlineProps): JSX.Element {
   const [newChapterAt, setNewChapterAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
   const chapters = project.chapters;
   const active = activeChapterIndex(chapters, positionMs);
   const insertAt = newChapterAt === null ? -1 : chapterInsertIndex(chapters, newChapterAt);
   const people = project.details.participants;
+  const userTopics = project.topics.filter((t) => t.origin === 'user');
+  // Participants the speakers list does not already name, with their index in details.participants.
+  const hasSpeakers = speakers !== null && speakers.length > 0;
+  const speakerNames = new Set((speakers ?? []).map((s) => s.name.toLocaleLowerCase()));
+  const otherParticipants = people.map((name, i) => ({ name, i })).filter(({ name }) => !speakerNames.has(name.toLocaleLowerCase()));
 
   const newChapterRow =
     newChapterAt === null ? null : (
@@ -191,10 +283,11 @@ export function OutlinePane({ project, positionMs, onSeek, onAddChapter, onAddTo
         <span class="lbl">Topics</span>
         <TagEditor
           noun="topic"
-          tags={project.topics.map((t) => t.label)}
+          locked={project.topics.filter((t) => t.origin !== 'user').map((t) => t.label)}
+          tags={userTopics.map((t) => t.label)}
           onChange={(labels) => {
-            const added = labels.find((l) => !project.topics.some((t) => t.label === l));
-            const removed = project.topics.find((t) => !labels.includes(t.label));
+            const added = labels.find((l) => !userTopics.some((t) => t.label === l));
+            const removed = userTopics.find((t) => !labels.includes(t.label));
             if (added !== undefined) {
               onAddTopic(added);
             }
@@ -210,10 +303,17 @@ export function OutlinePane({ project, positionMs, onSeek, onAddChapter, onAddTo
           <span class="lbl">People</span>
         </div>
         <div class="outline-list">
-          {people.length === 0 ? <p class="outline-empty">No participants listed. Add them with Edit details.</p> : null}
-          {people.map((name, i) => (
+          {hasSpeakers ? (
+            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} />
+          ) : people.length === 0 ? (
+            <p class="outline-empty">No participants listed. Add them with Edit details.</p>
+          ) : null}
+          {otherParticipants.length > 0 && hasSpeakers ? (
+            <span class="outline-sub">Also listed as participants</span>
+          ) : null}
+          {(hasSpeakers ? otherParticipants : people.map((name, i) => ({ name, i }))).map(({ name, i }) => (
             <div key={`${name}-${i}`} class="person">
-              <span class="person-dot" aria-hidden="true" style={{ background: speakerColour(i) }} />
+              <span class="person-dot" aria-hidden="true" style={{ background: hasSpeakers ? 'var(--line-strong)' : speakerColour(i) }} />
               {renaming === i ? (
                 <InlineInput
                   label={`New name for ${name}`}
@@ -233,7 +333,7 @@ export function OutlinePane({ project, positionMs, onSeek, onAddChapter, onAddTo
               ) : (
                 <>
                   <span class="person-name">{name}</span>
-                  <span class="person-share" title="Talk time arrives with speaker identification">
+                  <span class="person-share" title={hasSpeakers ? 'Not matched to a speaker in the transcript' : 'Talk time appears once speakers are identified'}>
                     —
                   </span>
                   <button
@@ -282,14 +382,22 @@ export function historyWhen(iso: string, now: Date): string {
   return `${prefix} ${formatClock(date)}`;
 }
 
-function HistoryList({ history, now }: { history: HistoryEntry[]; now: Date }): JSX.Element {
+const RETRYABLE: ReadonlySet<string> = new Set<StageName>(['stored', 'transcript', 'speakers', 'minutes', 'optimize']);
+
+function HistoryList({ history, now, onRetry }: { history: HistoryEntry[]; now: Date; onRetry: (stage: StageName) => void }): JSX.Element {
   if (history.length === 0) {
     return <p class="outline-empty">Nothing has happened to this recording yet.</p>;
   }
+  // Retry belongs to a stage's latest entry only: a failure that a later pass fixed is history.
+  const latest = new Map<string, number>();
+  history.forEach((entry, i) => {
+    latest.set(entry.stage, i);
+  });
   return (
     <ol class="history">
       {history.map((entry, i) => {
         const tone = historyTone(entry);
+        const retryable = tone === 'failed' && RETRYABLE.has(entry.stage) && latest.get(entry.stage) === i;
         return (
           <li key={`${entry.at}-${i}`} class="history-item">
             <span class={`history-dot history-dot--${tone}`} aria-hidden="true" />
@@ -302,8 +410,15 @@ function HistoryList({ history, now }: { history: HistoryEntry[]; now: Date }): 
                 {historyWhen(entry.at, now)}
                 {entry.detail === null ? '' : ` · ${entry.detail}`}
               </span>
-              {tone === 'failed' ? (
-                <button class="btn link-btn history-retry" type="button" disabled title="Retry arrives in a later version">
+              {retryable ? (
+                <button
+                  class="btn link-btn history-retry"
+                  type="button"
+                  aria-label={`Retry: ${entry.summary}`}
+                  onClick={() => {
+                    onRetry(entry.stage as StageName);
+                  }}
+                >
                   Retry
                 </button>
               ) : null}
@@ -315,6 +430,70 @@ function HistoryList({ history, now }: { history: HistoryEntry[]; now: Date }): 
   );
 }
 
+/** "Transcript versions" (Details tab, shown while version history is on): earlier transcripts to restore. */
+function VersionsCard({
+  versions,
+  current,
+  keepDays,
+  now,
+  onRestore,
+}: {
+  versions: TranscriptVersion[] | null;
+  current: { version: number; engine: string; segments: number } | null;
+  keepDays: number;
+  now: Date;
+  onRestore: (version: TranscriptVersion, when: string) => void;
+}): JSX.Element {
+  return (
+    <div class="detail-group">
+      <div class="detail-head">
+        <span class="lbl">Transcript versions</span>
+        <span class="detail-caption">History on · {keepDays} days</span>
+      </div>
+      <div class="versions">
+        {current === null ? null : (
+          <div class="ver cur version-card">
+            <span class="version-title">Current · version {current.version}</span>
+            <span class="version-meta">
+              {current.engine} · {current.segments.toLocaleString('en-US')} lines
+            </span>
+          </div>
+        )}
+        {versions === null ? (
+          <span class="fact-empty">Reading versions…</span>
+        ) : versions.length === 0 ? (
+          <span class="fact-empty">No earlier versions yet. One is kept whenever the transcript is edited or replaced.</span>
+        ) : (
+          versions.map((version) => {
+            const when = historyWhen(version.at, now);
+            return (
+              <div key={version.id} class="ver version-card">
+                <span class="version-text">
+                  <span class="version-title">{versionReasonText(version.reason)}</span>
+                  <span class="version-meta">
+                    {when}
+                    {version.engine === null ? '' : ` · ${version.engine}`} · {version.segments.toLocaleString('en-US')} lines
+                  </span>
+                </span>
+                <button
+                  class="btn ghost small-btn version-restore"
+                  type="button"
+                  aria-label={`Restore the version from ${when}`}
+                  onClick={() => {
+                    onRestore(version, when);
+                  }}
+                >
+                  Restore
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface DetailsPaneProps {
   project: Project;
   tab: DetailsTab;
@@ -323,9 +502,28 @@ interface DetailsPaneProps {
   onTags: (tags: string[]) => void;
   onCreateDocument: () => void;
   now: Date;
+  onRetry: (stage: StageName) => void;
+  /** Settings › Documents › History; versions show only while it is on. */
+  history: HistorySettings | null;
+  versions: TranscriptVersion[] | null;
+  currentVersion: { version: number; engine: string; segments: number } | null;
+  onRestore: (version: TranscriptVersion, when: string) => void;
 }
 
-export function DetailsPane({ project, tab, onTab, onEditDetails, onTags, onCreateDocument, now }: DetailsPaneProps): JSX.Element {
+export function DetailsPane({
+  project,
+  tab,
+  onTab,
+  onEditDetails,
+  onTags,
+  onCreateDocument,
+  now,
+  onRetry,
+  history,
+  versions,
+  currentVersion,
+  onRestore,
+}: DetailsPaneProps): JSX.Element {
   const { details, summary, tracks } = project;
   const agenda = details.agenda;
   return (
@@ -422,6 +620,9 @@ export function DetailsPane({ project, tab, onTab, onEditDetails, onTags, onCrea
               <span class="lbl">Tags</span>
               <TagEditor tags={details.tags} onChange={onTags} />
             </div>
+            {history?.keepVersions === true && currentVersion !== null ? (
+              <VersionsCard versions={versions} current={currentVersion} keepDays={history.keepDays} now={now} onRestore={onRestore} />
+            ) : null}
             <button class="btn ghost edit-details" type="button" aria-haspopup="dialog" onClick={onEditDetails}>
               Edit details
             </button>
@@ -434,7 +635,7 @@ export function DetailsPane({ project, tab, onTab, onEditDetails, onTags, onCrea
               </span>
               <span class="docs-empty-title">No documents yet</span>
               <span class="docs-empty-text">
-                Minutes, summaries and notes are built from the transcript, which arrives with transcription in a later version.
+                Minutes, summaries and notes are built from the transcript. Creating documents arrives in a later version.
               </span>
             </div>
             <button class="btn primary docs-create" type="button" onClick={onCreateDocument}>
@@ -443,7 +644,7 @@ export function DetailsPane({ project, tab, onTab, onEditDetails, onTags, onCrea
             <p class="docs-note">Documents are saved inside this recording and can be exported on their own.</p>
           </div>
         ) : (
-          <HistoryList history={project.history} now={now} />
+          <HistoryList history={project.history} now={now} onRetry={onRetry} />
         )}
       </div>
     </aside>

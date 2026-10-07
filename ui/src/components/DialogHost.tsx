@@ -8,6 +8,7 @@ import { changeRecordingType, confirmDelete, renameRecording, resolveRecovery } 
 import { useServices } from '../state/context';
 import type { DialogRequest } from '../state/dialogs';
 import { Dialog } from './Overlay';
+import { RestoreVersionDialog, RetranscribeDialog } from './TranscriptDialogs';
 
 function DialogError({ message }: { message: string | null }): JSX.Element | null {
   return message === null ? null : (
@@ -300,6 +301,10 @@ export function DialogHost(): JSX.Element | null {
         return <ChangeTypeDialog key={request.recordingId} request={request} close={close} />;
       case 'notice':
         return <NoticeDialog key={request.title} request={request} close={close} />;
+      case 'retranscribe':
+        return <RetranscribeDialog key={request.recordingId} request={request} close={close} />;
+      case 'restoreVersion':
+        return <RestoreVersionDialog key={request.version.id} request={request} close={close} />;
     }
   }
   const recovered = store.recoveryQueue.value[0];
