@@ -112,6 +112,15 @@ public sealed class DocumentStoreAndComposerTests : IDisposable
     }
 
     [Fact]
+    public void ABuiltInWithoutTheNewerSwitchesKeepsTheirDefaults()
+    {
+        // The built-in files predate "details" and "previousDocuments".
+        Assert.True(BuiltInTemplates.MeetingMinutes.Inputs.Details);
+        Assert.False(BuiltInTemplates.MeetingMinutes.Inputs.PreviousDocuments);
+        Assert.True(M4Mapping.Selection(BuiltInTemplates.MeetingMinutes.Inputs).Details);
+    }
+
+    [Fact]
     public async Task EveryM4MethodIsRegistered()
     {
         await Task.CompletedTask;
