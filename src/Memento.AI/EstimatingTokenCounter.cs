@@ -4,7 +4,7 @@ namespace Memento.AI;
 
 /// <summary>
 /// A tokenizer-free token estimate for cloud models, calibrated to err high so a chunk budget is never exceeded:
-/// words of up to seven letters count one token and longer ones one more per five letters, digits one token per
+/// words of up to six letters count one token and longer ones one more per four letters, digits one token per
 /// three, every punctuation mark, symbol and line break one, and every character of a script without spaces (CJK)
 /// one; the sum is multiplied by the model's <see cref="Factor"/>. English prose comes out at about one token per
 /// 3.6 characters before the factor, close to modern BPE tokenizers; the factor covers tokenizers that split more
@@ -75,7 +75,7 @@ public sealed class EstimatingTokenCounter : ITokenCounter
                 }
 
                 var length = i - start;
-                raw += 1 + (Math.Max(0, length - 7) / 5.0) + (nonAscii / 2.0);
+                raw += 1 + (Math.Max(0, length - 6) / 4.0) + (nonAscii / 2.0);
                 continue;
             }
 
