@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BridgeCallError, createBridgeClient, webViewTransport, type BridgeLogger, type BridgeTransport, type WebViewMessaging } from './client';
+import { BridgeCallError, createBridgeClient, PICKER_METHODS, webViewTransport, type BridgeLogger, type BridgeTransport, type WebViewMessaging } from './client';
 import type { BridgeRequest } from './types';
 
 class FakeTransport implements BridgeTransport {
@@ -142,6 +142,18 @@ describe('bridge client timeouts', () => {
 
     transport.deliver({ id: 1, result: { recordings: [], totalDurationMs: 0 } });
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('#1'));
+  });
+
+  it('waits for the person while a picker is open', async () => {
+    const transport = new FakeTransport();
+    const client = createBridgeClient({ transport, timeoutMs: 500, logger: quietLogger() });
+
+    const call = client.call('dialog.pickFolder', { title: 'Choose where to save the copies' });
+    vi.advanceTimersByTime(60_000);
+    transport.deliver({ id: 1, result: { path: 'D:\\Copies' } });
+
+    await expect(call).resolves.toEqual({ path: 'D:\\Copies' });
+    expect(PICKER_METHODS.has('attachments.add') && PICKER_METHODS.has('agenda.importFile') && PICKER_METHODS.has('library.importMedia')).toBe(true);
   });
 
   it('clears the timer when the answer arrives', async () => {

@@ -200,7 +200,7 @@ Method codes:
 | `recording.diskFull` | `recording.start` while the library drive is too full to record; nothing was started. (A drive that fills during recording stops it through `recording.stoppedByHost`.) |
 | `recording.alreadyActive` | `recording.start` while another session is recording or paused; `detail` is that session's id. |
 
-The UI's bridge client adds two codes of its own, never sent by the host: `bridge.timeout` (no answer in time) and `bridge.sendFailed` (the request could not be posted).
+The UI's bridge client adds two codes of its own, never sent by the host: `bridge.timeout` (no answer in time: 10 s, or 30 min for the calls that can open a Windows picker and so wait for the person: `dialog.pickFolder`, `agenda.importFile`, `attachments.add` and `library.importMedia`) and `bridge.sendFailed` (the request could not be posted).
 
 ---
 

@@ -71,6 +71,13 @@ export interface BridgeClientOptions {
 
 export const DEFAULT_TIMEOUT_MS = 10_000;
 
+/**
+ * Calls that can open a Windows picker and so wait for the person, not for Memento: a folder or file chosen after ten
+ * seconds of browsing is not a host that stopped answering. They get this much longer limit instead.
+ */
+export const PICKER_METHODS: ReadonlySet<MethodName> = new Set<MethodName>(['dialog.pickFolder', 'agenda.importFile', 'attachments.add', 'library.importMedia']);
+export const PICKER_TIMEOUT_MS = 30 * 60_000;
+
 /** The messaging surface WebView2 exposes as window.chrome.webview. */
 export interface WebViewMessaging {
   postMessage(message: unknown): void;
@@ -191,17 +198,18 @@ export function createBridgeClient(options: BridgeClientOptions = {}): BridgeCli
 
   const invoke = <M extends MethodName>(method: M, params: MethodParams<M>, files: readonly File[] | null): Promise<MethodResult<M>> => {
     const id = nextId++;
+    const limitMs = PICKER_METHODS.has(method) ? Math.max(timeoutMs, PICKER_TIMEOUT_MS) : timeoutMs;
     return new Promise<MethodResult<M>>((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(
           new BridgeCallError(method, {
             code: 'bridge.timeout',
-            message: `Memento did not answer '${method}' within ${Math.round(timeoutMs / 1000)} s.`,
+            message: `Memento did not answer '${method}' within ${Math.round(limitMs / 1000)} s.`,
             detail: null,
           }),
         );
-      }, timeoutMs);
+      }, limitMs);
       pending.set(id, {
         method,
         resolve: resolve as (result: unknown) => void,
