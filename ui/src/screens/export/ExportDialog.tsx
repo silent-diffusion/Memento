@@ -87,6 +87,8 @@ function ComponentRow({ id, name, description, checked, disabled, size, onToggle
         checked={checked}
         disabled={disabled}
         aria-describedby={`${id}-desc`}
+        // Focus starts on the first thing to decide: what to include.
+        data-autofocus={id === 'exp-audio' ? true : undefined}
         onChange={() => onToggle?.()}
       />
       <label for={id} class="export-row-text">
