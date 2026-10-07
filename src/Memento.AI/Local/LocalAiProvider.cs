@@ -141,6 +141,7 @@ public sealed class LocalAiProvider : IAiProvider
         VramMarginBytes = _options.VramMarginBytes,
         SpillThresholdBytes = _options.SpillThresholdBytes,
         Threads = _options.Threads,
+        AllowCpuFallback = !string.Equals(_model.RunsOn, "gpu", StringComparison.Ordinal),
     };
 
     private static List<LocalLlmPrompt> Prompts(IReadOnlyList<AiRequest> requests)

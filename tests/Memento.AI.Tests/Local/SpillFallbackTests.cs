@@ -34,6 +34,46 @@ public sealed class SpillFallbackTests
     }
 
     [Fact]
+    public void AModelThatMayRunOnTheProcessorMovesThereWhenTheCardStillSpills()
+    {
+        var ministral = LocalModelCatalog.Find(LocalModelCatalog.Ministral3ThreeB)!;
+        var job = Job() with { Profile = ministral.Llm, AllowCpuFallback = true };
+
+        var processor = LlamaLocalLlmEngineFactory.OnProcessor(job);
+
+        Assert.NotNull(processor);
+        Assert.Equal(LocalLlmDevices.Cpu, processor.Device);
+        Assert.Equal(ministral.Llm.CpuContextTokens, processor.ContextTokens);
+        Assert.Null(LlamaLocalLlmEngineFactory.OnProcessor(Job()));
+        Assert.Null(LlamaLocalLlmEngineFactory.OnProcessor(job with { Device = LocalLlmDevices.Cpu }));
+    }
+
+    [Theory]
+    [InlineData(LocalModelCatalog.Qwen35FourB, false)]
+    [InlineData(LocalModelCatalog.Ministral3ThreeB, true)]
+    public async Task OnlyAModelThatNeedsNoGraphicsCardIsAllowedOntoTheProcessor(string modelId, bool allowed)
+    {
+        var jobs = new CapturingJobs();
+        var provider = new LocalAiProvider(LocalModelCatalog.Find(modelId)!, "model.gguf", jobs, EstimatingTokenCounter.Generic, () => null);
+
+        await Assert.ThrowsAsync<AiException>(() => provider.GenerateAsync(AiRequest.Create("map.test", "s", "u", 8), null, CancellationToken.None));
+
+        Assert.Equal(allowed, jobs.Last!.AllowCpuFallback);
+    }
+
+    /// <summary>Keeps the job a provider sends, and fails it.</summary>
+    private sealed class CapturingJobs : ILocalLlmJobClient
+    {
+        public LocalLlmJob? Last { get; private set; }
+
+        public Task<LocalLlmResult> RunAsync(LocalLlmJob job, IProgress<LocalLlmWorkerReply>? progress, CancellationToken cancellationToken)
+        {
+            Last = job;
+            throw new LocalLlmException(AiErrors.LocalFailed("Local model", job.ModelName, "test"));
+        }
+    }
+
+    [Fact]
     public void ThereIsNoRetryAtTheSmallestContextOnTheProcessorOrWithFixedLayers()
     {
         Assert.Null(LlamaLocalLlmEngineFactory.SmallerContext(Job(context: Qwen.Llm.MinContextTokens)));

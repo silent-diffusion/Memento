@@ -35,14 +35,29 @@ public sealed partial class LlamaLocalLlmEngineFactory(IGpuVramProbe vramProbe, 
         ArgumentNullException.ThrowIfNull(job);
         try
         {
-            return await LoadOnceAsync(job, progress, cancellationToken);
+            try
+            {
+                return await LoadOnceAsync(job, progress, cancellationToken);
+            }
+            catch (LocalLlmException ex) when (IsSpill(ex) && SmallerContext(job) is { } smaller)
+            {
+                LogSmallerContext(job.ModelId, smaller, ex.Error.Diagnostic ?? "-");
+                return await LoadOnceAsync(job with { ContextTokens = smaller }, progress, cancellationToken);
+            }
         }
-        catch (LocalLlmException ex) when (IsSpill(ex) && SmallerContext(job) is { } smaller)
+        catch (LocalLlmException ex) when (IsSpill(ex) && OnProcessor(job) is { } processor)
         {
-            LogSmallerContext(job.ModelId, smaller, ex.Error.Diagnostic ?? "-");
-            return await LoadOnceAsync(job with { ContextTokens = smaller }, progress, cancellationToken);
+            // Another app holds the card's memory: a model that may run on the processor does, slower, rather than fail.
+            LogOnProcessor(job.ModelId, ex.Error.Diagnostic ?? "-");
+            return await LoadOnceAsync(processor, progress, cancellationToken);
         }
     }
+
+    /// <summary>The job on the processor, for a model whose catalog entry allows it.</summary>
+    internal static LocalLlmJob? OnProcessor(LocalLlmJob job) =>
+        job.AllowCpuFallback && job.Device != LocalLlmDevices.Cpu && job.GpuLayers is null
+            ? job with { Device = LocalLlmDevices.Cpu, ContextTokens = job.Profile.CpuContextTokens }
+            : null;
 
     internal static bool IsSpill(LocalLlmException exception) =>
         exception.Code == AiErrorCodes.NotEnoughVram && exception.Error.Diagnostic?.StartsWith("sharedGrowth=", StringComparison.Ordinal) == true;
@@ -205,6 +220,9 @@ public sealed partial class LlamaLocalLlmEngineFactory(IGpuVramProbe vramProbe, 
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Local model {ModelId} spilled out of the graphics card's memory while loading ({Diagnostic}); loading again with a {Context}-token context")]
     private partial void LogSmallerContext(string modelId, int context, string diagnostic);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Local model {ModelId} spilled out of the graphics card's memory at its smallest context ({Diagnostic}); loading it on the processor")]
+    private partial void LogOnProcessor(string modelId, string diagnostic);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Local model {ModelId} on {Backend}: GPU {UseGpu}, {Layers} layers, context {Context} ({Reason})")]
     private partial void LogPlan(string modelId, string backend, bool useGpu, int layers, int context, string reason);
