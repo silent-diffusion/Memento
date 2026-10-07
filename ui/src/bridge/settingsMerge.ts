@@ -38,8 +38,17 @@ export function mergeSettings(before: SettingsSnapshot, patch: SettingsSetParams
       patch.ai == null
         ? before.ai
         : // The providers are read-only here; only ai.setKey and ai.clearKey change them.
-          { ...before.ai, ...definedFields(patch.ai), share: { ...before.ai.share, ...definedFields(patch.ai.share) }, providers: before.ai.providers },
+          {
+            ...before.ai,
+            ...definedFields(patch.ai),
+            share: { ...before.ai.share, ...definedFields(patch.ai.share) },
+            providers: before.ai.providers,
+            // M4: a null default provider clears it.
+            defaultProviderId: 'defaultProviderId' in patch.ai ? (patch.ai.defaultProviderId ?? null) : before.ai.defaultProviderId,
+          },
     storage:
       patch.storage != null && 'reclaimOlderThanDays' in patch.storage ? { reclaimOlderThanDays: patch.storage.reclaimOlderThanDays ?? null } : before.storage,
+    // M4
+    documents: { ...before.documents, ...definedFields(patch.documents) },
   };
 }

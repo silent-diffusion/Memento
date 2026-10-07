@@ -25,7 +25,7 @@ export type DialogRequest =
   /** Details sheet or Review › Details › Remove an attachment: names the file. */
   | { kind: 'removeAttachment'; recordingId: string; attachment: Attachment }
   /** Export copies (DESIGN.md §15). `retry` reopens it after a failed job with the same choices and the failure card. */
-  | { kind: 'export'; recordingId: string; retry?: ExportRetry }
+  | { kind: 'export'; recordingId: string; retry?: ExportRetry; /** M4: the Document viewer's Export ticks Documents with these. */ documentIds?: string[] }
   /** Settings › AI and privacy › Add or Replace a provider key. */
   | { kind: 'aiKey'; provider: AiProvider; replacing: boolean }
   /** Settings › General › Library location › Change: copy, verify, then delete the old folder. */

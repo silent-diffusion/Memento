@@ -62,6 +62,8 @@ export interface MockExportEnvironment {
   version: string;
   flag: ExportFlag;
   stepMs: number;
+  /** M4: the documents a recording holds; without it the Documents row has nothing to write (M3). */
+  documents?: (recordingId: string) => { id: string; name: string; sizeBytes: number }[];
 }
 
 interface Job {
@@ -147,9 +149,24 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
         add('transcript', exportFileNames.transcript(base, format), Math.max(512, segments * TRANSCRIPT_BYTES_PER_SEGMENT[format]));
       }
     }
-    // As the host: a ticked Documents row has nothing to write in this version.
-    if (selection.documents.on) {
-      unavailable.push({ component: 'documents', reason: 'Documents arrive in a later version' });
+    if (env.documents === undefined) {
+      // M3: a ticked Documents row has nothing to write.
+      if (selection.documents.on) {
+        unavailable.push({ component: 'documents', reason: 'Documents arrive in a later version' });
+      }
+    } else {
+      // M4: one file per chosen document (none chosen: all of them) in the chosen format.
+      const docs = env.documents(summary.id);
+      if (docs.length === 0) {
+        unavailable.push({ component: 'documents', reason: 'No documents yet' });
+      } else if (selection.documents.on) {
+        const chosen = selection.documents.documentIds.length === 0 ? docs : docs.filter((d) => selection.documents.documentIds.includes(d.id));
+        const format = selection.documents.format;
+        for (const doc of chosen) {
+          const bytes = format === 'markdown' ? Math.max(400, Math.round(doc.sizeBytes / 3)) : doc.sizeBytes + (format === 'pdf' ? 60_000 : 9_000);
+          items.push({ component: 'documents', name: exportFileNames.document(base, doc.name, doc.id, format), bytes, documentId: doc.id });
+        }
+      }
     }
     if (selection.details.on) {
       add('details', exportFileNames.details(base), 1_800 + project.details.agenda.items.length * 90 + project.details.participants.length * 40);

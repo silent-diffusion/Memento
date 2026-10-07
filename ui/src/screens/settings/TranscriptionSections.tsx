@@ -12,7 +12,8 @@ import { formatSize } from '../../format/storage';
 import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { ModelCards, useModels } from './ModelCards';
-import { LATER, OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
+import { DocumentDefaultsRows } from './sections-m4';
+import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
 
 function InlineMessage({ message }: { message: string | null }): JSX.Element | null {
   return message === null ? null : (
@@ -330,12 +331,8 @@ export function DocumentsSection(): JSX.Element {
   return (
     <>
       <SettingsGroup label="Defaults">
-        <SettingsRow label="Default template" description="Used when you create a document from a recording." note={LATER}>
-          <SelectMenu label="Default template" value="minutes" options={[{ value: 'minutes', label: 'Meeting minutes' }]} onChange={() => undefined} disabled />
-        </SettingsRow>
-        <SettingsRow label="Default style" description="How new documents look. Styles never change what is written." note={LATER}>
-          <SelectMenu label="Default style" value="corporate" options={[{ value: 'corporate', label: 'Corporate' }]} onChange={() => undefined} disabled />
-        </SettingsRow>
+        {/* M4: live defaults and the templates and styles manager (sections-m4.tsx). */}
+        <DocumentDefaultsRows />
       </SettingsGroup>
       <SettingsGroup label="History">
         <SettingsRow label="Keep version history" description="Previous versions of transcripts and documents can be restored.">

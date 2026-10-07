@@ -69,7 +69,9 @@ describe('M3 contract names', () => {
       'app.startupRefused',
       'ai.keyWriteFailed',
     ];
-    expect(ERROR_CODES.slice(-m3Codes.length)).toEqual(m3Codes);
+    // M4 codes follow them.
+    const start = ERROR_CODES.indexOf('agenda.fileTooLarge');
+    expect(ERROR_CODES.slice(start, start + m3Codes.length)).toEqual(m3Codes);
   });
 });
 
@@ -172,9 +174,10 @@ describe('browser-preview host: export (M3)', () => {
     expect(estimate.files).toBe(estimate.items.length + 1);
     expect(estimate.bytes).toBeGreaterThan(estimate.items.reduce((sum, i) => sum + i.bytes, 0));
     expect(estimate.unavailable).toEqual([]);
-    // As the host, a reason comes only for a ticked row.
+    // M4: the recording's documents, one file each.
     const withDocuments = await bridge.call('export.estimate', { recordingId: DESIGN, selection: { ...all, documents: { ...all.documents, on: true } } });
-    expect(withDocuments.unavailable).toEqual([{ component: 'documents', reason: 'Documents arrive in a later version' }]);
+    expect(withDocuments.unavailable).toEqual([]);
+    expect(withDocuments.items.filter((i) => i.component === 'documents').map((i) => i.documentId)).toEqual(['doc-20261005-minutes', 'doc-20261005-actions', 'doc-20261005-notes']);
     const mp3 = await bridge.call('export.estimate', {
       recordingId: DESIGN,
       selection: { ...all, audioMixed: { on: true, format: 'mp3', bitrateKbps: 192 } },

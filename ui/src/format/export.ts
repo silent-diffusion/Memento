@@ -1,6 +1,6 @@
 // Export wording and the folder an export is written to (DESIGN.md §15, BRIDGE.md M3). The host
 // names the subfolder the same way; the dialog only previews it.
-import type { AudioExportFormat, ExportComponent, ExportEstimate, ExportSelection, TranscriptExportFormat } from '../bridge/types';
+import type { AudioExportFormat, DocumentExportFormat, ExportComponent, ExportEstimate, ExportSelection, TranscriptExportFormat } from '../bridge/types';
 
 // Characters Windows does not allow in a file name, and control characters.
 // eslint-disable-next-line no-control-regex
@@ -61,6 +61,9 @@ export const exportFileNames = {
   transcript: (base: string, format: TranscriptExportFormat): string => base + TRANSCRIPT_SUFFIX[format],
   details: (base: string): string => `${base} - details.json`,
   attachment: (name: string): string => `Attachments/${name}`,
+  /** M4: "Design review - Meeting minutes.docx". */
+  document: (base: string, documentName: string, documentId: string, format: DocumentExportFormat): string =>
+    `${base} - ${safeFileStem(documentName, documentId)}.${format === 'markdown' ? 'md' : format}`,
 };
 
 /** Joins a Windows folder and a name with exactly one backslash. */
@@ -92,8 +95,8 @@ export function everythingOn(selection: ExportSelection): ExportSelection {
     audioMixed: { ...selection.audioMixed, on: true },
     tracks: { ...selection.tracks, on: true },
     transcript: { ...selection.transcript, on: true },
-    // Documents arrive in M4; nothing is exported for them in M3.
-    documents: { ...selection.documents, on: false },
+    // M4: every document, so each one's size is known.
+    documents: { ...selection.documents, on: true, documentIds: [] },
     details: { on: true },
     attachments: { on: true },
   };
@@ -129,7 +132,9 @@ export function summarise(estimate: ExportEstimate, selection: ExportSelection):
   let files = 0;
   let bytes = 0;
   for (const item of estimate.items) {
-    if (isOn(selection, item.component) && !unavailable.has(item.component)) {
+    // M4: a document's file counts only when that document is chosen (none chosen: all of them).
+    const chosen = item.documentId === undefined || selection.documents.documentIds.length === 0 || selection.documents.documentIds.includes(item.documentId);
+    if (isOn(selection, item.component) && !unavailable.has(item.component) && chosen) {
       files += 1;
       bytes += item.bytes;
     }

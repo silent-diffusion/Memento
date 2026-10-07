@@ -8,6 +8,7 @@ import { createMockSession, MockHostError } from './mockSession';
 import { createMockTranscription, type StageFlag } from './mockTranscription';
 import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
+import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
 import type {
   AnnotationOrigin,
   BridgeEventEnvelope,
@@ -58,6 +59,8 @@ export interface MockOptions {
   now?: () => number;
   /** M3 failure cases (`?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`, `?import=unsupported`, `?move=busy`). */
   m3?: Partial<M3Flags>;
+  /** M4: `?ai=off|nokey|ready|local` (starting AI settings, keys, local model) and `?gen=fail|rate` (the first generation fails). */
+  m4?: Partial<M4Flags>;
 }
 
 const STAGE_FLAGS: readonly StageFlag[] = ['done', 'queued', 'running', 'failed', 'paused'];
@@ -77,6 +80,7 @@ export function mockOptionsFromQuery(search: string): MockOptions {
     models: models === 'nospace' ? 'noSpace' : models === 'fail' ? 'network' : 'none',
     modelsInstalled: models === 'empty' ? 'none' : 'sample',
     m3: m3FlagsFromQuery(query),
+    m4: m4FlagsFromQuery(query),
   };
   if (theme === 'dark' || theme === 'light' || theme === 'system') {
     options.theme = theme;
@@ -133,7 +137,10 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet },
     history: { keepVersions: true, keepDays: 90 },
     ...defaultM3Settings(),
+    documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' },
   };
+  const m4Flags: M4Flags = { ...DEFAULT_M4_FLAGS, ...options.m4 };
+  settings = { ...settings, ...m4Settings(settings, m4Flags.ai) };
   const isDark = (): boolean => settings.theme === 'dark' || (settings.theme === 'system' && prefersDark());
 
   const projects = new Map<string, MockProject>();
@@ -278,6 +285,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     inUse: () => transcription.inUse(),
     failure: options.models ?? 'none',
     installed: options.modelsInstalled ?? 'sample',
+    alsoInstalled: m4Flags.ai === 'local' ? [MODEL_IDS.qwen] : [],
     onInstalled: () => {
       refreshEngine();
       emitFooter();
@@ -526,6 +534,27 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     version: '0.3.0-dev',
     flags: { ...DEFAULT_M3_FLAGS, ...options.m3 },
     stepMs: options.stepMs ?? 400,
+    documents: (recordingId) => m4.documents.exportable(recordingId),
+  });
+
+  // M4: modules, templates, styles, providers, generation and documents.
+  const m4 = createMockM4({
+    emit,
+    now,
+    find,
+    settings: () => settings,
+    models,
+    transcript: (recordingId) => {
+      const transcript = transcription.get(recordingId).transcript;
+      if (transcript === null) {
+        return [];
+      }
+      const names = new Map(transcript.speakers.map((sp) => [sp.id, sp.name]));
+      return transcript.segments.slice(0, 40).map((seg) => ({ t: seg.start, speaker: (seg.speaker === null ? null : names.get(seg.speaker)) ?? 'Speaker', text: seg.text }));
+    },
+    attachmentNames: (recordingId) => m3.handlers['attachments.list']({ recordingId }).attachments.map((a) => a.name),
+    flags: m4Flags,
+    stepMs: options.stepMs ?? 400,
   });
 
   const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
@@ -608,6 +637,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         ...m2,
       };
       settings = m3.mergeSettings(settings, params);
+      settings = m4.mergeSettings(settings, params);
       if (isDark() !== themeBefore) {
         emit('theme.changed', { isDark: isDark() });
       }
@@ -854,6 +884,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       speakers: engineDetail(models, settings.speakers.embeddingModelId, 'CPU', transcription.pausedReason()),
     }),
     ...m3.handlers,
+    ...m4.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

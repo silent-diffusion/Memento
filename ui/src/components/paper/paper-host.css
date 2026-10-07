@@ -1,0 +1,67 @@
+/* Where a paper sits in the app (DESIGN.md §5.18): white in both themes, radius 12, neo-card. The
+   app's own .chip and .bar rules (filter chips, progress and waveform bars) must not reach the
+   paper's chips and skeleton bars, so they are reset here; paper.css then styles them. */
+
+.paper-host {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.paper-host > .paper {
+  box-shadow: var(--neo-card);
+}
+
+.paper-host .paper .chip,
+.paper-host .paper .chip:hover,
+.paper-host .paper .chip:active {
+  height: auto;
+  box-shadow: none;
+  transform: none;
+  transition: none;
+  cursor: text;
+}
+
+.paper-host .paper .bar {
+  flex: none;
+  transition: none;
+}
+
+.paper-host .paper .sk-fill {
+  flex: 1;
+}
+
+/* The skeleton's darker bars are `.bar.d`; the app's `.d` is the destructive button (tokens.css). */
+.paper-host .paper .bar.d {
+  background: #b9b5ac !important;
+  box-shadow: none !important;
+  border-radius: 3px !important;
+  transform: none !important;
+}
+
+.paper-host .paper .bar.d.sk-node {
+  border-radius: 50% !important;
+}
+
+/* Editing in place: the caret shows where typing goes; the paper keeps its look. */
+.paper-host .paper[contenteditable='true'] {
+  outline: none;
+  cursor: text;
+}
+
+.paper-host .paper[contenteditable='true']:focus-visible {
+  box-shadow: var(--neo-card), 0 0 0 2px var(--focus);
+}
+
+.paper-host .paper a.ts,
+.paper-host .paper a.tl-t,
+.paper-host .paper a.q-t {
+  cursor: pointer;
+}
+
+.paper-host--loading {
+  min-height: 240px;
+  align-items: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
