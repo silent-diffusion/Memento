@@ -240,7 +240,9 @@ async function caseRemovable() {
     await run.page.click({ name: 'Stop and open review' }).catch(() => null);
     await sleep(8000);
     await run.shot('stopped-drive-removed');
-    run.log('after stop', (await run.text()).replace(/\s+/g, ' ').slice(0, 400));
+    const afterStop = (await run.text()).replace(/\s+/g, ' ');
+    run.log('after stop', afterStop.slice(0, 400));
+    run.check('drive gone while recording: Stop says the folder could not be reached and that everything is kept', /STOPPED/.test(afterStop) && afterStop.includes('could not be reached') && afterStop.includes('Everything recorded is kept'), afterStop.slice(0, 300));
     const toastsAfter = await toastTexts(run);
     run.log('toasts', toastsAfter.join(' | '));
     await run.app.close();
@@ -252,6 +254,9 @@ async function caseRemovable() {
     for (const id of ids) {
       const manifest = JSON.parse(execFileSync('powershell', ['-NoProfile', '-Command', `Get-Content -Raw '${join(volume, 'Memento Library', 'projects', id, 'project.json')}'`], { encoding: 'utf8' }));
       run.log('project', `${manifest.details.title}: ${manifest.state}, ${manifest.durationMs} ms, ${manifest.tracks.map((t) => `${t.id} ${t.durationMs} ms ${t.codec}`).join(', ')}`);
+      if (manifest.details.title === 'H1 drive removed while recording') {
+        run.check('drive back: the recording made while it was gone is recovered with every second', manifest.state === 'recovered' && manifest.durationMs >= (elapsed - 1) * 1000 && manifest.tracks.every((t) => t.codec === 'flac' && t.durationMs >= manifest.durationMs - 50), `${manifest.state}, ${manifest.durationMs} ms of ${elapsed} s`);
+      }
     }
     run.check('no crash report after the drive came and went', run.crashReports().length === 0, run.crashReports().join(', '));
     await run.app.close();
