@@ -80,7 +80,8 @@ export async function changeRecordingType(
   type: RecordingType,
 ): Promise<string | null> {
   try {
-    await services.bridge.call('project.updateDetails', { recordingId, details: { type } });
+    // M3: project.changeType (custom types are any name of 1 to 40 characters).
+    await services.bridge.call('project.changeType', { recordingId, type });
   } catch (error) {
     return messageOf(error);
   }
@@ -116,6 +117,11 @@ export async function updateSettings(services: AppServices, patch: SettingsSetPa
       transcription: patch.transcription ?? before.transcription,
       speakers: patch.speakers ?? before.speakers,
       history: patch.history ?? before.history,
+      // M3
+      general: patch.general ?? before.general,
+      export: patch.export ?? before.export,
+      ai: patch.ai == null ? before.ai : { ...patch.ai, providers: before.ai.providers },
+      storage: patch.storage ?? before.storage,
     };
     store.settings.value = optimistic;
   }
