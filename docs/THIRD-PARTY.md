@@ -28,6 +28,8 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | PdfPig (0.1.16: UglyToad.PdfPig and its Core, Fonts, Tokens, Tokenization, DocumentLayoutAnalysis, Package assemblies) | Apache-2.0 | Agenda import from PDF: words with their positions and fonts |
 | Adobe Core 14 font metrics (AFM data embedded in UglyToad.PdfPig.Fonts) | Adobe AFM terms: use, copy and distribute for any purpose with the copyright notices kept | Glyph widths of the standard PDF fonts; metrics data only, no font files. The product owner should confirm the notice is carried in the installer's notices. |
 | Microsoft.Windows.SDK.NET projection: `Windows.Media.Ocr`, `Windows.Graphics.Imaging` (from the `net8.0-windows10.0.19041.0` target of Memento.Documents) | MIT | Windows text recognition and image decoding for agenda photos; the OCR languages are part of Windows |
+| Microsoft.Windows.SDK.NET projection: `Windows.Data.Pdf` (same target, M3) | MIT | Renders the pages of a scanned PDF agenda (no text layer) for text recognition; the renderer is part of Windows |
+| System.Security.Cryptography.ProtectedData (8.0.0, M3) | MIT | Windows DPAPI (current-user scope) for the AI provider keys in `secrets.bin` |
 
 Shipped in the `worker\` folder beside the app (`Memento.Worker.exe`, M2; published self-contained there with its own copy of the .NET runtime, MIT):
 
