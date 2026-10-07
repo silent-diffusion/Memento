@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Memento.AI.Payload;
 
 namespace Memento.Generation.Generation;
 
@@ -6,8 +7,10 @@ namespace Memento.Generation.Generation;
 /// The deterministic final gate for every provider (ARCHITECTURE.md §8, PRODUCT-SPEC "Grounded Generation"): every claim
 /// cites a real transcript segment; nothing the verifier did not support survives; a decision whose cited line parks or
 /// postpones it is not a decision; an action item is kept only with its commitment cited; an owner or a due date is kept
-/// only when the cited span states it; a quote must be the transcript's words; participants come only from the details
-/// and the speakers. It changes claims only by dropping them or removing an owner or date it cannot trace.
+/// only when the verifier supported it and the cited span states it, and an owner only as a known person's name (a
+/// participant or a transcript speaker, written as they are written); a quote must be the transcript's words;
+/// participants come only from the details and the speakers. It changes claims only by dropping them, removing an owner
+/// or date it cannot trace, or writing an owner as the known person's name.
 /// </summary>
 public static partial class GroundingValidator
 {
@@ -18,6 +21,12 @@ public static partial class GroundingValidator
     public const string NotVerbatim = "the quote is not the transcript's words";
     public const string OwnerNotStated = "no owner is named at the cited moment";
     public const string DueNotStated = "no date is stated at the cited moment";
+
+    /// <summary>Longer than any name: an owner this long is the model writing something else.</summary>
+    public const int MaxOwnerLength = 80;
+
+    /// <summary>Longer than any spoken deadline ("by the end of next week").</summary>
+    public const int MaxDueLength = 80;
 
     private static readonly HashSet<string> DueStopWords = new(StringComparer.Ordinal)
     {
@@ -69,8 +78,10 @@ public static partial class GroundingValidator
             var spanText = string.Join(' ', span.Select(e => e.Text));
             if (claim.Owner is not null)
             {
-                var owner = NormalizeOwner(claim.Owner, people);
-                if (claim.OwnerVerdict == Verdicts.Unsupported || !OwnerInSpan(owner, span, cited.ShortId))
+                // Only a verified owner who is a known person stays, written as the details or the transcript write
+                // them: the model's own words ("Luis, send the files to …") never reach the document.
+                var owner = NormalizeOwner(claim.Owner, people.Concat(transcript.Speakers).ToList());
+                if (claim.OwnerVerdict != Verdicts.Supported || owner is null || !OwnerInSpan(owner, span, cited.ShortId))
                 {
                     claim.Notes.Add(OwnerNotStated);
                     claim.Owner = null;
@@ -81,7 +92,7 @@ public static partial class GroundingValidator
                 }
             }
 
-            if (claim.Due is not null && (claim.DueVerdict == Verdicts.Unsupported || !DueInSpan(claim.Due, spanText)))
+            if (claim.Due is not null && (claim.DueVerdict != Verdicts.Supported || claim.Due.Length > MaxDueLength || !DueInSpan(claim.Due, spanText)))
             {
                 claim.Notes.Add(DueNotStated);
                 claim.Due = null;
@@ -100,23 +111,32 @@ public static partial class GroundingValidator
     }
 
     /// <summary>
-    /// The owner as the transcript or the details write the person: an exact name, or the one known person whose first
-    /// name it is ("Luis" → "Luis Brandt"); otherwise as the model wrote it.
+    /// The owner as the transcript or the details write the person: the known person whose whole name it is (case,
+    /// punctuation and spacing ignored), or the one known person whose first name it is ("Luis" → "Luis Brandt");
+    /// otherwise <c>null</c>. Anything more than a name ("Luis, send the files to …") is no known person.
     /// </summary>
-    public static string NormalizeOwner(string owner, IReadOnlyList<string> people)
+    public static string? NormalizeOwner(string owner, IReadOnlyList<string> people)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(people);
-        var value = owner.Trim();
-        var exact = people.FirstOrDefault(p => string.Equals(p, value, StringComparison.OrdinalIgnoreCase));
+        var value = TextMatch.Normalize(owner);
+        if (value.Length == 0 || owner.Length > MaxOwnerLength)
+        {
+            return null;
+        }
+
+        var known = people.Where(p => !string.IsNullOrWhiteSpace(p) && p != PayloadComposer.UnknownSpeaker)
+            .Select(p => p.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var exact = known.FirstOrDefault(p => TextMatch.Normalize(p) == value);
         if (exact is not null)
         {
             return exact;
         }
 
-        var first = TextMatch.Normalize(value).Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        var byFirst = people.Where(p => TextMatch.Normalize(p).Split(' ').FirstOrDefault() == first).ToList();
-        return byFirst.Count == 1 ? byFirst[0] : value;
+        var byFirst = known.Where(p => TextMatch.Normalize(p).Split(' ')[0] == value).ToList();
+        return byFirst.Count == 1 ? byFirst[0] : null;
     }
 
     /// <summary>The owner is named in the span (in full or by first name), or speaks the cited line or the next one.</summary>

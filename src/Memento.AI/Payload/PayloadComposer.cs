@@ -13,7 +13,8 @@ namespace Memento.AI.Payload;
 /// </summary>
 public static partial class PayloadComposer
 {
-    private const string UnknownSpeaker = "Unknown speaker";
+    /// <summary>The label of a segment without a speaker; never a person.</summary>
+    public const string UnknownSpeaker = "Unknown speaker";
 
     public static ComposedPayload Compose(PayloadInputs inputs, PayloadSelection selection)
     {
