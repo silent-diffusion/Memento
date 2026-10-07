@@ -68,6 +68,15 @@ public sealed partial class WindowsResourceProbe(ILogger<WindowsResourceProbe> l
                     }
 
                     var dedicated = (long)desc.DedicatedVideoMemory;
+
+                    // DXGI's budget is this process's: it stays high while another app holds the card's memory. What all
+                    // processes use on the adapter bounds it (a model planned into "free" memory would spill otherwise).
+                    if (PdhAdapterMemory.DedicatedUsage(desc.LuidLowPart, desc.LuidHighPart) is { } inUse && dedicated > 0)
+                    {
+                        var left = Math.Max(0, dedicated - inUse);
+                        free = free is { } budget ? Math.Min(budget, left) : left;
+                    }
+
                     var vendor = (int)desc.VendorId;
                     var discrete = vendor == NvidiaVendorId || dedicated >= DiscreteMemoryFloor;
                     result.Add(new GpuInfo((int)i, desc.Description.Trim(), vendor, dedicated, free, discrete));

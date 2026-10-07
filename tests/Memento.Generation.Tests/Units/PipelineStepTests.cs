@@ -70,6 +70,26 @@ public sealed class PipelineStepTests
     }
 
     [Fact]
+    public void ARecapThatRestatesAPersonsTaskInFewerWordsIsTheSameTask()
+    {
+        var task = Claim(ClaimKinds.Action, "Turn version B with pricing changes into final mockups", 70, "I'll turn version B with those changes into final mockups");
+        task.Owner = "Mei Tanaka";
+        var recap = Claim(ClaimKinds.Action, "Send final pricing mockups", 115, "Mei sends final pricing mockups");
+        recap.Owner = "Mei Tanaka";
+        var sessions = Claim(ClaimKinds.Action, "Run the usability sessions", 115, "runs the usability sessions");
+        sessions.Owner = "Mei Tanaka";
+        var unowned = Claim(ClaimKinds.Action, "Send the final pricing mockups to sales", 81, "tell the sales team");
+
+        var reduced = ClaimReducer.Reduce([task, recap, sessions, unowned]);
+
+        // The recap's copy of Mei's mockups is merged; her other task, and a similar one without an owner, are not.
+        Assert.Equal(3, reduced.Count);
+        Assert.Same(recap, Assert.Single(reduced.Single(c => c.Line == 70).Alternates));
+        Assert.Contains(reduced, c => c.Text == "Run the usability sessions");
+        Assert.Contains(reduced, c => c.Line == 81);
+    }
+
+    [Fact]
     public void ADecisionWhoseLineParksItIsNotADecision()
     {
         var parked = SyntheticMeeting.Lines.Single(l => l.Text.Contains("We park the price change", StringComparison.Ordinal)).ShortId;

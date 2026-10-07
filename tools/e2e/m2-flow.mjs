@@ -33,6 +33,8 @@ const summary = { steps: [], timings: {} };
 let shotIndex = 0;
 let page;
 // Its own DevTools port (not M1's 9333), so another DevTools client on the PC cannot take over this window.
+// --no-mic: leave the microphone out of the recordings (when another app is recording it).
+const noMic = args.includes('--no-mic');
 const app = new App({ dataRoot, port: Number(option('--port', '9444')) });
 const library = () => join(app.memento, 'Library', 'projects');
 const t0 = Date.now();
@@ -236,6 +238,11 @@ async function recordAndProcessRest() {
   // 3. New recording: microphone and system audio while the speech file plays.
   await newRecording('M2 check two readers');
   await hasText('2 audio sources selected');
+  if (noMic) {
+    // Another app is recording the microphone: record system audio only (the speech file still plays through it).
+    await page.click({ role: 'switch', name: 'Microphone', exact: false });
+    await hasText('1 audio source selected');
+  }
   await shot('record-ready');
   const playback = startPlayback(play);
   await sleep(700);
@@ -243,7 +250,7 @@ async function recordAndProcessRest() {
   await hasText('RECORDING');
   await sleep(5000);
   await shot('recording');
-  log('recording', `microphone + system audio for ${seconds} s${play ? ', speech file playing' : ''}`);
+  log('recording', `${noMic ? 'system audio only' : 'microphone + system audio'} for ${seconds} s${play ? ', speech file playing' : ''}`);
   await waitElapsed(seconds);
   summary.gpuAtStop = gpuUtilisation();
   await page.click({ name: 'Stop and open review' });

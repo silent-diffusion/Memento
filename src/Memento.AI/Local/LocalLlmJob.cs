@@ -46,6 +46,18 @@ public sealed record LocalLlmJob
 
     public IReadOnlyList<LocalLlmPrompt> Prompts { get; init; } = [];
 
+    /// <summary>
+    /// Keep the model loaded after <see cref="Prompts"/> (which may be empty) and answer each further batch of prompts
+    /// with a <c>batch</c> line, until the host says <c>end</c> (one load for a whole generation).
+    /// </summary>
+    public bool Session { get; init; }
+
+    /// <summary>
+    /// The model may run on the processor (its catalog entry does not require a graphics card): when the graphics card
+    /// spills even at the smallest context, the model is loaded again with no layers on the card instead of failing.
+    /// </summary>
+    public bool AllowCpuFallback { get; init; }
+
     /// <summary>Instead of generating: count the tokens of each text with the model's tokenizer.</summary>
     public IReadOnlyList<string>? TokenizeTexts { get; init; }
 }

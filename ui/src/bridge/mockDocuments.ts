@@ -1,4 +1,4 @@
-// The browser-preview host's documents (BRIDGE-M4.md): the documents saved inside each recording,
+// The browser-preview host's documents (BRIDGE.md, M4): the documents saved inside each recording,
 // rendered in the engine's viewer markup, light edits with versions, duplicate, delete, make
 // template and single-document export. The sample "Design review" recording starts with the
 // engine's own corporate viewer snapshot (tests/Memento.Documents.Tests/fixtures/expected) as its
@@ -12,6 +12,7 @@ import { moduleInfo, type MockTemplateStore } from './mockTemplates';
 import type {
   Block,
   DocumentContent,
+  DocumentModule,
   DocumentExportFormat,
   DocumentSummary,
   DocumentVersion,
@@ -153,7 +154,7 @@ function contentOf(id: string, html: string, record: GenerationRecord | null): D
       .trim();
   const title = text(/<h1 class="paper-title">([\s\S]*?)<\/h1>/.exec(html)?.[1] ?? '');
   const meta = text(/<p class="paper-meta"[^>]*>([\s\S]*?)<\/p>/.exec(html)?.[1] ?? '');
-  const rows = [...html.matchAll(/<div class="paper-row"[^>]*>([\s\S]*?)<\/div>\n(?=<div class="paper-row"|<\/article>)/g)].map((row) => {
+  const rows = [...html.matchAll(/<div class="paper-row"[^>]*>([\s\S]*?)<\/div>\n(?=<div class="paper-row"|<\/article>)/g)].map((row, index) => {
     const blocks: Block[] = [];
     for (const section of (row[1] ?? '').matchAll(/<section[^>]*>([\s\S]*?)<\/section>/g)) {
       const body = (section[1] ?? '').replace(/<h2 class="paper-h">[\s\S]*?<\/h2>/, '');
@@ -166,9 +167,10 @@ function contentOf(id: string, html: string, record: GenerationRecord | null): D
         blocks.push({ type: 'paragraph', runs: [plainRun(text(body))] });
       }
     }
-    return { blocks };
+    const module: DocumentModule = { id: `m${String(index + 1).padStart(2, '0')}`, module: 'notes', title: '', textSize: 'normal', linkToTranscript: true, blocks };
+    return { modules: [module] };
   });
-  return { schemaVersion: 1, id, title, meta, rows, record };
+  return { schemaVersion: 1, id, title, meta, rows, record, styleId: record?.styleId ?? null, version: 1 };
 }
 
 interface WriteContext {
@@ -408,7 +410,7 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
       templateName,
       styleId,
       providerId: 'anthropic',
-      modelLabel: 'Claude Sonnet 4.5',
+      modelLabel: 'claude-opus-5-5',
       startedAt,
       durationMs,
       inputs,
@@ -416,6 +418,11 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
       payloadKept: true,
       chunks: 1,
       modules: [],
+      sent: ['Transcript', 'Recording details', 'Participants', 'Agenda'],
+      bytes: 18_400,
+      stayedOnPc: false,
+      claims: [],
+      payloadText: null,
     });
     const minutes: MockDocument = {
       summary: {
@@ -628,7 +635,8 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
     },
     versions(recordingId, documentId) {
       const doc = findDoc(recordingId, documentId);
-      return [...doc.versions].reverse().map(({ id, at, reason, changes }) => ({ id, at, reason, changes }));
+      // As the host lists them: the current content first, every entry with its version number.
+      return doc.versions.map(({ id, at, reason, changes }, i) => ({ id: i === doc.versions.length - 1 ? 'current' : id, at, reason, changes, version: i + 1 })).reverse();
     },
     restoreVersion(recordingId, documentId, versionId) {
       const doc = findDoc(recordingId, documentId);
@@ -675,6 +683,11 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
         modules: request.template.rows.flatMap((r) =>
           r.modules.filter((m) => moduleInfo(m.module).generated).map((m) => ({ moduleId: m.id, claims: 3, verified: 3, dropped: 0, notDiscussed: false })),
         ),
+        sent: ['Transcript'],
+        bytes: html.length,
+        stayedOnPc: request.providerId === 'local',
+        claims: [],
+        payloadText: null,
       };
       const at = nowIso();
       if (into !== undefined) {

@@ -33,7 +33,7 @@ public static partial class MapPrompts
         - If there are no decisions or no action items, return empty lists. Do not invent anything.
         {{{Grounding}}}
         Answer with JSON only, in this shape:
-        {"decisions":[{"decision":"...","citation":{"line":12,"quote":"..."}}],"action_items":[{"task":"...","owner":"..." or null,"due":"..." or null,"citation":{"line":12,"quote":"..."}}]}
+        {"action_items":[{"task":"...","owner":"..." or null,"due":"..." or null,"citation":{"line":12,"quote":"..."}}],"decisions":[{"decision":"...","citation":{"line":12,"quote":"..."}}]}
         """;
 
     public static string AgendaSystem => """
@@ -73,6 +73,15 @@ public static partial class MapPrompts
         _ => "what the user's instructions ask for",
     };
 
+    /// <summary>
+    /// When a section may be empty. A summary-like section that the user's instructions aim at something the excerpt does not
+    /// have ("decisions first, then risks" over a reading with no decisions) wrote nothing at all on the local model, so it
+    /// writes about what the excerpt does say; open questions and a stated purpose stay empty when there are none.
+    /// </summary>
+    public static string EmptyRule(string type) => type is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Topic or ModuleIds.Timeline or ModuleIds.CustomAi
+        ? "The user's instructions shape the section. When they ask for something this excerpt does not have (decisions, agenda items, risks), write about what the excerpt does say instead. Return an empty list only when the excerpt has no content for it at all (silence, greetings, small talk)."
+        : "If the excerpt has nothing for this section, return an empty list.";
+
     public static string PointsSystem(string type, string title, int perChunk) => $$$"""
         You write the "{{{title}}}" section of a document about a recording, from an excerpt of its transcript. {{{LineFormat}}}
         The section holds {{{PointsTask(type)}}}.
@@ -80,14 +89,31 @@ public static partial class MapPrompts
         - Write at most {{{perChunk.ToString(CultureInfo.InvariantCulture)}}} short, factual statements, one sentence each, about what this excerpt says.
         - Every statement cites the line it comes from: line is the line number and quote is copied word for word from that line (at most 20 words).
         - A proposal is not a decision; something postponed or left open is not settled.
-        - If the excerpt has nothing for this section, return an empty list.
+        - {{{EmptyRule(type)}}}
         {{{Grounding}}}
         Answer with JSON only: {"points":[{"text":"...","line":12,"quote":"..."}]}
         """;
 
+    /// <summary>
+    /// Summary-like sections that are read again as a plain summary when every chunk came back empty (see
+    /// <see cref="Build"/>'s <c>plain</c>). An executive summary or a discussion summary of minutes of speech is never
+    /// "Not discussed"; open questions, a stated purpose, a topic or a custom section may rightly be empty.
+    /// </summary>
+    public static bool ReadsAgainWhenEmpty(ModuleTask task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        return task.PointsType is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Timeline;
+    }
+
     /// <summary>The request for one task and one chunk.</summary>
     /// <param name="bounded">Add item limits to the schema (the local grammar); cloud structured outputs get the plain schema.</param>
-    public static AiRequest Build(ModuleTask task, ComposedPayload payload, TranscriptChunk chunk, int chunkCount, ModuleCatalog catalog, int maxOutputTokens, bool bounded)
+    /// <param name="plain">
+    /// For a summary-like section that came back empty from every chunk: ask for a neutral summary under the section's
+    /// title, without the section's own instructions. Over a reading of two stories, Qwen3.5 4B answered the executive
+    /// summary ("decisions first, then risks") and the discussion summary ("one paragraph per agenda item") with empty
+    /// lists, with or without a rule to write about what the excerpt does say; the neutral task found points for both.
+    /// </param>
+    public static AiRequest Build(ModuleTask task, ComposedPayload payload, TranscriptChunk chunk, int chunkCount, ModuleCatalog catalog, int maxOutputTokens, bool bounded, bool plain = false)
     {
         ArgumentNullException.ThrowIfNull(task);
         ArgumentNullException.ThrowIfNull(payload);
@@ -100,11 +126,11 @@ public static partial class MapPrompts
             ModuleTask.Quotes => (QuotesSystem, QuotesSchema(bounded), new[] { PayloadSectionKind.Highlights }),
             ModuleTask.NextMeeting => (NextMeetingSystem, NextSchema(bounded), new[] { PayloadSectionKind.Details }),
             _ => (
-                PointsSystem(task.PointsType!, task.Modules[0].ResolveTitle(catalog), ModuleTask.PerChunk(task.Length)),
-                PointsSchema(bounded ? ModuleTask.PerChunk(task.Length) : null),
+                PointsSystem(plain ? ModuleIds.Summary : task.PointsType!, task.Modules[0].ResolveTitle(catalog), task.PointsPerChunk),
+                PointsSchema(bounded ? task.PointsPerChunk : null),
                 new[] { PayloadSectionKind.Instructions, PayloadSectionKind.Details, PayloadSectionKind.Participants, PayloadSectionKind.Agenda }),
         };
-        if (task.Instructions.Length > 0)
+        if (task.Instructions.Length > 0 && !plain)
         {
             system += "\n" + UserRulesNote + "\n<section_instructions>\n" + task.Instructions + "\n</section_instructions>";
         }
@@ -116,7 +142,7 @@ public static partial class MapPrompts
         }
 
         user.Append(PayloadComposer.RenderChunk(payload, chunk, chunkCount, includeContext: false));
-        return AiRequest.Create(Purpose(task, chunk), system, user.ToString(), maxOutputTokens) with
+        return AiRequest.Create(Purpose(task, chunk) + (plain ? ".plain" : string.Empty), system, user.ToString(), maxOutputTokens) with
         {
             JsonSchema = schema,
             SchemaName = SchemaName(task),
@@ -275,9 +301,9 @@ public static partial class MapPrompts
 
     private static JsonElement CommitmentsSchema(bool bounded) => Schema("""
         {"type":"object","properties":{
-          "decisions":{"type":"array",@MAX12@"items":{"type":"object","properties":{"decision":{"type":"string"},"citation":@CITATION@},"required":["decision","citation"],"additionalProperties":false}},
-          "action_items":{"type":"array",@MAX15@"items":{"type":"object","properties":{"task":{"type":"string"},"owner":{"type":["string","null"]},"due":{"type":["string","null"]},"citation":@CITATION@},"required":["task","owner","due","citation"],"additionalProperties":false}}
-        },"required":["decisions","action_items"],"additionalProperties":false}
+          "action_items":{"type":"array",@MAX15@"items":{"type":"object","properties":{"task":{"type":"string"},"owner":{"type":["string","null"]},"due":{"type":["string","null"]},"citation":@CITATION@},"required":["task","owner","due","citation"],"additionalProperties":false}},
+          "decisions":{"type":"array",@MAX12@"items":{"type":"object","properties":{"decision":{"type":"string"},"citation":@CITATION@},"required":["decision","citation"],"additionalProperties":false}}
+        },"required":["action_items","decisions"],"additionalProperties":false}
         """, bounded, max: null);
 
     private static JsonElement AgendaSchema() => Schema("""

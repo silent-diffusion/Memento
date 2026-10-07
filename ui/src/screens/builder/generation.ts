@@ -1,4 +1,4 @@
-// Generating a document (BRIDGE-M4.md generation.*): start, the "ask before every send"
+// Generating a document (BRIDGE.md, M4: generation.*): start, the "ask before every send"
 // confirmation (DESIGN.md §5.19), generation.progress, cancel, and the §17 failure. Kept beside the
 // store so the Builder shows the same job after a round trip to the Style editor, and a job that
 // finishes while the Builder is closed still says so.
@@ -111,7 +111,7 @@ export function connectGeneration(services: AppServices): () => void {
         ],
       });
     } else if (next.phase === 'failed') {
-      store.toasts.show({ tone: 'danger', title: `${next.template.name} was not written`, body: `${next.failure ?? ''} ${NOTHING_TWICE}` });
+      store.toasts.show({ tone: 'danger', title: `${next.template.name} was not written`, body: failureWords(next.failure ?? '') });
     }
   });
 }
@@ -121,7 +121,32 @@ export const NOTHING_TWICE = 'Nothing was sent twice and no document was changed
 
 /** The host's failure with the §17 promise, unless it says it already. */
 export function failureWords(message: string): string {
-  return /sent twice/i.test(message) ? message : `${message} ${NOTHING_TWICE}`;
+  // The host's §17 copy usually says what is safe already ("Nothing left this PC and no document was changed.").
+  return /sent twice|no document was changed/i.test(message) ? message : `${message} ${NOTHING_TWICE}`;
+}
+
+/** The failure card's lead: the provider and what happened, from the failure code. */
+export function failureLead(job: Pick<ActiveGeneration, 'template' | 'provider' | 'failureCode' | 'progress'>): string {
+  const name = job.provider.kind === 'local' ? 'The local model' : job.provider.name;
+  if (job.failureCode !== null) {
+    return `The ${job.template.name.toLocaleLowerCase()} could not be started`;
+  }
+  switch (job.progress?.code) {
+    case 'ai.invalidKey':
+      return `${name} did not accept the key`;
+    case 'ai.rateLimited':
+      return `${name} is limiting requests`;
+    case 'ai.network':
+      return `${name} could not be reached`;
+    case 'ai.notEnoughVram':
+      return `${name} ran out of video memory`;
+    case 'ai.contentTooLong':
+      return `Too much for ${job.provider.kind === 'local' ? 'the local model' : name}`;
+    case 'ai.workerCrashed':
+      return `${name} stopped unexpectedly`;
+    default:
+      return `${name} didn't respond`;
+  }
 }
 
 export async function startGeneration(

@@ -241,7 +241,7 @@ function ModuleCard({ module, info, index, name, shared, selected, ghosted, disp
   const linkable = info === undefined || !['chips', 'text', 'transcript'].includes(info.shape);
   const number = String(index).padStart(2, '0');
   return (
-    <div class={['mod', selected ? 'on' : '', ghosted ? 'ghosted' : ''].filter((c) => c !== '').join(' ')} data-card={id}>
+    <div class={['mod', selected ? 'on' : '', ghosted ? 'ghosted' : '', shared ? 'mod--shared' : ''].filter((c) => c !== '').join(' ')} data-card={id}>
       <div class="mod-head">
         <span
           class="handle"

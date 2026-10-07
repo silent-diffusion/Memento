@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Memento.Core.Workers;
 using Memento.Worker;
 
@@ -34,16 +35,33 @@ if (command is not { Type: WorkerMessageTypes.Start, Job: { } job })
 }
 
 using var cancel = new CancellationTokenSource();
+var commands = Channel.CreateUnbounded<WorkerCommand>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 _ = Task.Run(async () =>
 {
-    // Further lines: "cancel". End of input means the app has gone; stop as well.
+    // Further lines: "cancel", and for a local model job that stays loaded "prompts" and "end". End of input means the
+    // app has gone; stop as well.
     try
     {
         while (await input.ReadLineAsync() is { } next)
         {
-            if (next.Contains("\"cancel\"", StringComparison.Ordinal))
+            WorkerCommand? line;
+            try
+            {
+                line = JsonSerializer.Deserialize(next, WorkerJsonContext.Default.WorkerCommand);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (line?.Type == WorkerMessageTypes.Cancel)
             {
                 break;
+            }
+
+            if (line is not null)
+            {
+                commands.Writer.TryWrite(line);
             }
         }
     }
@@ -52,6 +70,7 @@ _ = Task.Run(async () =>
         // The pipe broke: the app has gone.
     }
 
+    commands.Writer.TryComplete();
     await cancel.CancelAsync();
 });
 
@@ -69,7 +88,7 @@ try
             Type = WorkerMessageTypes.Result,
             Diarization = new SherpaDiarizer(output).Run(diarize, cancel.Token),
         },
-        WorkerJobKinds.Llm when job.Llm is { } llm => await new LlmJob(output).RunAsync(llm, cancel.Token),
+        WorkerJobKinds.Llm when job.Llm is { } llm => await new LlmJob(output).RunAsync(llm, commands.Reader, cancel.Token),
         _ => throw new WorkerFailure(WorkerErrorCodes.InvalidJob, $"Job kind '{job.Kind}' has no body or is not known."),
     };
     output.Send(result);

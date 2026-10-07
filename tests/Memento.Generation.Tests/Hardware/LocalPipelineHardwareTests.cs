@@ -51,7 +51,9 @@ public sealed class LocalPipelineHardwareTests(ITestOutputHelper output)
         var entry = LocalModelCatalog.Find(LocalModelCatalog.Qwen35FourB)!;
         var path = Path.Combine(WorkerBuild.ModelsRoot, "llama", QwenFile);
         var free = new WindowsResourceProbe(NullLogger<WindowsResourceProbe>.Instance).Sample().DiscreteGpu?.FreeVramBytes;
-        var plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, 0, Ai.ProviderRegistry.VramMarginBytes);
+        // MEMENTO_CONTEXT_TOKENS asks for a context size (the planner may still give less).
+        var askedContext = int.TryParse(Environment.GetEnvironmentVariable("MEMENTO_CONTEXT_TOKENS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var asked) ? asked : 0;
+        var plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, askedContext, Ai.ProviderRegistry.VramMarginBytes);
         var device = plan.UseGpu ? LocalLlmDevices.Gpu : LocalLlmDevices.Cpu;
         var provider = new LocalAiProvider(entry, path, new WorkerLocalLlmJobClient(workers), EstimatingTokenCounter.Generic, () => free, new LocalAiOptions { Device = device, ContextTokens = plan.ContextTokens });
         var material = SyntheticMeeting.Material();
@@ -62,15 +64,21 @@ public sealed class LocalPipelineHardwareTests(ITestOutputHelper output)
         var chunkTokens = int.TryParse(Environment.GetEnvironmentVariable("MEMENTO_CHUNK_TOKENS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var forced)
             ? forced
             : entry.Llm.ChunkTokens * plan.ContextTokens / entry.Llm.ContextTokens;
+        // MEMENTO_VERIFY_BATCH overrides the verification batch size (1: one question per request).
+        var verifyBatch = int.TryParse(Environment.GetEnvironmentVariable("MEMENTO_VERIFY_BATCH"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var batch) ? batch : GenerationPipeline.LocalVerifyBatchSize;
         var dump = Environment.GetEnvironmentVariable("MEMENTO_PIPELINE_DUMP");
         var log = new StringBuilder();
-        var input = new PipelineInput(BuiltInTemplates.MeetingMinutes, material, payload, SyntheticMeeting.AllInputs, provider, facts, chunkTokens, Math.Min(1400, plan.ContextTokens / 4), Bounded: true, BatchVerify: false)
+        var stats = new Dictionary<string, (int Count, long Prompt, long Output, double PromptMs, double GenerateMs)>(StringComparer.Ordinal);
+        var input = new PipelineInput(BuiltInTemplates.MeetingMinutes, material, payload, SyntheticMeeting.AllInputs, provider, facts, chunkTokens, Math.Min(1400, plan.ContextTokens / 4), Bounded: true, VerifyBatch: verifyBatch)
         {
-            OnResponse = dump is null ? null : (request, response) =>
+            OnResponse = (request, response) =>
             {
                 var user = request.Messages[^1].Content;
                 lock (log)
                 {
+                    var key = request.Purpose.Split('#')[0];
+                    var s = stats.GetValueOrDefault(key);
+                    stats[key] = (s.Count + 1, s.Prompt + response.Usage.InputTokens, s.Output + response.Usage.OutputTokens, s.PromptMs + (response.Timings.PromptEvaluation?.TotalMilliseconds ?? 0), s.GenerateMs + (response.Timings.Generation?.TotalMilliseconds ?? 0));
                     log.Append("===== ").Append(request.Purpose).Append(" | ").Append(response.ProviderStopReason).Append('\n')
                         .Append(user[^Math.Min(700, user.Length)..]).Append("\n--- answer ---\n").Append(response.Text).Append("\n\n");
                 }
@@ -93,10 +101,9 @@ public sealed class LocalPipelineHardwareTests(ITestOutputHelper output)
         var agenda = outcome.Rows.SelectMany(r => r.Modules).Single(m => m.Id == "m04");
         var notReached = AgendaNotReached(agenda);
 
-        // The spike's fixed verification set: each claim with the span of the truth item it is about.
-        clock.Restart();
-        var (verifiedRight, plantedCaught, trueAccepted) = await FixedVerificationAsync(provider, payload);
-        var verifySeconds = clock.Elapsed.TotalSeconds;
+        // The spike's fixed verification set: each claim with the lines of the truth item it is about and one neighbour
+        // either side, asked as the pipeline asks (and batched as it batches).
+        var verification = await FixedVerification.RunAsync(provider, payload, pad: 1, batch: verifyBatch);
 
         var report = new
         {
@@ -114,8 +121,11 @@ public sealed class LocalPipelineHardwareTests(ITestOutputHelper output)
             keptDecisionsAndActions = kept.Count,
             deferredAsDecision,
             agendaNotReached = notReached,
-            fixedVerification = $"{verifiedRight}/20 ({trueAccepted}/14 true accepted, {plantedCaught}/6 planted caught)",
-            fixedVerificationSeconds = Math.Round(verifySeconds, 1),
+            verifyBatch,
+            fixedVerification = verification.ToString(),
+            fixedVerificationSeconds = verification.Seconds,
+            fixedVerificationWrong = verification.Wrong,
+            byPurpose = stats.OrderBy(s => s.Key, StringComparer.Ordinal).Select(s => string.Create(CultureInfo.InvariantCulture, $"{s.Key}: {s.Value.Count} requests, {s.Value.Prompt} prompt / {s.Value.Output} output tokens, {s.Value.PromptMs / 1000:0.0} s reading, {s.Value.GenerateMs / 1000:0.0} s writing")),
             modules = outcome.Modules.Where(m => m.Source == "ai").Select(m => new { m.ModuleId, m.Type, m.Claims, m.Verified, m.Dropped, m.NotDiscussed }),
             keptClaims = kept.Select(c => $"{c.ModuleId} [{Memento.Documents.Model.Timecode.Format(c.T ?? 0)}] {c.Text} | owner={c.Owner} due={c.Due}"),
             dropped = outcome.Claims.Where(c => !c.Kept && c.ModuleId is "m06" or "m07").Select(c => $"{c.ModuleId} {c.Text} — {c.Note}"),
@@ -127,70 +137,17 @@ public sealed class LocalPipelineHardwareTests(ITestOutputHelper output)
 
         Assert.True(outcome.Chunks >= 1);
         Assert.Equal(BuiltInTemplates.MeetingMinutes.Modules().Count(), outcome.Rows.Sum(r => r.Modules.Count));
-        Assert.True(found.Count >= 7, $"Only {found.Count} of {truths.Count} decisions and actions were found.");
+        // The M4 integration's numbers (ENGINE-NOTES.md §J): recall 13/14, precision 1.0, the fixed set 20/20, the two
+        // undiscussed agenda items and only those not reached. Thresholds leave one claim of slack, never on false claims.
+        Assert.True(found.Count >= 13, $"Only {found.Count} of {truths.Count} decisions and actions were found (recall at least 0.9).");
+        Assert.True(kept.Count == 0 || correct / (double)kept.Count >= 0.95, $"{kept.Count - correct} of {kept.Count} kept decisions and actions are not in the ground truth.");
         Assert.Equal(0, deferredAsDecision);
-        Assert.True(verifiedRight >= 14, $"The verifier got {verifiedRight} of 20 fixed claims right.");
-    }
-
-    private static async Task<(int Right, int PlantedCaught, int TrueAccepted)> FixedVerificationAsync(LocalAiProvider provider, ComposedPayload payload)
-    {
-        var claims = new (string Claim, string Of, bool Expected)[]
-        {
-            ("Decision: Release 3.2 will ship on Thursday, November 12.", "D1", true),
-            ("Decision: Recurring invoice templates are moved out of 3.2 into 3.3.", "D2", true),
-            ("Decision: Sync conflicts will be handled with last write wins plus a conflict log.", "D3", true),
-            ("Decision: The annual-only Business plan is removed from the pricing page and a monthly/annual toggle with monthly as default is shown.", "D4", true),
-            ("Decision: The Tallyhouse integration starts with the read-only bank feed, without payment initiation.", "D5", true),
-            ("Action item: Cut the 3.3 branch and put the recurring template code behind a feature flag.", "A1", true),
-            ("Luis Brandt is the person who will do this task: Cut the 3.3 branch and put the recurring template code behind a feature flag.", "A1", true),
-            ("Action item: Deliver final pricing page mockups.", "A2", true),
-            ("Mei Tanaka is the person who will do this task: Deliver final pricing page mockups.", "A2", true),
-            ("Action item: Send the list of the top twenty offline sync tickets to Luis.", "A3", true),
-            ("The deadline stated for this task is \"by Monday\": Write the design doc for the conflict log.", "A4", true),
-            ("Action item: Email the Tallyhouse contact to confirm the read-only scope and ask for sandbox credentials.", "A5", true),
-            ("Action item: Run five usability sessions on the pricing toggle with existing customers.", "A6", true),
-            ("Action item: Update the help-center article on offline mode.", "U1", true),
-            ("Luis Brandt is the person who will do this task: Deliver the final pricing page mockups.", "A2", false),
-            ("Decision: The team decided to raise the Pro price to 19 dollars.", "F1", false),
-            ("Decision: Release 3.2 will ship on November 19.", "D1", false),
-            ("Decision: The team decided to start weekend support coverage.", "F2", false),
-            ("Sam Whitfield is the person who will do this task: Update the help-center article on offline mode.", "U1", false),
-            ("Decision: The first version of the Tallyhouse integration will include payment initiation.", "D5", false),
-        };
-        var transcript = new TranscriptIndex(payload.TranscriptLines);
-        var requests = claims.Select(c =>
-        {
-            var lines = SyntheticMeeting.LinesOf(c.Of);
-            var excerpt = new StringBuilder();
-            foreach (var id in transcript.Ids.Where(id => id >= lines[0] && id <= lines[^1]))
-            {
-                var entry = transcript.Find(id)!;
-                excerpt.Append(CultureInfo.InvariantCulture, $"[{id}] {entry.Speaker}: {entry.Text}\n");
-            }
-
-            return AiRequest.Create("verify.claim", VerifyPrompts.System, $"Excerpt:\n{excerpt.ToString().TrimEnd()}\n\nClaim: {c.Claim}", 160) with { JsonSchema = VerdictSchema, Temperature = 0 };
-        }).ToList();
-        var responses = await provider.GenerateManyAsync(requests, null, CancellationToken.None);
-        int right = 0, planted = 0, accepted = 0;
-        for (var i = 0; i < claims.Length; i++)
-        {
-            var (supported, _) = responses[i].Json is { } json ? VerifyPrompts.ParseSingle(json) : (null, null);
-            if (supported == claims[i].Expected)
-            {
-                right++;
-                planted += claims[i].Expected ? 0 : 1;
-                accepted += claims[i].Expected ? 1 : 0;
-            }
-        }
-
-        return (right, planted, accepted);
+        Assert.Equal(6, verification.PlantedCaught);
+        Assert.True(verification.Right >= 19, $"The verifier got {verification.Right} of 20 fixed claims right.");
+        Assert.Equal(SyntheticMeeting.AgendaNotDiscussed, notReached);
     }
 
     private static readonly JsonSerializerOptions ReportJson = new() { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-
-    private static readonly JsonElement VerdictSchema = JsonDocument.Parse("""
-        {"type":"object","properties":{"reason":{"type":"string"},"supported":{"type":"boolean"}},"required":["reason","supported"],"additionalProperties":false}
-        """).RootElement.Clone();
 
     private static List<int> AgendaNotReached(Memento.Documents.Model.ModuleBlock agenda)
     {

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { MockOptions } from '../../bridge/mock';
 import type { GenerationConfirmParams, GenerationPreviewParams, GenerationStartParams } from '../../bridge/types';
 import { button, click, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
-import { PREVIEW_DEBOUNCE_MS } from './BuilderScreen';
+import { PREVIEW_DEBOUNCE_MS, PROVIDER_RECHECK_MS } from './BuilderScreen';
 
 const DESIGN = '20261005-160000-dsrev';
 
@@ -200,6 +200,20 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
     expect(document.querySelector<HTMLInputElement>('.provider.on input')?.checked).toBe(true);
     expect(button('Generate minutes').disabled).toBe(false);
   });
+
+  it('asks for provider readiness again while the chosen provider is not ready', async () => {
+    // The local model is not ready while other apps hold the graphics card's memory; nothing announces when they let go.
+    await open({ m4: { ai: 'nokey' } });
+    const before = h.callsOf('providers.list').length;
+    await settle(PROVIDER_RECHECK_MS + 300);
+    expect(h.callsOf('providers.list').length).toBeGreaterThan(before);
+    h.unmount();
+
+    await open();
+    const ready = h.callsOf('providers.list').length;
+    await settle(PROVIDER_RECHECK_MS + 300);
+    expect(h.callsOf('providers.list')).toHaveLength(ready);
+  }, 20_000);
 
   it('asks before sending, shows progress, and opens the new document when it is written', async () => {
     await open();

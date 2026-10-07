@@ -137,7 +137,7 @@ export function TemplatesManager({ onClose }: { onClose: () => void }): JSX.Elem
                             Duplicate
                           </button>
                           {t.builtIn ? (
-                            <button class="btn g small-btn" type="button" aria-label={`Reset ${t.name}`} onClick={() => { run(bridge.call('templates.resetBuiltIn', { templateId: t.id }), `${t.name} is as it shipped`); }}>
+                            <button class="btn g small-btn" type="button" disabled={t.customized !== true && t.modifiedAt === null} aria-label={`Reset ${t.name}`} onClick={() => { run(bridge.call('templates.resetBuiltIn', { templateId: t.id }), `${t.name} is as it shipped`); }}>
                               Reset
                             </button>
                           ) : (
@@ -207,7 +207,7 @@ export function TemplatesManager({ onClose }: { onClose: () => void }): JSX.Elem
                             Duplicate
                           </button>
                           {s.builtIn ? (
-                            <button class="btn g small-btn" type="button" aria-label={`Reset ${s.name}`} onClick={() => { run(bridge.call('styles.resetBuiltIn', { styleId: s.id }), `${s.name} is as it shipped`); }}>
+                            <button class="btn g small-btn" type="button" disabled={s.customized !== true && s.modifiedAt === null} aria-label={`Reset ${s.name}`} onClick={() => { run(bridge.call('styles.resetBuiltIn', { styleId: s.id }), `${s.name} is as it shipped`); }}>
                               Reset
                             </button>
                           ) : (

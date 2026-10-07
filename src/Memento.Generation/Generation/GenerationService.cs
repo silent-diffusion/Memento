@@ -85,7 +85,7 @@ public sealed partial class GenerationService(
             prepared.Payload.RenderPreview(preview),
             Encoding.UTF8.GetByteCount(prepared.Payload.Text),
             prepared.Chunks,
-            M4Mapping.ToBridge(prepared.Selection),
+            M4Mapping.ToBridge(M4Mapping.Used(prepared.Selection, prepared.Payload)),
             warnings)
         {
             ProviderId = prepared.Status.Id,
@@ -163,7 +163,7 @@ public sealed partial class GenerationService(
                     prepared.Status.Id,
                     prepared.Status.Name,
                     prepared.Status.ModelLabel,
-                    M4Mapping.ToBridge(prepared.Selection),
+                    M4Mapping.ToBridge(M4Mapping.Used(prepared.Selection, prepared.Payload)),
                     Encoding.UTF8.GetByteCount(prepared.Payload.Text),
                     prepared.Chunks),
             };
@@ -270,7 +270,7 @@ public sealed partial class GenerationService(
                 status.ChunkTokens,
                 status.MapOutputTokens,
                 Bounded: !status.IsCloud,
-                BatchVerify: status.IsCloud);
+                VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize);
             var progress = new InlineProgress<PipelineProgress>(p => Publish(job, p.Stage, p.ModuleId, p.Percent, p.Message));
             var outcome = await pipeline.RunAsync(input, progress, token);
             token.ThrowIfCancellationRequested();

@@ -26,16 +26,20 @@ public sealed class DocumentsBridgeTests : IDisposable
         var again = await _host.ResultAsync("generation.start", new { recordingId = id, template, documentId });
         Assert.Equal("done", (await _host.FinishedAsync(again.GetProperty("jobId").GetString()!)).GetProperty("stage").GetString());
 
+        // The current content first (not restorable), then the kept version.
         var versions = (await _host.ResultAsync("documents.versions", new { recordingId = id, documentId })).GetProperty("versions").EnumerateArray().ToList();
-        var kept = Assert.Single(versions);
-        Assert.Equal("generated", kept.GetProperty("reason").GetString());
+        Assert.Equal(2, versions.Count);
+        Assert.Equal(("current", "regenerated", 2), (versions[0].GetProperty("id").GetString(), versions[0].GetProperty("reason").GetString(), versions[0].GetProperty("version").GetInt32()));
+        var kept = versions[1];
+        Assert.Equal(("generated", 1), (kept.GetProperty("reason").GetString(), kept.GetProperty("version").GetInt32()));
+        Assert.Equal(2, (await _host.ResultAsync("documents.list", new { recordingId = id })).GetProperty("documents")[0].GetProperty("versions").GetInt32());
         Assert.Equal(2, (await DocumentAsync(id, documentId)).GetProperty("version").GetInt32());
         Assert.Contains(_host.Providers.Local.Count == 2 ? "ok" : "no", "ok", StringComparison.Ordinal);
 
         var restored = await _host.ResultAsync("documents.restoreVersion", new { recordingId = id, documentId, versionId = kept.GetProperty("id").GetString() });
         Assert.Equal(first.GetProperty("rows").GetRawText(), restored.GetProperty("document").GetProperty("rows").GetRawText());
         var after = (await _host.ResultAsync("documents.versions", new { recordingId = id, documentId })).GetProperty("versions").EnumerateArray().Select(v => v.GetProperty("reason").GetString()).ToList();
-        Assert.Equal(["regenerated", "generated"], after);
+        Assert.Equal(["restored", "regenerated", "generated"], after);
         Assert.Contains(_host.Events("documents.changed"), e => e.GetProperty("reason").GetString() == "restored");
         Assert.Equal(DomainErrorCodes.DocumentsVersionNotFound, (await _host.ErrorAsync("documents.restoreVersion", new { recordingId = id, documentId, versionId = "20200101T000000000Z" })).GetProperty("code").GetString());
     }
@@ -56,7 +60,7 @@ public sealed class DocumentsBridgeTests : IDisposable
         Assert.Equal(2, (await _host.ResultAsync("documents.saveEdit", new { recordingId = id, documentId, html = edited })).GetProperty("version").GetInt32());
         await _host.ResultAsync("documents.saveEdit", new { recordingId = id, documentId, html = edited.Replace("Ledgerly sync, corrected", "Ledgerly sync", StringComparison.Ordinal) });
         var versions = (await _host.ResultAsync("documents.versions", new { recordingId = id, documentId })).GetProperty("versions").EnumerateArray().ToList();
-        Assert.Equal(["generated"], versions.Select(v => v.GetProperty("reason").GetString()));
+        Assert.Equal(["edited", "generated"], versions.Select(v => v.GetProperty("reason").GetString()));
 
         // The rendered paper of the saved document reads back to the same blocks (the HtmlToBlocks round trip).
         var stored = await _host.Get<ProjectDocumentStore>().LoadAsync(id, documentId, CancellationToken.None);

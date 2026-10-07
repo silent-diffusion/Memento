@@ -41,7 +41,7 @@ async function progressUntilEnd(bridge: BridgeClient, jobId: string): Promise<Ge
   return seen;
 }
 
-describe('M4 contract names (BRIDGE-M4.md)', () => {
+describe('M4 contract names (BRIDGE.md, M4 sections)', () => {
   it('lists every M4 method, event and error code in types.ts, in the contract’s order', () => {
     expect(METHOD_NAMES.slice(METHOD_NAMES.indexOf('modules.list'))).toEqual([...M4_METHODS]);
     expect(EVENT_NAMES.slice(-4)).toEqual(['generation.progress', 'documents.changed', 'templates.changed', 'styles.changed']);
@@ -68,6 +68,7 @@ describe('M4 contract names (BRIDGE-M4.md)', () => {
       'documents.notFound',
       'documents.unsupportedEdit',
       'documents.versionNotFound',
+      'documents.exportFailed',
     ]);
   });
 

@@ -38,7 +38,7 @@ public static class MetaLine
     /// <summary>"5 October 2026", for the running header.</summary>
     public static string ShortDate(DateTimeOffset at) => at.ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
 
-    /// <summary>"1 h 10 min", "42 min", "2 h", "35 s".</summary>
+    /// <summary>"1 h 10 min", "42 min", "2 h", "35 s"; minutes to the nearest one, as the Library shows them (2:58 is "3 min").</summary>
     public static string Duration(long milliseconds)
     {
         var totalSeconds = milliseconds / 1000;
@@ -47,7 +47,7 @@ public static class MetaLine
             return string.Create(CultureInfo.InvariantCulture, $"{totalSeconds} s");
         }
 
-        var totalMinutes = totalSeconds / 60;
+        var totalMinutes = (totalSeconds + 30) / 60;
         var hours = totalMinutes / 60;
         var minutes = totalMinutes % 60;
         return hours == 0

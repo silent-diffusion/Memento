@@ -223,6 +223,28 @@ public static class M4Mapping
         return new InputSelection(selection.Transcript, selection.Details, selection.Participants, selection.Agenda, selection.Highlights, selection.Attachments, selection.PreviousDocuments);
     }
 
+    /// <summary>
+    /// The inputs the payload actually holds: a ticked input with nothing in it (no participants listed, no agenda, no
+    /// highlights) is not used, so the preview's pills and the send confirmation name only what is sent. The record keeps
+    /// the ticks, which a regeneration starts from; its <c>sent</c> lines say what was read.
+    /// </summary>
+    public static PayloadSelection Used(PayloadSelection selection, ComposedPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(payload);
+        bool Has(params PayloadSectionKind[] kinds) => payload.Sections.Any(s => kinds.Contains(s.Kind));
+        return selection with
+        {
+            Transcript = selection.Transcript && Has(PayloadSectionKind.Transcript),
+            Details = selection.Details && Has(PayloadSectionKind.Details),
+            Participants = selection.Participants && Has(PayloadSectionKind.Participants),
+            Agenda = selection.Agenda && Has(PayloadSectionKind.Agenda),
+            Highlights = selection.Highlights && Has(PayloadSectionKind.Highlights, PayloadSectionKind.Notes),
+            Attachments = selection.Attachments && Has(PayloadSectionKind.Attachments),
+            PreviousDocuments = selection.PreviousDocuments && Has(PayloadSectionKind.PreviousDocuments),
+        };
+    }
+
     public static RecordInputs ToRecord(PayloadSelection selection)
     {
         ArgumentNullException.ThrowIfNull(selection);

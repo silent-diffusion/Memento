@@ -94,32 +94,79 @@ public sealed class LocalAiProvider : IAiProvider
             return [];
         }
 
+        var job = Job() with { Prompts = Prompts(requests) };
+        return await RunAsync(requests, progress, includesLoad: true, (relay, token) => _client.RunAsync(job, relay, token), cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads the model once for several batches of requests (a whole generation: one load, and the graphics card held
+    /// throughout). Nothing is loaded until the first batch; disposing the session unloads the model.
+    /// </summary>
+    /// <exception cref="AiException">The worker could not be started.</exception>
+    public async Task<LocalAiSession> OpenSessionAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return new LocalAiSession(this, await _client.OpenAsync(Job(), cancellationToken));
+        }
+        catch (LocalLlmException ex)
+        {
+            throw new AiException(ex.Error, ex);
+        }
+    }
+
+    /// <summary>One batch on an open session; the first one's answers carry the model load time.</summary>
+    internal Task<IReadOnlyList<AiResponse>> RunOnSessionAsync(ILocalLlmSession session, IReadOnlyList<AiRequest> requests, bool first, IProgress<AiProgress>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(requests);
+        if (requests.Count == 0)
+        {
+            return Task.FromResult<IReadOnlyList<AiResponse>>([]);
+        }
+
+        var prompts = Prompts(requests);
+        return RunAsync(requests, progress, first, (relay, token) => session.RunAsync(prompts, relay, token), cancellationToken);
+    }
+
+    private LocalLlmJob Job() => new()
+    {
+        ModelPath = _modelPath,
+        ModelId = _model.Id,
+        ModelName = _model.Name,
+        Profile = _model.Llm,
+        Device = _options.Device,
+        ContextTokens = _options.ContextTokens,
+        FreeVramBytes = _freeVram(),
+        VramMarginBytes = _options.VramMarginBytes,
+        SpillThresholdBytes = _options.SpillThresholdBytes,
+        Threads = _options.Threads,
+        AllowCpuFallback = !string.Equals(_model.RunsOn, "gpu", StringComparison.Ordinal),
+    };
+
+    private static List<LocalLlmPrompt> Prompts(IReadOnlyList<AiRequest> requests)
+    {
         foreach (var request in requests)
         {
             request.Validate();
         }
 
-        var started = Stopwatch.GetTimestamp();
-        var job = new LocalLlmJob
-        {
-            ModelPath = _modelPath,
-            ModelId = _model.Id,
-            ModelName = _model.Name,
-            Profile = _model.Llm,
-            Device = _options.Device,
-            ContextTokens = _options.ContextTokens,
-            FreeVramBytes = _freeVram(),
-            VramMarginBytes = _options.VramMarginBytes,
-            SpillThresholdBytes = _options.SpillThresholdBytes,
-            Threads = _options.Threads,
-            Prompts = requests.Select(ToPrompt).ToList(),
-        };
+        return requests.Select(ToPrompt).ToList();
+    }
 
+    private async Task<IReadOnlyList<AiResponse>> RunAsync(
+        IReadOnlyList<AiRequest> requests,
+        IProgress<AiProgress>? progress,
+        bool includesLoad,
+        Func<IProgress<LocalLlmWorkerReply>?, CancellationToken, Task<LocalLlmResult>> run,
+        CancellationToken cancellationToken)
+    {
+        var started = Stopwatch.GetTimestamp();
         var relay = progress is null ? null : new LocalProgressRelay(progress);
         LocalLlmResult result;
         try
         {
-            result = await _client.RunAsync(job, relay, cancellationToken);
+            result = await run(relay, cancellationToken);
         }
         catch (LocalLlmException ex)
         {
@@ -132,7 +179,7 @@ public sealed class LocalAiProvider : IAiProvider
         {
             var output = result.Outputs.FirstOrDefault(o => o.Index == i)
                 ?? throw new AiException(AiErrors.LocalFailed(DisplayName, _model.Name, "an answer is missing from the result"));
-            responses.Add(ToResponse(requests[i], output, result, total, i == 0, cancellationToken));
+            responses.Add(ToResponse(requests[i], output, result, total, includesLoad && i == 0, cancellationToken));
         }
 
         progress?.Report(new AiProgress(AiProgressStage.Done, OutputTokens: result.Outputs.Sum(o => o.OutputTokens)));

@@ -136,6 +136,14 @@ internal sealed class BlockHtmlWriter
         {
             var number = _footnotes.Count + 1;
             _footnotes.Add(new Footnote(number, t, text, Timecode.FootnoteText(t, text)));
+
+            // A generated sentence ends "… gatherings. [0:49]"; on paper the marker sits on the word before it, so the
+            // space between them goes (otherwise the line can break there and leave the marker alone on the next line).
+            if (_out.Length > 0 && _out[^1] == ' ')
+            {
+                _out.Length--;
+            }
+
             _out.Append("<sup class=\"fn\" id=\"fnref-").Append(number).Append("\"><a href=\"#fn-").Append(number).Append("\">")
                 .Append(number).Append("</a></sup>");
             return;

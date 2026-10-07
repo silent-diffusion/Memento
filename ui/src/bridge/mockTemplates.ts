@@ -1,4 +1,4 @@
-// The browser-preview host's module catalog, templates and styles (BRIDGE-M4.md): the 23 modules
+// The browser-preview host's module catalog, templates and styles (BRIDGE.md, M4): the 23 modules
 // of src/Memento.Documents/Model/Modules/ModuleCatalog.cs, the four built-in templates and three
 // built-in styles copied from the JSON resources in src/Memento.Documents/Templates and Styles,
 // CRUD with built-in protection, and styles.sampleHtml built from the host's own sample page.
@@ -133,7 +133,6 @@ const inputs = (i: Partial<InputSelection>): InputSelection => ({
   ...i,
 });
 
-const BUILT_IN_AT = '2026-10-01T09:00:00+00:00';
 
 /** src/Memento.Documents/Templates/BuiltIn/*.json in the bridge's shape (importedDocuments → attachments). */
 export function builtInTemplates(): Template[] {
@@ -165,7 +164,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'corporate',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Meeting minutes',
     },
     {
       id: 'interview-notes',
@@ -189,7 +189,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'minimal',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Interview notes',
     },
     {
       id: 'lecture-summary',
@@ -209,7 +210,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'academic',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Lecture summary',
     },
     {
       id: 'dictation-cleanup',
@@ -234,7 +236,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'minimal',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Dictation clean-up',
     },
   ];
 }
@@ -356,7 +359,7 @@ export function createMockTemplateStore(env: TemplateStoreEnvironment): MockTemp
     builtIn: true,
     settings: presets[id],
     usedByTemplates: 0,
-    modifiedAt: BUILT_IN_AT,
+    modifiedAt: null,
   }));
   const styles: Style[] = clone(builtInS);
   let counter = 0;

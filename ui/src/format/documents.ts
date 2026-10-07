@@ -3,11 +3,18 @@ import type { DocumentVersionReason, InputSelection, ProviderId, StyleSettings }
 import { formatSize } from './storage';
 import { calendarDaysBetween, formatClock, formatShortDate, parseIso } from './when';
 
-/** "Generate minutes": the last word of the template's name ("Meeting minutes", "Interview notes"). */
+/**
+ * "Generate minutes": the last word of the template's name ("Meeting minutes", "Interview notes"). Only words made of
+ * letters count, so a copy's "(copy)" or a number does not become the noun ("Meeting minutes (copy)" → "minutes").
+ */
 export function documentWord(templateName: string): string {
-  const words = templateName.trim().split(/\s+/);
-  const last = words[words.length - 1] ?? '';
-  return last === '' ? 'document' : last.toLocaleLowerCase();
+  const words = templateName
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((w) => /^\p{L}[\p{L}'’-]*$/u.test(w));
+  const last = words[words.length - 1];
+  return last === undefined ? 'document' : last.toLocaleLowerCase();
 }
 
 export const PROVIDER_SHORT: Record<ProviderId, string> = { anthropic: 'Claude', openai: 'ChatGPT', local: 'Local model' };

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Threading.Channels;
 using Memento.Core.Workers;
 using Microsoft.Extensions.Logging;
 
@@ -22,10 +23,15 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
     public const int ExitInvalidJob = 2;
     public const int ExitCancelled = 3;
 
-    /// <summary>Runs the job in this process; <paramref name="send"/> receives <c>device</c> and <c>progress</c> lines.</summary>
+    /// <summary>
+    /// Runs the job in this process; <paramref name="send"/> receives <c>device</c> and <c>progress</c> lines, and for a
+    /// job that stays loaded (<see cref="LocalLlmJob.Session"/>) a <c>batch</c> line per batch of prompts:
+    /// <see cref="LocalLlmJob.Prompts"/> first when there are any, then each batch <paramref name="nextBatch"/> returns
+    /// until it returns <c>null</c> (the host's <c>end</c>). The result of a session carries no outputs.
+    /// </summary>
     /// <exception cref="LocalLlmException">A specific failure (model missing, not enough video memory, spill, engine failure).</exception>
     /// <exception cref="OperationCanceledException">Cancelled; the model has been unloaded.</exception>
-    public async Task<LocalLlmResult> RunAsync(LocalLlmJob job, Action<LocalLlmWorkerReply>? send, CancellationToken cancellationToken)
+    public async Task<LocalLlmResult> RunAsync(LocalLlmJob job, Action<LocalLlmWorkerReply>? send, CancellationToken cancellationToken, Func<CancellationToken, Task<IReadOnlyList<LocalLlmPrompt>?>>? nextBatch = null)
     {
         ArgumentNullException.ThrowIfNull(job);
         Validate(job);
@@ -39,6 +45,25 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
         {
             var percent = progress.PromptIndex < 0 || count == 0 ? 0 : Math.Round(100.0 * progress.PromptIndex / count, 1);
             send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Progress, Percent = percent, LlmProgress = progress });
+        }
+
+        async Task<List<LocalLlmOutput>> RunPromptsAsync(ILocalLlmEngine engine, IReadOnlyList<LocalLlmPrompt> prompts)
+        {
+            count = prompts.Count;
+            var outputs = new List<LocalLlmOutput>(prompts.Count);
+            for (var i = 0; i < prompts.Count; i++)
+            {
+                var prompt = prompts[i];
+                var index = i;
+                var produced = 0;
+                Progress(new LocalLlmProgress(LocalLlmProgress.ReadingPrompt, index, count));
+                var output = await engine.GenerateAsync(index, prompt, delta => Progress(new LocalLlmProgress(LocalLlmProgress.Generating, index, count, delta, ++produced)), cancellationToken);
+                var tokensPerSecond = Math.Round(output.TokensPerSecond, 1);
+                LogGenerated(prompt.Purpose, index, output.StopReason, output.PromptTokens, output.OutputTokens, tokensPerSecond);
+                outputs.Add(output);
+            }
+
+            return outputs;
         }
 
         Progress(new LocalLlmProgress(LocalLlmProgress.Loading, -1, count));
@@ -59,20 +84,26 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             return new LocalLlmResult([], engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes, counts);
         }
 
-        var outputs = new List<LocalLlmOutput>(job.Prompts.Count);
-        for (var i = 0; i < job.Prompts.Count; i++)
+        LocalLlmResult Result(IReadOnlyList<LocalLlmOutput> outputs) =>
+            new(outputs, engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes);
+
+        if (!job.Session)
         {
-            var prompt = job.Prompts[i];
-            var index = i;
-            var produced = 0;
-            Progress(new LocalLlmProgress(LocalLlmProgress.ReadingPrompt, index, count));
-            var output = await engine.GenerateAsync(index, prompt, delta => Progress(new LocalLlmProgress(LocalLlmProgress.Generating, index, count, delta, ++produced)), cancellationToken);
-            var tokensPerSecond = Math.Round(output.TokensPerSecond, 1);
-            LogGenerated(prompt.Purpose, index, output.StopReason, output.PromptTokens, output.OutputTokens, tokensPerSecond);
-            outputs.Add(output);
+            return Result(await RunPromptsAsync(engine, job.Prompts));
         }
 
-        return new LocalLlmResult(outputs, engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes);
+        if (job.Prompts.Count > 0)
+        {
+            send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Batch, Llm = Result(await RunPromptsAsync(engine, job.Prompts)) });
+        }
+
+        while (nextBatch is not null && await nextBatch(cancellationToken) is { } prompts)
+        {
+            ValidatePrompts(prompts);
+            send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Batch, Llm = Result(await RunPromptsAsync(engine, prompts)) });
+        }
+
+        return Result([]);
     }
 
     /// <summary>The worker side of the protocol. Returns the process exit code.</summary>
@@ -112,6 +143,7 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
         }
 
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var batches = Channel.CreateUnbounded<IReadOnlyList<LocalLlmPrompt>>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         var watcher = Task.Run(
             async () =>
             {
@@ -119,9 +151,19 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
                 {
                     while (await input.ReadLineAsync(cancel.Token) is { } next)
                     {
-                        if (next.Contains("\"cancel\"", StringComparison.Ordinal))
+                        var line = ReadCommand(next);
+                        if (line?.Type == WorkerMessageTypes.Cancel)
                         {
                             break;
+                        }
+
+                        if (line?.Type == WorkerMessageTypes.Prompts && line.Llm is { } batch)
+                        {
+                            batches.Writer.TryWrite(batch.Prompts);
+                        }
+                        else if (line?.Type == WorkerMessageTypes.End)
+                        {
+                            batches.Writer.TryComplete();
                         }
                     }
                 }
@@ -134,9 +176,12 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             },
             CancellationToken.None);
 
+        async Task<IReadOnlyList<LocalLlmPrompt>?> NextBatchAsync(CancellationToken token) =>
+            await batches.Reader.WaitToReadAsync(token) && batches.Reader.TryRead(out var prompts) ? prompts : null;
+
         try
         {
-            var result = await RunAsync(job, Send, cancel.Token);
+            var result = await RunAsync(job, Send, cancel.Token, NextBatchAsync);
             Send(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Result, Llm = result });
             return ExitOk;
         }
@@ -185,16 +230,33 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             throw new ArgumentException($"No verified chat template '{job.Profile?.TemplateId}'.", nameof(job));
         }
 
-        if (job.TokenizeTexts is null && job.Prompts.Count == 0)
+        if (job.TokenizeTexts is null && job.Prompts.Count == 0 && !job.Session)
         {
             throw new ArgumentException("The job has no prompts.", nameof(job));
         }
 
-        foreach (var prompt in job.Prompts)
+        ValidatePrompts(job.Prompts);
+    }
+
+    private static LocalLlmWorkerCommand? ReadCommand(string line)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize(line, LocalLlmJsonContext.Default.LocalLlmWorkerCommand);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static void ValidatePrompts(IReadOnlyList<LocalLlmPrompt> prompts)
+    {
+        foreach (var prompt in prompts)
         {
             if (prompt.MaxTokens <= 0 || prompt.Messages.Count == 0)
             {
-                throw new ArgumentException(string.Create(CultureInfo.InvariantCulture, $"Prompt '{prompt.Purpose}' needs messages and a positive token limit."), nameof(job));
+                throw new ArgumentException(string.Create(CultureInfo.InvariantCulture, $"Prompt '{prompt.Purpose}' needs messages and a positive token limit."), nameof(prompts));
             }
         }
     }

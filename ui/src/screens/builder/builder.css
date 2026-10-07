@@ -368,7 +368,19 @@
 .mod-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  max-width: 100%;
+}
+
+/* A card that shares its row is half as wide: its settings use the card's full width, and a choice wraps under its
+   label instead of running past the card's edge. */
+.mod--shared .mod-body {
+  padding-left: 0;
+}
+
+.mod-option .seg-well {
+  max-width: 100%;
 }
 
 .mod-option-label,
@@ -384,6 +396,7 @@
 .mod-option .seg {
   height: 26px;
   font-size: 12px;
+  padding: 0 9px;
 }
 
 .add-module {
@@ -575,10 +588,12 @@
 .style-choice .seg-well {
   width: 100%;
   box-sizing: border-box;
+  flex-wrap: wrap;
 }
 
+/* Styles of your own wrap onto another line rather than running past the panel. */
 .style-choice .seg {
-  flex: 1;
+  flex: 1 1 auto;
 }
 
 .outputs {

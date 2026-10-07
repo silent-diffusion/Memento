@@ -38,6 +38,61 @@ public sealed class WorkerLocalLlmJobClientTests : IDisposable
     }
 
     [Fact]
+    public async Task ASessionLoadsTheModelOnceForEveryBatchInOneWorker()
+    {
+        var provider = Provider(LocalLlmDevices.Cpu);
+        IReadOnlyList<AiResponse> first, second;
+        var progress = new ProgressLog<AiProgress>();
+        await using (var session = await provider.OpenSessionAsync(CancellationToken.None))
+        {
+            first = await session.GenerateManyAsync([AiRequest.Create("map.decisions", "Extract.", "first", 100), AiRequest.Create("map.actions", "Extract.", "second", 100)], null, CancellationToken.None);
+            second = await session.GenerateManyAsync([AiRequest.Create("verify.batch", "Check.", "third", 100)], progress, CancellationToken.None);
+        }
+
+        Assert.Equal(2, first.Count);
+        Assert.Single(second);
+        Assert.All(first.Concat(second), r => Assert.Equal(AiStopReason.Completed, r.StopReason));
+        Assert.NotNull(first[0].Timings.ModelLoad);
+        Assert.Null(second[0].Timings.ModelLoad);
+        Assert.Contains(progress.Items, p => p.Stage == AiProgressStage.Generating);
+        Assert.Equal(1, _engines.Loads);
+        var start = Assert.Single(_launcher.FirstLines);
+        using var json = JsonDocument.Parse(start);
+        Assert.True(json.RootElement.GetProperty("job").GetProperty("llm").GetProperty("session").GetBoolean());
+        Assert.Equal(1, _engines.Disposed);
+    }
+
+    [Fact]
+    public async Task ASessionWhoseModelIsMissingFailsOnItsFirstBatchWithTheSpecificError()
+    {
+        File.Delete(_modelPath);
+        var provider = Provider(LocalLlmDevices.Cpu);
+        await using var session = await provider.OpenSessionAsync(CancellationToken.None);
+
+        var error = await Assert.ThrowsAsync<AiException>(() => session.GenerateManyAsync([AiRequest.Create("map.decisions", "Extract.", "first", 100)], null, CancellationToken.None));
+
+        Assert.Equal(AiErrorCodes.ModelNotInstalled, error.Code);
+        Assert.Equal(0, _engines.Loads);
+    }
+
+    [Fact]
+    public async Task CancellingASessionStopsTheWorker()
+    {
+        _engines.BlockUntilCancelled = true;
+        var provider = Provider(LocalLlmDevices.Cpu);
+        using var cancel = new CancellationTokenSource();
+        var session = await provider.OpenSessionAsync(cancel.Token);
+        var running = session.GenerateManyAsync([AiRequest.Create("map.decisions", "Extract.", "first", 100)], null, cancel.Token);
+        await _engines.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await cancel.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        await session.DisposeAsync();
+        Assert.Equal(1, _engines.Disposed);
+    }
+
+    [Fact]
     public async Task ABatchRoundTripsThroughCoresWorkerProtocol()
     {
         var provider = Provider(LocalLlmDevices.Cpu);

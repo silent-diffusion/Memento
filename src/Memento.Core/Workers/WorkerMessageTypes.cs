@@ -7,6 +7,12 @@ public static class WorkerMessageTypes
     public const string Start = "start";
     public const string Cancel = "cancel";
 
+    /// <summary>More prompts for a local model job that stays loaded (<see cref="WorkerCommand.Llm"/>: the prompts).</summary>
+    public const string Prompts = "prompts";
+
+    /// <summary>No more prompts: the local model job that stays loaded unloads and ends with its <c>result</c>.</summary>
+    public const string End = "end";
+
     // Worker → host.
     public const string Ready = "ready";
     public const string Device = "device";
@@ -15,6 +21,9 @@ public static class WorkerMessageTypes
 
     /// <summary>A speaker job finished one track (<see cref="WorkerReply.Diarized"/>); the host keeps it so a stopped job resumes after it.</summary>
     public const string Diarized = "diarized";
+
+    /// <summary>A local model job that stays loaded answered one <c>prompts</c> line (<see cref="WorkerReply.Llm"/>: the outputs).</summary>
+    public const string Batch = "batch";
     public const string Result = "result";
     public const string Error = "error";
     public const string Cancelled = "cancelled";

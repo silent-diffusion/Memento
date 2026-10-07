@@ -7,8 +7,8 @@ namespace Memento.Core.Tests.Bridge;
 
 /// <summary>
 /// Keeps the host's error codes and stage names in step with docs/BRIDGE.md and ui/src/bridge/types.ts, which are
-/// written by hand on both sides of the bridge. Since the M2 and M3 integrations both sides list everything, so the
-/// checks are exact.
+/// written by hand on both sides of the bridge. Since the M2, M3 and M4 integrations both sides list everything, so
+/// the checks are exact.
 /// </summary>
 public sealed partial class ContractDocumentationTests
 {
@@ -90,11 +90,18 @@ public sealed partial class ContractDocumentationTests
     {
         var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export const ERROR_CODES = [", "] as const");
 
-        // M4 lands as M2 and M3 did: a code the host added in the M4 contract after the UI's change (documents.exportFailed)
-        // is accepted until the UI lists it; every code the UI lists must be a host code.
-        var pending = M4DocumentedCodes().Except(ui, StringComparer.Ordinal).ToList();
-        var expected = HostErrorCodes().Except(pending, StringComparer.Ordinal);
-        Assert.Equal(expected.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+        Assert.Equal(HostErrorCodes().Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void EveryM4HostCodeIsInTheM4ErrorCodesSection()
+    {
+        // The M4 families, less the codes M3 introduced (ai.keyWriteFailed came with the key store).
+        string[] prefixes = ["ai.", "generation.", "templates.", "styles.", "documents."];
+        var m4 = HostErrorCodes().Where(c => prefixes.Any(p => c.StartsWith(p, StringComparison.Ordinal))).Except(M3DocumentedCodes(), StringComparer.Ordinal).ToList();
+
+        Assert.NotEmpty(m4);
+        Assert.Empty(m4.Except(M4DocumentedCodes(), StringComparer.Ordinal));
     }
 
     /// <summary>The codes in backticks in BRIDGE.md's "## Error codes (M4)" section.</summary>

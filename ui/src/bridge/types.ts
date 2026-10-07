@@ -114,6 +114,7 @@ export const ERROR_CODES = [
   'documents.notFound',
   'documents.unsupportedEdit',
   'documents.versionNotFound',
+  'documents.exportFailed',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -1426,7 +1427,7 @@ export interface StorageReclaimSettings {
 }
 
 // ---------------------------------------------------------------------------------------------
-// M4: AI, documents, templates, styles (docs/BRIDGE-M4.md)
+// M4: AI, documents, templates, styles (docs/BRIDGE.md, the M4 sections)
 // ---------------------------------------------------------------------------------------------
 
 /** The built-in module types (src/Memento.Documents/Model/Modules/ModuleIds.cs). */
@@ -1474,6 +1475,11 @@ export interface ModuleInfo {
   groundingRule: string | null;
   /** What the module contains; also the default instructions. */
   description: string;
+  /** Additive (BRIDGE.md M4): every rule, the link default, a table's columns and a label/value module's labels. */
+  groundingRules?: string[];
+  defaultLinkToTranscript?: boolean;
+  columns?: string[];
+  labels?: string[];
 }
 
 /** A module's text size relative to the style's base size. */
@@ -1512,6 +1518,7 @@ export interface InputSelection {
 export interface TemplateOutput {
   alsoExportDocx: boolean;
   alsoExportMarkdown: boolean;
+  alsoExportPdf?: boolean;
 }
 
 export interface Template {
@@ -1526,7 +1533,14 @@ export interface Template {
   providerId: ProviderId | null;
   styleId: string;
   output: TemplateOutput;
-  modifiedAt: string;
+  /** Null: a built-in never changed. */
+  modifiedAt: string | null;
+  /** "Meeting minutes": the meta line's kind and the word in "Generate {documentKind}". */
+  documentKind: string;
+  /** Whole-document instructions; never override the grounding rules. */
+  processingInstructions?: string;
+  /** A built-in with a customised copy (Reset applies). */
+  customized?: boolean;
 }
 
 export type ProviderId = 'anthropic' | 'openai' | 'local';
@@ -1542,6 +1556,12 @@ export interface ProviderInfo {
   /** Why it is not ready: "No key saved", "Model not installed", "External AI is off". */
   reason: string | null;
   modelLabel: string | null;
+  /** ai.disabled, ai.noKey, ai.modelNotInstalled or ai.notEnoughVram when not ready. */
+  code: string | null;
+  /** The DESIGN §17 sentence, or a note when ready. */
+  detail: string | null;
+  /** The local model's catalog id. */
+  modelId: string | null;
 }
 
 export type HeadingColor = 'navy' | 'ink' | 'forest' | 'burgundy';
@@ -1569,7 +1589,9 @@ export interface Style {
   builtIn: boolean;
   settings: StyleSettings;
   usedByTemplates: number;
-  modifiedAt: string;
+  /** Null: a built-in never changed. */
+  modifiedAt: string | null;
+  customized?: boolean;
 }
 
 export type DocumentKind = 'generated' | 'written';
@@ -1611,6 +1633,25 @@ export interface GenerationRecord {
   payloadKept: boolean;
   chunks: number;
   modules: GenerationModuleRecord[];
+  /** The included sections, as the preview names them: "Transcript (118 segments, 4 speakers)". */
+  sent: string[];
+  bytes: number;
+  /** True for the local model: nothing was sent. */
+  stayedOnPc: boolean;
+  claims: GenerationClaim[];
+  /** When "keep a record of what was sent" was on. */
+  payloadText: string | null;
+}
+
+/** One statement the generation checked, kept or dropped. */
+export interface GenerationClaim {
+  id: string;
+  moduleId: string;
+  text: string;
+  t: number | null;
+  verdict: 'supported' | 'unsupported' | 'notChecked';
+  kept: boolean;
+  reason: string | null;
 }
 
 export type RunKind = 'text' | 'emphasis' | 'timestamp' | 'note';
@@ -1650,8 +1691,21 @@ export interface DocumentContent {
   id: string;
   title: string;
   meta: string;
-  rows: { blocks: Block[] }[];
+  rows: { modules: DocumentModule[] }[];
   record: GenerationRecord | null;
+  styleId: string | null;
+  version: number;
+}
+
+/** One module of a document (BRIDGE.md M4 decision 1). */
+export interface DocumentModule {
+  id: string;
+  /** A ModuleId, or a type a later version added. */
+  module: string;
+  title: string;
+  textSize: TextSize;
+  linkToTranscript: boolean;
+  blocks: Block[];
 }
 
 export type GenerationStage = 'composing' | 'generating' | 'verifying' | 'rendering' | 'done' | 'failed' | 'cancelled';
@@ -1667,6 +1721,8 @@ export interface GenerationProgress {
   percent: number;
   /** Failed: what happened, in DESIGN.md §17 words. */
   message: string | null;
+  /** Failed: the error code (ai.network, ai.notEnoughVram…). */
+  code?: string | null;
 }
 
 export type DocumentVersionReason = 'generated' | 'edited' | 'restored' | 'regenerated';
@@ -1676,6 +1732,8 @@ export interface DocumentVersion {
   at: string;
   reason: DocumentVersionReason;
   changes: number;
+  /** The content's version number (the host sends it; the first entry, id "current", is what the document holds now). */
+  version?: number;
 }
 
 /** documents.changed reasons. */

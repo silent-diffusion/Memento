@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using Memento.AI.Local;
 using Memento.Core.Workers;
 
@@ -12,7 +13,8 @@ namespace Memento.Worker;
 /// </summary>
 internal sealed class LlmJob(ProtocolWriter output)
 {
-    public async Task<WorkerReply> RunAsync(JsonElement body, CancellationToken cancellationToken)
+    /// <param name="commands">The host's further lines (<c>prompts</c>, <c>end</c>) for a job that keeps the model loaded.</param>
+    public async Task<WorkerReply> RunAsync(JsonElement body, ChannelReader<WorkerCommand> commands, CancellationToken cancellationToken)
     {
         LocalLlmJob? job;
         try
@@ -35,7 +37,7 @@ internal sealed class LlmJob(ProtocolWriter output)
             new ProtocolLogger<LocalLlmJobRunner>(output));
         try
         {
-            var result = await runner.RunAsync(job, line => output.Send(ToWorker(line)), cancellationToken);
+            var result = await runner.RunAsync(job, line => output.Send(ToWorker(line)), cancellationToken, token => NextBatchAsync(commands, token));
             return new WorkerReply
             {
                 Type = WorkerMessageTypes.Result,
@@ -53,6 +55,28 @@ internal sealed class LlmJob(ProtocolWriter output)
         }
     }
 
+    /// <summary>The next <c>prompts</c> line's prompts, or <c>null</c> after <c>end</c> (or when the host has gone).</summary>
+    internal static async Task<IReadOnlyList<LocalLlmPrompt>?> NextBatchAsync(ChannelReader<WorkerCommand> commands, CancellationToken cancellationToken)
+    {
+        while (await commands.WaitToReadAsync(cancellationToken))
+        {
+            while (commands.TryRead(out var command))
+            {
+                if (command.Type == WorkerMessageTypes.End)
+                {
+                    return null;
+                }
+
+                if (command.Type == WorkerMessageTypes.Prompts && command.Llm is { ValueKind: JsonValueKind.Object } body)
+                {
+                    return body.Deserialize(LocalLlmJsonContext.Default.LocalLlmPromptBatch)?.Prompts ?? [];
+                }
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The local protocol's <c>device</c> and <c>progress</c> lines as Core worker lines.</summary>
     internal static WorkerReply ToWorker(LocalLlmWorkerReply line) => new()
     {
@@ -60,6 +84,7 @@ internal sealed class LlmJob(ProtocolWriter output)
         Percent = line.Percent,
         LlmDevice = line.LlmDevice is { } device ? JsonSerializer.SerializeToElement(device, LocalLlmJsonContext.Default.LocalLlmDeviceInfo) : null,
         LlmProgress = line.LlmProgress is { } progress ? JsonSerializer.SerializeToElement(progress, LocalLlmJsonContext.Default.LocalLlmProgress) : null,
+        Llm = line.Llm is { } batch ? JsonSerializer.SerializeToElement(batch, LocalLlmJsonContext.Default.LocalLlmResult) : null,
         Code = line.Code,
         Message = line.Message,
         Level = line.Level,

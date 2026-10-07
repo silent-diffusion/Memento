@@ -265,8 +265,22 @@ public sealed partial class DocumentService(
             return [];
         }
 
+        // The current content first (it is not a kept copy and cannot be restored), then the kept versions.
         var versions = await store.ListVersionsAsync(recordingId, documentId, cancellationToken);
-        return versions.Select(v => new DocumentVersionInfo(v.Id, v.SavedAt, v.Reason, Changes(v.Document, current), v.Document.Version)).ToList();
+        return [Current(current), .. versions.Select(v => new DocumentVersionInfo(v.Id, v.SavedAt, v.Reason, Changes(v.Document, current), v.Document.Version))];
+    }
+
+    /// <summary>The id of the current content in <c>documents.versions</c>.</summary>
+    public const string CurrentVersionId = "current";
+
+    private static DocumentVersionInfo Current(Document document)
+    {
+        var reason = document.LastChange?.Reason switch
+        {
+            DocumentChangeReasons.Generated or DocumentChangeReasons.Regenerated or DocumentChangeReasons.Restored or DocumentChangeReasons.Edited => document.LastChange.Reason,
+            _ => document.Generation is null ? DocumentChangeReasons.Edited : DocumentChangeReasons.Generated,
+        };
+        return new DocumentVersionInfo(CurrentVersionId, document.LastChange?.At ?? document.ModifiedAt, reason, 0, document.Version);
     }
 
     public async Task<DocumentRestoreResult> RestoreVersionAsync(string recordingId, string documentId, string versionId, CancellationToken cancellationToken)
@@ -381,7 +395,8 @@ public sealed partial class DocumentService(
 
     private async Task<DocumentSummary> SummaryAsync(string recordingId, Document document, CancellationToken cancellationToken)
     {
-        var versions = settings.Current.History.KeepVersions ? (await store.ListVersionsAsync(recordingId, document.Id, cancellationToken)).Count : 0;
+        // As documents.versions lists them: the current content and every kept version.
+        var versions = settings.Current.History.KeepVersions ? (await store.ListVersionsAsync(recordingId, document.Id, cancellationToken)).Count + 1 : 0;
         return M4Mapping.ToSummary(document, versions, store.SizeOf(recordingId, document.Id));
     }
 
