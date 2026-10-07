@@ -8,8 +8,9 @@ namespace Memento.App;
 /// Command-line switches for reviewers and CI:
 /// <c>--screenshot &lt;path&gt;</c> captures the page to a PNG once the UI reports ready, then exits 0;
 /// <c>--theme light|dark</c> forces the theme for this run only (nothing is saved);
-/// <c>--simulate-audio [lose-source=&lt;s&gt;,disk-full=&lt;s&gt;]</c> (hidden) records from the simulated engine,
-/// optionally unplugging the system-audio source or filling the disk after that many seconds of a session;
+/// <c>--simulate-audio [lose-source=&lt;s&gt;,disk-full=&lt;s&gt;,speed=&lt;x&gt;]</c> (hidden) records from the simulated engine,
+/// optionally unplugging the system-audio source or filling the disk after that many seconds of a session, and
+/// producing audio <c>x</c> times faster than real time (long recordings in a short test);
 /// <c>--free-space-override=&lt;bytes|file&gt;</c> (hidden, tests) makes every drive report that many free bytes, or the
 /// number written in that file, read again on every check;
 /// <c>--rollover-bytes=&lt;n&gt;</c> (hidden, tests) rolls capture tracks over to their next <c>.partN.wav</c> at
@@ -133,7 +134,8 @@ internal sealed record CommandLineOptions(
             {
                 "lose-source" => options with { LoseSourceAfter = TimeSpan.FromSeconds(seconds) },
                 "disk-full" => options with { DiskFullAfter = TimeSpan.FromSeconds(seconds) },
-                _ => throw new ArgumentException($"--simulate-audio does not know '{pair[0]}'; use lose-source or disk-full.", nameof(spec)),
+                "speed" when seconds is > 0 and <= 50 => options with { Speed = seconds },
+                _ => throw new ArgumentException($"--simulate-audio does not know '{part}'; use lose-source=<s>, disk-full=<s> or speed=<0.1–50>.", nameof(spec)),
             };
         }
 
