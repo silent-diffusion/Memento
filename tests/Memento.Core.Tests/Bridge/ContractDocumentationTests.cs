@@ -7,7 +7,8 @@ namespace Memento.Core.Tests.Bridge;
 
 /// <summary>
 /// Keeps the host's error codes and stage names in step with docs/BRIDGE.md and ui/src/bridge/types.ts, which are
-/// written by hand on both sides of the bridge.
+/// written by hand on both sides of the bridge. Since the M2 integration both sides list everything, so the checks
+/// are exact.
 /// </summary>
 public sealed partial class ContractDocumentationTests
 {
@@ -48,21 +49,7 @@ public sealed partial class ContractDocumentationTests
     [GeneratedRegex("'([^']*)'")]
     private static partial Regex QuotedLiteral();
 
-    [Fact]
-    public void RouterCodesUseTheBridgePrefix()
-    {
-        Assert.All(Constants(typeof(BridgeErrorCodes)), code => Assert.StartsWith("bridge.", code, StringComparison.Ordinal));
-        Assert.All(Constants(typeof(DomainErrorCodes)), code => Assert.DoesNotContain("bridge.", code, StringComparison.Ordinal));
-    }
-
-
-    /// <summary>What the "Clarifications (M2)" section of BRIDGE.md added after the UI landed.</summary>
-    private static readonly string[] ClarificationStages = [StageNames.Topics];
-    private static readonly string[] ClarificationCodes = [DomainErrorCodes.ModelsBusy];
-
     private static string Doc => ReadRepoFile("docs", "BRIDGE.md");
-
-    private static bool DocHasClarifications => Doc.Contains("## Clarifications (M2", StringComparison.Ordinal);
 
     /// <summary>From each <paramref name="heading"/> to the next <c>## </c> heading.</summary>
     private static string Sections(string heading)
@@ -79,50 +66,46 @@ public sealed partial class ContractDocumentationTests
     private static partial Regex BacktickedCode();
 
     [Fact]
-    public void EveryHostErrorCodeIsDocumentedInBridgeMd()
+    public void RouterCodesUseTheBridgePrefix()
     {
-        // The M0/M1 "## Error codes" section, the M2 one, and the M2 clarifications.
-        var documented = Sections("## Error codes") + Sections("## Clarifications (M2");
-        var expected = DocHasClarifications ? HostErrorCodes() : HostErrorCodes().Except(ClarificationCodes, StringComparer.Ordinal).ToList();
+        Assert.All(Constants(typeof(BridgeErrorCodes)), code => Assert.StartsWith("bridge.", code, StringComparison.Ordinal));
+        Assert.All(Constants(typeof(DomainErrorCodes)), code => Assert.DoesNotContain("bridge.", code, StringComparison.Ordinal));
+    }
 
-        Assert.All(expected, code => Assert.Contains($"`{code}`", documented, StringComparison.Ordinal));
+    [Fact]
+    public void EveryHostErrorCodeIsListedInAnErrorCodesSection()
+    {
+        // The M0/M1 "## Error codes" section and "## Error codes (M2)".
+        var documented = Sections("## Error codes");
+
+        Assert.All(HostErrorCodes(), code => Assert.Contains($"`{code}`", documented, StringComparison.Ordinal));
     }
 
     [Fact]
     public void TheUiErrorCodeListIsExactlyTheHostCodes()
     {
         var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export const ERROR_CODES = [", "] as const");
-        var expected = HostErrorCodes();
 
-        // The host and the UI land M2 in separate changes: until the UI lists the M2 codes, it must list exactly the
-        // others. Once it lists any of them, it must list them all; additions from the clarifications follow at the
-        // integration pass.
-        var m2 = M2DocumentedCodes();
-        if (!ui.Intersect(m2, StringComparer.Ordinal).Any())
-        {
-            expected = expected.Except(m2, StringComparer.Ordinal).ToList();
-        }
-
-        expected = expected.Except(ClarificationCodes.Except(ui, StringComparer.Ordinal), StringComparer.Ordinal).ToList();
-        Assert.Equal(expected.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+        Assert.Equal(HostErrorCodes().Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
     }
 
     [Fact]
     public void EveryM2CodeInBridgeMdIsAHostCode()
     {
-        Assert.Equal(M2DocumentedCodes().Order(StringComparer.Ordinal), HostErrorCodes().Intersect(M2DocumentedCodes(), StringComparer.Ordinal).Order(StringComparer.Ordinal));
+        var documented = M2DocumentedCodes();
+
+        Assert.NotEmpty(documented);
+        Assert.Empty(documented.Except(HostErrorCodes(), StringComparer.Ordinal));
     }
 
     [Fact]
-    public void TheUiStageNamesAreExactlyTheHostStages()
+    public void TheUiAndDocumentedStageNamesAreExactlyTheHostStagesInPipelineOrder()
     {
-        var types = ReadRepoFile("ui", "src", "bridge", "types.ts");
-        var ui = Literals(types, "export type StageName =", ";");
+        var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export type StageName =", ";");
         var doc = Literals(Doc, "type StageName =", ";");
         var host = Constants(typeof(StageNames));
 
-        // `topics` came with the M2 clarifications; the type lines catch up at the integration pass.
-        Assert.Equal(host.Except(ClarificationStages.Except(ui, StringComparer.Ordinal), StringComparer.Ordinal), ui);
-        Assert.Equal(host.Except(ClarificationStages.Except(doc, StringComparer.Ordinal), StringComparer.Ordinal), doc);
+        Assert.Equal(host, ui);
+        Assert.Equal(host, doc);
     }
 }

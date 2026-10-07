@@ -64,6 +64,7 @@ export const ERROR_CODES = [
   'models.notFound',
   'models.inUse',
   'models.downloadFailed',
+  'models.busy',
   'models.noSpace',
   'engine.unavailable',
 ] as const;
@@ -91,8 +92,12 @@ export type BuiltInRecordingType =
 /** A built-in type, or any other string as the name of a custom type. */
 export type RecordingType = BuiltInRecordingType | (string & Record<never, never>);
 
-/** Pipeline order. `optimize` converts the lossless files to the smaller AAC/MP3 choice, after every other stage. */
-export type StageName = 'stored' | 'transcript' | 'speakers' | 'minutes' | 'optimize';
+/**
+ * Pipeline order. `topics` is the short local keyword stage after `speakers` (a finished one is left
+ * out of rows, like `stored`); `optimize` converts the lossless files to the smaller AAC/MP3 choice,
+ * after every other stage.
+ */
+export type StageName = 'stored' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize';
 
 export type StageState = 'done' | 'active' | 'queued' | 'failed';
 
@@ -223,7 +228,7 @@ export interface Topic {
 }
 
 /** Values the host writes (BRIDGE.md, History): stored and optimize in M1; transcript, speakers and topics from M2. */
-export type HistoryStage = StageName | 'topics' | 'recorded' | 'recovered' | 'edited';
+export type HistoryStage = StageName | 'recorded' | 'recovered' | 'edited';
 
 export type HistoryEvent = 'started' | 'completed' | 'failed' | 'info';
 
@@ -328,12 +333,22 @@ export interface Transcript {
   version: number;
   /** From Settings when the transcript was made; words below it are marked. */
   lowConfidenceThreshold: number;
+  /** Stretches of 10 s or more with speech on a track but no transcript; [] when none. */
+  coverageGaps: CoverageGap[];
+}
+
+/** Speech the engine wrote nothing for (Whisper sometimes drops a passage). Seconds on the timeline. */
+export interface CoverageGap {
+  start: number;
+  end: number;
+  /** The track it was found on. */
+  track: string | null;
 }
 
 export type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
 
 export interface StageRemedy {
-  /** Passed back as processing.retry's remedyId ("cpu", "model:medium"). */
+  /** Passed back as processing.retry's remedyId: "retry", "cpu" or "model:<catalog id>". */
   id: string;
   label: string;
 }
@@ -368,7 +383,14 @@ export interface ModelInfo {
   minVramBytes: number | null;
   /** "Most accurate", "Fast on CPU". */
   accuracyNote: string;
+  /**
+   * Speaker models: `segmentation` is always needed (not a choice), `embedding` is a voice model
+   * Settings › Speakers chooses between. Null for transcription and OCR models.
+   */
+  role: ModelRole | null;
 }
+
+export type ModelRole = 'segmentation' | 'embedding';
 
 export interface EngineStatusDetail {
   ready: boolean;
@@ -380,7 +402,7 @@ export interface EngineStatusDetail {
   /** The model id in use. */
   model: string | null;
   /** Why processing is paused, in words ("PC is busy"), or null. */
-  paused: string | null;
+  paused: ProcessingPausedReason | null;
 }
 
 export interface TranscriptGetResult {
@@ -495,7 +517,7 @@ export interface TranscriptRestoreVersionResult {
 export interface ProcessingRetryParams {
   recordingId: string;
   stage: StageName;
-  /** From StageFailure.remedies ("cpu", "model:small"). */
+  /** From StageFailure.remedies: "retry", "cpu" or "model:<catalog id>" ("model:whisper-small"). */
   remedyId?: string;
 }
 
@@ -587,6 +609,7 @@ export interface TranscriptionSettings {
 
 export interface SpeakerSettings {
   identify: boolean;
+  /** "auto" or a whole number from 1 to 20; applied when one track has speech. */
   expectedSpeakers: 'auto' | number;
   rememberRenamed: boolean;
   embeddingModelId: string;
@@ -612,9 +635,9 @@ export interface SettingsSnapshot {
 }
 
 /**
- * Partial update; omitted or null fields keep their value. The UI always sends the whole
- * `recording` block when it changes any part of it, so a shallow or a deep merge on the host
- * gives the same result.
+ * Partial update; omitted or null fields keep their value. The `recording` block is replaced whole
+ * (the UI always sends all of it); the M2 blocks merge field by field, so they may carry only the
+ * fields that change.
  */
 export interface SettingsSetParams {
   theme?: ThemePreference | null;
@@ -622,10 +645,10 @@ export interface SettingsSetParams {
   libraryPath?: string | null;
   listDensity?: ListDensity | null;
   recording?: RecordingSettings | null;
-  /** M2: like `recording`, each block is replaced whole and the UI sends it whole. */
-  transcription?: TranscriptionSettings | null;
-  speakers?: SpeakerSettings | null;
-  history?: HistorySettings | null;
+  /** M2: merged field by field on the host. */
+  transcription?: Partial<TranscriptionSettings> | null;
+  speakers?: Partial<SpeakerSettings> | null;
+  history?: Partial<HistorySettings> | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -859,12 +882,18 @@ export interface FooterRecordingStatus {
   lostSource: string | null;
 }
 
+/**
+ * Why heavy processing waits: free space below the threshold, a recording or a busy processor
+ * (while "Pause when busy" is on), or processing.pause.
+ */
+export type ProcessingPausedReason = 'Low disk space' | 'PC is busy' | 'Paused by you';
+
 export interface FooterStatusPayload {
   engine: EngineStatus;
   storage: StorageStatus;
   recording: FooterRecordingStatus;
-  /** Why processing is paused, in words, or null. M1 hosts send only "Low disk space". */
-  processingPaused: string | null;
+  /** Why processing is paused, in words, or null. */
+  processingPaused: ProcessingPausedReason | null;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -2,13 +2,13 @@
 
 The host ↔ UI contract (ARCHITECTURE.md §3). Every method and event listed here exists as a C# record in `src/Memento.Core/Bridge/Contracts/` and a TypeScript type in `ui/src/bridge/types.ts`. JSON field names are camelCase. Times are ISO 8601 with offset unless the field ends in `Ms` (milliseconds, integer). Ids are opaque strings. Lists are never null; use `[]`.
 
-Status: **M0 and M1 methods and events are implemented** in the host (`src/Memento.Core/Bridge/Methods/`) and in the UI's browser-preview mock (`ui/src/bridge/mock*.ts`); this document is what both follow. `ContractSerializationTests` pins the host's JSON, and `ContractDocumentationTests` checks that every host error code and stage name is listed here and in `types.ts`.
+Status: **M0, M1 and M2 methods and events are implemented** in the host (`src/Memento.Core/Bridge/Methods/`) and in the UI's browser-preview mock (`ui/src/bridge/mock*.ts`); this document is what both follow. `ContractSerializationTests` and `M2ContractSerializationTests` pin the host's JSON, and `ContractDocumentationTests` checks that the host's error codes and stage names are exactly the ones listed here and in `types.ts`.
 
 ## Shared types
 
 ```ts
 type RecordingType = 'meeting' | 'interview' | 'presentation' | 'lecture' | 'dictation' | 'research' | 'general' | string; // any other string is a custom type name
-type StageName = 'stored' | 'transcript' | 'speakers' | 'minutes' | 'optimize'; // pipeline order
+type StageName = 'stored' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize'; // pipeline order
 type StageState = 'done' | 'active' | 'queued' | 'failed';
 interface StageStatus { stage: StageName; state: StageState; percent: number | null; /* M1: */ label: string | null; /* e.g. "64% · local GPU", "Done", "Queued", "Transcript failed" */ }
 
@@ -71,7 +71,7 @@ A project exists from `recording.start` onwards: `project.get`, `project.updateD
 
 ### Stages
 
-M1 runs two stages; M2 adds `transcript`, `speakers` and `minutes` between them.
+M1 runs two stages; M2 adds `transcript`, `speakers` and `topics` between them (`minutes`, the documents stage, arrives with M4).
 
 - `stored` — finalize: tracks to lossless FLAC, the mix, `peaks.json` and SHA-256 hashes. Runs for every recording.
 - `optimize` — only when Settings › Recording › storage asks for AAC or MP3: converts the lossless FLAC files to that smaller format, after every other stage (the transcript is always made from the lossless files). If the setting is FLAC, the stage is not listed at all. When it fails, the FLAC files are kept.
@@ -92,7 +92,14 @@ UI names (`ui/src/format/recording.ts`): done or queued pill "Stored" / "Smaller
 | `recovered` | `info` | an interrupted recording was repaired at launch |
 | `edited` | `info` | `project.updateDetails` ("Details edited") and `project.rename` ("Renamed") |
 
-From M2 the `transcript`, `speakers` and `minutes` stages write `started`, `completed` and `failed` lines too.
+From M2:
+
+| `stage` | `event`s | Written when |
+|---|---|---|
+| `transcript` | `started`, `completed`, `failed`, `info` | a pass starts (engine, model, device, tracks), ends (engine version, model, device, audio length and time, segments, words, low-confidence words, language) or fails; `info` for "Skipped <track>" (a silent track), "Speech without a transcript at 0:03–0:18" (a coverage gap, see `Transcript.coverageGaps`) and "Dropped N repeated lines" (the repeat filter, see Shared types (M2)) |
+| `speakers` | `started`, `completed`, `failed`, `info` | identification starts, ends ("Found 2 speakers", talk-time shares) or fails; `info` for "No speakers to identify" |
+| `topics` | `completed`, `failed` | local keyword topics were found, or could not be saved |
+| `edited` | `info` | also "Transcript edited", "Speaker changed", "Speaker renamed", "Speakers merged", "Transcript version restored" |
 
 ## Methods
 
@@ -102,7 +109,7 @@ From M2 the `transcript`, `speakers` and `minutes` stages write `started`, `comp
 | `app.openExternal` | `{ url }` | `{ opened }` | M0. https: or ms-settings: only |
 | `ui.ready` | `{}` | `{}` | M0 |
 | `settings.get` | `{}` | `SettingsSnapshot` | M0; M1 extends the snapshot (below) |
-| `settings.set` | `Partial<SettingsSnapshot>` (nulls keep) | `SettingsSnapshot` | M0; M1 adds fields. Top-level fields merge; the `recording` block is **replaced whole** when present (the UI always sends the full block). |
+| `settings.set` | `Partial<SettingsSnapshot>` (nulls keep) | `SettingsSnapshot` | M0; M1 adds fields. Top-level fields merge; the `recording` block is **replaced whole** when present (the UI always sends the full block). The M2 blocks `transcription`, `speakers` and `history` merge **field by field**: a field that is missing or null keeps its value. |
 | `library.list` | `{ query?: string, type?: RecordingType \| 'all', sort?: 'newest' \| 'oldest' \| 'longest' \| 'title' }` | `{ recordings: RecordingSummary[], totalDurationMs, totalCount }` | M1 adds params. `query` searches titles, people and (M2) transcripts. Result reflects the filter. |
 | `library.processing` | `{}` | `{ current: { recordingId, title, meta: RecordingSummary, stages: StageStatus[] } \| null, othersCount }` | M1. The processing card: the newest recording with a stage active or queued. `stages` lists every stage, finished `stored` and `optimize` included; `meta.stages` follows the row rule (see Stages). |
 | `project.get` | `{ recordingId }` | `Project` | M1 |
@@ -137,13 +144,13 @@ From M2 the `transcript`, `speakers` and `minutes` stages write `started`, `comp
 | Event | Payload | Notes |
 |---|---|---|
 | `theme.changed` | `{ isDark }` | M0 |
-| `status.footer` | `{ engine: { ready, device }, storage: { freeBytes, lowSpace }, /* M1: */ recording: { active: boolean, lastCheckpointAt: string \| null, lostSource: string \| null }, processingPaused: string \| null /* reason */ }` | M0, extended in M1. `processingPaused` is the reason in words, shown after "Transcription paused · ". M1 sends exactly one value, `"Low disk space"` (`FooterStatusService.LowSpaceReason`), whenever free space on the library drive is below the low-space threshold or a recording paused processing for that reason; otherwise `null`. |
+| `status.footer` | `{ engine: { ready, device, /* M2: */ detail: EngineStatusDetail }, storage: { freeBytes, lowSpace }, /* M1: */ recording: { active: boolean, lastCheckpointAt: string \| null, lostSource: string \| null }, processingPaused: string \| null /* reason */ }` | M0, extended in M1 and M2. `processingPaused` is the reason in words, shown after "Transcription paused · ": exactly one of `"Low disk space"` (free space on the library drive is below the low-space threshold, `FooterStatusService.LowSpaceReason`), `"PC is busy"` (a recording is running or the processor is busy, while "Pause when busy" is on) or `"Paused by you"` (`processing.pause`); otherwise `null`. M1 sent only the first. |
 | `recording.state` | `RecordingStatePayload = { sessionId, recordingId, state: 'recording' \| 'paused' \| 'finalizing' \| 'ready' \| 'stopped', startedAt, elapsedMs /* recorded time, excluding paused time */, tracks: Track[], lastCheckpointAt, highlightsCount }` | M1, on every change and at least every second while recording |
 | `recording.levels` | `{ sessionId, levels: { sourceId: string, rms: number /* 0..1 */, peak: number }[] }` | M1, ≤ 30 per second |
 | `recording.sourceLost` | `{ sessionId, sourceId, name, atMs, remaining: string[] }` | M1 |
 | `recording.stoppedByHost` | `{ sessionId, recordingId, reason: 'diskFull' \| 'deviceLost' \| 'error', atMs, message }` | M1 |
 | `library.changed` | `{ recordingIds: string[] }` | M1, after any project write; the UI refetches |
-| `processing.progress` | `{ recordingId, stages: StageStatus[] }` | M1. Every stage, finished ones included: `stored`, and `optimize` when the storage format is AAC or MP3; `transcript`/`speakers`/`minutes` from M2. |
+| `processing.progress` | `{ recordingId, stages: StageStatus[] }` | M1. Every stage, finished ones included: `stored`, and `optimize` when the storage format is AAC or MP3; `transcript`/`speakers`/`topics` from M2. |
 | `storage.lowSpace` | `{ freeBytes, thresholdBytes, recordingContinues: boolean, transcriptionPaused: boolean }` | M1, banner |
 
 ## Settings snapshot (M1)
@@ -197,9 +204,9 @@ The UI's bridge client adds two codes of its own, never sent by the host: `bridg
 
 ---
 
-# M2 — Transcription and speakers (contract; to be implemented)
+# M2 — Transcription and speakers (implemented in 0.3.0)
 
-Everything below is additive. Host and UI build to it from the same text; the UI's mock implements it with sample data.
+Everything below is additive. Host and UI build to it from the same text; the UI's mock implements it with sample data. The Clarifications at the end were decided after both halves landed; the sections above already say what they decided.
 
 ## Shared types (M2)
 
@@ -220,6 +227,7 @@ interface Transcript {
   speakers: Speaker[]; segments: TranscriptSegment[];
   reviewed: boolean; version: number;                                            // version increments on every write
   lowConfidenceThreshold: number;                                                // from settings at generation time
+  coverageGaps: { start: number; end: number; track: string | null }[];          // seconds; speech without a transcript, [] when none
 }
 type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
 interface StageFailure { stage: StageName; message: string; kept: string; remedies: { id: string; label: string }[] }   // DESIGN §17 copy: what failed, what was kept, most specific fix first
@@ -227,35 +235,41 @@ interface ModelInfo {
   id: string; engine: 'transcription' | 'speakers' | 'ocr'; name: string; description: string;
   sizeBytes: number; license: string; installed: boolean; installing: { percent: number; bytesDone: number } | null;
   recommended: boolean; runsOn: 'gpu' | 'cpu' | 'either'; minVramBytes: number | null; accuracyNote: string;   // "Most accurate", "Fast on CPU"
+  role: 'segmentation' | 'embedding' | null;     // speaker models: segmentation is always needed, the embedding (voice) model is the Settings choice
 }
 interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: string | null; freeVramBytes: number | null; model: string | null; paused: string | null }
 ```
 
-`StageName` gains `transcript` and `speakers` as running stages (they already exist as pill names). `HistoryEntry.stage` gains `transcript`, `speakers`, `topics`; `detail` carries engine, model, device, duration and segment count.
+`StageName` gains `transcript`, `speakers` and `topics` as running stages. `HistoryEntry.stage` gains `transcript`, `speakers`, `topics`; `detail` carries engine, model, device, duration and segment count.
+
+- `coverageGaps`: stretches of at least **10 s** where a track has speech energy but no segment of that track has words (Whisper sometimes drops a passage, ENGINE-NOTES.md §D). Each one also gets a History `info` line. Review shows a notice at the gap's position, "Nothing was transcribed between 0:03 and 0:18, although there was speech.", with a "Transcribe again with {other model}" action (`transcript.retranscribe` with Settings' CPU-fallback model, or another installed model when the transcript already came from that one).
+- Repeated lines: a segment whose text is the same as the previous segment's on the same track (ignoring case, spacing and end punctuation) three or more times in a row is a known whisper.cpp failure. The host keeps the first and drops the repeats, and writes a History `info` line "Dropped N repeated lines" with the time and the repeated text.
+- `speakerConfidence`: sherpa-onnx's turn score is a similarity, not a probability. The host maps it linearly (a score of 0.2 or less → 0, 0.6 or more → 1; a track with a single cluster, score −2, → 1) and multiplies it by the winning speaker's share of the speech the segment overlaps. The UI marks a speaker as uncertain below 0.7.
+- `engine.model` is the catalog id (`whisper-large-v3-turbo`); `engine.device` is `"GPU (Vulkan)"` or `"CPU"`.
 
 ## Methods (M2)
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
-| `transcript.get` | `{ recordingId }` | `{ transcript: Transcript \| null, status: TranscriptStatus, failure: StageFailure \| null }` | `transcript` is null until the first pass completes; a failed pass may still return a partial transcript with `status: 'failed'`. |
+| `transcript.get` | `{ recordingId }` | `{ transcript: Transcript \| null, status: TranscriptStatus, failure: StageFailure \| null }` | `transcript` is null until the first pass completes; a failed pass may still return a partial transcript with `status: 'failed'`. `status` follows the `transcript` stage; `failure` is the transcript stage's failure, or else the `speakers` stage's (so a failed speaker pass shows its remedies while `status` is `done`). |
 | `transcript.editSegment` | `{ recordingId, segmentId, text }` | `{ segment: TranscriptSegment, version }` | Keeps `edited.original` from the first edit. Words are re-aligned proportionally (confidence set to 1 for edited words). |
 | `transcript.setSegmentSpeaker` | `{ recordingId, segmentId, speakerId: string \| null, newSpeakerName?: string }` | `{ segment, speakers }` | `newSpeakerName` creates a speaker and assigns it. |
 | `transcript.renameSpeaker` | `{ recordingId, speakerId, name }` | `{ speakers }` | Updates every segment by reference; `renamed: true`. |
 | `transcript.mergeSpeakers` | `{ recordingId, fromSpeakerId, intoSpeakerId }` | `{ speakers, segmentsChanged }` | |
 | `transcript.markReviewed` | `{ recordingId, reviewed }` | `{ reviewed }` | |
 | `transcript.search` | `{ recordingId, query }` | `{ matches: { segmentId, start, snippet }[] }` | Case-insensitive, word-boundary aware. |
-| `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording. |
-| `transcript.versions` | `{ recordingId }` | `{ versions: { id, at, reason: 'transcribed' \| 'edited' \| 'restored' \| 'retranscribed', engine: string \| null, segments: number }[] }` | Empty when history is off. |
+| `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass, then `speakers` (when on) and `topics`; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording, `models.notFound` for a model the catalog does not have. |
+| `transcript.versions` | `{ recordingId }` | `{ versions: { id, at, reason: 'transcribed' \| 'edited' \| 'restored' \| 'retranscribed', engine: string \| null, segments: number }[] }` | Empty when history is off. Newest first. `engine` names the engine and model, e.g. `"whisper.cpp whisper-small"`. |
 | `transcript.restoreVersion` | `{ recordingId, versionId }` | `{ transcript }` | The replaced transcript becomes a version. |
-| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies` (e.g. `cpu`, `model:small`). |
-| `processing.cancel` | `{ recordingId, stage }` | `{}` | Partial results are kept. |
+| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies`: `retry` (or none: run again as before), `cpu` (run on the processor) or `model:<catalog id>` (e.g. `model:whisper-small`). Retrying `transcript` also queues `speakers` (when on) and `topics`; a pass that stopped continues from its partial results. Retrying a finished `speakers` stage identifies the speakers again with the current Settings (Review's "Identify speakers again"). An unknown remedy answers `bridge.invalidParams`, an unknown model `models.notFound`. |
+| `processing.cancel` | `{ recordingId, stage }` | `{}` | Partial results are kept. The stage ends `failed` (label "Cancelled") with one remedy, `retry`, which continues from the partial results. |
 | `processing.pause` / `processing.resume` | `{}` | `{}` | Global; shown in the footer as "Transcription paused". |
 | `models.list` | `{}` | `{ models: ModelInfo[] }` | Catalog plus installed state; re-reads disk. |
 | `models.install` | `{ modelId }` | `{}` | Downloads with SHA-256 verification; progress via `models.progress`. One download at a time. |
-| `models.cancelInstall` | `{ modelId }` | `{}` | Removes the partial file. |
+| `models.cancelInstall` | `{ modelId }` | `{}` | Removes the partial file. The download's last `models.progress` is `state: 'failed'` with a message saying it was cancelled; it is sent before this call answers. |
 | `models.remove` | `{ modelId }` | `{}` | Refused with `models.inUse` while a stage is using it. |
 | `engine.status` | `{}` | `{ transcription: EngineStatusDetail, speakers: EngineStatusDetail }` | Probe result; `freeVramBytes` null on CPU-only. |
-| `library.list` | (as M1) | `RecordingSummary` | `query` now also matches transcript text (FTS); the summary gains `matchSnippet: string \| null` for transcript hits. |
+| `library.list` | (as M1) | `RecordingSummary` | `query` now also matches transcript text (FTS); the summary gains `matchSnippet: string \| null`: the words around the first transcript hit, and `null` when only the title or people matched (or there is no query). |
 
 ## Events (M2)
 
@@ -263,8 +277,8 @@ interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: s
 |---|---|---|
 | `processing.progress` | (as M1) stages now include `transcript` and `speakers` with `percent` and `label` ("64% · local GPU", "Queued", "Paused · PC is busy") | |
 | `transcript.changed` | `{ recordingId, version, reason: 'transcribed' \| 'edited' \| 'speakers' \| 'restored' \| 'topics' }` | The UI refetches `transcript.get` (or applies the edit it made). |
-| `models.progress` | `{ modelId, percent, bytesDone, bytesTotal, state: 'downloading' \| 'verifying' \| 'done' \| 'failed', message: string \| null }` | |
-| `status.footer` | adds `engine.detail: EngineStatusDetail` | Footer left side: "Local transcription ready · GPU (RTX 3060)" / "Transcription paused · PC is busy" / "No transcription model installed". |
+| `models.progress` | `{ modelId, percent, bytesDone, bytesTotal, state: 'downloading' \| 'verifying' \| 'done' \| 'failed', message: string \| null }` | `message` says why a download failed, including "The download of … was cancelled; the partial file was removed." after `models.cancelInstall`. |
+| `status.footer` | `engine` is `{ ready, device, detail: EngineStatusDetail }` | Footer left side: "Local transcription ready · GPU (RTX 3060)" / "Transcription paused · PC is busy" / "No transcription model installed". `processingPaused` is one of "Low disk space", "PC is busy", "Paused by you", or null. |
 | `recording.liveTranscript` | `{ sessionId, segments: { start: number, end: number, text: string }[] }` | Optional. Rough draft segments for the Recording session's Live transcript card; replaced entirely by the full pass. If live transcription is not available in a build, the host never sends it and the card says so. |
 
 ## Settings snapshot (M2 additions)
@@ -280,13 +294,15 @@ transcription: {
   keepWordTimestamps: boolean;           // true
   lowConfidenceThreshold: number;        // 0.5
 }
-speakers: { identify: boolean; expectedSpeakers: 'auto' | number; rememberRenamed: boolean; embeddingModelId: string }
+speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string }
 history: { keepVersions: boolean; keepDays: number }     // true, 90
 ```
 
+`settings.set` merges each of these blocks field by field: send only the fields that change (sending the whole block works too). `expectedSpeakers` is the string `"auto"` or a whole number from 1 to 20; anything else answers `settings.invalidValue`. It sets the speaker count for clustering when one track has speech; with several tracks it is not applied, because it says nothing about how many people each track holds.
+
 ## Error codes (M2)
 
-`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
+`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.busy` (detail: the model downloading now), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
 
 ## Clarifications (M2, decided after the UI landed)
 
@@ -297,4 +313,20 @@ history: { keepVersions: boolean; keepDays: number }     // true, 90
 5. Once a transcript exists, every highlight carries a non-null `segmentId` (the host attaches highlights to the segment at their time when a transcript is produced).
 6. `models.install` while another download is running answers `models.busy` (detail: the running model id).
 7. `settings.set` with a `modelId` / `cpuFallbackModelId` / `embeddingModelId` that is not installed answers `settings.invalidValue` naming the field.
-8. Catalog model ids are fixed strings both sides use: `whisper-large-v3-turbo`, `whisper-medium`, `whisper-small`, `whisper-base`, `pyannote-segmentation-3-0`, `nemo-titanet-small`, `tesseract-eng`.
+8. Catalog model ids are fixed strings both sides use: `whisper-large-v3-turbo`, `whisper-medium`, `whisper-small`, `whisper-base`, `pyannote-segmentation-3-0`, `nemo-titanet-small`, `tesseract-eng`, and an optional eighth, `3dspeaker-eres2net-base` (an alternative voice model).
+
+Decided at the M2 integration (0.3.0), from the host's proposals:
+
+9. `Transcript.coverageGaps: { start, end, track }[]`, flagged from 10 s of uncovered speech, shown in Review and listed in History.
+10. `RecordingSummary.matchSnippet` is `null` when only the title or people matched.
+11. `status.footer.engine` is `{ ready, device, detail }`; `processingPaused` is one of "Low disk space", "PC is busy", "Paused by you", or null.
+12. `settings.set` merges the M2 blocks field by field; only `recording` is replaced whole. `expectedSpeakers` is "auto" or 1–20.
+13. Remedy ids are `retry`, `cpu` and `model:<id>`. `processing.cancel` leaves the stage `failed` with the remedy `retry`. Retrying the transcript also queues `speakers` and `topics`.
+14. A stage whose model is not installed is `failed` with the label "Waiting for a model" and a failure naming the model; it is queued again by itself as soon as a model is installed.
+15. `transcript.get.failure` falls back to the `speakers` stage's failure.
+16. `speakerConfidence` is calibrated as described under Shared types (M2).
+17. `models.progress` reports a cancelled download as `failed` with a message.
+18. A kept version's `engine` reads like "whisper.cpp whisper-small".
+19. A heavy stage stopped by a busy PC (or closing Memento) resumes where it stopped: `transcript` from the last finished window of each track (`transcript.partial.json`), `speakers` from the last finished track (`speakers.partial.json`). One worker job that uses the graphics card runs at a time, and worker processes end when Memento ends.
+20. The repeat filter (Shared types (M2)) drops runs of three or more identical lines and says so in History.
+21. `ModelInfo.role` tells the speech-segmentation model (needed, not a choice) from the voice models Settings › Speakers chooses between; `null` for transcription and OCR models.
