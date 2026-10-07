@@ -397,8 +397,14 @@ internal sealed partial class MainWindow : Window
     [LoggerMessage(Level = LogLevel.Error, Message = "The WebView2 Runtime is not installed")]
     private partial void LogRuntimeMissing(Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Blocked navigation to {Uri}")]
-    private partial void LogNavigationBlocked(string uri);
+    /// <summary>Logs where a blocked navigation pointed, by scheme and host only: its path or query could carry content.</summary>
+    private void LogNavigationBlocked(string uri) =>
+        LogNavigationBlockedTo(Uri.TryCreate(uri, UriKind.Absolute, out var parsed)
+            ? parsed.IsUnc || parsed.HostNameType == UriHostNameType.Basic || string.IsNullOrEmpty(parsed.Host) ? parsed.Scheme + ":" : parsed.Scheme + "://" + parsed.Host
+            : "an unparsable address");
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Blocked navigation to {Target}")]
+    private partial void LogNavigationBlockedTo(string target);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a library request for {Path}")]
     private partial void LogLibraryRequestRefused(string path);
