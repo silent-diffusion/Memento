@@ -557,7 +557,7 @@ function wordsFor(text: string, start: number, end: number, lowWords: ReadonlySe
     const length = ((end - start) * (token.length + 1)) / total;
     const r = random();
     // A few words the engine was unsure of besides the marked ones.
-    const low = lowWords.has(index) || r < 0.012;
+    const low = lowWords.has(index) || r < 0.004;
     const c = low ? 0.28 + random() * 0.18 : 0.84 + random() * 0.15;
     const word = { w: token, s: round3(at), e: round3(at + length * 0.92), c: round3(c) };
     at += length;

@@ -36,6 +36,16 @@ describe('Library, populated (against the browser-preview host)', () => {
       await new Promise((resolve) => setTimeout(resolve, ms));
     });
   };
+  /** Waits for the screen instead of a fixed delay, so a busy test run does not fail on timing. */
+  const until = async (check: () => boolean, timeoutMs = 8000): Promise<void> => {
+    const started = Date.now();
+    while (!check()) {
+      if (Date.now() - started > timeoutMs) {
+        throw new Error('timed out waiting for the screen');
+      }
+      await settle(20);
+    }
+  };
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -54,7 +64,7 @@ describe('Library, populated (against the browser-preview host)', () => {
     expect(text('.lib-summary')).toEqual(['14 recordings · 10 h 38 min · all on this PC']);
     expect(text('.lib-group-label')).toEqual(['Today', 'Yesterday', 'Earlier this week', 'September', 'August']);
     expect(text('.proc-title')).toEqual(['Q3 planning sync']);
-    expect(text('.proc-stage-name')).toEqual(['Stored', 'Transcribing', 'Speakers', 'Minutes']);
+    expect(text('.proc-stage-name')).toEqual(['Stored', 'Transcribing', 'Speakers']);
     expect(text('.proc-meta')).toEqual(['Meeting · 5 people · recorded today at 10:00 AM · 1:02:14']);
     expect(text('.chip')).toEqual(['All', 'Meetings', 'Interviews', 'Lectures', 'Presentations', 'Dictation', 'Research', 'Book notes']);
     expect(container.querySelector('.chip.on')?.getAttribute('aria-pressed')).toBe('true');
@@ -105,7 +115,7 @@ describe('Library, populated (against the browser-preview host)', () => {
       search.value = 'town';
       search.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await settle(250);
+    await until(() => text('.row-title').length === 1);
     expect(text('.row-title')).toEqual(['Town hall Q&A']);
     expect(text('.lib-summary')[0]).toBe('1 recording · 1 h 46 min · all on this PC');
 
@@ -113,7 +123,7 @@ describe('Library, populated (against the browser-preview host)', () => {
       search.value = 'nothing like this';
       search.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await settle(250);
+    await until(() => text('.no-match').length === 1);
     expect(text('.no-match')).toEqual(['No recordings match. Try another type or clear the search.']);
   });
 
@@ -153,7 +163,7 @@ describe('Library, populated (against the browser-preview host)', () => {
     await act(() => {
       del?.click();
     });
-    await settle(10);
+    await until(() => document.querySelector('.dialog-title') !== null);
     expect(document.querySelector('.dialog-title')?.textContent).toBe('Delete "Weekly 1:1 with Sam"?');
     expect(document.querySelector('.dialog-body')?.textContent).toMatch(
       /^Removes the recording, its 2 tracks and its details and highlights from this PC \(\d+ MB\)\. Exported copies are not affected\. This cannot be undone\.$/,
@@ -164,9 +174,7 @@ describe('Library, populated (against the browser-preview host)', () => {
     await act(() => {
       confirm?.click();
     });
-    await settle(20);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(text('.row-title')).not.toContain('Weekly 1:1 with Sam');
+    await until(() => document.querySelector('[role="dialog"]') === null && !text('.row-title').includes('Weekly 1:1 with Sam'));
     expect(text('.lib-summary')[0]).toMatch(/^13 recordings/);
   });
 

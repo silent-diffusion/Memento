@@ -208,6 +208,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   };
 
   const toProject = (project: MockProject): Project => {
+    // A sample transcript links its highlights and writes its history lines when first built.
+    transcription.prepare(project.summary.id);
     const media = mediaOf(project);
     return {
     summary: project.summary,

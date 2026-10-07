@@ -89,6 +89,8 @@ function sortStages(stages: StageStatus[]): StageStatus[] {
 
 export interface MockTranscription {
   get(recordingId: string): TranscriptGetResult;
+  /** Builds a sample recording's transcript (and its history and highlight links) if not yet done. */
+  prepare(recordingId: string): void;
   editSegment(params: TranscriptEditSegmentParams): { segment: TranscriptSegment; version: number };
   setSegmentSpeaker(params: TranscriptSetSegmentSpeakerParams): { segment: TranscriptSegment; speakers: Speaker[] };
   renameSpeaker(params: TranscriptRenameSpeakerParams): { speakers: Speaker[] };
@@ -149,11 +151,18 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     return p;
   };
 
+  // A sample recording's transcript is built the first time anything asks for it (seed below).
+  const seeded = new Set<string>();
   const entryOf = (recordingId: string): Entry => {
     let entry = entries.get(recordingId);
     if (entry === undefined) {
       entry = { transcript: null, origin: 'transcribed', failure: null, versions: [], held: false, paused: null, pass: null, timer: null, editCount: 0 };
       entries.set(recordingId, entry);
+    }
+    const p = env.projects.get(recordingId);
+    if (!seeded.has(recordingId) && p !== undefined) {
+      seeded.add(recordingId);
+      seed(p);
     }
     return entry;
   };
@@ -530,8 +539,9 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     refreshPeople(p, transcript);
   };
 
-  for (const p of env.projects.values()) {
-    seed(p);
+  // The `?stage=` flag changes the long sample's stages, which the Library shows straight away.
+  if (env.stageFlag !== 'done') {
+    entryOf(LONG_SAMPLE_ID);
   }
 
   const statusOf = (p: MockProject, entry: Entry): TranscriptStatus => {
@@ -582,6 +592,9 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
   };
 
   return {
+    prepare: (recordingId) => {
+      entryOf(recordingId);
+    },
     get: (recordingId) => {
       const p = project(recordingId);
       const entry = entryOf(recordingId);
@@ -830,12 +843,22 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
 
     resumeAll: () => {
       globalPaused = null;
+      // Resuming also carries on with passes that waited for a busy PC.
+      for (const [id, entry] of entries) {
+        if (entry.paused !== null) {
+          entry.paused = null;
+          run(id);
+        }
+      }
       env.onPausedChange(null);
     },
 
     librarySnippet: (recordingId, query) => {
-      const transcript = entries.get(recordingId)?.transcript ?? null;
-      if (transcript === null || query.trim() === '') {
+      if (query.trim() === '' || !env.projects.has(recordingId)) {
+        return null;
+      }
+      const transcript = entryOf(recordingId).transcript;
+      if (transcript === null) {
         return null;
       }
       for (const segment of transcript.segments) {

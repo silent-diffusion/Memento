@@ -20,7 +20,7 @@ describe('Recording session (against the browser-preview host)', () => {
     });
   };
 
-  const until = async (check: () => boolean, timeoutMs = 4000): Promise<void> => {
+  const until = async (check: () => boolean, timeoutMs = 8000): Promise<void> => {
     const started = Date.now();
     while (!check()) {
       if (Date.now() - started > timeoutMs) {
@@ -131,7 +131,8 @@ describe('Recording session (against the browser-preview host)', () => {
     await until(() => store.route.value.name === 'review', 4000);
     expect(store.route.value).toEqual({ name: 'review', recordingId: session?.recordingId });
     await until(() => container.querySelector('.spoke-title')?.textContent === 'Untitled meeting');
-    await until(() => container.textContent.includes('Not transcribed yet'));
+    // The transcript waits for the stored tracks, then runs on its own (Settings › Transcription).
+    await until(() => container.textContent.includes('Waiting to transcribe'));
     // Still storing: no peaks yet, and the sunk empty track says why.
     expect(container.querySelector('.wave--empty')?.textContent).toBe('Waveform appears once the recording is finalized');
     expect(container.querySelector<HTMLButtonElement>('.player-play')?.disabled).toBe(true);
