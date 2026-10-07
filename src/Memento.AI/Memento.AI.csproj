@@ -1,12 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    External and local AI (ARCHITECTURE.md section 8): the IAiProvider abstraction, the Anthropic and OpenAI HTTP
+    clients, the payload composer and transcript chunker, and the engine-independent half of the local provider
+    (job records, JSON-lines runner, chat templates, GBNF grammars, catalog entries). No native packages and no
+    package that would replace the app's .NET 8 assemblies: LLamaSharp lives in Memento.AI.Local, which only
+    Memento.Worker loads.
+  -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Memento.AI</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Memento.AI.Local" />
+    <InternalsVisibleTo Include="Memento.AI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Local model catalog entries, merged into Core's catalog by the integration (Memento.AI.Local.local-models.json). -->
+    <EmbeddedResource Include="Local\local-models.json" LogicalName="Memento.AI.Local.local-models.json" />
   </ItemGroup>
 
 </Project>

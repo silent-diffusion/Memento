@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "qwen3.5-4b-q4",
+      "engine": "llama",
+      "kind": "llm",
+      "role": null,
+      "name": "Qwen3.5 4B",
+      "description": "Qwen3.5-4B (Q4_K_M GGUF, llama.cpp). The local model for document drafts on a graphics card; private, needs review.",
+      "fileName": "Qwen3.5-4B-Q4_K_M.gguf",
+      "sizeBytes": 2740937888,
+      "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+      "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+      "license": "Apache-2.0",
+      "notes": "Measured on an RTX 3060 Laptop (Vulkan, f16 KV): 1,378 prompt / 35 output tokens per second at 4k; 2.6 GB of weights in video memory; 3.4 GB at 8k context, 3.7 GB at 16k. Map recall 1.00 on a 20-minute synthetic meeting.",
+      "runsOn": "gpu",
+      "minVramBytes": 3543348019,
+      "recommendedFor": "gpu",
+      "accuracyNote": "Best on a graphics card",
+      "llm": {
+        "templateId": "qwen3.5",
+        "architecture": "qwen35",
+        "contextTokens": 16384,
+        "minContextTokens": 8192,
+        "cpuContextTokens": 8192,
+        "layers": 32,
+        "baseVramBytes": 3334471680,
+        "kvBytesPerToken": 34816,
+        "chunkTokens": 3000
+      }
+    },
+    {
+      "id": "ministral-3-3b-q4",
+      "engine": "llama",
+      "kind": "llm",
+      "role": null,
+      "name": "Ministral 3 3B",
+      "description": "Ministral-3-3B-Instruct-2512 (Q4_K_M GGUF, llama.cpp). The local model for document drafts on the processor; private, needs review.",
+      "fileName": "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+      "sizeBytes": 2147023008,
+      "sha256": "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8",
+      "url": "https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+      "license": "Apache-2.0",
+      "notes": "Measured on a Ryzen 7 5800HS (8 threads): 45-60 prompt / 6-9 output tokens per second at 1-4k context; on Vulkan 2.8 GB of video memory at 4k. Map recall 0.93 on a 20-minute synthetic meeting.",
+      "runsOn": "either",
+      "minVramBytes": 3006477107,
+      "recommendedFor": "cpu",
+      "accuracyNote": "Runs on the processor",
+      "llm": {
+        "templateId": "ministral3",
+        "architecture": "mistral3",
+        "contextTokens": 4096,
+        "minContextTokens": 4096,
+        "cpuContextTokens": 4096,
+        "layers": 26,
+        "baseVramBytes": 2432696320,
+        "kvBytesPerToken": 122880,
+        "chunkTokens": 1500
+      }
+    }
+  ]
+}
