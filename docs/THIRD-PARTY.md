@@ -66,3 +66,25 @@ Models downloaded at runtime through the model manager are listed in the in-app 
 | NeMo TitaNet small (English) | CC-BY-4.0 (attribution: NVIDIA NeMo) | github.com/k2-fsa/sherpa-onnx releases |
 | 3D-Speaker ERes2Net base (optional) | Apache-2.0 | github.com/k2-fsa/sherpa-onnx releases |
 | Tesseract English (tessdata_fast) | Apache-2.0 | github.com/tesseract-ocr/tessdata_fast |
+
+## Added with M4a (AI providers)
+
+The cloud providers (Memento.AI) use only HttpClient and System.Text.Json from .NET 8; no Anthropic or OpenAI SDK is bundled, so the app keeps its .NET 8 assemblies. The local LLM engine (Memento.AI.Local) is loaded by Memento.Worker only and ships in the `worker\` folder:
+
+| Component | License | Used for |
+|---|---|---|
+| LLamaSharp (0.27.0) | MIT | .NET binding for llama.cpp: the local LLM provider |
+| LLamaSharp.Backend.Vulkan.Windows (0.27.0) | MIT (llama.cpp and ggml: MIT) | `llama.dll`, `ggml*.dll` built for Vulkan (`runtimes/win-x64/native/vulkan`, 65 MB); they import only the VC++ runtime, the UCRT, `KERNEL32` and the graphics driver's `vulkan-1.dll`. Referenced directly: the `LLamaSharp.Backend.Vulkan` meta-package adds 65 MB of Linux binaries. |
+| LLamaSharp.Backend.Cpu (0.27.0) | MIT (llama.cpp and ggml: MIT) | The CPU builds (`runtimes/win-x64/native/{noavx,avx,avx2,avx512}`, about 4 MB each); `ggml-cpu.dll` also imports `ADVAPI32` and `VCOMP140` (OpenMP, already shipped with the worker). `mtmd.dll` (multimodal) is in every folder but is not used and can be left out of the worker. |
+| CommunityToolkit.HighPerformance (8.4.2) | MIT | LLamaSharp dependency |
+| Microsoft.Extensions.AI.Abstractions (10.4.1), Microsoft.Extensions.Logging.Abstractions and DependencyInjection.Abstractions (10.0.5), Microsoft.Bcl.AsyncInterfaces and Microsoft.Bcl.Memory (10.0.5), System.Diagnostics.DiagnosticSource (10.0.5), System.Numerics.Tensors (10.0.5), System.Linq.AsyncEnumerable (10.0.2), System.Text.Json, System.Text.Encodings.Web and System.IO.Pipelines (10.0.4) | MIT | LLamaSharp dependencies, isolated in the worker folder like Whisper.net's |
+| System.Linq.Async, System.Interactive.Async (7.0.0) | MIT | LLamaSharp dependencies |
+
+Models the local provider downloads through the model manager (catalog entries in `src/Memento.AI/Local/local-models.json`, to be merged into Core's catalog):
+
+| Model | License | Source |
+|---|---|---|
+| Qwen3.5-4B (Q4_K_M GGUF) | Apache-2.0 | huggingface.co/unsloth/Qwen3.5-4B-GGUF |
+| Ministral-3-3B-Instruct-2512 (Q4_K_M GGUF) | Apache-2.0 | huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF |
+
+Test fixtures: `tests/Memento.AI.Tests/fixtures/templates/*.jinja` are the chat templates stored in those two GGUF files (Apache-2.0), kept to test the chat formatting against.
