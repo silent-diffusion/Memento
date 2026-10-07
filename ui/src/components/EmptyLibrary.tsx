@@ -21,7 +21,7 @@ const features = [
   },
   {
     title: 'Turn it into documents',
-    body: 'Minutes, summaries and action items, shaped by templates you design. AI is optional and off by default.',
+    body: 'Minutes, summaries and action items, shaped by templates you design, arrive in a later version. AI will be optional and off by default.',
     Icon: DocumentIcon,
   },
 ] as const;

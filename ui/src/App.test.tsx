@@ -70,7 +70,8 @@ describe('Library shell, first run', () => {
       'Transcribe on this PC',
       'Turn it into documents',
     ]);
-    expect(container.textContent).toContain('AI is optional and off by default.');
+    // 0.5.0 has no documents yet (ROADMAP: the in-app copy says plainly that they come later).
+    expect(container.textContent).toContain('arrive in a later version. AI will be optional and off by default.');
   });
 
   it('disables search with the explanatory placeholder and keeps its label', () => {
