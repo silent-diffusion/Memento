@@ -7,7 +7,7 @@
 // A PowerShell process loops a quiet public-domain reading as the app source. Every endpoint change is undone in
 // `finally`. The data folder holds room audio afterwards: delete it when the numbers are read.
 //
-//   node tools/e2e/h1-devices.mjs --play <wav> --short <wav> --models <dir> [--data <dir>] [--out <dir>] [--only 1,2,3]
+//   node tools/e2e/h1-devices.mjs --play <wav> --short <wav of 10+ min> --models <dir> [--data <dir>] [--out <dir>] [--only 1,2,3]
 import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -145,8 +145,9 @@ async function caseSuspendTranscription() {
   const id = run.projectIds().find((p) => !before.has(p));
   const stage = () => run.manifest(id).stages.find((s) => s.stage === 'transcript');
   await run.until(() => stage()?.state === 'active' && run.ownWorkerPids().length > 0, 'transcription with a worker', 10 * 60_000, 200);
-  await sleep(3000);
+  await sleep(1000);
   const [worker] = run.ownWorkerPids();
+  if (!worker) throw new Error('the worker had already finished: use a --short file of several minutes');
   suspend(worker, true);
   suspend(run.app.process.pid, true);
   await sleep(120_000);
