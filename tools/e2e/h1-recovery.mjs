@@ -120,12 +120,28 @@ async function caseFinalizing() {
   run.check('finalizing: the dialog or the Library says what happened', !!dialog, dialog ?? '(no dialog)');
 }
 
+/** The stage as the page last heard it from processing.progress (quicker than project.json), or null. */
+const liveStageOf = (id, name) =>
+  run.page.eval(`(() => {
+    const last = (window.__h1?.events ?? []).filter((e) => e.event === 'processing.progress' && e.payload.recordingId === ${JSON.stringify(id)}).at(-1);
+    return last?.payload.stages.find((s) => s.stage === ${JSON.stringify(name)}) ?? null;
+  })()`);
+
 async function killDuringStage(id, stage, label) {
-  const seen = await run.until(() => {
-    const s = stageOf(id, stage);
-    return s?.state === 'active' && !/Paused|Queued/.test(s.label ?? '') && (s.percent ?? 0) >= (stage === 'transcript' ? 10 : 0) ? s : null;
-  }, `${stage} running`, stage === 'topics' ? 3 * 60_000 : 15 * 60_000, 50);
-  const workers = run.workerPids();
+  const running = (s) => s?.state === 'active' && !/Paused|Queued/.test(s.label ?? '') && (s.percent ?? 0) >= (stage === 'transcript' ? 10 : 0);
+  let waiting = false;
+  const seen = await run.until(async () => {
+    const live = await liveStageOf(id, stage).catch(() => null);
+    const file = stageOf(id, stage);
+    if (running(live)) return live;
+    if (running(file)) return file;
+    if ((live && live.state !== 'done') || (file && file.state !== 'done')) waiting = true;
+    // Topics is tens of milliseconds of text work without a worker: it can start and end between two looks.
+    if (stage === 'topics' && waiting && file?.state === 'done') return { missed: true };
+    return null;
+  }, `${stage} running`, 15 * 60_000, 30);
+  if (seen.missed) return { seen, missed: true, orphanWorkers: [] };
+  const workers = run.ownWorkerPids(); // only this Memento's: other Mementos on the PC (another check) keep theirs
   await run.killApp();
   const workersAfter = run.workerPids().filter((p) => workers.includes(p));
   await relaunch();
@@ -142,16 +158,15 @@ async function caseStages(importedId) {
     try {
       const killed = await killDuringStage(importedId, stage, stage);
       seen = killed.seen;
+      if (killed.missed) {
+        const ran = run.logLines(new RegExp(`${importedId}: stage ${stage} ran in \\d+ ms`)).map((l) => /ran in (\d+) ms/.exec(l)[1]).at(-1);
+        run.log(stage, `ran and finished between two looks (${ran ?? '?'} ms); not interrupted`);
+        results[stage] = { killedAt: 'not caught', ranMs: ran === undefined ? null : Number(ran) };
+        continue;
+      }
       run.check(`${stage}: the worker ended with Memento`, killed.orphanWorkers.length === 0, `orphans ${killed.orphanWorkers.join(',')}`);
     } catch (error) {
-      // Topics is a few tens of milliseconds of text work (no worker): it can finish between two looks.
-      const ranMs = run.logLines(new RegExp(`stage ${stage} ran in \\d+ ms`)).map((l) => Number(/ran in (\d+) ms/.exec(l)[1]))[0];
-      if (stage === 'topics' && stageOf(importedId, stage)?.state === 'done' && ranMs !== undefined && ranMs < 1000) {
-        run.log(stage, `finished in ${ranMs} ms, before it could be caught; not interrupted`);
-        results[stage] = { killedAt: 'not caught', ranMs };
-      } else {
-        run.check(`${stage}: caught running`, false, error.message);
-      }
+      run.check(`${stage}: caught running`, false, error.message);
       continue;
     }
     const after = stageOf(importedId, stage);
