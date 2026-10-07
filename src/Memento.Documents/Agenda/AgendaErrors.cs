@@ -44,6 +44,14 @@ internal static class AgendaErrors
             $"{DisplayName(options)} looks like {what} but {why}, which Word and Excel never write, so it was not read. Nothing was imported. Open it in the app that made it and save it again, or paste the items as text.",
             inner);
 
+    /// <summary>Parsing ran past <see cref="AgendaParseOptions.ParseTimeout"/>; a real agenda reads in well under a second.</summary>
+    public static AgendaImportException TooSlow(AgendaParseOptions options, string what) =>
+        new(
+            AgendaErrorCodes.Unreadable,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{DisplayName(options)} took longer than {options.ParseTimeout.TotalSeconds:0.#} seconds to read as {what}, so reading it was stopped. Nothing was imported. Copy just the agenda into a new file and import that, or paste the items as text."));
+
     public static AgendaImportException Protected(AgendaParseOptions options, Exception? inner = null) =>
         new(
             AgendaErrorCodes.Protected,

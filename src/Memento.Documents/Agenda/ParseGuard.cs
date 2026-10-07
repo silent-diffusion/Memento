@@ -25,13 +25,36 @@ internal static class ParseGuard
     {
         ArgumentNullException.ThrowIfNull(options);
         cancellationToken.ThrowIfCancellationRequested();
+
+        // The parse sees a token that is also cancelled when the time limit passes, so cooperative loops stop; the
+        // caller is answered at the limit either way. The source is disposed only once the work has really ended.
+        var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(options.ParseTimeout);
+        var work = Task.Run(() => parse(limit.Token), limit.Token);
+        _ = work.ContinueWith(_ => limit.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         try
         {
-            return await Task.Run(() => parse(cancellationToken), cancellationToken).ConfigureAwait(false);
+            return await work.WaitAsync(options.ParseTimeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is TimeoutException || (e is OperationCanceledException && !cancellationToken.IsCancellationRequested && TimedOut(limit)))
+        {
+            throw AgendaErrors.TooSlow(options, what);
         }
         catch (Exception e) when (IsDamage(e, cancellationToken))
         {
             throw AgendaErrors.Unreadable(options, what, e);
+        }
+    }
+
+    private static bool TimedOut(CancellationTokenSource limit)
+    {
+        try
+        {
+            return limit.IsCancellationRequested;
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
         }
     }
 

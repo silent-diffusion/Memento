@@ -28,4 +28,7 @@ public sealed record AgendaParseOptions
     public int MaxImageSide { get; init; } = AgendaLimits.MaxImageSide;
 
     public int MaxItems { get; init; } = AgendaLimits.MaxItems;
+
+    /// <summary>How long one parse may run before it is stopped with <c>agenda.unreadable</c>.</summary>
+    public TimeSpan ParseTimeout { get; init; } = AgendaLimits.ParseTimeout;
 }

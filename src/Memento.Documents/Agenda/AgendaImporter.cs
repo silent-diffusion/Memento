@@ -81,7 +81,8 @@ public sealed partial class AgendaImporter
         var effective = options ?? AgendaParseOptions.Default;
         var started = Stopwatch.GetTimestamp();
         var bytes = await AgendaContent.ReadAsync(content, effective, cancellationToken).ConfigureAwait(false);
-        var sniffed = FormatSniffer.Sniff(bytes.Span, effective);
+        // Sniffing opens ZIP directories and decodes text; it runs off the caller's (possibly the UI) thread.
+        var sniffed = await Task.Run(() => FormatSniffer.Sniff(bytes.Span, effective), cancellationToken).ConfigureAwait(false);
         var parser = ParserFor(sniffed.Kind) ?? throw AgendaErrors.Unsupported(
             effective,
             sniffed.Description,
