@@ -148,8 +148,17 @@
 .library-main--centred {
   padding: 64px 48px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 24px;
+}
+
+/* The low-space banner above the first-run Library (DESIGN.md §17). */
+.library-main--centred > .banner {
+  width: 100%;
+  max-width: 760px;
+  box-sizing: border-box;
 }
 
 /* Footer: 36 px, groove on top, 12 px text-3. */

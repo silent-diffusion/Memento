@@ -5,6 +5,7 @@ import { effect } from '@preact/signals';
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { AgendaItem, AudioSource, Highlight, RecordingStatePayload, RecordingType } from '../../bridge/types';
+import { BannerSlot } from '../../components/Banners';
 import { DetailsSheet, typeOptions } from '../../components/DetailsSheet';
 import { NotesIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
@@ -450,6 +451,7 @@ export function RecordScreen(): JSX.Element {
         }
       />
       <main class="rec-main">
+        <BannerSlot />
         <div class="rec-columns">
           <SourcesCard rows={rows} error={sourcesError} onToggle={toggleSource} onRescan={loadSources} />
 

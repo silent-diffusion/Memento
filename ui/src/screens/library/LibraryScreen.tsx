@@ -117,6 +117,7 @@ export function LibraryScreen(): JSX.Element {
       <>
         {header}
         <main class="library-main library-main--centred">
+          <BannerSlot />
           {loadError !== null ? (
             <div class="load-error" role="alert">
               <p class="load-error-text">The library could not be shown. {loadError}</p>
