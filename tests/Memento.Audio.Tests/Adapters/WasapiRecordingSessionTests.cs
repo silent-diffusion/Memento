@@ -158,8 +158,8 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         session.SourceLost += (_, e) => lost.TrySetResult(e);
         session.HostStopped += (_, e) => stopped.TrySetResult(e);
 
-        var host = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(15));
-        var lostSource = await lost.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        var host = await stopped.Task.WaitAsync(Patience.Ceiling);
+        var lostSource = await lost.Task.WaitAsync(Patience.Ceiling);
         var result = await session.StopAsync(CancellationToken.None);
 
         Assert.Equal(HostStopReason.DeviceLost, host.Reason);
@@ -242,7 +242,7 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         var waited = Stopwatch.StartNew();
         while (!condition())
         {
-            if (waited.Elapsed > TimeSpan.FromSeconds(15))
+            if (waited.Elapsed > Patience.Ceiling)
             {
                 throw new TimeoutException($"Timed out waiting for {what}.");
             }
