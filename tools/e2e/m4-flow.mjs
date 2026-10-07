@@ -243,7 +243,8 @@ async function generate(label, { press = true } = {}) {
   await page.waitFor(`!document.querySelector('[role=dialog]')`, 'no dialog over the Builder', 10_000);
   const begun = `!!document.querySelector('.ai-failure, #confirm-send-title, .doc-paper article') || /GENERATING|Preparing the|Reading the|Checking/.test(document.body.innerText)`;
   for (let attempt = 0; press; attempt++) {
-    await page.click({ selector: '.spoke-primary' });
+    // Generate stays off while the provider is not ready, e.g. while another app holds the graphics card's memory.
+    await page.click({ selector: '.spoke-primary' }, { timeoutMs: 180_000 });
     try {
       await page.waitFor(begun, `${label} to start`, 10_000);
       break;
@@ -269,16 +270,17 @@ function exportsFolder() {
   return nested.length === 0 ? exports : join(exports, nested.sort().at(-1));
 }
 
-/** Points the Export dialog's folder at the run's exports folder. */
+/** Points the open Export dialog's folder at the run's exports folder and remembers it (a folder chosen once is kept only then). */
 async function pickExportFolder() {
-  await page.click({ name: 'Export', within: 'header' });
-  await page.waitFor(`!!document.querySelector('.export-dialog')`, 'the Export dialog');
+  if ((await page.eval(`(document.querySelector('.export-path')?.innerText ?? '').startsWith(${JSON.stringify(exports)})`)) === true) return;
   const answered = answerDialog('Choose where to save the copies', exports);
   await page.click({ name: 'Change export folder' });
   await answered;
   await page.waitFor(`(document.querySelector('.export-path')?.innerText ?? '').startsWith(${JSON.stringify(exports)})`, 'the export folder', 20_000);
-  await page.key('Escape');
-  await page.waitFor(`!document.querySelector('.export-dialog')`, 'the Export dialog to close');
+  // Remember the folder, so the next exports go there without the picker.
+  if ((await page.eval(`document.querySelector('[aria-label="Remember these choices"]')?.getAttribute('aria-checked')`)) !== 'true') {
+    await page.click({ role: 'switch', name: 'Remember these choices' });
+  }
 }
 
 /** Exports the open document in one format through the Export dialog and returns the file written. */
@@ -286,6 +288,7 @@ async function exportDocument(format, label) {
   const since = Date.now() - 1000;
   await page.click({ name: 'Export', within: 'header' });
   await page.waitFor(`!!document.querySelector('.export-dialog')`, 'the Export dialog');
+  await pickExportFolder();
   // Documents is ticked by default; its format is a single-choice list (Word, PDF, Markdown). Only the document is exported.
   for (const id of ['exp-audio', 'exp-transcript']) {
     if (await page.eval(`document.getElementById('${id}')?.checked === true`)) await page.click({ selector: `#${id}` });
@@ -297,9 +300,12 @@ async function exportDocument(format, label) {
   await page.waitFor(`document.querySelector('[aria-label^="Format for Documents"]')?.getAttribute('aria-label') === 'Format for Documents: ${label}'`, `the ${label} format`);
   await sleep(600);
   await shot(`export-dialog-${format}`);
+  // With "Ask where to save each time" (Settings › Export) the picker confirms the folder when Export is pressed.
+  const asked = answerDialog('Choose where to save the copies', exports).then(() => true, () => false);
   await page.click({ selector: '.export-foot .btn.p' });
   const ended = await page.waitFor(`[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === 'Open folder') ? 'done' : document.body.innerText.includes('was not exported') ? 'failed' : ''`, `the ${format} export`, 5 * 60_000);
   check(ended === 'done', `the ${format} export finished`);
+  summary.checks[`the ${format} export asked where to save`] = await Promise.race([asked, sleep(100).then(() => false)]);
   const extension = { docx: /\.docx$/i, pdf: /\.pdf$/i, markdown: /\.md$/i }[format];
   const file = await waitForFile(exportsFolder(), extension, since);
   await page.key('Escape');
@@ -369,8 +375,10 @@ try {
   // 2. Three minutes of microphone and system audio while the two readers play; the transcript with speakers.
   let recordingId;
   if (flag('--from-review')) {
-    [recordingId] = projectIds();
-    log('from review', `reusing ${recordingId}`);
+    // The recording with the most transcript (with --simulate, the imported two readers rather than the tones).
+    [recordingId] = projectIds().filter((id) => existsSync(join(projectFolder(id), 'transcript.json'))).sort((x, y) => transcriptOf(y).segments.length - transcriptOf(x).segments.length);
+    reviewTitle = manifestOf(recordingId).details.title;
+    log('from review', `reusing ${recordingId} (${reviewTitle})`);
   } else {
     await page.click({ name: 'Library' });
     await page.click({ name: 'New recording' });
@@ -520,7 +528,6 @@ try {
   log('versions', `regenerated in ${second.seconds} s; version 1 restored`);
 
   // 9. Export Word, PDF and Markdown through the Export dialog.
-  await pickExportFolder();
   const files = {};
   for (const [format, label] of [['docx', 'Word'], ['pdf', 'PDF'], ['markdown', 'Markdown']]) {
     files[format] = await exportDocument(format, label);
@@ -591,7 +598,11 @@ try {
   await page.click({ name: 'Inputs and output' });
   await page.waitFor(`/Claude[\\s\\S]{0,80}key saved/.test(document.body.innerText)`, 'Claude ready', 20_000);
   await shot('builder-providers-claude-ready');
-  await page.click({ name: 'Claude', exact: false, within: '[aria-label="Preview and inputs"]' });
+  // The provider is a radio in a label; with a key saved Claude may already be the choice.
+  const claude = await page.eval(`(() => { const label = [...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Claude'); const radio = label?.querySelector('input[type=radio]'); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const r = radio.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, checked: radio.checked }; })()`);
+  check(claude !== null, 'Claude is offered as a provider');
+  if (!claude.checked) await clickAt(claude);
+  await page.waitFor(`[...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Claude')?.querySelector('input').checked === true`, 'Claude chosen', 10_000);
   await page.click({ selector: '.spoke-primary' });
   await page.waitFor(`!!document.querySelector('#confirm-send-title')`, 'the send confirmation', 30_000);
   await shot('confirm-send-claude');
