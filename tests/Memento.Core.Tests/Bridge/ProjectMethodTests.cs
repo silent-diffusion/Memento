@@ -292,10 +292,12 @@ public sealed class ProjectMethodTests : IDisposable
 
         var cancelled = await _host.ResultAsync("dialog.pickFolder", """{"title":"Move library","initialPath":"relative\\path"}""");
         await _host.ResultAsync("dialog.pickFolder", """{"title":"","initialPath":"D:\\Recordings"}""");
+        await _host.ResultAsync("dialog.pickFolder", """{"title":"Share","initialPath":"\\\\203.0.113.9\\share"}""");
 
         Assert.Equal(JsonValueKind.Null, cancelled.GetProperty("path").ValueKind);
         Assert.Equal(("Move library", (string?)null), _host.FolderPicker.Calls[0]);
         Assert.Equal(("Choose a folder", "D:\\Recordings"), _host.FolderPicker.Calls[1]);
+        Assert.Equal(("Share", (string?)null), _host.FolderPicker.Calls[2]); // security audit SA-14: no network path from the page
         Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(await _host.CallAsync("dialog.pickFolder", "{}")));
     }
 }

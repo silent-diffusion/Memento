@@ -21,7 +21,10 @@ public sealed class DialogPickFolderMethod(IFolderPicker picker) : BridgeMethod<
             throw new BridgeException(BridgeErrorCodes.InvalidParams, "A folder picker title can be at most 200 characters.");
         }
 
-        var initial = parameters.InitialPath is { } path && Path.IsPathFullyQualified(path) ? path : null;
+        // A network path from the page is ignored: checking that it exists would already connect to that host.
+        var initial = parameters.InitialPath is { } path && Path.IsPathFullyQualified(path) && !path.StartsWith(@"\\", StringComparison.Ordinal) && !path.StartsWith("//", StringComparison.Ordinal)
+            ? path
+            : null;
         return new PickFolderResult(await picker.PickAsync(title, initial, cancellationToken));
     }
 }
