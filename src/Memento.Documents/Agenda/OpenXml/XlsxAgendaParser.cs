@@ -38,7 +38,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
         SpreadsheetDocument document;
         try
         {
-            document = SpreadsheetDocument.Open(stream, false, new OpenSettings { AutoSave = false });
+            document = SpreadsheetDocument.Open(stream, false, new OpenSettings { AutoSave = false, MaxCharactersInPart = FormatSniffer.MaxCharactersInPart });
         }
         catch (Exception e) when (e is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException)
         {

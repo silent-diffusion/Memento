@@ -94,6 +94,28 @@ public sealed class SniffingTests
     }
 
     [Fact]
+    public async Task AWordFileThatInflatesToHundredsOfMegabytesIsRefusedBeforeItIsRead()
+    {
+        using var buffer = new MemoryStream();
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            zip.CreateEntry("[Content_Types].xml");
+            using var part = zip.CreateEntry("word/document.xml", CompressionLevel.SmallestSize).Open();
+            var zeros = new byte[1 << 20];
+            for (var i = 0; i < 64; i++)
+            {
+                part.Write(zeros); // 64 MB of zeros packs into well under 1 MB
+            }
+        }
+
+        Assert.True(buffer.Length < 1024 * 1024);
+        var error = await Assert.ThrowsAsync<AgendaImportException>(() => Agendas.ImportAsync(buffer.ToArray(), "agenda.docx"));
+
+        Assert.Equal(AgendaErrorCodes.Unreadable, error.Code);
+        Assert.Contains("Nothing was imported", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnEncryptedOfficeFileIsReportedAsProtected()
     {
         var bytes = new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 }.Concat(Encoding.Unicode.GetBytes("EncryptionInfo")).ToArray();

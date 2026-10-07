@@ -14,6 +14,9 @@ public sealed class WindowsPdfPageRenderer : IPdfPageRenderer
     /// <summary>Windows reports page sizes in device-independent pixels (1/96 inch).</summary>
     private const double PageDpi = 96.0;
 
+    /// <summary>The longest side of a rendered page in pixels (A3 at 200 dpi is about 3,300).</summary>
+    private const double MaxSide = 10_000;
+
     public async Task<IReadOnlyList<byte[]>> RenderAsync(ReadOnlyMemory<byte> pdf, int dpi, int maxPages, AgendaParseOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -36,7 +39,8 @@ public sealed class WindowsPdfPageRenderer : IPdfPageRenderer
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var page = document.GetPage((uint)index);
-            var scale = dpi / PageDpi;
+            // A page with a huge MediaBox must not become a multi-gigabyte bitmap: the longer side stays within MaxSide.
+            var scale = Math.Min(dpi / PageDpi, MaxSide / Math.Max(1.0, Math.Max(page.Size.Width, page.Size.Height)));
             var render = new PdfPageRenderOptions
             {
                 DestinationWidth = (uint)Math.Max(1, Math.Round(page.Size.Width * scale)),
