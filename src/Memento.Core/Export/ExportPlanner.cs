@@ -92,7 +92,9 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             foreach (var attachment in files)
             {
                 var path = Full(folder, attachment.File);
-                items.Add(new ExportItem(ExportComponents.Attachments, attachment.Name, ExportNaming.AttachmentsFolder, new FileInfo(path).Length, (destination, ct) => CopyAsync(path, destination, ct)));
+                // The name comes from project.json; it becomes a file name only after it is made safe (no folders, no
+                // drive, no reserved names), so it can never point outside the export folder.
+                items.Add(new ExportItem(ExportComponents.Attachments, FileNames.SanitizeKeepingExtension(attachment.Name, "Attachment"), ExportNaming.AttachmentsFolder, new FileInfo(path).Length, (destination, ct) => CopyAsync(path, destination, ct)));
             }
         }
 
@@ -154,8 +156,16 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         return ExportJson.Write(root);
     }
 
-    private static string Full(string folder, string relative) =>
-        Path.GetFullPath(Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar)));
+    /// <summary>
+    /// The project file's full path, or an empty string (which never exists) when the manifest names a file outside the
+    /// project folder: a hand-edited or copied-in project.json must not make an export read files from elsewhere.
+    /// </summary>
+    private static string Full(string folder, string relative)
+    {
+        var root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var full = Path.GetFullPath(Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar)));
+        return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full : string.Empty;
+    }
 
     private static ExportItem TextItem(string component, string name, string? subfolder, string content)
     {

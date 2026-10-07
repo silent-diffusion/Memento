@@ -358,6 +358,41 @@ public sealed class ExportTests : IDisposable
         Assert.Equal("01:02:03,457", SrtWriter.Time(3723.4567));
     }
 
+    [Fact]
+    public async Task ACraftedProjectJsonCannotWriteOrReadOutsideItsFolders()
+    {
+        var id = await _m3.RecordAsync();
+        var folder = _m3.Host.Store.GetProjectFolder(id);
+        Directory.CreateDirectory(Path.Combine(folder, "attachments"));
+        File.WriteAllText(Path.Combine(folder, "attachments", "agenda.txt"), "agenda");
+        var outside = _m3.Directory.File("outside-secret.txt");
+        File.WriteAllText(outside, "not part of the recording");
+        await _m3.Host.Store.UpdateAsync(
+            id,
+            m => m with
+            {
+                Attachments =
+                [
+                    new AttachmentRecord { Id = "a1", Name = @"..\..\..\Startup\evil.bat", File = "attachments/agenda.txt", SizeBytes = 6 },
+                    new AttachmentRecord { Id = "a2", Name = "secret.txt", File = "../../../outside-secret.txt", SizeBytes = 25 },
+                ],
+            },
+            CancellationToken.None);
+
+        var payload = await RunAsync(id, new ExportSelection { Attachments = new ExportToggle { On = true } }, createSubfolder: true);
+
+        Assert.Equal("done", payload.GetProperty("state").GetString());
+        var written = Directory.EnumerateFiles(_m3.Directory.Path, "*", SearchOption.AllDirectories)
+            .Where(f => !f.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+            .Select(f => Path.GetRelativePath(_m3.Directory.Path, f))
+            .ToList();
+        Assert.DoesNotContain(written, f => f.EndsWith("evil.bat", StringComparison.OrdinalIgnoreCase) && !f.StartsWith("Exports", StringComparison.OrdinalIgnoreCase));
+        var exported = Directory.EnumerateFiles(Destination, "*", SearchOption.AllDirectories).Select(Path.GetFileName).ToList();
+        Assert.Contains("evil.bat", exported); // the name, made safe, inside the export's Attachments folder
+        Assert.DoesNotContain("secret.txt", exported); // a file outside the project is never read
+        Assert.All(Directory.EnumerateFiles(Destination, "*", SearchOption.AllDirectories), f => Assert.StartsWith(Destination, f, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static RecordingSummary Summary() =>
         new("r1", "Weekly sync", "meeting", new DateTimeOffset(2026, 10, 6, 10, 0, 0, TimeSpan.FromHours(1)), 3_733_000, 2, false, [], [], false, "ready", 0);
 
