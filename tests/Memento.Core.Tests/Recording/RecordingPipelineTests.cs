@@ -459,6 +459,34 @@ public sealed class RecordingPipelineTests : IDisposable
     }
 
     [Fact]
+    public async Task RecordingCurrentNoLongerAnswersFinalizingOnceReadyWasSent()
+    {
+        // A page that asks recording.current right after "ready" (the Record screen opened again at that moment) got the
+        // finalizing payload, because the finalize stays listed until processing is queued; it then waited for a
+        // "ready" that had already been sent and showed Finalizing for good.
+        var (sessionId, _) = await _host.StartAsync("Rejoin after stop", Mic, SystemAudio);
+        _host.Session.Advance(TimeSpan.FromSeconds(3));
+        string? currentWhenReady = "not seen";
+        _host.Sink.Posting = json =>
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.GetProperty("event").GetString() == BridgeEventNames.RecordingState
+                && root.GetProperty("payload").GetProperty("state").GetString() == "ready")
+            {
+                currentWhenReady = _host.Recordings.Current?.State;
+            }
+        };
+
+        await Session("recording.stop", sessionId);
+        await _host.Recordings.WhenIdleAsync();
+        _host.Sink.Posting = null;
+
+        Assert.Null(currentWhenReady);
+        Assert.Equal(JsonValueKind.Null, (await _host.ResultAsync("recording.current")).GetProperty("session").ValueKind);
+    }
+
+    [Fact]
     public async Task RecordingCurrentRejoinsTheSession()
     {
         var (sessionId, recordingId) = await _host.StartAsync("Rejoin", Mic, SystemAudio);

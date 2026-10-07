@@ -93,7 +93,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 return BuildPayload(active, StateName(active.Session.State), active.Session.Tracks, active.Session.ElapsedMs);
             }
 
-            return _finalizing.Values.OrderByDescending(f => f.Payload.StartedAt).FirstOrDefault()?.Payload;
+            // A finalize whose outcome was published is over for the page, even while processing is still being queued:
+            // answering its "finalizing" payload then would leave a page that rejoins it waiting for an event already sent.
+            return _finalizing.Values.Where(f => !f.Finished).OrderByDescending(f => f.Payload.StartedAt).FirstOrDefault()?.Payload;
         }
     }
 
@@ -740,6 +742,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         {
             var manifest = await _finalization.FinalizeAsync(active.RecordingId, ProjectStates.Ready, CancellationToken.None);
             var state = manifest.State == ProjectStates.Failed ? "stopped" : "ready";
+            finalizing.Finished = true;
             _publisher.PublishRecordingState(finalizing.Payload with
             {
                 State = state,
@@ -768,6 +771,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 LogFinalizeFailed(inner, active.RecordingId);
             }
 
+            finalizing.Finished = true;
             _publisher.PublishRecordingState(finalizing.Payload with { State = "stopped" });
         }
         finally
@@ -994,6 +998,15 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     {
         public RecordingStatePayload Payload { get; } = payload;
 
+        private volatile bool _finished;
+
         public Task Task { get; set; } = Task.CompletedTask;
+
+        /// <summary>Set just before the outcome (ready or stopped) is published; <see cref="Current"/> leaves it out.</summary>
+        public bool Finished
+        {
+            get => _finished;
+            set => _finished = value;
+        }
     }
 }

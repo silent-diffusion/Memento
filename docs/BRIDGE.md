@@ -131,7 +131,7 @@ From M2:
 | `recording.pause` / `recording.resume` | `{ sessionId }` | `{}` | M1 |
 | `recording.markHighlight` | `{ sessionId, note?: string }` | `{ highlight: Highlight }` | M1 |
 | `recording.stop` | `{ sessionId }` | `{ recordingId }` | M1. Returns when finalize has started; `recording.state` events report `finalizing` then `ready`. |
-| `recording.current` | `{}` | `{ session: RecordingStatePayload \| null }` | M1. Lets the UI rejoin an active session after a reload. |
+| `recording.current` | `{}` | `{ session: RecordingStatePayload \| null }` | M1. Lets the UI rejoin an active session after a reload. A session counts while it records, is paused or finalizes; once its `ready` or `stopped` state has been sent the answer is `null`. An answer that arrives after a `recording.state` event for the session is older than that event and is ignored. |
 | `recovery.list` | `{}` | `{ items: { recordingId, title, startedAt, tracksIntact, tracksTotal, lastCheckpointAt, recoveredDurationMs, mayBeMissingMs }[] }` | M1. Projects repaired at launch. |
 | `recovery.acknowledge` | `{ recordingId }` | `{}` | M1. Dismisses the dialog for this project. |
 | `dialog.pickFolder` | `{ title, initialPath?: string }` | `{ path: string \| null }` | M1 |

@@ -21,6 +21,7 @@ import { useServices } from '../../state/context';
 import { createDetailsSaver, emptyDetails } from '../../state/detailsSaver';
 import { recordShortcut } from '../../state/recordShortcuts';
 import { AgendaCard, HighlightsCard, LiveTranscriptCard, RecordFooter, SourcesCard, StageCard, type SourceRow } from './RecordParts';
+import { adoptCurrentSession } from '../../state/currentSession';
 import { TracksCard } from './TracksCard';
 
 /** "Untitled meeting"; custom types keep their own capitalisation. */
@@ -89,11 +90,12 @@ export function RecordScreen(): JSX.Element {
   // Rejoin: after a reload (or coming back from the Library) the host still has the session.
   useEffect(() => {
     let live = true;
+    const before = store.recording.value;
     bridge
       .call('recording.current')
       .then(({ session: current }) => {
         if (live && current !== null) {
-          store.recording.value = current;
+          adoptCurrentSession(store.recording, before, current);
         }
       })
       .catch((error: unknown) => {
