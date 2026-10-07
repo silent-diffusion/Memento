@@ -59,6 +59,13 @@ async function record(title, appSource = 'Windows PowerShell') {
 async function stopAndSettle(id) {
   await run.page.click({ name: 'Stop and open review' });
   await run.until(() => ['ready', 'failed'].includes(run.manifest(id).state), 'finalize', 120_000, 500);
+  // The Record screen opens Review by itself once finalize reports ready.
+  const left = await run.until(async () => !(await run.text()).includes('FINALIZING'), 'the Record screen to open Review', 30_000, 250).then(() => true, () => false);
+  if (!left) {
+    await run.shot('stuck-finalizing');
+    run.log('stuck', JSON.stringify({ state: run.manifest(id).state, current: await run.bridge('recording.current').catch((e) => e.message), events: (await run.events('recording.state')).slice(-3) }).slice(0, 1500));
+  }
+  run.check(`Review opens after Stop (${run.manifest(id).details.title})`, left);
 }
 
 async function caseMicrophone(mic) {
