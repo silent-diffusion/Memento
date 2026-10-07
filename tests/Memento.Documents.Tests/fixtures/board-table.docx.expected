@@ -1,0 +1,12 @@
+# Word: the agenda is a table with No., Item, Presenter and Time columns and a merged "Closed session" row.
+source: Docx
+title: Board meeting agenda
+warning: detailsSkipped
+warning: columnsUnused
+Opening and quorum | 18:00
+Conflicts of interest | 18:05
+Chief executive's report | 18:10
+Quarterly accounts | 18:40
+Closed session
+  Remuneration review | 19:10
+  Succession planning | 19:30

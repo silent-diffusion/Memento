@@ -1,0 +1,8 @@
+# TSV with two columns that could both be the agenda ("Agenda item" and "Topic"): every item is marked, the
+# first is used, and a number column feeds the numbering check.
+source: Tsv
+warning: columnsUnused
+? Opening and apologies
+? Minutes of the last meeting
+? Budget 2032 draft
+? Volunteer programme

@@ -1,0 +1,8 @@
+# Excel: one column under an "Agenda" header, inline strings only, outline numbers for sub-items.
+source: Xlsx
+Introductions
+Quarterly numbers
+  Revenue
+  Costs
+Hiring
+Close

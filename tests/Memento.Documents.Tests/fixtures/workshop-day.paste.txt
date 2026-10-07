@@ -1,0 +1,9 @@
+Accessibility workshop
+9:00-9:30 Arrivals
+9:30 am | Why calm interfaces matter
+10.30 Hands-on: keyboard paths
+11:15 – Break
+11:30 – Hands-on: colour and contrast. This session also covers reduced motion, focus rings, large text settings, screen reader announcements for live regions, and how to test every one of those with the tools that ship with Windows.
+12:30 – Lunch
+1:30 pm – Open questions
+2:15 pm – Close

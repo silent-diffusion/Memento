@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TranscriptionCheck", "tools
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memento.Transcription.Tests", "tests\Memento.Transcription.Tests\Memento.Transcription.Tests.csproj", "{BE0E4C7D-7C3D-4DB3-9F28-C89FD9A54E88}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memento.Documents.Tests", "tests\Memento.Documents.Tests\Memento.Documents.Tests.csproj", "{F325EA05-7AFD-445C-A57D-160E1DC98D0E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -90,6 +92,10 @@ Global
 		{BE0E4C7D-7C3D-4DB3-9F28-C89FD9A54E88}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BE0E4C7D-7C3D-4DB3-9F28-C89FD9A54E88}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BE0E4C7D-7C3D-4DB3-9F28-C89FD9A54E88}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F325EA05-7AFD-445C-A57D-160E1DC98D0E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F325EA05-7AFD-445C-A57D-160E1DC98D0E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F325EA05-7AFD-445C-A57D-160E1DC98D0E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F325EA05-7AFD-445C-A57D-160E1DC98D0E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A0606275-E07D-482E-BEDE-5B7E657B54AB} = {9500C414-5E29-4D0F-969D-3277A02E55B3}
@@ -104,5 +110,6 @@ Global
 		{C00EBE41-B669-40EA-A2BC-E488C8AE212A} = {9500C414-5E29-4D0F-969D-3277A02E55B3}
 		{313A2868-E3A8-4056-AA70-58263C55D52B} = {91308A4C-256E-4833-94A0-BFE4831FB330}
 		{BE0E4C7D-7C3D-4DB3-9F28-C89FD9A54E88} = {547D6D72-6404-4E58-A9C4-A61A403C0AB5}
+		{F325EA05-7AFD-445C-A57D-160E1DC98D0E} = {547D6D72-6404-4E58-A9C4-A61A403C0AB5}
 	EndGlobalSection
 EndGlobal

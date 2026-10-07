@@ -1,0 +1,14 @@
+# PDF: a title across a two-column page, bold section headings, times; read left column first, with a warning.
+source: Pdf
+title: Regional volunteers day agenda
+warning: multiColumn
+Morning
+  Registration and name badges | 09:00
+  Welcome talk from the hosts | 09:30
+  Project fair in the main hall | 10:00
+  Lightning talks by local groups | 11:30
+Afternoon
+  Lunch on the terrace together | 13:00
+  Workshops in the garden rooms | 14:00
+  Awards for long service | 15:30
+  Close and thank you | 16:00

@@ -1,0 +1,9 @@
+# Binary fixtures must never be line-ending normalized (a PDF's offsets would break).
+*.docx binary
+*.xlsx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+# These fixtures test Windows (CRLF) and classic Mac (CR) line endings: keep their bytes exactly.
+*-crlf.txt -text
+*-cr.txt -text

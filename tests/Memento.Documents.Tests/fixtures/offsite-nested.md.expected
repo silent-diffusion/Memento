@@ -1,0 +1,17 @@
+# Markdown: headings as sections, a numbered list with bullets nested three deep, task checkboxes, inline markup.
+source: Markdown
+title: Team offsite agenda
+warning: detailsSkipped
+Morning
+  Welcome and coffee
+  Year in review
+    Wins
+    Lessons learned
+      What we would repeat
+      What we would change
+  Strategy for next year
+Afternoon
+  Team workshops
+    Roadmap mapping
+    Hiring plan
+  Wrap-up and dinner plans (menu)

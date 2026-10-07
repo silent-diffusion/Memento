@@ -1,0 +1,12 @@
+PROJECT KICKOFF AGENDA
+Date: 14 March 2031
+Location: Room 4B, Harbour House
+
+1. Welcome and introductions
+2. Project goals
+   a. Scope for the first release
+   b. What is out of scope
+3. Timeline and milestones
+5. Risks and open questions
+6. Roles and responsibilities
+7. Q&A

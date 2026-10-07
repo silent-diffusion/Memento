@@ -1,0 +1,8 @@
+# CSV as Excel saves it in many European locales: semicolons, a blank row, and a row with nothing in the Item column.
+source: Csv
+warning: columnsUnused
+warning: rowsWithoutItem
+Approval of previous minutes
+Finance report
+Membership update
+Any other business

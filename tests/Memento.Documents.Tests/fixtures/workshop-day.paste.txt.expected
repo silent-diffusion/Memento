@@ -1,0 +1,11 @@
+# Pasted text with mixed time styles (ranges, am/pm, dotted, pipes) and one item over 200 characters.
+source: PastedText
+title: Accessibility workshop
+Arrivals | 9:00-9:30
+Why calm interfaces matter | 9:30 am
+Hands-on: keyboard paths | 10.30
+Break | 11:15
+? Hands-on: colour and contrast. This session also covers reduced motion, focus rings, large text settings, screen reader announcements for live regions, and how to test every one of those with the tools that ship with Windows. | 11:30
+Lunch | 12:30
+Open questions | 1:30 pm
+Close | 2:15 pm
