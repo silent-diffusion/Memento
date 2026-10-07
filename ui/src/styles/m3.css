@@ -543,6 +543,7 @@
   max-width: 760px;
   width: 100%;
   box-sizing: border-box;
+  text-align: left;
 }
 .import-error-dot {
   width: 8px;
