@@ -65,6 +65,9 @@ public sealed record ProjectManifest
     /// <summary>Files kept with the recording (M3): the original agenda and other attachments, in the order added.</summary>
     public IReadOnlyList<AttachmentRecord> Attachments { get; init; } = [];
 
+    /// <summary>The file a <c>library.importMedia</c> recording was made from (M3); <c>null</c> for recordings.</summary>
+    public ProjectImportSource? ImportedFrom { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

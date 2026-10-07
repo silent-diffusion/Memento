@@ -26,11 +26,14 @@ import type {
   Track,
 } from './types';
 
-/** URL flags for the failure cases: `?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`, `?import=unsupported`, `?move=busy`. */
+/**
+ * URL flags for the failure cases: `?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`,
+ * `?import=unsupported|interrupted` (the first import stops at 40% as if Memento had closed), `?move=busy`.
+ */
 export interface M3Flags {
   export: ExportFlag;
   agenda: AgendaFlag;
-  import: 'ok' | 'unsupported';
+  import: 'ok' | 'unsupported' | 'interrupted';
   move: 'ok' | 'busy';
 }
 
@@ -48,8 +51,9 @@ export function m3FlagsFromQuery(query: URLSearchParams): Partial<M3Flags> {
   } else if (agenda === 'nodrop') {
     flags.agenda = 'noDrop';
   }
-  if (query.get('import') === 'unsupported') {
-    flags.import = 'unsupported';
+  const importFlag = query.get('import');
+  if (importFlag === 'unsupported' || importFlag === 'interrupted') {
+    flags.import = importFlag;
   }
   if (query.get('move') === 'busy') {
     flags.move = 'busy';
@@ -146,6 +150,8 @@ export interface MockM3 {
   handlers: M3Handlers;
   agenda: MockAgenda;
   exports: MockExport;
+  /** processing.retry of `stored` on an import that stopped: imports the same file again (BRIDGE.md M3 integration). */
+  importAgain(recordingId: string): void;
   /** settings.set for the M3 blocks: validated, then merged into `settings`. */
   mergeSettings(settings: SettingsSnapshot, params: SettingsSetParams): SettingsSnapshot;
 }
@@ -184,6 +190,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
   let pickIndex = 0;
   let mediaIndex = 0;
   let importCounter = 0;
+  let interruptedOnce = false;
   let jobCounter = 0;
 
   const at = (): string => isoWithOffset(new Date(env.now()));
@@ -303,7 +310,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     const track: Track = {
       id: `${id}-t1`,
       sourceId: 'imported',
-      sourceKind: 'microphone',
+      sourceKind: 'imported',
       name,
       file: 'tracks/01-imported.flac',
       sampleRate: 48_000,
@@ -346,6 +353,14 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     env.projects.set(id, project);
     env.changed(id);
     env.emit('processing.progress', { recordingId: id, stages: pipeline });
+    runImport(id, name);
+    return id;
+  };
+
+  /** Decoding and storing, 20% a step; with `?import=interrupted` the first import stops at 40%. */
+  const runImport = (id: string, name: string): void => {
+    const interrupt = env.flags.import === 'interrupted' && !interruptedOnce;
+    interruptedOnce ||= interrupt;
     const timer = setInterval(() => {
       const current = env.projects.get(id);
       if (current === undefined) {
@@ -354,6 +369,22 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       }
       const stored = current.stages.find((st) => st.stage === 'stored');
       const percent = Math.min(100, (stored?.percent ?? 0) + 20);
+      if (interrupt && percent >= 40) {
+        clearInterval(timer);
+        current.summary = { ...current.summary, state: 'failed' };
+        current.history = [
+          ...current.history,
+          {
+            at: at(),
+            stage: 'recorded',
+            event: 'failed',
+            summary: 'Import interrupted',
+            detail: `Importing ${name} stopped because Memento closed before it had finished. The original file was not changed. The half-imported copy was removed. Use Import again in the Library, or delete the recording.`,
+          },
+        ];
+        env.setStages(current, [{ stage: 'stored', state: 'failed', percent: null, label: 'Import interrupted' }]);
+        return;
+      }
       if (percent < 100) {
         env.setStages(current, current.stages.map((st) => (st.stage === 'stored' ? { ...st, percent, label: `Importing · ${percent}%` } : st)));
         return;
@@ -363,7 +394,19 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       env.setStages(current, current.stages.map((st) => (st.stage === 'stored' ? { ...st, state: 'done', percent: null, label: 'Done' } : st)));
       env.queueAfterStored(current);
     }, Math.max(200, env.stepMs * 2));
-    return id;
+  };
+
+  const importAgain = (recordingId: string): void => {
+    const project = env.find(recordingId);
+    const stored = project.stages.find((st) => st.stage === 'stored');
+    const name = project.tracks?.[0]?.name ?? project.summary.title;
+    if (project.summary.state !== 'failed' || stored?.state !== 'failed') {
+      throw new MockHostError('bridge.invalidParams', `"${project.summary.title}" is not an import that stopped, so there is nothing to import again. Nothing was changed.`);
+    }
+    project.summary = { ...project.summary, state: 'ready' };
+    project.history = [...project.history, { at: at(), stage: 'recorded', event: 'info', summary: 'Importing again', detail: `From ${name}.` }];
+    env.setStages(project, [{ stage: 'stored', state: 'active', percent: 0, label: 'Importing · 0%' }]);
+    runImport(recordingId, name);
   };
 
   const setProvider = (provider: AiProvider, hasKey: boolean): { hasKey: boolean } => {
@@ -574,6 +617,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     handlers,
     agenda,
     exports,
+    importAgain,
     mergeSettings(settings, params) {
       const general = params.general ?? settings.general;
       // The page's JSON is not checked against the types, so another language can still arrive.

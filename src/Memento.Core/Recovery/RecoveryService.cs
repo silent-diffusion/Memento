@@ -1,6 +1,7 @@
 using Memento.Core.Audio;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
+using Memento.Core.Import;
 using Memento.Core.Library;
 using Memento.Core.Processing;
 using Memento.Core.Projects;
@@ -21,11 +22,15 @@ public sealed partial class RecoveryService(
     ProjectFinalizationService finalization,
     ProcessingOrchestrator processing,
     TimeProvider time,
-    ILogger<RecoveryService> logger)
+    ILogger<RecoveryService> logger,
+    MediaImportService? imports = null)
 {
     private readonly ILogger<RecoveryService> _logger = logger;
 
-    /// <summary>Recovers every interrupted project; returns the ids that were recovered.</summary>
+    /// <summary>
+    /// Recovers every interrupted project; returns the ids that were recovered. An import of an audio or video file
+    /// that was cut short is not a recording to repair: it is marked failed with "Import again" instead.
+    /// </summary>
     public async Task<IReadOnlyList<string>> RunAsync(CancellationToken cancellationToken)
     {
         var recovered = new List<string>();
@@ -48,6 +53,15 @@ public sealed partial class RecoveryService(
             {
                 // Leave it exactly as it is; the next launch tries again.
                 LogRecoveryFailed(ex, id);
+            }
+        }
+
+        // Imports have no recording.state.json; one still "finalizing" at launch was cut short.
+        foreach (var id in await index.ListIdsByStateAsync(ProjectStates.Finalizing, cancellationToken))
+        {
+            if (!store.HasRecordingState(id))
+            {
+                await MarkInterruptedImportAsync(id, cancellationToken);
             }
         }
 
@@ -95,6 +109,24 @@ public sealed partial class RecoveryService(
             recordingId,
             m => m.Recovery is { } recovery ? m with { Recovery = recovery with { Acknowledged = true } } : m,
             cancellationToken);
+    }
+
+    private async Task MarkInterruptedImportAsync(string id, CancellationToken cancellationToken)
+    {
+        if (imports is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var manifest = await store.LoadAsync(id, cancellationToken);
+            await imports.MarkInterruptedAsync(manifest, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException or ProjectSchemaException)
+        {
+            LogRecoveryFailed(ex, id);
+        }
     }
 
     private async Task<bool> RecoverAsync(string id, CancellationToken cancellationToken)

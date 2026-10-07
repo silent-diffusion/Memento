@@ -149,8 +149,25 @@ function pillFor(stage: StageStatus): Pill {
       if (stage.label === 'Waiting for a model') {
         return { ...base, kind: 'queued', label: `${named(DONE_NAMES, stage.stage)} · needs a model` };
       }
+      // An import cut short (Memento closed while it decoded) is offered again from the same file.
+      if (isInterruptedImport(stage)) {
+        return { ...base, kind: 'failed', label: `${stage.label ?? 'Import interrupted'} · Import again` };
+      }
       return { ...base, kind: 'failed', label: `${named(DONE_NAMES, stage.stage)} failed · Retry` };
   }
+}
+
+/**
+ * The host's failed `stored` stage of an import that stopped (BRIDGE.md M3 integration):
+ * processing.retry with the remedy `importAgain` imports the same file again.
+ */
+export function isInterruptedImport(stage: StageStatus): boolean {
+  return stage.stage === 'stored' && stage.state === 'failed' && stage.label !== null && /^import\b/i.test(stage.label);
+}
+
+/** The remedy for processing.retry from a row: "Import again" for a stopped import, else a plain retry. */
+export function retryRemedy(stage: StageStatus | undefined): string | undefined {
+  return stage !== undefined && isInterruptedImport(stage) ? 'importAgain' : undefined;
 }
 
 /**

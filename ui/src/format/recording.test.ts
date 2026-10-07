@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RecordingSummary, StageStatus } from '../bridge/types';
-import { cardStageName, CARD_STAGE_NAMES, metaLine, peopleWording, stageFill, stageName, stagePills, stageStatusText, summaryLine, typeName } from './recording';
+import { cardStageName, CARD_STAGE_NAMES, isInterruptedImport, metaLine, peopleWording, retryRemedy, stageFill, stageName, stagePills, stageStatusText, summaryLine, typeName } from './recording';
 
 const stage = (s: StageStatus['stage'], state: StageStatus['state'], percent: number | null = null, label: string | null = null): StageStatus => ({
   stage: s,
@@ -71,6 +71,15 @@ const pills = (stages: StageStatus[]): { kind: string; label: string }[] => stag
 describe('status pills', () => {
   it('reads "Audio only" (no pills) when nothing has run', () => {
     expect(pills([])).toEqual([]);
+  });
+
+  it('offers Import again on an import that stopped, and a plain retry otherwise', () => {
+    const stopped: StageStatus = { stage: 'stored', state: 'failed', percent: null, label: 'Import interrupted' };
+    const saveFailed: StageStatus = { stage: 'stored', state: 'failed', percent: null, label: 'Saving failed' };
+    expect(stagePills([stopped]).map((p) => p.label)).toEqual(['Import interrupted · Import again']);
+    expect(stagePills([saveFailed]).map((p) => p.label)).toEqual(['Stored failed · Retry']);
+    expect([isInterruptedImport(stopped), isInterruptedImport(saveFailed)]).toEqual([true, false]);
+    expect([retryRemedy(stopped), retryRemedy(saveFailed), retryRemedy(undefined)]).toEqual(['importAgain', undefined, undefined]);
   });
 
   it('hides a finished Stored stage, the normal state of every recording', () => {

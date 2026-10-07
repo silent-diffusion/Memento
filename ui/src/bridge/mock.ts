@@ -814,6 +814,10 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     'transcript.versions': (params) => ({ versions: transcription.versions(params.recordingId) }),
     'transcript.restoreVersion': (params) => ({ transcript: transcription.restoreVersion(params.recordingId, params.versionId) }),
     'processing.retry': (params) => {
+      if (params.stage === 'stored') {
+        m3.importAgain(params.recordingId);
+        return {};
+      }
       transcription.retry(params);
       return {};
     },
