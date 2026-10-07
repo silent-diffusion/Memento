@@ -105,9 +105,10 @@ export interface RecordingGroup {
   items: RecordingSummary[];
 }
 
-const SORT_GROUP_LABELS: Record<'longest' | 'title', string> = {
+const SORT_GROUP_LABELS: Record<'longest' | 'title' | 'size', string> = {
   longest: 'Longest first',
   title: 'A to Z',
+  size: 'Largest first',
 };
 
 /**
@@ -122,7 +123,7 @@ export function groupRecordings(
   if (recordings.length === 0) {
     return [];
   }
-  if (sort === 'longest' || sort === 'title') {
+  if (sort === 'longest' || sort === 'title' || sort === 'size') {
     return [{ key: sort, label: SORT_GROUP_LABELS[sort], items: [...recordings] }];
   }
   const groups: RecordingGroup[] = [];
@@ -146,6 +147,7 @@ export const SORT_LABELS: Record<LibrarySort, string> = {
   oldest: 'Oldest first',
   longest: 'Longest first',
   title: 'By title',
+  size: 'Largest first',
 };
 
 /** Sort menu options in order (the menu names them in short; the button reads SORT_LABELS). */
@@ -154,4 +156,5 @@ export const SORT_OPTIONS: readonly { value: LibrarySort; label: string }[] = [
   { value: 'oldest', label: 'Oldest' },
   { value: 'longest', label: 'Longest' },
   { value: 'title', label: 'Title' },
+  { value: 'size', label: 'Largest' },
 ];

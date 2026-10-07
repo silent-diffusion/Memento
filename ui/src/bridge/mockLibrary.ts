@@ -66,6 +66,9 @@ export function queryLibrary(
     case 'title':
       sorted.sort((a, b) => a.title.localeCompare(b.title, 'en', { sensitivity: 'base' }) || byNewest(a, b));
       break;
+    case 'size':
+      sorted.sort((a, b) => b.sizeBytes - a.sizeBytes || byNewest(a, b));
+      break;
   }
   return {
     recordings: sorted,
