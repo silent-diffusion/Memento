@@ -185,12 +185,51 @@ public sealed class ImportAndLibraryTests : IDisposable
         await _m3.Host.ResultAsync("recording.stop", JsonSerializer.Serialize(new { sessionId }));
         await _m3.Host.Recordings.WhenIdleAsync();
 
-        Assert.All(new[] { notEmpty, inside, same, relative }, e => Assert.Equal(BridgeErrorCodes.InvalidParams, e.GetProperty("code").GetString()));
+        Assert.All(new[] { notEmpty, inside, same, relative }, e => Assert.Equal(DomainErrorCodes.LibraryMoveRefused, e.GetProperty("code").GetString()));
         Assert.Contains("already has files", notEmpty.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(full, notEmpty.GetProperty("detail").GetString());
         Assert.Equal(DomainErrorCodes.LibraryBusy, busy.GetProperty("code").GetString());
         Assert.Contains("a recording is in progress", busy.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.False(Directory.Exists(_m3.Directory.File("Elsewhere")));
         Assert.Equal(root, _m3.Host.Settings.Current.EffectiveLibraryPath);
+    }
+
+    [Fact]
+    public async Task ARecordingDoesNotStartWhileTheLibraryIsBeingMoved()
+    {
+        var activity = _m3.Get<LibraryActivity>();
+        using (activity.Begin(LibraryActivity.Move))
+        {
+            var refused = await _m3.ErrorAsync("recording.start", new { title = "Live", type = "meeting", sourceIds = new[] { TestRecordings.Mic } });
+
+            Assert.Equal(DomainErrorCodes.LibraryBusy, refused.GetProperty("code").GetString());
+            Assert.Contains("can't start right now. Nothing was started.", refused.GetProperty("message").GetString(), StringComparison.Ordinal);
+            Assert.Null(_m3.Host.Recordings.Current);
+            Assert.False(activity.IsStartingRecording);
+        }
+
+        // Once the move is over, recording works again.
+        var (sessionId, _) = await _m3.Host.StartAsync("Live", TestRecordings.Mic);
+        Assert.False(activity.IsStartingRecording);
+        await _m3.Host.ResultAsync("recording.stop", JsonSerializer.Serialize(new { sessionId }));
+        await _m3.Host.Recordings.WhenIdleAsync();
+    }
+
+    [Fact]
+    public async Task TheLibraryIsNotMovedWhileARecordingIsStarting()
+    {
+        var activity = _m3.Get<LibraryActivity>();
+        var target = _m3.Directory.File("Elsewhere");
+        using (activity.BeginRecordingStart())
+        {
+            var busy = await _m3.ErrorAsync("library.move", new { newPath = target });
+
+            Assert.Equal(DomainErrorCodes.LibraryBusy, busy.GetProperty("code").GetString());
+            Assert.False(activity.IsMoving);
+        }
+
+        Assert.False(Directory.Exists(target));
+        Assert.Null(activity.Describe());
     }
 
     [Fact]
@@ -233,17 +272,21 @@ public sealed class ImportAndLibraryTests : IDisposable
         var mp3 = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = new[] { id }, downmixMono = false, codec = "mp3", bitrateKbps = 64 });
         var noAge = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = (string[]?)null, downmixMono = true, codec = "aac", bitrateKbps = (int?)null });
         var unknown = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = MissingId, downmixMono = false, codec = "aac" });
+        var none = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = Array.Empty<string>(), downmixMono = false, codec = "aac" });
 
         Assert.Equal(BridgeErrorCodes.InvalidParams, codec.GetProperty("code").GetString());
         Assert.Contains("96 to 320", mp3.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(DomainErrorCodes.StorageNothingToReclaim, noAge.GetProperty("code").GetString());
         Assert.Contains("Settings › Storage and history", noAge.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(DomainErrorCodes.ProjectNotFound, unknown.GetProperty("code").GetString());
+        Assert.Equal(DomainErrorCodes.StorageNothingToReclaim, none.GetProperty("code").GetString());
 
-        // With an age set, only older recordings are chosen: this one was made just now.
+        // With an age set, only older recordings are chosen: this one was made just now, so nothing is started.
         await _m3.ResultAsync("settings.set", new { storage = new { reclaimOlderThanDays = 30 } });
-        await _m3.ResultAsync("storage.reclaim", new { recordingIds = (string[]?)null, downmixMono = false, codec = "aac" });
-        await _m3.Get<StorageReclaimService>().WhenIdleAsync();
-        Assert.Equal(0, _m3.Sink.Payloads(BridgeEventNames.StorageReclaimProgress).Last().GetProperty("recordingsDone").GetInt32());
+        var young = await _m3.ErrorAsync("storage.reclaim", new { recordingIds = (string[]?)null, downmixMono = false, codec = "aac" });
+        Assert.Equal(DomainErrorCodes.StorageNothingToReclaim, young.GetProperty("code").GetString());
+        Assert.Contains("older than 30 days", young.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Empty(_m3.Sink.Payloads(BridgeEventNames.StorageReclaimProgress));
         Assert.All((await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).Tracks, t => Assert.Equal("flac", t.Codec));
     }
 

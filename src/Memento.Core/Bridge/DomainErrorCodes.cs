@@ -101,4 +101,19 @@ public static class DomainErrorCodes
 
     /// <summary>The job id names no export of this session.</summary>
     public const string ExportNotFound = "export.notFound";
+
+    /// <summary>
+    /// <c>library.move</c> refused before anything was copied: the target is not a full path, is the library or inside
+    /// it, is not empty, cannot be created, or its drive is too small. <c>detail</c> is the target folder.
+    /// </summary>
+    public const string LibraryMoveRefused = "library.moveRefused";
+
+    /// <summary><c>storage.reclaim</c> with no recording chosen and none older than the Settings age (or no age set).</summary>
+    public const string StorageNothingToReclaim = "storage.nothingToReclaim";
+
+    /// <summary>Windows refused to add or remove the startup entry; nothing was changed.</summary>
+    public const string AppStartupRefused = "app.startupRefused";
+
+    /// <summary>Windows could not store or remove an API key with DPAPI; nothing was changed.</summary>
+    public const string AiKeyWriteFailed = "ai.keyWriteFailed";
 }

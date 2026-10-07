@@ -24,7 +24,7 @@ public sealed class AiClearKeyMethod(ISecretStore secrets) : BridgeMethod<AiProv
         catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
         {
             throw new BridgeException(
-                BridgeErrorCodes.Internal,
+                DomainErrorCodes.AiKeyWriteFailed,
                 $"The {AiProviders.DisplayName(provider)} key could not be removed ({ex.GetType().Name}). It is still saved, encrypted for your Windows account. Try again.");
         }
 

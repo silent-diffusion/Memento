@@ -35,7 +35,7 @@ public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKey
         catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
         {
             throw new BridgeException(
-                BridgeErrorCodes.Internal,
+                DomainErrorCodes.AiKeyWriteFailed,
                 $"Windows could not store the {AiProviders.DisplayName(provider)} key securely ({ex.GetType().Name}). Nothing was saved; no key is kept in plain text. Try again, or sign out of Windows and back in.");
         }
 

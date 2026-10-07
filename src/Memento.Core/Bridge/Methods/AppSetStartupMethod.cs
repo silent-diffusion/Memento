@@ -32,7 +32,7 @@ public sealed class AppSetStartupMethod(IStartupRegistration startup, ISettingsS
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or PlatformNotSupportedException)
         {
             throw new BridgeException(
-                BridgeErrorCodes.Internal,
+                DomainErrorCodes.AppStartupRefused,
                 $"Windows did not let Memento {(enabled ? "add" : "remove")} its startup entry ({ex.GetType().Name}). Nothing was changed. You can change it in Windows Settings › Apps › Startup.");
         }
     }

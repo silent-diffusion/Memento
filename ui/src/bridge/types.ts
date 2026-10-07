@@ -87,6 +87,10 @@ export const ERROR_CODES = [
   'export.destinationUnwritable',
   'export.nothingSelected',
   'export.notFound',
+  'library.moveRefused',
+  'storage.nothingToReclaim',
+  'app.startupRefused',
+  'ai.keyWriteFailed',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

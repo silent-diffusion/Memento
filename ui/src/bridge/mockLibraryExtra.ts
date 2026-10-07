@@ -474,7 +474,10 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       const settings = env.settings();
       const newPath = params.newPath.trim();
       if (newPath === '' || newPath.toLocaleLowerCase() === settings.libraryPath.toLocaleLowerCase()) {
-        throw new MockHostError('bridge.invalidParams', `The library is already in ${settings.libraryPath}. Nothing was moved.`, newPath);
+        throw new MockHostError('library.moveRefused', `The library is already in ${settings.libraryPath}. Nothing was changed.`, newPath);
+      }
+      if (/unwritable|readonly/i.test(newPath)) {
+        throw new MockHostError('library.moveRefused', `Memento can't create ${newPath}: Windows denied access. Nothing was changed. Choose another folder.`, newPath);
       }
       const busy = env.flags.move === 'busy' ? 'Q3 planning sync' : env.busyTitle();
       if (busy !== null) {
@@ -506,6 +509,16 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       const chosen = [...env.projects.values()].filter((p) =>
         params.recordingIds === null ? cutoff !== null && Date.parse(p.summary.createdAt) < cutoff : params.recordingIds.includes(p.summary.id),
       );
+      if (chosen.length === 0) {
+        throw new MockHostError(
+          'storage.nothingToReclaim',
+          params.recordingIds !== null
+            ? 'No recording was chosen, so there is nothing to make smaller. Nothing was changed. Choose at least one recording.'
+            : days === null
+              ? 'No age is set for making recordings smaller, so none were chosen. Nothing was changed. Choose an age for "Downmix tracks older than" in Settings › Storage and history first.'
+              : `No recording is older than ${days} ${days === 1 ? 'day' : 'days'}, so there is nothing to make smaller yet. Nothing was changed.`,
+        );
+      }
       let freed = 0;
       let done = 0;
       return {
@@ -538,10 +551,11 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     'ai.setKey': (params) => {
       const provider = checkProvider(params.provider);
       const key = params.key.trim();
-      if (key.length < 20 || /\s/.test(key)) {
+      // As the host: 8 to 500 characters, no spaces.
+      if (key.length < 8 || key.length > 500 || /\s/.test(key)) {
         throw new MockHostError(
           'bridge.invalidParams',
-          'That does not look like a complete API key. Nothing was stored. Copy the whole key from the provider\u2019s console and paste it again.',
+          'That does not look like an API key: a key is 8 to 500 characters with no spaces. Nothing was saved. Copy the whole key from the provider\u2019s console and paste it again.',
         );
       }
       return setProvider(provider, true);

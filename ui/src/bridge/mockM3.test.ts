@@ -64,6 +64,10 @@ describe('M3 contract names', () => {
       'export.destinationUnwritable',
       'export.nothingSelected',
       'export.notFound',
+      'library.moveRefused',
+      'storage.nothingToReclaim',
+      'app.startupRefused',
+      'ai.keyWriteFailed',
     ];
     expect(ERROR_CODES.slice(-m3Codes.length)).toEqual(m3Codes);
   });
@@ -257,6 +261,9 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
     expect(events.length).toBeGreaterThan(2);
     expect((await bridge.call('settings.get')).libraryPath).toBe('E:\\Memento Library');
     expect((await failure(client({ m3: { move: 'busy' } }).call('library.move', { newPath: 'F:\\Lib' }))).code).toBe('library.busy');
+    // Checked before anything is copied: the host's own code, with the folder as detail.
+    const same = await failure(bridge.call('library.move', { newPath: 'E:\\Memento Library' }));
+    expect([same.code, same.detail]).toEqual(['library.moveRefused', 'E:\\Memento Library']);
     expect((await bridge.call('library.rebuildIndex')).recordings).toBe(14);
   });
 
@@ -279,6 +286,14 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
     const last = (await reclaimed).at(-1);
     expect(last?.recordingsDone).toBeGreaterThan(0);
     expect(last?.bytesFreed).toBeGreaterThan(0);
+    // Nothing chosen and nothing old enough are refused before a job starts.
+    expect((await failure(bridge.call('storage.reclaim', { recordingIds: [], downmixMono: true, codec: 'aac' }))).code).toBe('storage.nothingToReclaim');
+    await bridge.call('settings.set', { storage: { reclaimOlderThanDays: 3650 } });
+    const young = await failure(bridge.call('storage.reclaim', { recordingIds: null, downmixMono: true, codec: 'aac' }));
+    expect([young.code, young.message]).toEqual(['storage.nothingToReclaim', 'No recording is older than 3650 days, so there is nothing to make smaller yet. Nothing was changed.']);
+    // Keys are 8 to 500 characters.
+    expect(await bridge.call('ai.setKey', { provider: 'openai', key: 'k'.repeat(8) })).toEqual({ hasKey: true });
+    expect((await failure(bridge.call('ai.setKey', { provider: 'openai', key: 'k'.repeat(501) }))).code).toBe('bridge.invalidParams');
   });
 
   it('adds, opens and removes attachments, refusing files over 100 MB', async () => {
