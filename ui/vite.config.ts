@@ -1,4 +1,6 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
 // The built page loads its own files from https://app.memento/, talks to the host through
@@ -37,12 +39,32 @@ function contentSecurityPolicyPlugin(): Plugin {
   };
 }
 
+// Settings › General › About lists the bundled licenses from docs/THIRD-PARTY.md, read when the page is built (and
+// on every change during development), so the page never fetches anything for it.
+const THIRD_PARTY_ID = 'virtual:third-party-licenses';
+const THIRD_PARTY_FILE = resolve(import.meta.dirname, '..', 'docs', 'THIRD-PARTY.md');
+
+function thirdPartyLicensesPlugin(): Plugin {
+  const resolved = `\0${THIRD_PARTY_ID}`;
+  return {
+    name: 'memento-third-party-licenses',
+    resolveId: (source) => (source === THIRD_PARTY_ID ? resolved : undefined),
+    load(id) {
+      if (id !== resolved) {
+        return undefined;
+      }
+      this.addWatchFile(THIRD_PARTY_FILE);
+      return `export const THIRD_PARTY = ${JSON.stringify(readFileSync(THIRD_PARTY_FILE, 'utf8'))};`;
+    },
+  };
+}
+
 export default defineConfig({
   base: '/',
   oxc: {
     jsx: { runtime: 'automatic', importSource: 'preact' },
   },
-  plugins: [contentSecurityPolicyPlugin()],
+  plugins: [contentSecurityPolicyPlugin(), thirdPartyLicensesPlugin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

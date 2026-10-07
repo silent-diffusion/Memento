@@ -14,6 +14,7 @@ import type {
   SettingsSnapshot,
   StageStatus,
   StorageLowSpacePayload,
+  UpdateStatus,
 } from '../bridge/types';
 import { sourceLostCopy, stoppedByHostCopy } from '../format/messages';
 import type { DialogRequest } from './dialogs';
@@ -54,6 +55,8 @@ export interface AppStore {
   overlays: Signal<number>;
   /** Recovered projects still to be shown, one dialog at a time. */
   recoveryQueue: Signal<RecoveredRecording[]>;
+  /** H1: the latest updates.progress (or updates.status); null until Settings or an event reports it. */
+  updates: Signal<UpdateStatus | null>;
 }
 
 export function createStore(initialDark: boolean, toasts: ToastQueue = createToastQueue()): AppStore {
@@ -78,6 +81,7 @@ export function createStore(initialDark: boolean, toasts: ToastQueue = createToa
     dialog: signal<DialogRequest | null>(null),
     overlays: signal(0),
     recoveryQueue: signal<RecoveredRecording[]>([]),
+    updates: signal<UpdateStatus | null>(null),
   };
 }
 
@@ -108,6 +112,31 @@ export function applyProgress(store: AppStore, recordingId: string, stages: Stag
 export interface EventHooks {
   /** library.changed: refetch what the Library shows. */
   onLibraryChanged?: (recordingIds: string[]) => void;
+}
+
+/** The toast once an update has downloaded (DESIGN.md §5.19): never a modal; installing waits for the click. */
+export function showUpdateReady(bridge: BridgeClient, store: AppStore, version: string): void {
+  store.toasts.show({
+    key: 'update-ready',
+    tone: 'ok',
+    title: `Memento ${version} is ready to install`,
+    body: `Restart to update to ${version}. Recordings, transcripts and settings stay as they are; if you keep working, it installs the next time Memento starts.`,
+    actions: [
+      {
+        label: `Restart to update to ${version}`,
+        run: () => {
+          bridge.call('updates.apply').catch((error: unknown) => {
+            store.toasts.show({
+              tone: 'warning',
+              title: 'Memento did not restart',
+              body: error instanceof Error ? error.message : 'Memento did not answer.',
+            });
+          });
+        },
+      },
+      { label: 'Later', quiet: true, run: () => undefined },
+    ],
+  });
 }
 
 /** Routes host events into the store. Returns the unsubscribe function. */
@@ -181,6 +210,13 @@ export function connectEvents(bridge: BridgeClient, store: AppStore, hooks: Even
     // Each draft replaces the last; the full pass after recording replaces the draft entirely.
     bridge.on('recording.liveTranscript', (payload) => {
       store.liveTranscript.value = payload;
+    }),
+    bridge.on('updates.progress', (payload) => {
+      const wasReady = store.updates.value?.state === 'ready';
+      store.updates.value = payload;
+      if (payload.state === 'ready' && !wasReady && payload.availableVersion !== null) {
+        showUpdateReady(bridge, store, payload.availableVersion);
+      }
     }),
   ];
   return () => {

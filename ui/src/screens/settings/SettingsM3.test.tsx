@@ -44,7 +44,19 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
 
   it('General: Start with Windows, the stored tray option and Language', async () => {
     await open('general');
-    expect(labels()).toEqual(['Theme', 'List density', 'Start Memento with Windows', 'Keep running in the tray when closed', 'Library location', 'Language']);
+    expect(labels()).toEqual([
+      'Theme',
+      'List density',
+      'Start Memento with Windows',
+      'Keep running in the tray when closed',
+      'Library location',
+      'Language',
+      'Updates',
+      'Install updates automatically',
+      'Version',
+      'Library',
+      'Licenses',
+    ]);
     await click(button('Start Memento with Windows'));
     await until(() => h.callsOf('app.setStartup').length === 1);
     expect(h.callsOf('app.setStartup')[0]).toEqual({ startWithWindows: true });
@@ -52,8 +64,32 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     expect(rowOf('Keep running in the tray when closed').textContent).toContain('Applied in a later version');
     await click(button('Keep running in the tray when closed'));
     await until(() => h.callsOf('settings.set').length === 1);
-    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general).toEqual({ startWithWindows: true, keepRunningInTray: false, language: 'en' });
+    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general).toEqual({ startWithWindows: true, keepRunningInTray: false, language: 'en', autoUpdate: true });
     expect(rowOf('Language').textContent).toContain('English');
+  });
+
+  it('General: Updates checks by hand, the automatic toggle is stored, and About lists the bundled licenses', async () => {
+    await open('general');
+    await until(() => h.callsOf('updates.status').length === 1);
+    await until(() => rowOf('Updates').textContent.includes('Version 0.5.0'));
+    expect(rowOf('Updates').textContent).toContain('Not checked yet');
+    await click(button('Check now'));
+    await until(() => rowOf('Updates').textContent.includes('Memento 0.5.0 is the newest version.'));
+    expect(rowOf('Updates').textContent).toContain('Last checked');
+    await click(button('Install updates automatically'));
+    await until(() => h.callsOf('settings.set').length === 1);
+    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general?.autoUpdate).toBe(false);
+
+    expect(rowOf('Library').textContent).toContain('D:\\Memento Library');
+    expect(document.querySelector('#about-licenses')).toBeNull();
+    await click(button('Show licenses'));
+    await until(() => document.querySelector('#about-licenses') !== null);
+    const licenses = document.querySelector('#about-licenses')?.textContent ?? '';
+    for (const component of ['Preact', 'Velopack', 'Whisper.net', 'org.k2fsa.sherpa.onnx', 'NAudio.Core', 'Manrope (font)']) {
+      expect(licenses).toContain(component);
+    }
+    expect(licenses).not.toContain('|');
+    expect(button('Hide licenses').getAttribute('aria-expanded')).toBe('true');
   });
 
   it('General: moving the library asks first, explains copy-verify-delete, then shows progress', async () => {

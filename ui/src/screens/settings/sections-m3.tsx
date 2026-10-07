@@ -25,6 +25,7 @@ import { useServices } from '../../state/context';
 import { updateLibraryView } from '../../state/data';
 import { jobsOf } from '../../state/jobs';
 import { PROVIDER_NAMES } from './SettingsDialogs';
+import { AboutGroup, UpdatesGroup } from './about';
 import { LATER, OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
 
 function messageOf(error: unknown): string {
@@ -254,6 +255,8 @@ export function GeneralSectionM3(): JSX.Element {
           />
         </SettingsRow>
       </SettingsGroup>
+      <UpdatesGroup />
+      <AboutGroup />
     </>
   );
 }

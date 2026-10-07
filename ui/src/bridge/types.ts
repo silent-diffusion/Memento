@@ -91,6 +91,10 @@ export const ERROR_CODES = [
   'storage.nothingToReclaim',
   'app.startupRefused',
   'ai.keyWriteFailed',
+  // H1
+  'updates.unavailable',
+  'updates.notReady',
+  'updates.busy',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -944,6 +948,28 @@ export interface FooterStatusPayload {
   processingPaused: ProcessingPausedReason | null;
   /** M3: the running export, if any. Hosts before M3 leave it out. */
   export?: FooterExportStatus;
+  /** H1: the update downloading in the background, if any. Hosts before 0.5.0 leave it out. */
+  update?: FooterUpdateStatus;
+}
+
+export interface FooterUpdateStatus {
+  downloading: boolean;
+  percent: number | null;
+  version: string | null;
+}
+
+/** updates.status / updates.check result and the updates.progress payload (BRIDGE.md "Updates"). */
+export interface UpdateStatus {
+  currentVersion: string;
+  /** failed: only after updates.check ("Check now"); automatic checks that fail stay idle. */
+  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';
+  availableVersion: string | null;
+  percent: number | null;
+  lastCheckedAt: string | null;
+  /** After updates.check: the newest-version line, why it failed, or that the download waits. */
+  message: string | null;
+  /** A newer version waits to download until no recording or processing runs. */
+  deferred: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1344,6 +1370,8 @@ export interface GeneralSettings {
   /** Stored now; applied in M5. */
   keepRunningInTray: boolean;
   language: 'en';
+  /** H1: check at start and daily and download in the background; off = only "Check now". Default true. */
+  autoUpdate: boolean;
 }
 
 export interface ExportSettings {
@@ -1468,6 +1496,10 @@ export interface BridgeMethods {
   'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
   'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
   'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
+  // H1
+  'updates.status': { params: EmptyParams; result: UpdateStatus };
+  'updates.check': { params: EmptyParams; result: UpdateStatus };
+  'updates.apply': { params: EmptyParams; result: EmptyResult };
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -1488,6 +1520,8 @@ export interface BridgeEvents {
   'export.progress': ExportProgressPayload;
   'library.moveProgress': LibraryMoveProgressPayload;
   'storage.reclaimProgress': StorageReclaimProgressPayload;
+  // H1
+  'updates.progress': UpdateStatus;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -1571,6 +1605,9 @@ export const METHOD_NAMES = [
   'ai.setKey',
   'ai.clearKey',
   'app.setStartup',
+  'updates.status',
+  'updates.check',
+  'updates.apply',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -1589,4 +1626,5 @@ export const EVENT_NAMES = [
   'export.progress',
   'library.moveProgress',
   'storage.reclaimProgress',
+  'updates.progress',
 ] as const satisfies readonly EventName[];

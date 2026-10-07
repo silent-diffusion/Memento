@@ -69,7 +69,9 @@ describe('M3 contract names', () => {
       'app.startupRefused',
       'ai.keyWriteFailed',
     ];
-    expect(ERROR_CODES.slice(-m3Codes.length)).toEqual(m3Codes);
+    const h1Codes = ['updates.unavailable', 'updates.notReady', 'updates.busy'];
+    expect(ERROR_CODES.slice(-(m3Codes.length + h1Codes.length), -h1Codes.length)).toEqual(m3Codes);
+    expect(ERROR_CODES.slice(-h1Codes.length)).toEqual(h1Codes);
   });
 });
 
