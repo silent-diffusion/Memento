@@ -2,7 +2,8 @@
 # -p:Version=0.5.1 (nothing in the repository changes). Run from the repository root.
 $ErrorActionPreference = 'Stop'
 $env:PATH = "C:\Program Files\nodejs;C:\Program Files\dotnet;$env:PATH"
-$h1 = Split-Path -Parent $MyInvocation.MyCommand.Path
+$h1 = Join-Path (Get-Location) 'artifacts/update-test'
+New-Item -ItemType Directory -Force $h1 | Out-Null
 $feed = Join-Path $h1 'feed'
 $publish = Join-Path $h1 'publish-051'
 if (Test-Path $feed) { Remove-Item -Recurse -Force $feed }
