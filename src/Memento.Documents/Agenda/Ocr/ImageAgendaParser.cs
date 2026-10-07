@@ -41,7 +41,7 @@ public sealed class ImageAgendaParser : IAgendaParser
             throw AgendaErrors.ImageTooLarge(options, width, height);
         }
 
-        var engine = await ChooseEngineAsync(options, cancellationToken).ConfigureAwait(false);
+        var engine = await ChooseEngineAsync(_engines, options, cancellationToken).ConfigureAwait(false);
         var page = await engine.RecognizeAsync(bytes, new OcrRequest(options.OcrLanguage, MaxImageSide: options.MaxImageSide), cancellationToken).ConfigureAwait(false);
         if (page.Words.Count == 0)
         {
@@ -74,7 +74,7 @@ public sealed class ImageAgendaParser : IAgendaParser
         return AgendaResults.Create(AgendaSourceKind.Image, options, structured, warnings, engine.Id);
     }
 
-    private static IReadOnlyList<string> ReasonsFor(LineBox line)
+    internal static IReadOnlyList<string> ReasonsFor(LineBox line)
     {
         var reasons = new List<string>(1);
         if (OcrTextChecks.FindSuspicious(line.Text) is { } suspicious)
@@ -89,14 +89,14 @@ public sealed class ImageAgendaParser : IAgendaParser
         return reasons;
     }
 
-    private async Task<IOcrEngine> ChooseEngineAsync(AgendaParseOptions options, CancellationToken cancellationToken)
+    internal static async Task<IOcrEngine> ChooseEngineAsync(IReadOnlyList<IOcrEngine> engines, AgendaParseOptions options, CancellationToken cancellationToken)
     {
-        if (_engines.Count == 0)
+        if (engines.Count == 0)
         {
             throw AgendaErrors.OcrUnavailable(options, "no text recognition engine is set up.");
         }
 
-        var ordered = _engines
+        var ordered = engines
             .OrderBy(e => string.Equals(e.Id, options.OcrEngineId, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
             .ToList();
         string? firstReason = null;

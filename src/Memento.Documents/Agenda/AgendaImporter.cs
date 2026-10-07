@@ -37,17 +37,21 @@ public sealed partial class AgendaImporter
         return new AgendaImporter(CreateParsers(engines), factory.CreateLogger<AgendaImporter>());
     }
 
-    /// <summary>One of each built-in parser.</summary>
-    public static IReadOnlyList<IAgendaParser> CreateParsers(IEnumerable<IOcrEngine> ocrEngines) =>
-    [
-        new PlainTextAgendaParser(),
-        new MarkdownAgendaParser(),
-        new DelimitedAgendaParser(),
-        new DocxAgendaParser(),
-        new XlsxAgendaParser(),
-        new PdfAgendaParser(),
-        new ImageAgendaParser(ocrEngines),
-    ];
+    /// <summary>One of each built-in parser. Scanned PDFs are rendered with Windows' PDF renderer and read with the OCR engines.</summary>
+    public static IReadOnlyList<IAgendaParser> CreateParsers(IEnumerable<IOcrEngine> ocrEngines, IPdfPageRenderer? pdfRenderer = null)
+    {
+        var engines = ocrEngines.ToList();
+        return
+        [
+            new PlainTextAgendaParser(),
+            new MarkdownAgendaParser(),
+            new DelimitedAgendaParser(),
+            new DocxAgendaParser(),
+            new XlsxAgendaParser(),
+            new PdfAgendaParser(engines, pdfRenderer ?? new WindowsPdfPageRenderer()),
+            new ImageAgendaParser(engines),
+        ];
+    }
 
     /// <summary>Imports a file from disk; its size is checked before anything is read.</summary>
     public async Task<AgendaParseResult> ImportFileAsync(string path, AgendaParseOptions? options, CancellationToken cancellationToken)

@@ -38,4 +38,7 @@ public static class AgendaWarningCodes
 
     /// <summary>Some text could not be placed in the list; it is in the warning content.</summary>
     public const string Unparsed = "unparsed";
+
+    /// <summary>A PDF without a text layer was rendered and read with text recognition (M3).</summary>
+    public const string ScannedPdf = "scannedPdf";
 }
