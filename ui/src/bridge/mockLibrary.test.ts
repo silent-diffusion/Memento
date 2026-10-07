@@ -62,8 +62,8 @@ describe('mock processing', () => {
 
   it('gives the card every stage while the row leaves finished stored out', () => {
     const current = processingOf(sampleProjects(now)).current;
-    expect(current?.stages.map((st) => st.stage)).toEqual(['stored', 'transcript', 'speakers', 'minutes']);
-    expect(current?.meta.stages.map((st) => st.stage)).toEqual(['transcript', 'speakers', 'minutes']);
+    expect(current?.stages.map((st) => st.stage)).toEqual(['stored', 'transcript', 'speakers']);
+    expect(current?.meta.stages.map((st) => st.stage)).toEqual(['transcript', 'speakers']);
   });
 
   it('applies the host rule for row stages', () => {

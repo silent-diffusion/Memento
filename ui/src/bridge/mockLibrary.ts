@@ -1,5 +1,5 @@
 // The browser-preview host's library.list and library.processing: the same filtering the real host
-// does over its index (titles and people; transcripts arrive in M2).
+// does over its index (titles and people, and from M2 transcript text with a snippet).
 import type {
   LibraryListParams,
   LibraryListResult,
@@ -25,8 +25,33 @@ function matchesType(recording: RecordingSummary, type: LibraryListParams['type'
 
 const byNewest = (a: RecordingSummary, b: RecordingSummary): number => Date.parse(b.createdAt) - Date.parse(a.createdAt);
 
-export function queryLibrary(recordings: readonly RecordingSummary[], params: LibraryListParams): LibraryListResult {
-  const matching = recordings.filter((r) => matchesType(r, params.type) && matchesQuery(r, params.query ?? ''));
+/** A snippet of the recording's transcript around the first match of `query`, or null. */
+export type TranscriptSnippet = (recordingId: string, query: string) => string | null;
+
+/**
+ * library.list over the index. A recording matches by title or people (matchSnippet null) or, when
+ * `transcriptSnippet` finds the query in its transcript, by transcript text (matchSnippet set).
+ */
+export function queryLibrary(
+  recordings: readonly RecordingSummary[],
+  params: LibraryListParams,
+  transcriptSnippet: TranscriptSnippet = () => null,
+): LibraryListResult {
+  const query = params.query ?? '';
+  const matching: RecordingSummary[] = [];
+  for (const r of recordings) {
+    if (!matchesType(r, params.type)) {
+      continue;
+    }
+    if (matchesQuery(r, query)) {
+      matching.push({ ...r, matchSnippet: null });
+      continue;
+    }
+    const snippet = query.trim() === '' ? null : transcriptSnippet(r.id, query.trim());
+    if (snippet !== null) {
+      matching.push({ ...r, matchSnippet: snippet });
+    }
+  }
   const sorted = [...matching];
   switch (params.sort ?? 'newest') {
     case 'newest':

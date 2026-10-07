@@ -3,7 +3,10 @@ import { formatSize } from '../format/storage';
 import { estimateSizeBytes, isoWithOffset, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
 import { advanceStages, processingOf, queryLibrary, visibleStages } from './mockLibrary';
 import { mockMediaUrls } from './mockMedia';
+import { createMockModels, engineDetail, type ModelFailureMode } from './mockModels';
 import { createMockSession, MockHostError } from './mockSession';
+import { createMockTranscription, type StageFlag } from './mockTranscription';
+import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import type {
   AnnotationOrigin,
   BridgeEventEnvelope,
@@ -20,6 +23,7 @@ import type {
   Project,
   RecordingSummary,
   RecoveredRecording,
+  SettingsSetParams,
   SettingsSnapshot,
   StageStatus,
   ThemePreference,
@@ -39,20 +43,43 @@ export interface MockOptions {
   theme?: ThemePreference;
   /** Background activity: processing progress ticks. Off in unit tests. */
   live?: boolean;
+  /** The long sample recording's transcript state (`?stage=queued|running|failed|paused`; default done). */
+  stage?: StageFlag;
+  /** The long sample's segment count (`?segments=10000`), for measuring the transcript list. */
+  segments?: number;
+  /** Send recording.liveTranscript during a session (`?live=1`); Settings then defaults to "During recording". */
+  liveTranscript?: boolean;
+  /** How simulated model downloads end (`?models=nospace|fail`). */
+  models?: ModelFailureMode;
+  /** Milliseconds between steps of simulated passes and downloads (shorter in tests). */
+  stepMs?: number;
   now?: () => number;
 }
+
+const STAGE_FLAGS: readonly StageFlag[] = ['done', 'queued', 'running', 'failed', 'paused'];
 
 export function mockOptionsFromQuery(search: string): MockOptions {
   const query = new URLSearchParams(search);
   const theme = query.get('theme');
+  const stage = query.get('stage');
+  const segments = Number(query.get('segments'));
+  const models = query.get('models');
   const options: MockOptions = {
     library: query.get('empty') === '1' ? 'empty' : 'sample',
     recovery: query.get('recovery') !== '0',
     lowSpace: query.get('lowspace') === '1',
     lostAfterMs: query.get('lost') === '1' ? 10_000 : null,
+    liveTranscript: query.get('live') === '1',
+    models: models === 'nospace' ? 'noSpace' : models === 'fail' ? 'network' : 'none',
   };
   if (theme === 'dark' || theme === 'light' || theme === 'system') {
     options.theme = theme;
+  }
+  if (stage !== null && (STAGE_FLAGS as readonly string[]).includes(stage)) {
+    options.stage = stage as StageFlag;
+  }
+  if (Number.isInteger(segments) && segments > 0) {
+    options.segments = Math.min(50_000, segments);
   }
   return options;
 }
@@ -87,6 +114,18 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       checkpointSeconds: 30,
       lowSpaceGb: 10,
     },
+    transcription: {
+      auto: true,
+      timing: (options.liveTranscript ?? false) ? 'during' : 'after',
+      pauseWhenBusy: true,
+      modelId: 'large-v3',
+      cpuFallbackModelId: 'small',
+      language: 'auto',
+      keepWordTimestamps: true,
+      lowConfidenceThreshold: 0.5,
+    },
+    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'voice-resnet34' },
+    history: { keepVersions: true, keepDays: 90 },
   };
   const isDark = (): boolean => settings.theme === 'dark' || (settings.theme === 'system' && prefersDark());
 
@@ -116,8 +155,13 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     });
   }
 
+  // engine.detail is filled in from the model manager once it exists (refreshEngine below).
   let footer: FooterStatusPayload = {
-    engine: { ready: true, device: 'GPU' },
+    engine: {
+      ready: true,
+      device: 'GPU',
+      detail: { ready: true, device: 'GPU', gpuName: null, freeVramBytes: null, model: null, paused: null },
+    },
     storage: { freeBytes: (options.lowSpace ?? false) ? 4 * GIB : 212 * GIB, lowSpace: options.lowSpace ?? false },
     recording: { active: false, lastCheckpointAt: null, lostSource: null },
     // The host's only reason in M1 (FooterStatusService.LowSpaceReason), sent while space is low.
@@ -205,6 +249,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   const byTime = <T extends { atMs: number }>(items: T[]): T[] => items.sort((a, b) => a.atMs - b.atMs);
 
   const setStages = (project: MockProject, stages: StageStatus[]): void => {
+    const wasProcessing = project.summary.isProcessing;
     project.stages = stages;
     project.summary = {
       ...project.summary,
@@ -212,9 +257,78 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       isProcessing: stages.some((st) => st.state === 'active' || st.state === 'queued'),
     };
     emit('processing.progress', { recordingId: project.summary.id, stages });
-    if (!project.summary.isProcessing) {
+    if (!project.summary.isProcessing || !wasProcessing) {
       changed(project.summary.id);
     }
+  };
+
+  const models = createMockModels({
+    emit,
+    freeBytes: () => footer.storage.freeBytes ?? 0,
+    inUse: () => transcription.inUse(),
+    failure: options.models ?? 'none',
+    ...(options.stepMs === undefined ? {} : { stepMs: options.stepMs }),
+  });
+
+  const transcription = createMockTranscription({
+    emit,
+    now,
+    settings: () => settings,
+    projects,
+    setStages,
+    changed,
+    models,
+    isRecording: (recordingId) => session.activeRecordingId() === recordingId,
+    onPausedChange: () => {
+      refreshEngine();
+      emitFooter();
+    },
+    stageFlag: options.stage ?? 'done',
+    ...(options.segments === undefined ? {} : { segmentCount: options.segments }),
+    ...(options.stepMs === undefined ? {} : { stepMs: options.stepMs }),
+  });
+
+  const transcriptionDetail = () => engineDetail(models, settings.transcription.modelId, 'GPU', transcription.pausedReason());
+  function refreshEngine(): void {
+    const detail = transcriptionDetail();
+    footer = { ...footer, engine: { ready: detail.ready, device: detail.device, detail } };
+  }
+  refreshEngine();
+
+  // The live draft of the Recording session (`?live=1` with Timing set to During recording).
+  let liveTimer: ReturnType<typeof setInterval> | null = null;
+  const startLiveDraft = (sessionId: string): void => {
+    if (!(options.liveTranscript ?? false) || settings.transcription.timing !== 'during') {
+      return;
+    }
+    if (liveTimer !== null) {
+      clearInterval(liveTimer);
+    }
+    liveTimer = setInterval(() => {
+      const current = session.current();
+      if (current?.sessionId !== sessionId || current.state === 'ready' || current.state === 'stopped' || current.state === 'finalizing') {
+        if (liveTimer !== null) {
+          clearInterval(liveTimer);
+        }
+        liveTimer = null;
+        return;
+      }
+      if (current.state !== 'recording') {
+        return;
+      }
+      const seconds = current.elapsedMs / 1000;
+      const count = Math.max(1, Math.floor(seconds / 6) + 1);
+      const segments = Array.from({ length: count }, (_, i) => {
+        const text = LIVE_DRAFT_LINES[i % Math.max(1, LIVE_DRAFT_LINES.length)] ?? '';
+        const start = i * 6;
+        const newest = i === count - 1;
+        // The newest line is still being heard: only its first words so far.
+        const words = text.split(' ');
+        const heard = newest ? words.slice(0, Math.max(2, Math.round(words.length * Math.min(1, (seconds - start) / 6)))).join(' ') : text;
+        return { start, end: Math.min(seconds, start + 5.5), text: heard };
+      });
+      emit('recording.liveTranscript', { sessionId, segments });
+    }, 1500);
   };
 
   const session = createMockSession({
@@ -241,6 +355,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         isProcessing: false,
         state: 'recording',
         sizeBytes: 0,
+        matchSnippet: null,
       };
       projects.set(summary.id, {
         summary,
@@ -287,9 +402,13 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       project.trackSources = result.tracks.map((t) => t.sourceKind);
       // Finalize always stores lossless FLAC; a smaller format in Settings queues the optimize stage after it.
       const smaller = settings.recording.storage.codec !== 'flac';
+      // The transcript and speakers stages wait for the stored one (Settings › Transcription, Speakers).
+      const queuedStage = (stage: StageStatus['stage']): StageStatus => ({ stage, state: 'queued', percent: null, label: 'Queued' });
       const pipeline: StageStatus[] = [
         { stage: 'stored', state: 'active', percent: 0, label: 'Saving tracks' },
-        ...(smaller ? [{ stage: 'optimize', state: 'queued', percent: null, label: 'Queued' } satisfies StageStatus] : []),
+        ...(settings.transcription.auto ? [queuedStage('transcript')] : []),
+        ...(settings.transcription.auto && settings.speakers.identify ? [queuedStage('speakers')] : []),
+        ...(smaller ? [queuedStage('optimize')] : []),
       ];
       project.stages = pipeline;
       project.summary = {
@@ -323,7 +442,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         }
         const stages = advanceStages(current.stages, 25, 'this PC').map((st) => (st.state === 'active' ? { ...st, label: label(st) } : st));
         const at = isoWithOffset(new Date(now()));
-        if (finished(current.stages, stages, 'stored')) {
+        const storedDone = finished(current.stages, stages, 'stored');
+        if (storedDone) {
           current.history = [
             ...current.history,
             {
@@ -343,12 +463,45 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           ];
         }
         setStages(current, stages);
-        if (!current.summary.isProcessing) {
+        // Once stored, the transcript and speakers stages follow (Settings › Transcription), then optimize.
+        if (storedDone || !current.summary.isProcessing) {
           clearInterval(timer);
+          transcription.queueNewRecording(current);
         }
       }, 1000);
     },
   });
+
+  const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
+
+  /** The M2 blocks: a model must be installed for its engine, and values must be ones Settings offers. */
+  function validateM2Settings(params: SettingsSetParams): void {
+    const installedFor = (modelId: string, engine: 'transcription' | 'speakers'): boolean =>
+      models.list().some((m) => m.id === modelId && m.engine === engine && m.installed);
+    const t = params.transcription;
+    if (t != null) {
+      if (!installedFor(t.modelId, 'transcription') || !installedFor(t.cpuFallbackModelId, 'transcription')) {
+        throw settingsInvalid('That model is not installed yet. Install it first, then make it the default. Nothing was changed.', t.modelId);
+      }
+      if (!(t.lowConfidenceThreshold > 0 && t.lowConfidenceThreshold < 1) || !['after', 'during'].includes(t.timing)) {
+        throw settingsInvalid('That transcription setting is not available. Nothing was changed.', String(t.lowConfidenceThreshold));
+      }
+    }
+    const sp = params.speakers;
+    if (sp != null) {
+      const expected = sp.expectedSpeakers;
+      if (expected !== 'auto' && !(Number.isInteger(expected) && expected >= 1 && expected <= 20)) {
+        throw settingsInvalid('Expected speakers is Auto or a number from 1 to 20. Nothing was changed.', String(expected));
+      }
+      if (!installedFor(sp.embeddingModelId, 'speakers')) {
+        throw settingsInvalid('That speaker model is not installed yet. Install it first. Nothing was changed.', sp.embeddingModelId);
+      }
+    }
+    const h = params.history;
+    if (h != null && !(Number.isInteger(h.keepDays) && h.keepDays > 0)) {
+      throw settingsInvalid('Versions are kept for a whole number of days. Nothing was changed.', String(h.keepDays));
+    }
+  }
 
   const handlers: Handlers = {
     'app.version': () => ({ version: '0.2.0-dev', osVersion: 'Browser preview', isDarkTheme: isDark() }),
@@ -366,19 +519,28 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           params.libraryPath,
         );
       }
+      validateM2Settings(params);
       const themeBefore = isDark();
+      const modelBefore = settings.transcription.modelId;
       settings = {
         ...settings,
         theme: params.theme ?? settings.theme,
         listDensity: params.listDensity ?? settings.listDensity,
         recording: params.recording ?? settings.recording,
+        transcription: params.transcription ?? settings.transcription,
+        speakers: params.speakers ?? settings.speakers,
+        history: params.history ?? settings.history,
       };
       if (isDark() !== themeBefore) {
         emit('theme.changed', { isDark: isDark() });
       }
+      if (settings.transcription.modelId !== modelBefore) {
+        refreshEngine();
+        emitFooter();
+      }
       return settings;
     },
-    'library.list': (params) => queryLibrary(summaries(), params),
+    'library.list': (params) => queryLibrary(summaries(), params, (id, query) => transcription.librarySnippet(id, query)),
     'library.processing': () => processingOf(listed()),
     'project.get': (params) => toProject(find(params.recordingId)),
     'project.updateDetails': (params) => {
@@ -531,7 +693,11 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       return { topics: project.topics };
     },
     'sources.list':() => ({ audio: [...SAMPLE_SOURCES], videoAvailable: false }),
-    'recording.start': (params) => session.start(params),
+    'recording.start': (params) => {
+      const started = session.start(params);
+      startLiveDraft(started.sessionId);
+      return started;
+    },
     'recording.setSource': (params) => {
       const tracks = session.setSource(params.sessionId, params.sourceId, params.enabled);
       return { tracks };
@@ -557,6 +723,54 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     'dialog.pickFolder': () => ({ path: 'E:\\Recordings\\Memento' }),
     'status.get': () => footer,
+    'transcript.get': (params) => transcription.get(params.recordingId),
+    'transcript.editSegment': (params) => transcription.editSegment(params),
+    'transcript.setSegmentSpeaker': (params) => transcription.setSegmentSpeaker(params),
+    'transcript.renameSpeaker': (params) => transcription.renameSpeaker(params),
+    'transcript.mergeSpeakers': (params) => transcription.mergeSpeakers(params),
+    'transcript.markReviewed': (params) => transcription.markReviewed(params.recordingId, params.reviewed),
+    'transcript.search': (params) => ({ matches: transcription.search(params.recordingId, params.query) }),
+    'transcript.retranscribe': (params) => {
+      transcription.retranscribe(params);
+      return {};
+    },
+    'transcript.versions': (params) => ({ versions: transcription.versions(params.recordingId) }),
+    'transcript.restoreVersion': (params) => ({ transcript: transcription.restoreVersion(params.recordingId, params.versionId) }),
+    'processing.retry': (params) => {
+      transcription.retry(params);
+      return {};
+    },
+    'processing.cancel': (params) => {
+      transcription.cancel(params.recordingId, params.stage);
+      return {};
+    },
+    'processing.pause': () => {
+      transcription.pauseAll();
+      return {};
+    },
+    'processing.resume': () => {
+      transcription.resumeAll();
+      return {};
+    },
+    'models.list': () => ({ models: models.list() }),
+    'models.install': (params) => {
+      models.install(params.modelId);
+      return {};
+    },
+    'models.cancelInstall': (params) => {
+      models.cancelInstall(params.modelId);
+      return {};
+    },
+    'models.remove': (params) => {
+      models.remove(params.modelId);
+      refreshEngine();
+      emitFooter();
+      return {};
+    },
+    'engine.status': () => ({
+      transcription: transcriptionDetail(),
+      speakers: engineDetail(models, settings.speakers.embeddingModelId, 'CPU', transcription.pausedReason()),
+    }),
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {
@@ -599,13 +813,10 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       }, 400);
     }
     if (live) {
+      // The sample library's running passes (the processing card's recording) move on slowly.
       setInterval(() => {
-        for (const project of projects.values()) {
-          if (project.summary.isProcessing && project.stages.some((st) => st.stage === 'transcript')) {
-            setStages(project, advanceStages(project.stages, 1));
-          }
-        }
-      }, 3000);
+        transcription.tick();
+      }, 1500);
     }
   };
 
