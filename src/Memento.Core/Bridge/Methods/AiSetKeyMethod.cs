@@ -32,7 +32,13 @@ public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKey
         {
             await secrets.SetKeyAsync(provider, key, cancellationToken);
         }
-        catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.AiKeyWriteFailed,
+                $"The {AiProviders.DisplayName(provider)} key could not be saved: Windows did not let Memento open its key file ({ex.GetType().Name}); another program may be using it. Nothing was saved and any other saved key is unchanged. Try again in a moment.");
+        }
+        catch (Exception ex) when (ex is CryptographicException or PlatformNotSupportedException)
         {
             throw new BridgeException(
                 DomainErrorCodes.AiKeyWriteFailed,
