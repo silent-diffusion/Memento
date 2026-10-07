@@ -38,6 +38,9 @@ internal sealed class LocalHttpServer : IDisposable
     /// <summary>Answer every request with this status and no body.</summary>
     public int? FailWithStatus { get; set; }
 
+    /// <summary>Send no <c>Content-Length</c>: the body ends when the connection closes.</summary>
+    public bool OmitContentLength { get; set; }
+
     /// <summary>Claim this start in the <c>Content-Range</c> of a 206 (a server answering another piece than asked).</summary>
     public long? ContentRangeStart { get; set; }
 
@@ -142,7 +145,7 @@ internal sealed class LocalHttpServer : IDisposable
                     return;
                 }
 
-                await WriteHeadAsync(stream, start > 0 ? 206 : 200, content.Length - start, start > 0 ? string.Create(CultureInfo.InvariantCulture, $"bytes {ContentRangeStart ?? start}-{content.Length - 1}/{content.Length}") : null);
+                await WriteHeadAsync(stream, start > 0 ? 206 : 200, OmitContentLength ? -1 : content.Length - start,start > 0 ? string.Create(CultureInfo.InvariantCulture, $"bytes {ContentRangeStart ?? start}-{content.Length - 1}/{content.Length}") : null);
                 long sent = 0;
                 for (var offset = start; offset < content.Length; offset += ChunkSize)
                 {
@@ -173,7 +176,7 @@ internal sealed class LocalHttpServer : IDisposable
     {
         var head = new StringBuilder()
             .Append(CultureInfo.InvariantCulture, $"HTTP/1.1 {status} {(status is 200 or 206 ? "OK" : status == 302 ? "Found" : "Error")}\r\n")
-            .Append(CultureInfo.InvariantCulture, $"Content-Length: {length}\r\n")
+            .Append(length >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Content-Length: {length}\r\n") : string.Empty)
             .Append("Content-Type: application/octet-stream\r\nConnection: close\r\n");
         if (contentRange is not null)
         {

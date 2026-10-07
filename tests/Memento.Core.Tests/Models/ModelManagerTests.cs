@@ -136,6 +136,22 @@ public sealed class ModelManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task ADownloadLargerThanPublishedIsStoppedAndThePartRemoved()
+    {
+        var manager = Create(size: _content.Length - 1000);
+        _server.OmitContentLength = true; // Only the bytes themselves show that it is too large.
+
+        await manager.InstallAsync("test", CancellationToken.None);
+        var last = await FinishedAsync();
+
+        Assert.Equal("failed", last.GetProperty("state").GetString());
+        Assert.Contains("larger than expected", last.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("The partial file was removed", last.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.False(File.Exists(ModelPath + ".part"));
+        Assert.False(manager.IsInstalled("test"));
+    }
+
+    [Fact]
     public async Task ADroppedConnectionKeepsThePartForTheNextAttempt()
     {
         var manager = Create();

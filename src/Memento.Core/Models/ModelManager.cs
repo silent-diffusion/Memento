@@ -510,6 +510,7 @@ public sealed partial class ModelManager : IModelManager, IDisposable
             existing = 0; // A 200 is the whole file: it replaces the part.
         }
 
+        var oversized = false;
         using (response)
         {
             if (response.StatusCode == HttpStatusCode.PartialContent && existing == 0)
@@ -561,7 +562,8 @@ public sealed partial class ModelManager : IModelManager, IDisposable
                 download.BytesDone += read;
                 if (download.BytesDone > entry.SizeBytes)
                 {
-                    throw new InvalidDataException($"The download of {entry.Name} is larger than expected ({HumanFormat.Bytes(entry.SizeBytes)}), so it is not the right file. The partial file was removed; install it again to retry.");
+                    oversized = true; // Removed below, once the file is closed.
+                    break;
                 }
 
                 if (lastPublished.Elapsed >= ProgressInterval)
@@ -572,6 +574,12 @@ public sealed partial class ModelManager : IModelManager, IDisposable
             }
 
             await target.FlushAsync(cancellationToken);
+        }
+
+        if (oversized)
+        {
+            DeletePart(entry);
+            throw new InvalidDataException($"The download of {entry.Name} is larger than expected ({HumanFormat.Bytes(entry.SizeBytes)}), so it is not the right file. The partial file was removed; install it again to retry.");
         }
 
         if (download.BytesDone < entry.SizeBytes)
