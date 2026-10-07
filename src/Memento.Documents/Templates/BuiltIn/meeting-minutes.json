@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "meeting-minutes",
+  "name": "Meeting minutes",
+  "documentKind": "Meeting minutes",
+  "recordingTypes": ["meeting"],
+  "rows": [
+    {
+      "modules": [
+        { "id": "m01", "type": "executiveSummary", "title": "Executive summary", "instructions": "Three sentences. Decisions first, then risks.", "length": "short", "textSize": "larger", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m02", "type": "meetingPurpose", "title": "Meeting purpose", "instructions": "One line, taken from the recording details.", "length": "short", "textSize": "normal", "linkToTranscript": false },
+        { "id": "m03", "type": "participants", "title": "Participants", "instructions": "Names and roles. Mark who was absent.", "length": "short", "textSize": "normal", "linkToTranscript": false }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m04", "type": "agenda", "title": "Agenda", "instructions": "As imported, with a note on items not reached.", "length": "medium", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m05", "type": "discussion", "title": "Discussion summary", "instructions": "One short paragraph per agenda item, neutral tone.", "length": "long", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m06", "type": "decisions", "title": "Decisions", "instructions": "Bulleted. Quote the moment of agreement with a timestamp.", "length": "medium", "textSize": "normal", "linkToTranscript": true },
+        { "id": "m07", "type": "actionItems", "title": "Action items", "instructions": "Table: action, owner, deadline. Only commitments actually made.", "length": "medium", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m08", "type": "openQuestions", "title": "Open questions", "instructions": "Questions raised but not answered.", "length": "short", "textSize": "normal", "linkToTranscript": false },
+        { "id": "m09", "type": "nextMeeting", "title": "Next meeting", "instructions": "Date, time and proposed agenda if mentioned.", "length": "short", "textSize": "normal", "linkToTranscript": false }
+      ]
+    }
+  ],
+  "inputs": { "transcript": true, "participants": true, "agenda": true, "highlights": true, "importedDocuments": false },
+  "providerId": null,
+  "defaultStyleId": "corporate",
+  "processingInstructions": "",
+  "output": { "alsoExportDocx": false, "alsoExportMarkdown": false, "alsoExportPdf": false },
+  "builtIn": true
+}

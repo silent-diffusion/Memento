@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "minimal",
+  "name": "Minimal",
+  "headingTypeface": "sans",
+  "bodyTypeface": "sans",
+  "baseSize": "normal",
+  "headingCase": "normal",
+  "numberedHeadings": false,
+  "headingColor": "ink",
+  "tableHeaderFill": false,
+  "ruleUnderTitle": false,
+  "linesBetweenSections": true,
+  "spacing": "airy",
+  "paper": "letter",
+  "pageNumbers": true,
+  "runningHeader": false,
+  "builtIn": true
+}

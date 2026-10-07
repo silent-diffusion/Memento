@@ -1,0 +1,5348 @@
+<w:document xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Title" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Design review: library screen</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Subtitle" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Meeting minutes · Monday 5 October 2026, 4:00 PM · 1 h 10 min · Zoom</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Executive summary</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Normal" />
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:sz w:val="25" />
+          <w:szCs w:val="25" />
+        </w:rPr>
+        <w:t xml:space="preserve">The team approved the library layout for build with two changes: rows stay at 68 px with status pills shown only for stages that have run, and the processing card hides whenever a filter or search is active.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="FootnoteReference" />
+        </w:rPr>
+        <w:footnoteReference w:id="1" />
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:sz w:val="25" />
+          <w:szCs w:val="25" />
+        </w:rPr>
+        <w:t xml:space="preserve"> The dark theme will ship with the first version rather than following later.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="FootnoteReference" />
+        </w:rPr>
+        <w:footnoteReference w:id="2" />
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:sz w:val="25" />
+          <w:szCs w:val="25" />
+        </w:rPr>
+        <w:t xml:space="preserve"> The empty state needs copy; Sam owns it.</w:t>
+      </w:r>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="9360" w:type="dxa" />
+        <w:tblInd w:w="0" w:type="dxa" />
+        <w:tblBorders>
+          <w:top w:val="none" />
+          <w:left w:val="none" />
+          <w:bottom w:val="none" />
+          <w:right w:val="none" />
+          <w:insideH w:val="none" />
+          <w:insideV w:val="none" />
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed" />
+        <w:tblCellMar>
+          <w:top w:w="0" w:type="dxa" />
+          <w:left w:w="0" w:type="dxa" />
+          <w:bottom w:w="0" w:type="dxa" />
+          <w:right w:w="0" w:type="dxa" />
+        </w:tblCellMar>
+        <w:tblLook w:val="0000" w:firstRow="false" w:lastRow="false" w:firstColumn="false" w:lastColumn="false" w:noHBand="true" w:noVBand="true" />
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="4680" />
+        <w:gridCol w:w="4680" />
+      </w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="4680" w:type="dxa" />
+            <w:tcMar>
+              <w:left w:w="0" w:type="dxa" />
+              <w:right w:w="210" w:type="dxa" />
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Heading1" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Meeting purpose</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Normal" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Agree the library layout before build starts.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="4680" w:type="dxa" />
+            <w:tcMar>
+              <w:left w:w="210" w:type="dxa" />
+              <w:right w:w="0" w:type="dxa" />
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Heading1" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Participants</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Normal" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+                <w:bdr w:val="single" w:color="EDEBE6" w:sz="4" w:space="1" />
+                <w:shd w:val="clear" w:color="auto" w:fill="EDEBE6" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+              </w:rPr>
+              <w:t xml:space="preserve">  </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+                <w:bdr w:val="single" w:color="EDEBE6" w:sz="4" w:space="1" />
+                <w:shd w:val="clear" w:color="auto" w:fill="EDEBE6" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+              </w:rPr>
+              <w:t xml:space="preserve">  </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+                <w:bdr w:val="single" w:color="EDEBE6" w:sz="4" w:space="1" />
+                <w:shd w:val="clear" w:color="auto" w:fill="EDEBE6" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+              </w:rPr>
+              <w:t xml:space="preserve">  </w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="20" />
+                <w:szCs w:val="20" />
+                <w:bdr w:val="single" w:color="EDEBE6" w:sz="4" w:space="1" />
+                <w:shd w:val="clear" w:color="auto" w:fill="EDEBE6" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Agenda</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="ListParagraph" />
+        <w:numPr>
+          <w:ilvl w:val="0" />
+          <w:numId w:val="1" />
+        </w:numPr>
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Review mockups</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="ListParagraph" />
+        <w:numPr>
+          <w:ilvl w:val="0" />
+          <w:numId w:val="1" />
+        </w:numPr>
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Row density and status pills</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="ListParagraph" />
+        <w:numPr>
+          <w:ilvl w:val="0" />
+          <w:numId w:val="1" />
+        </w:numPr>
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Dark theme scope</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="ListParagraph" />
+        <w:numPr>
+          <w:ilvl w:val="0" />
+          <w:numId w:val="1" />
+        </w:numPr>
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Owners and next steps </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:color w:val="6B6861" />
+        </w:rPr>
+        <w:t xml:space="preserve">(reached with 8 minutes left)</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Discussion summary</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Normal" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Sam opened with the 1440 px mockups and asked whether the row height felt tight.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="FootnoteReference" />
+        </w:rPr>
+        <w:footnoteReference w:id="3" />
+      </w:r>
+      <w:r>
+        <w:t xml:space="preserve"> Priya agreed that a pill on every row made the list busy. The proposal to show pills only for completed or running stages, and a quiet caption for audio-only recordings, was accepted without objection.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="FootnoteReference" />
+        </w:rPr>
+        <w:footnoteReference w:id="4" />
+      </w:r>
+      <w:r>
+        <w:t xml:space="preserve"> On the dark theme, Lee argued that Windows users switch themes with the system and a light-only first release would look unfinished; nobody disagreed.</w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="FootnoteReference" />
+        </w:rPr>
+        <w:footnoteReference w:id="5" />
+      </w:r>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="9360" w:type="dxa" />
+        <w:tblInd w:w="0" w:type="dxa" />
+        <w:tblBorders>
+          <w:top w:val="none" />
+          <w:left w:val="none" />
+          <w:bottom w:val="none" />
+          <w:right w:val="none" />
+          <w:insideH w:val="none" />
+          <w:insideV w:val="none" />
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed" />
+        <w:tblCellMar>
+          <w:top w:w="0" w:type="dxa" />
+          <w:left w:w="0" w:type="dxa" />
+          <w:bottom w:w="0" w:type="dxa" />
+          <w:right w:w="0" w:type="dxa" />
+        </w:tblCellMar>
+        <w:tblLook w:val="0000" w:firstRow="false" w:lastRow="false" w:firstColumn="false" w:lastColumn="false" w:noHBand="true" w:noVBand="true" />
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="4680" />
+        <w:gridCol w:w="4680" />
+      </w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="4680" w:type="dxa" />
+            <w:tcMar>
+              <w:left w:w="0" w:type="dxa" />
+              <w:right w:w="210" w:type="dxa" />
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Heading1" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Decisions</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="ListParagraph" />
+              <w:numPr>
+                <w:ilvl w:val="0" />
+                <w:numId w:val="1" />
+              </w:numPr>
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Row height stays at 68 px.</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:rStyle w:val="FootnoteReference" />
+              </w:rPr>
+              <w:footnoteReference w:id="6" />
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="ListParagraph" />
+              <w:numPr>
+                <w:ilvl w:val="0" />
+                <w:numId w:val="1" />
+              </w:numPr>
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Status pills only for stages that have run; audio-only shows a caption.</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:rStyle w:val="FootnoteReference" />
+              </w:rPr>
+              <w:footnoteReference w:id="7" />
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="ListParagraph" />
+              <w:numPr>
+                <w:ilvl w:val="0" />
+                <w:numId w:val="1" />
+              </w:numPr>
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Processing card hides while a filter or search is active.</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:rStyle w:val="FootnoteReference" />
+              </w:rPr>
+              <w:footnoteReference w:id="8" />
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="ListParagraph" />
+              <w:numPr>
+                <w:ilvl w:val="0" />
+                <w:numId w:val="1" />
+              </w:numPr>
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Dark theme ships in v1.</w:t>
+            </w:r>
+            <w:r>
+              <w:rPr>
+                <w:rStyle w:val="FootnoteReference" />
+              </w:rPr>
+              <w:footnoteReference w:id="9" />
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="4680" w:type="dxa" />
+            <w:tcMar>
+              <w:left w:w="210" w:type="dxa" />
+              <w:right w:w="0" w:type="dxa" />
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Heading1" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Action items</w:t>
+            </w:r>
+          </w:p>
+          <w:tbl>
+            <w:tblPr>
+              <w:tblW w:w="4470" w:type="dxa" />
+              <w:tblBorders>
+                <w:top w:val="none" />
+                <w:left w:val="none" />
+                <w:bottom w:val="single" w:color="E2DFD8" w:sz="4" />
+                <w:right w:val="none" />
+                <w:insideH w:val="single" w:color="E2DFD8" w:sz="4" />
+                <w:insideV w:val="none" />
+              </w:tblBorders>
+              <w:tblLayout w:type="fixed" />
+              <w:tblCellMar>
+                <w:top w:w="77" w:type="dxa" />
+                <w:left w:w="132" w:type="dxa" />
+                <w:bottom w:w="77" w:type="dxa" />
+                <w:right w:w="132" w:type="dxa" />
+              </w:tblCellMar>
+              <w:tblLook w:val="0000" w:firstRow="true" w:lastRow="false" w:firstColumn="false" w:lastColumn="false" w:noHBand="true" w:noVBand="true" />
+            </w:tblPr>
+            <w:tblGrid>
+              <w:gridCol w:w="2235" />
+              <w:gridCol w:w="1117" />
+              <w:gridCol w:w="1117" />
+            </w:tblGrid>
+            <w:tr>
+              <w:trPr>
+                <w:tblHeader />
+              </w:trPr>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="2235" w:type="dxa" />
+                  <w:shd w:val="clear" w:color="auto" w:fill="D9E1EC" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:b />
+                      <w:bCs />
+                      <w:color w:val="1F3A5F" />
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Action</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                  <w:shd w:val="clear" w:color="auto" w:fill="D9E1EC" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:b />
+                      <w:bCs />
+                      <w:color w:val="1F3A5F" />
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Owner</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                  <w:shd w:val="clear" w:color="auto" w:fill="D9E1EC" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:b />
+                      <w:bCs />
+                      <w:color w:val="1F3A5F" />
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Due</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+            </w:tr>
+            <w:tr>
+              <w:trPr>
+                <w:cantSplit />
+              </w:trPr>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="2235" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Update the library mockup</w:t>
+                  </w:r>
+                  <w:r>
+                    <w:rPr>
+                      <w:rStyle w:val="FootnoteReference" />
+                    </w:rPr>
+                    <w:footnoteReference w:id="10" />
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Priya</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Wed</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+            </w:tr>
+            <w:tr>
+              <w:trPr>
+                <w:cantSplit />
+              </w:trPr>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="2235" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Produce the dark variant</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Sam</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Wed</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+            </w:tr>
+            <w:tr>
+              <w:trPr>
+                <w:cantSplit />
+              </w:trPr>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="2235" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Write empty-state copy</w:t>
+                  </w:r>
+                  <w:r>
+                    <w:rPr>
+                      <w:rStyle w:val="FootnoteReference" />
+                    </w:rPr>
+                    <w:footnoteReference w:id="11" />
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Sam</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+              <w:tc>
+                <w:tcPr>
+                  <w:tcW w:w="1117" w:type="dxa" />
+                </w:tcPr>
+                <w:p>
+                  <w:pPr>
+                    <w:pStyle w:val="TableText" />
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr>
+                      <w:sz w:val="20" />
+                      <w:szCs w:val="20" />
+                    </w:rPr>
+                    <w:t xml:space="preserve">Fri</w:t>
+                  </w:r>
+                </w:p>
+              </w:tc>
+            </w:tr>
+          </w:tbl>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+              <w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact" />
+              <w:rPr>
+                <w:sz w:val="2" />
+                <w:szCs w:val="2" />
+              </w:rPr>
+            </w:pPr>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="TableText" />
+        <w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact" />
+        <w:rPr>
+          <w:sz w:val="2" />
+          <w:szCs w:val="2" />
+        </w:rPr>
+      </w:pPr>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="9360" w:type="dxa" />
+        <w:tblInd w:w="0" w:type="dxa" />
+        <w:tblBorders>
+          <w:top w:val="none" />
+          <w:left w:val="none" />
+          <w:bottom w:val="none" />
+          <w:right w:val="none" />
+          <w:insideH w:val="none" />
+          <w:insideV w:val="none" />
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed" />
+        <w:tblCellMar>
+          <w:top w:w="0" w:type="dxa" />
+          <w:left w:w="0" w:type="dxa" />
+          <w:bottom w:w="0" w:type="dxa" />
+          <w:right w:w="0" w:type="dxa" />
+        </w:tblCellMar>
+        <w:tblLook w:val="0000" w:firstRow="false" w:lastRow="false" w:firstColumn="false" w:lastColumn="false" w:noHBand="true" w:noVBand="true" />
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="4680" />
+        <w:gridCol w:w="4680" />
+      </w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="4680" w:type="dxa" />
+            <w:tcMar>
+              <w:left w:w="0" w:type="dxa" />
+              <w:right w:w="210" w:type="dxa" />
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Heading1" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Open questions</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="ListParagraph" />
+              <w:numPr>
+                <w:ilvl w:val="0" />
+                <w:numId w:val="1" />
+              </w:numPr>
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="ListParagraph" />
+              <w:numPr>
+                <w:ilvl w:val="0" />
+                <w:numId w:val="1" />
+              </w:numPr>
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Where does "Documents" live if there is no sidebar?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="4680" w:type="dxa" />
+            <w:tcMar>
+              <w:left w:w="210" w:type="dxa" />
+              <w:right w:w="0" w:type="dxa" />
+            </w:tcMar>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Heading1" />
+            </w:pPr>
+            <w:r>
+              <w:t xml:space="preserve">Next meeting</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Normal" />
+              <w:tabs>
+                <w:tab w:val="left" w:pos="1200" />
+              </w:tabs>
+              <w:ind w:left="1200" w:hanging="1200" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+              </w:rPr>
+              <w:t xml:space="preserve">When</w:t>
+            </w:r>
+            <w:r>
+              <w:tab />
+            </w:r>
+            <w:r>
+              <w:t xml:space="preserve">Thursday 9 October, 4:00 PM</w:t>
+            </w:r>
+          </w:p>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="Normal" />
+              <w:tabs>
+                <w:tab w:val="left" w:pos="1200" />
+              </w:tabs>
+              <w:ind w:left="1200" w:hanging="1200" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+              </w:rPr>
+              <w:t xml:space="preserve">Agenda</w:t>
+            </w:r>
+            <w:r>
+              <w:tab />
+            </w:r>
+            <w:r>
+              <w:t xml:space="preserve">Recording screen walkthrough</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1" />
+      </w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">Full transcript</w:t>
+      </w:r>
+    </w:p>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="9360" w:type="dxa" />
+        <w:tblBorders>
+          <w:top w:val="none" />
+          <w:left w:val="none" />
+          <w:bottom w:val="single" w:color="E2DFD8" w:sz="4" />
+          <w:right w:val="none" />
+          <w:insideH w:val="single" w:color="E2DFD8" w:sz="4" />
+          <w:insideV w:val="none" />
+        </w:tblBorders>
+        <w:tblLayout w:type="fixed" />
+        <w:tblCellMar>
+          <w:top w:w="44" w:type="dxa" />
+          <w:left w:w="0" w:type="dxa" />
+          <w:bottom w:w="44" w:type="dxa" />
+          <w:right w:w="132" w:type="dxa" />
+        </w:tblCellMar>
+        <w:tblLook w:val="0000" w:firstRow="false" w:lastRow="false" w:firstColumn="false" w:lastColumn="false" w:noHBand="true" w:noVBand="true" />
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="936" />
+        <w:gridCol w:w="1944" />
+        <w:gridCol w:w="6480" />
+      </w:tblGrid>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="9360" w:type="dxa" />
+            <w:gridSpan w:val="3" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+              <w:keepNext />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Segoe UI" w:hAnsi="Segoe UI" w:eastAsia="Segoe UI" w:cs="Segoe UI" />
+                <w:b />
+                <w:bCs />
+                <w:color w:val="1F3A5F" />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Review mockups</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">0:15</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's start with the mockups at 1440 pixels and see whether the rows feel tight.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:13</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">They read well at sixty-eight, but a pill on every row makes the list busy.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">2:12</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">What if we only show pills for stages that have run, and a quiet caption for audio-only?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">3:10</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">That works for me. The processing card should hide while a filter is active.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">4:09</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Agreed. I'll update the library mockup by Wednesday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">5:07</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">On the dark theme, people switch themes with the system, so a light-only release would look unfinished.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">6:06</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Nobody disagrees, then: the dark theme ships in the first version.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">7:04</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">I can produce the dark variant by Wednesday as well.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">8:03</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">9:01</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's leave that open until video capture is planned.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">10:00</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">The empty state still needs copy; I'll write it by Friday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">10:58</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Good. Next time we walk through the recording screen.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">11:57</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's start with the mockups at 1440 pixels and see whether the rows feel tight.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">12:55</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">They read well at sixty-eight, but a pill on every row makes the list busy.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">13:54</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">What if we only show pills for stages that have run, and a quiet caption for audio-only?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">14:52</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">That works for me. The processing card should hide while a filter is active.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">15:51</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Agreed. I'll update the library mockup by Wednesday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">16:49</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">On the dark theme, people switch themes with the system, so a light-only release would look unfinished.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">17:48</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Nobody disagrees, then: the dark theme ships in the first version.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="9360" w:type="dxa" />
+            <w:gridSpan w:val="3" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+              <w:keepNext />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Segoe UI" w:hAnsi="Segoe UI" w:eastAsia="Segoe UI" w:cs="Segoe UI" />
+                <w:b />
+                <w:bCs />
+                <w:color w:val="1F3A5F" />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Row density and status pills</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">18:46</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">I can produce the dark variant by Wednesday as well.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">19:45</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">20:43</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's leave that open until video capture is planned.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">21:42</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">The empty state still needs copy; I'll write it by Friday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">22:40</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Good. Next time we walk through the recording screen.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">23:39</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's start with the mockups at 1440 pixels and see whether the rows feel tight.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">24:37</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">They read well at sixty-eight, but a pill on every row makes the list busy.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">25:36</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">What if we only show pills for stages that have run, and a quiet caption for audio-only?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">26:34</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">That works for me. The processing card should hide while a filter is active.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">27:33</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Agreed. I'll update the library mockup by Wednesday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">28:31</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">On the dark theme, people switch themes with the system, so a light-only release would look unfinished.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">29:30</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Nobody disagrees, then: the dark theme ships in the first version.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">30:28</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">I can produce the dark variant by Wednesday as well.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">31:27</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">32:25</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's leave that open until video capture is planned.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">33:24</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">The empty state still needs copy; I'll write it by Friday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">34:22</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Good. Next time we walk through the recording screen.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">35:21</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's start with the mockups at 1440 pixels and see whether the rows feel tight.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">36:19</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">They read well at sixty-eight, but a pill on every row makes the list busy.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">37:18</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">What if we only show pills for stages that have run, and a quiet caption for audio-only?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">38:16</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">That works for me. The processing card should hide while a filter is active.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">39:15</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Agreed. I'll update the library mockup by Wednesday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">40:13</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">On the dark theme, people switch themes with the system, so a light-only release would look unfinished.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="9360" w:type="dxa" />
+            <w:gridSpan w:val="3" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+              <w:keepNext />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Segoe UI" w:hAnsi="Segoe UI" w:eastAsia="Segoe UI" w:cs="Segoe UI" />
+                <w:b />
+                <w:bCs />
+                <w:color w:val="1F3A5F" />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Dark theme scope</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">41:12</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Nobody disagrees, then: the dark theme ships in the first version.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">42:10</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">I can produce the dark variant by Wednesday as well.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">43:09</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">44:07</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's leave that open until video capture is planned.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">45:06</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">The empty state still needs copy; I'll write it by Friday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">46:04</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Good. Next time we walk through the recording screen.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">47:03</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's start with the mockups at 1440 pixels and see whether the rows feel tight.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">48:01</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">They read well at sixty-eight, but a pill on every row makes the list busy.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">49:00</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">What if we only show pills for stages that have run, and a quiet caption for audio-only?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">49:58</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">That works for me. The processing card should hide while a filter is active.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">50:57</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Agreed. I'll update the library mockup by Wednesday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">51:55</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">On the dark theme, people switch themes with the system, so a light-only release would look unfinished.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">52:54</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Nobody disagrees, then: the dark theme ships in the first version.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">53:52</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">I can produce the dark variant by Wednesday as well.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">54:51</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">55:49</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's leave that open until video capture is planned.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">56:48</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">The empty state still needs copy; I'll write it by Friday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">57:46</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Good. Next time we walk through the recording screen.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">58:45</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's start with the mockups at 1440 pixels and see whether the rows feel tight.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">59:43</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">They read well at sixty-eight, but a pill on every row makes the list busy.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="9360" w:type="dxa" />
+            <w:gridSpan w:val="3" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+              <w:keepNext />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Segoe UI" w:hAnsi="Segoe UI" w:eastAsia="Segoe UI" w:cs="Segoe UI" />
+                <w:b />
+                <w:bCs />
+                <w:color w:val="1F3A5F" />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Owners and next steps</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:00:42</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">What if we only show pills for stages that have run, and a quiet caption for audio-only?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:01:40</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">That works for me. The processing card should hide while a filter is active.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:02:39</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Agreed. I'll update the library mockup by Wednesday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:03:37</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">On the dark theme, people switch themes with the system, so a light-only release would look unfinished.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:04:36</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Nobody disagrees, then: the dark theme ships in the first version.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:05:34</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">I can produce the dark variant by Wednesday as well.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:06:33</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Sam Okafor</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Should the grid view show thumbnails for video recordings?</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:07:31</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Priya Natarajan</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Let's leave that open until video capture is planned.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:08:30</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Lee Chen</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">The empty state still needs copy; I'll write it by Friday.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr>
+          <w:cantSplit />
+        </w:trPr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="936" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="Consolas" w:cs="Consolas" />
+                <w:color w:val="5E5B55" />
+                <w:sz w:val="15" />
+                <w:szCs w:val="15" />
+              </w:rPr>
+              <w:t xml:space="preserve">1:09:28</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="1944" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:b />
+                <w:bCs />
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Me</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="6480" w:type="dxa" />
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:pStyle w:val="TableText" />
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="18" />
+                <w:szCs w:val="18" />
+              </w:rPr>
+              <w:t xml:space="preserve">Good. Next time we walk through the recording screen.</w:t>
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="TableText" />
+        <w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact" />
+        <w:rPr>
+          <w:sz w:val="2" />
+          <w:szCs w:val="2" />
+        </w:rPr>
+      </w:pPr>
+    </w:p>
+    <w:sectPr>
+      <w:headerReference xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" w:type="default" r:id="rIdHeader" />
+      <w:footerReference xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" w:type="default" r:id="rIdFooter" />
+      <w:pgSz w:w="12240" w:h="15840" />
+      <w:pgMar w:top="1296" w:right="1440" w:bottom="1296" w:left="1440" w:header="648" w:footer="648" w:gutter="0" />
+    </w:sectPr>
+  </w:body>
+</w:document>
