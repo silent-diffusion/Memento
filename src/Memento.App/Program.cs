@@ -141,6 +141,12 @@ internal static class Program
         builder.Services.AddSingleton<IThemeState>(services => services.GetRequiredService<ThemeService>());
         builder.Services.AddSingleton<IFolderPicker, WpfFolderPicker>();
         builder.Services.AddSingleton<IResourceProbe, WindowsResourceProbe>();
+        if (options.ModelMirror is { } mirror)
+        {
+            Log.Warning("Models download from the test mirror {Mirror}", mirror);
+            builder.Services.AddSingleton(Core.Models.ModelCatalog.Default.WithMirror(mirror));
+        }
+
         builder.Services.AddMementoBridge();
         builder.Services.AddMementoLibrary();
 

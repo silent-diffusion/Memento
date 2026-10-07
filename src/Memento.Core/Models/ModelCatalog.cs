@@ -30,6 +30,24 @@ public sealed partial class ModelCatalog
 
     public IEnumerable<ModelCatalogEntry> OfKind(string kind) => Entries.Where(e => e.Kind == kind);
 
+    /// <summary>
+    /// The same catalog downloading from a mirror on this PC (<c>&lt;mirror&gt;/&lt;engine&gt;/&lt;file&gt;</c>), for the
+    /// hidden <c>--model-mirror</c> test switch. Sizes and SHA-256 stay as published, so a mirror cannot change what
+    /// gets installed. Only loopback addresses are accepted.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="mirror"/> is not an http(s) address on this PC.</exception>
+    public ModelCatalog WithMirror(Uri mirror)
+    {
+        ArgumentNullException.ThrowIfNull(mirror);
+        if (!mirror.IsAbsoluteUri || mirror.Scheme is not ("http" or "https") || !mirror.IsLoopback)
+        {
+            throw new ArgumentException($"A model mirror must be an http address on this PC (localhost or 127.0.0.1), not '{mirror}'.", nameof(mirror));
+        }
+
+        var root = mirror.AbsoluteUri.TrimEnd('/');
+        return new ModelCatalog(Entries.Select(e => e with { Url = $"{root}/{Uri.EscapeDataString(e.Engine)}/{Uri.EscapeDataString(e.FileName)}" }).ToList());
+    }
+
     /// <summary>Parses and checks a catalog.</summary>
     /// <exception cref="InvalidDataException">The JSON is not a valid catalog; the message names the problem.</exception>
     public static ModelCatalog Parse(string json)

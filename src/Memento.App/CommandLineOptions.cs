@@ -15,7 +15,9 @@ namespace Memento.App;
 /// <c>--rollover-bytes=&lt;n&gt;</c> (hidden, tests) rolls capture tracks over to their next <c>.partN.wav</c> at
 /// <c>n</c> bytes instead of 3.5 GiB;
 /// <c>--update-feed=&lt;url|folder|off&gt;</c> (hidden, tests) checks a local Velopack feed instead of the GitHub
-/// releases, or turns update checks off for the run.
+/// releases, or turns update checks off for the run;
+/// <c>--model-mirror=&lt;http://127.0.0.1:port/&gt;</c> (hidden, tests) downloads models from a mirror on this PC,
+/// still checked against the published sizes and SHA-256.
 /// </summary>
 internal sealed record CommandLineOptions(
     string? ScreenshotPath,
@@ -23,7 +25,8 @@ internal sealed record CommandLineOptions(
     SimulatedEngineOptions? SimulateAudio,
     string? FreeSpaceOverride = null,
     long? RolloverBytes = null,
-    string? UpdateFeed = null)
+    string? UpdateFeed = null,
+    Uri? ModelMirror = null)
 {
     /// <summary>Smallest rollover a test may ask for: one second of int24 stereo at 48 kHz.</summary>
     public const long MinRolloverBytes = 288_000;
@@ -42,6 +45,7 @@ internal sealed record CommandLineOptions(
         string? freeSpace = null;
         long? rollover = null;
         string? updateFeed = null;
+        Uri? modelMirror = null;
         for (var i = 0; i < args.Count; i++)
         {
             var (name, inline) = Split(args[i]);
@@ -85,13 +89,21 @@ internal sealed record CommandLineOptions(
                 case "--update-feed":
                     updateFeed = inline ?? ValueAfter(args, ref i, "--update-feed needs a feed URL, a folder, or 'off'.");
                     break;
+                case "--model-mirror":
+                    var mirror = inline ?? ValueAfter(args, ref i, "--model-mirror needs an http address on this PC.");
+                    if (!Uri.TryCreate(mirror, UriKind.Absolute, out modelMirror) || !modelMirror.IsLoopback || modelMirror.Scheme is not ("http" or "https"))
+                    {
+                        throw new ArgumentException($"--model-mirror takes an http address on this PC (localhost or 127.0.0.1), not '{mirror}'.", nameof(args));
+                    }
+
+                    break;
                 default:
                     // Unknown switches are ignored (Velopack and Windows may pass their own).
                     break;
             }
         }
 
-        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed);
+        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed, modelMirror);
     }
 
     /// <summary><c>--name=value</c> → (<c>--name</c>, <c>value</c>); anything else → (argument, null).</summary>
