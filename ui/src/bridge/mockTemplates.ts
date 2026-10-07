@@ -133,7 +133,6 @@ const inputs = (i: Partial<InputSelection>): InputSelection => ({
   ...i,
 });
 
-const BUILT_IN_AT = '2026-10-01T09:00:00+00:00';
 
 /** src/Memento.Documents/Templates/BuiltIn/*.json in the bridge's shape (importedDocuments → attachments). */
 export function builtInTemplates(): Template[] {
@@ -165,7 +164,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'corporate',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Meeting minutes',
     },
     {
       id: 'interview-notes',
@@ -189,7 +189,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'minimal',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Interview notes',
     },
     {
       id: 'lecture-summary',
@@ -209,7 +210,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'academic',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Lecture summary',
     },
     {
       id: 'dictation-cleanup',
@@ -234,7 +236,8 @@ export function builtInTemplates(): Template[] {
       providerId: null,
       styleId: 'minimal',
       output,
-      modifiedAt: BUILT_IN_AT,
+      modifiedAt: null,
+      documentKind: 'Dictation clean-up',
     },
   ];
 }
@@ -356,7 +359,7 @@ export function createMockTemplateStore(env: TemplateStoreEnvironment): MockTemp
     builtIn: true,
     settings: presets[id],
     usedByTemplates: 0,
-    modifiedAt: BUILT_IN_AT,
+    modifiedAt: null,
   }));
   const styles: Style[] = clone(builtInS);
   let counter = 0;

@@ -167,7 +167,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     const cloud = (id: 'anthropic' | 'openai'): ProviderInfo => {
       const label = PROVIDER_LABELS[id];
       const reason = !ai.enabled ? 'External AI is off' : ai.providers[id].hasKey ? null : 'No key saved';
-      return { id, name: label.name, vendor: label.vendor, kind: 'cloud', ready: reason === null, reason, modelLabel: label.model };
+      return { id, name: label.name, vendor: label.vendor, kind: 'cloud', ready: reason === null, reason, modelLabel: label.model, code: !ai.enabled ? 'ai.disabled' : reason === null ? null : 'ai.noKey', detail: null, modelId: null };
     };
     const local = ((): ProviderInfo => {
       const model = env.models.list().find((m) => m.id === ai.localModelId);
@@ -180,6 +180,9 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         ready: installed,
         reason: installed ? null : 'Model not installed',
         modelLabel: model?.name ?? null,
+        code: installed ? null : 'ai.modelNotInstalled',
+        detail: null,
+        modelId: model?.id ?? null,
       };
     })();
     return [cloud('anthropic'), cloud('openai'), local];
