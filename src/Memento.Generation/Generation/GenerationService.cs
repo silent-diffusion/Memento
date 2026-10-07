@@ -85,7 +85,7 @@ public sealed partial class GenerationService(
             prepared.Payload.RenderPreview(preview),
             Encoding.UTF8.GetByteCount(prepared.Payload.Text),
             prepared.Chunks,
-            M4Mapping.ToBridge(prepared.Selection),
+            M4Mapping.ToBridge(M4Mapping.Used(prepared.Selection, prepared.Payload)),
             warnings)
         {
             ProviderId = prepared.Status.Id,
@@ -163,7 +163,7 @@ public sealed partial class GenerationService(
                     prepared.Status.Id,
                     prepared.Status.Name,
                     prepared.Status.ModelLabel,
-                    M4Mapping.ToBridge(prepared.Selection),
+                    M4Mapping.ToBridge(M4Mapping.Used(prepared.Selection, prepared.Payload)),
                     Encoding.UTF8.GetByteCount(prepared.Payload.Text),
                     prepared.Chunks),
             };
@@ -399,7 +399,7 @@ public sealed partial class GenerationService(
             ModelLabel = status.ModelLabel ?? status.Model ?? string.Empty,
             StartedAt = started,
             DurationMs = durationMs,
-            Inputs = M4Mapping.ToRecord(prepared.Selection),
+            Inputs = M4Mapping.ToRecord(M4Mapping.Used(prepared.Selection, prepared.Payload)),
             Sent = prepared.Payload.Sections.Select(s => s.Summary.Length == 0 ? s.Title : $"{s.Title} ({s.Summary})").ToList(),
             NotSent = prepared.Payload.Excluded.Select(e => $"{e.Name}: {e.Reason}").ToList(),
             Bytes = Encoding.UTF8.GetByteCount(prepared.Payload.Text),
