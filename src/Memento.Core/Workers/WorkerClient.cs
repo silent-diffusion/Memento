@@ -233,7 +233,9 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
     [LoggerMessage(Level = LogLevel.Warning, Message = "Worker wrote a damaged protocol line")]
     private partial void LogBadLine(Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Worker {Pid} did not stop within the grace period and was killed")]
+    // Expected after a cancel during native work that cannot be interrupted (a sherpa-onnx track); nothing is lost,
+    // because finished windows and tracks are kept, so this is not a warning.
+    [LoggerMessage(Level = LogLevel.Information, Message = "Worker {Pid} was still busy in native code 5 s after the cancel and was ended")]
     private partial void LogKilled(int pid);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Worker {Pid} exited with code {ExitCode} without a result; last diagnostics: {Tail}")]
