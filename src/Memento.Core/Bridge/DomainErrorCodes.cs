@@ -116,4 +116,54 @@ public static class DomainErrorCodes
 
     /// <summary>Windows could not store or remove an API key with DPAPI; nothing was changed.</summary>
     public const string AiKeyWriteFailed = "ai.keyWriteFailed";
+
+    // M4 (BRIDGE.md "Error codes (M4)"). The ai.* provider codes carry the provider's own copy (DESIGN.md §17).
+
+    /// <summary>A cloud provider was asked for while Settings › AI and privacy › Allow external AI services is off.</summary>
+    public const string AiDisabled = "ai.disabled";
+
+    /// <summary>The provider cannot run now; <c>detail</c> is the specific code (<c>ai.noKey</c>, <c>ai.modelNotInstalled</c>…).</summary>
+    public const string AiProviderNotReady = "ai.providerNotReady";
+
+    public const string AiNoKey = "ai.noKey";
+    public const string AiInvalidKey = "ai.invalidKey";
+    public const string AiRateLimited = "ai.rateLimited";
+    public const string AiNetwork = "ai.network";
+    public const string AiProviderError = "ai.providerError";
+    public const string AiContentTooLong = "ai.contentTooLong";
+    public const string AiModelNotInstalled = "ai.modelNotInstalled";
+    public const string AiNotEnoughVram = "ai.notEnoughVram";
+    public const string AiWorkerCrashed = "ai.workerCrashed";
+
+    /// <summary>The recording has no transcript (or it is empty), so there is nothing to generate from.</summary>
+    public const string GenerationNoTranscript = "generation.noTranscript";
+
+    /// <summary>Another generation is running or waiting for its confirmation.</summary>
+    public const string GenerationBusy = "generation.busy";
+
+    /// <summary>The job id names no generation of this session (or it already finished).</summary>
+    public const string GenerationNotFound = "generation.notFound";
+
+    public const string TemplatesNotFound = "templates.notFound";
+
+    /// <summary>A built-in template cannot be deleted (it can be reset or duplicated).</summary>
+    public const string TemplatesBuiltIn = "templates.builtIn";
+
+    public const string StylesNotFound = "styles.notFound";
+
+    /// <summary>A preset style cannot be deleted (it can be reset or duplicated).</summary>
+    public const string StylesBuiltIn = "styles.builtIn";
+
+    /// <summary>The style is the default style of a template; <c>detail</c> names the templates.</summary>
+    public const string StylesInUse = "styles.inUse";
+
+    public const string DocumentsNotFound = "documents.notFound";
+
+    /// <summary><c>documents.saveEdit</c> received markup the viewer never produces; nothing was saved.</summary>
+    public const string DocumentsUnsupportedEdit = "documents.unsupportedEdit";
+
+    public const string DocumentsVersionNotFound = "documents.versionNotFound";
+
+    /// <summary>The document could not be written as Word, PDF or Markdown; it is unchanged.</summary>
+    public const string DocumentsExportFailed = "documents.exportFailed";
 }

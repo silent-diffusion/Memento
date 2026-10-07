@@ -30,7 +30,7 @@ public sealed class ExportTests : IDisposable
 
         Assert.Equal("files,bytes,items,unavailable", string.Join(",", estimate.EnumerateObject().Select(p => p.Name)));
         Assert.Equal(
-            """[{"component":"transcript","reason":"Not transcribed yet"},{"component":"documents","reason":"Documents arrive in a later version"},{"component":"attachments","reason":"No attachments"}]""",
+            """[{"component":"transcript","reason":"Not transcribed yet"},{"component":"documents","reason":"Documents are not available in this build"},{"component":"attachments","reason":"No attachments"}]""",
             estimate.GetProperty("unavailable").GetRawText());
         var items = estimate.GetProperty("items").EnumerateArray().ToList();
         var baseName = await BaseNameAsync(id);
