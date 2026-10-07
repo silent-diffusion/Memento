@@ -13,6 +13,9 @@ internal static class ImageFormats
     public const string Gif = "GIF";
     public const string Webp = "WebP";
 
+    /// <summary>The DIB header sizes Windows writes (core, info, v2, v3, v4, v5); anything else after "BM" is not a bitmap.</summary>
+    private static readonly HashSet<uint> BmpHeaderSizes = [12, 40, 52, 56, 108, 124];
+
     public static string? Detect(ReadOnlySpan<byte> bytes)
     {
         if (bytes.StartsWith((ReadOnlySpan<byte>)[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
@@ -25,7 +28,7 @@ internal static class ImageFormats
             return Jpeg;
         }
 
-        if (bytes.Length > 26 && bytes[0] == 'B' && bytes[1] == 'M')
+        if (bytes.Length > 26 && bytes[0] == 'B' && bytes[1] == 'M' && BmpHeaderSizes.Contains(BinaryPrimitives.ReadUInt32LittleEndian(bytes[14..])))
         {
             return Bmp;
         }
@@ -69,9 +72,15 @@ internal static class ImageFormats
                     width = BinaryPrimitives.ReadUInt32BigEndian(bytes[16..]);
                     height = BinaryPrimitives.ReadUInt32BigEndian(bytes[20..]);
                     return true;
+                case Bmp when BinaryPrimitives.ReadUInt32LittleEndian(bytes[14..]) == 12:
+                    // BITMAPCOREHEADER: 16-bit width and height.
+                    width = BinaryPrimitives.ReadUInt16LittleEndian(bytes[18..]);
+                    height = BinaryPrimitives.ReadUInt16LittleEndian(bytes[20..]);
+                    return true;
                 case Bmp:
-                    width = Math.Abs(BinaryPrimitives.ReadInt32LittleEndian(bytes[18..]));
-                    height = Math.Abs(BinaryPrimitives.ReadInt32LittleEndian(bytes[22..]));
+                    // Signed 32-bit; a negative height means top-down. As long, so int.MinValue cannot overflow Math.Abs.
+                    width = Math.Abs((long)BinaryPrimitives.ReadInt32LittleEndian(bytes[18..]));
+                    height = Math.Abs((long)BinaryPrimitives.ReadInt32LittleEndian(bytes[22..]));
                     return true;
                 case Gif when bytes.Length >= 10:
                     width = BinaryPrimitives.ReadUInt16LittleEndian(bytes[6..]);
