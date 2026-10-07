@@ -303,9 +303,15 @@ public sealed partial class ExportService(
                 }
 
                 var name = FileNames.Unique(folder, item.Name, names);
+                var destination = Path.GetFullPath(Path.Combine(folder, name));
+                if (!destination.StartsWith(Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new IOException($"The export file name '{name}' would leave the export folder; nothing was written outside it.");
+                }
+
                 job.CurrentFile = name;
                 Publish(job, force: false, throttle);
-                var bytes = await WriteFileAsync(item.WriteAsync, Path.Combine(folder, name), work, name, written, token);
+                var bytes = await WriteFileAsync(item.WriteAsync, destination, work, name, written, token);
                 var relative = item.Folder is null ? name : item.Folder + "/" + name;
                 files.Add(new ExportManifestFile(relative, bytes.Length, bytes.Sha256));
                 job.Files++;

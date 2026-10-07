@@ -10,9 +10,9 @@ public static class FileNames
 
     private static readonly string[] Reserved =
     [
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+        "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM¹", "COM²", "COM³",
+        "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT¹", "LPT²", "LPT³",
     ];
 
     /// <summary>
@@ -27,6 +27,13 @@ public static class FileNames
         var lastWasSpace = false;
         foreach (var c in (name ?? string.Empty).Normalize(NormalizationForm.FormC))
         {
+            // Format characters (right-to-left overrides, zero-width marks) are dropped: they let a name such as
+            // "Agenda<RLO>xcod.exe" display as "Agendaexe.docx".
+            if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format)
+            {
+                continue;
+            }
+
             var replaced = char.IsControl(c) || invalid.Contains(c) || c is '<' or '>' or ':' or '"' or '/' or '\\' or '|' or '?' or '*' ? ' ' : c;
             if (char.IsWhiteSpace(replaced))
             {
@@ -46,7 +53,9 @@ public static class FileNames
         var text = builder.ToString().Trim().Trim('.').Trim();
         if (text.Length > MaxStemLength)
         {
-            text = text[..MaxStemLength].TrimEnd().TrimEnd('.');
+            // Never split a surrogate pair.
+            var cut = char.IsHighSurrogate(text[MaxStemLength - 1]) ? MaxStemLength - 1 : MaxStemLength;
+            text = text[..cut].TrimEnd().TrimEnd('.');
         }
 
         if (text.Length == 0)
@@ -54,7 +63,8 @@ public static class FileNames
             return fallback;
         }
 
-        var stem = text.Split('.')[0];
+        // Windows ignores trailing spaces and dots before the extension: "con .txt" is still the console device.
+        var stem = text.Split('.')[0].TrimEnd(' ');
         return Reserved.Contains(stem, StringComparer.OrdinalIgnoreCase) ? "_" + text : text;
     }
 

@@ -209,10 +209,13 @@ public sealed partial class ProjectFinalizationService(
     {
         foreach (var relative in files)
         {
-            var path = Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar));
             try
             {
-                File.Delete(path);
+                File.Delete(ProjectPaths.Resolve(folder, relative));
+            }
+            catch (InvalidDataException)
+            {
+                // Never a file outside the project folder.
             }
             catch (IOException ex)
             {

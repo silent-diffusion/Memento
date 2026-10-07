@@ -73,9 +73,20 @@ public sealed partial class RecordingMaterialLoader(
 
     private async Task<string?> ReadTextAsync(string folder, AttachmentRecord attachment, CancellationToken cancellationToken)
     {
-        var path = Path.GetFullPath(Path.Combine(folder, attachment.File.Replace('/', Path.DirectorySeparatorChar)));
+        // Only a file inside the project's attachments folder may be read into a payload (a sibling folder whose name
+        // starts with the project id, or "..", must never be).
+        string path;
+        try
+        {
+            path = ProjectPaths.ResolveIn(folder, ProjectLayout.AttachmentsFolder, attachment.File);
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+
         var isText = TextExtensions.Contains(Path.GetExtension(attachment.Name)) || (attachment.ContentType?.StartsWith("text/", StringComparison.OrdinalIgnoreCase) ?? false);
-        if (!isText || !path.StartsWith(folder, StringComparison.OrdinalIgnoreCase) || !File.Exists(path) || new FileInfo(path).Length > MaxAttachmentTextBytes)
+        if (!isText || !File.Exists(path) || new FileInfo(path).Length > MaxAttachmentTextBytes)
         {
             return null;
         }
