@@ -134,10 +134,20 @@ public static partial class PayloadComposer
                 s.Start,
                 s.End,
                 s.SpeakerId,
-                s.SpeakerId is { } id && names.TryGetValue(id, out var name) && !string.IsNullOrWhiteSpace(name) ? name.Trim() : UnknownSpeaker,
-                s.Text.Replace("\r\n", " ", StringComparison.Ordinal).Replace('\n', ' ').Trim()))
+                s.SpeakerId is { } id && names.TryGetValue(id, out var name) && OneLine(name) is { Length: > 0 } speaker ? speaker : UnknownSpeaker,
+                OneLine(s.Text)))
             .ToList();
     }
+
+    /// <summary>
+    /// <paramref name="text"/> on one line: every line break a model may read as one (CR LF, LF, CR, vertical tab, form feed, NEL, the Unicode
+    /// line and paragraph separators) becomes a space, so a segment or a speaker name cannot start a forged
+    /// <c>[12] Speaker:</c> line.
+    /// </summary>
+    public static string OneLine(string? text) =>
+        string.IsNullOrEmpty(text)
+            ? string.Empty
+            : LineBreak().Replace(text, " ").Trim();
 
     /// <summary>"1:02:03" or "12:34".</summary>
     public static string Clock(double seconds)
@@ -238,4 +248,8 @@ public static partial class PayloadComposer
 
     [GeneratedRegex(@"<\/?(?:instructions|recording_details|participants|agenda|outline|highlights|notes|attachments|attachment|previous_documents|document|transcript|item|section_instructions)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SectionTag();
+
+    // NEL is \x85; \p{Zl} and \p{Zp} are the Unicode line and paragraph separators (U+2028, U+2029).
+    [GeneratedRegex(@"\r\n|[\n\r\v\f\x85\p{Zl}\p{Zp}]", RegexOptions.CultureInvariant)]
+    private static partial Regex LineBreak();
 }
