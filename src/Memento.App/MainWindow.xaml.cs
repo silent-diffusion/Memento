@@ -169,9 +169,13 @@ internal sealed partial class MainWindow : Window
         core.SetVirtualHostNameToFolderMapping(
             WebViewBridge.VirtualHost, uiFolder, CoreWebView2HostResourceAccessKind.DenyCors);
         MapLibrary(core);
+        core.AddWebResourceRequestedFilter(LibraryUrls.Origin + "*", CoreWebView2WebResourceContext.All);
+        core.WebResourceRequested += OnWebResourceRequested;
         core.NavigationStarting += OnNavigationStarting;
         core.FrameNavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
+        core.DownloadStarting += OnDownloadStarting;
+        core.PermissionRequested += OnPermissionRequested;
         core.NavigationCompleted += OnNavigationCompleted;
         core.ProcessFailed += OnProcessFailed;
         core.WebMessageReceived += OnDroppedFiles; // before the bridge, so a drop's paths are known when its request runs
@@ -226,6 +230,50 @@ internal sealed partial class MainWindow : Window
         settings.IsPasswordAutosaveEnabled = false;
         settings.AreHostObjectsAllowed = false;
         settings.IsWebMessageEnabled = true;
+
+        // The page only ever loads app.memento and library.memento, so SmartScreen has nothing to check and would only
+        // send page addresses to Microsoft (nothing leaves the PC without an explicit action). It applies to every
+        // WebView2 on this user data folder, so the PDF printer turns it off too.
+        settings.IsReputationCheckingRequired = false;
+    }
+
+    /// <summary>
+    /// Answers only the library files the page uses (a project's mix and peaks, <see cref="LibraryResourcePolicy"/>);
+    /// anything else under <c>library.memento</c>, including a file reached through a junction, gets a 404 before
+    /// WebView2 reads the disk.
+    /// </summary>
+    private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
+    {
+        if (!Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Host, LibraryUrls.VirtualHost, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (_mappedLibrary is null || LibraryResourcePolicy.ServableFile(_mappedLibrary, uri) is null)
+        {
+            e.Response = WebView.CoreWebView2.Environment.CreateWebResourceResponse(null, 404, "Not Found", string.Empty);
+            LogLibraryRequestRefused(uri.AbsolutePath);
+        }
+    }
+
+    /// <summary>The page never downloads anything; exports are written by the host.</summary>
+    private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e)
+    {
+        e.Cancel = true;
+        e.Handled = true;
+        LogNavigationBlocked(e.DownloadOperation.Uri);
+    }
+
+    /// <summary>
+    /// The page needs no browser permission (microphone, camera, location, notifications, clipboard reading): audio is
+    /// captured by the host. Refused without asking, so no WebView2 prompt can appear.
+    /// </summary>
+    private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
+    {
+        e.State = CoreWebView2PermissionState.Deny;
+        e.Handled = true;
+        LogPermissionRefused(e.PermissionKind.ToString());
     }
 
     private void ApplyTheme(bool isDark)
@@ -351,6 +399,12 @@ internal sealed partial class MainWindow : Window
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Blocked navigation to {Uri}")]
     private partial void LogNavigationBlocked(string uri);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a library request for {Path}")]
+    private partial void LogLibraryRequestRefused(string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a browser permission request: {Kind}")]
+    private partial void LogPermissionRefused(string kind);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The interface failed to load: {Status}")]
     private partial void LogNavigationFailed(string status);
