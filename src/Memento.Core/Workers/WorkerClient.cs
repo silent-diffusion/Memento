@@ -17,6 +17,10 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
     private static readonly TimeSpan ExitGrace = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan KillGrace = TimeSpan.FromSeconds(10);
 
+    internal const int TailLines = 8;
+    internal const int TailLineChars = 300;
+    internal const int TailTotalChars = 2000;
+
     private readonly ConcurrentDictionary<int, IWorkerProcess> _running = new();
     private readonly SemaphoreSlim _gpu = new(1, 1);
     private readonly ILogger<WorkerClient> _logger = logger;
@@ -115,7 +119,7 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
 
             var exitCode = await WaitForExitAsync(process);
             cancellationToken.ThrowIfCancellationRequested();
-            LogCrashed(process.Id, exitCode, string.Join(" | ", process.ErrorTail.TakeLast(8)));
+            LogCrashed(process.Id, exitCode, FormatTail(process.ErrorTail));
             throw new WorkerCrashedException(exitCode, process.ErrorTail);
         }
         finally
@@ -154,6 +158,20 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         {
             LogNotGone(process.Id);
         }
+    }
+
+    /// <summary>
+    /// The last <see cref="TailLines"/> stderr lines for the crash log, each cut to <see cref="TailLineChars"/>
+    /// characters and the whole to <see cref="TailTotalChars"/>: native libraries can print a whole buffer (a prompt, a
+    /// transcript window) on one line, and the log must stay a diagnostic, not a copy of the user's content.
+    /// </summary>
+    internal static string FormatTail(IReadOnlyList<string> tail)
+    {
+        var lines = tail.TakeLast(TailLines)
+            .Select(line => new string(line.Select(c => char.IsControl(c) ? ' ' : c).ToArray()))
+            .Select(line => line.Length > TailLineChars ? string.Concat(line.AsSpan(0, TailLineChars), "…") : line);
+        var joined = string.Join(" | ", lines);
+        return joined.Length > TailTotalChars ? string.Concat("(earlier text cut) …", joined.AsSpan(joined.Length - TailTotalChars)) : joined;
     }
 
     private static TimeSpan SafeCpu(IWorkerProcess process)
