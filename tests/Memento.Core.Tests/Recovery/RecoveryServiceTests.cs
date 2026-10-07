@@ -23,9 +23,7 @@ public sealed class RecoveryServiceTests : IDisposable
         var (_, recordingId) = await first.StartAsync("Interrupted sync", Mic, SystemAudio);
         first.Session.Advance(TimeSpan.FromSeconds(6));
         await first.Session.DrainAsync();
-        await WaitUntilAsync(
-            async () => (await first.Store.ReadRecordingStateAsync(recordingId, CancellationToken.None))?.LastCheckpointAt is not null,
-            "the first checkpoint");
+        await first.WaitForCheckpointWrittenAsync();
         first.Session.Advance(TimeSpan.FromSeconds(3));
         await first.Session.SimulateCrashAsync(flushBufferedSamples: false);
         first.DisposeServicesOnly();

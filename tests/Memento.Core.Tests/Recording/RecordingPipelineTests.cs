@@ -47,10 +47,9 @@ public sealed class RecordingPipelineTests : IDisposable
         // Checkpoint at 5 s: headers patched, recording.state.json updated.
         session.Advance(TimeSpan.FromSeconds(6));
         await session.DrainAsync();
-        await WaitUntilAsync(
-            async () => (await _host.Store.ReadRecordingStateAsync(recordingId, CancellationToken.None))?.LastCheckpointAt is not null,
-            "the checkpoint in recording.state.json");
+        await _host.WaitForCheckpointWrittenAsync();
         var state = await _host.Store.ReadRecordingStateAsync(recordingId, CancellationToken.None);
+        Assert.NotNull(state!.LastCheckpointAt);
         Assert.All(state!.Tracks, t => Assert.True(t.BytesAtCheckpoint > 0));
         Assert.True(WavInfo.Read(Path.Combine(folder, "tracks", "mic.wav")).DeclaredDataBytes >= 5 * 96_000);
 
