@@ -3,10 +3,11 @@
 // failed pass), and the segments as a windowed list that follows the playhead.
 import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Highlight, Project, Speaker, StageFailure, StageStatus, TranscriptSegment } from '../../bridge/types';
+import type { CoverageGap, Highlight, ModelInfo, Project, Speaker, StageFailure, StageStatus, TranscriptSegment } from '../../bridge/types';
 import { CheckIcon, TranscriptLinesIcon } from '../../components/icons';
 import { formatDuration } from '../../format/duration';
-import { isPausedLabel, segmentIndexAt, transcribingText } from '../../format/transcript';
+import { gapNoticeText, gapPlacement, isPausedLabel, otherModelFor, segmentIndexAt, transcribingText } from '../../format/transcript';
+import { useServices } from '../../state/context';
 import { computeWindow, RowHeights } from '../../format/virtualList';
 import { createFollowPlayhead, followScrollDelta, type FollowPlayhead } from '../../state/followPlayhead';
 import type { PlayerApi } from './Player';
@@ -17,6 +18,7 @@ import type { SearchApi, TranscriptApi } from './useTranscript';
 const ESTIMATED_ROW = 76;
 const OVERSCAN = 8;
 const NO_HIGHLIGHTS: readonly Highlight[] = [];
+const NO_GAPS: readonly CoverageGap[] = [];
 
 const FAILED_LABEL: Partial<Record<StageFailure['stage'], string>> = {
   transcript: 'Transcription failed',
@@ -110,6 +112,35 @@ function FailedCard({ failure, onRemedy, onDetails }: { failure: StageFailure; o
   );
 }
 
+/** What a coverage notice offers: transcribe again with another installed model. */
+export interface GapAction {
+  label: string;
+  run: () => void;
+}
+
+/**
+ * A coverage notice at the gap's place in the transcript (BRIDGE.md, `Transcript.coverageGaps`):
+ * accent-soft, like the other still-safe conditions (DESIGN.md §2.1, §5.19).
+ */
+function GapNotice({ gap, action }: { gap: CoverageGap; action: GapAction | null }): JSX.Element {
+  const stop = (event: Event): void => {
+    event.stopPropagation();
+  };
+  return (
+    <div class="tx-gap" role="note" onClick={stop} onDblClick={stop}>
+      <span class="tx-gap-text">
+        {gapNoticeText(gap)}
+        {action === null ? ' Install another model in Settings › Transcription to transcribe it again.' : null}
+      </span>
+      {action === null ? null : (
+        <button class="btn ghost small-btn tx-gap-action" type="button" onClick={action.run}>
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** A thin line above the segments while a new pass or the speakers stage runs. */
 function RunningLine({ stages }: { stages: StageStatus[] }): JSX.Element | null {
   const transcript = stages.find((s) => s.stage === 'transcript' && (s.state === 'active' || s.state === 'queued'));
@@ -152,6 +183,9 @@ interface ListProps {
   follow: FollowPlayhead;
   revealRef: TranscriptPaneProps['revealRef'];
   focusRef: { current: ((index: number) => void) | null };
+  /** Coverage notices by the index of the segment they come before (`segments.length`: after the last). */
+  gaps: Map<number, CoverageGap[]>;
+  gapAction: GapAction | null;
 }
 
 /** The segments, windowed: only the rows near the viewport are in the DOM, spacers stand for the rest. */
@@ -168,6 +202,8 @@ function TranscriptList({
   follow,
   revealRef,
   focusRef,
+  gaps,
+  gapAction,
 }: ListProps): JSX.Element {
   const listRef = useRef<HTMLDivElement | null>(null);
   const heightsRef = useRef<RowHeights | null>(null);
@@ -239,8 +275,9 @@ function TranscriptList({
       return;
     }
     let changed = false;
-    for (const el of list.querySelectorAll<HTMLElement>('[data-index]')) {
-      changed = heights.set(Number(el.dataset.index), el.offsetHeight) || changed;
+    // A row's slot holds the segment and any coverage notice before it; the slot is what takes the space.
+    for (const el of list.querySelectorAll<HTMLElement>('[data-row]')) {
+      changed = heights.set(Number(el.dataset.row), el.offsetHeight) || changed;
     }
     if (changed) {
       setMeasured((n) => n + 1);
@@ -347,23 +384,32 @@ function TranscriptList({
       continue;
     }
     const isEditing = editing?.segmentId === segment.id;
+    const before = gaps.get(i) ?? NO_GAPS;
+    const after = i === segments.length - 1 ? (gaps.get(segments.length) ?? NO_GAPS) : NO_GAPS;
     rows.push(
-      <TranscriptSegmentRow
-        key={segment.id}
-        segment={segment}
-        index={i}
-        count={segments.length}
-        speaker={segment.speaker === null ? null : (speakerById.get(segment.speaker) ?? null)}
-        speakers={speakers}
-        current={i === currentIndex}
-        threshold={threshold}
-        query={query}
-        currentOccurrence={currentMatch?.segmentId === segment.id ? currentMatch.occurrence : -1}
-        editing={isEditing ? editing.draft : null}
-        saving={isEditing && editing.saving}
-        highlights={highlightsBySegment.get(segment.id) ?? NO_HIGHLIGHTS}
-        handlers={handlers}
-      />,
+      <div key={segment.id} class="segm-slot" role="none" data-row={i}>
+        {before.map((gap) => (
+          <GapNotice key={`gap-${gap.start}`} gap={gap} action={gapAction} />
+        ))}
+        <TranscriptSegmentRow
+          segment={segment}
+          index={i}
+          count={segments.length}
+          speaker={segment.speaker === null ? null : (speakerById.get(segment.speaker) ?? null)}
+          speakers={speakers}
+          current={i === currentIndex}
+          threshold={threshold}
+          query={query}
+          currentOccurrence={currentMatch?.segmentId === segment.id ? currentMatch.occurrence : -1}
+          editing={isEditing ? editing.draft : null}
+          saving={isEditing && editing.saving}
+          highlights={highlightsBySegment.get(segment.id) ?? NO_HIGHLIGHTS}
+          handlers={handlers}
+        />
+        {after.map((gap) => (
+          <GapNotice key={`gap-${gap.start}`} gap={gap} action={gapAction} />
+        ))}
+      </div>,
     );
   }
 
@@ -486,6 +532,48 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
   const status = result?.status ?? null;
   const failure = result?.failure ?? null;
 
+  // Coverage notices, and the installed model they offer to transcribe again with.
+  const { bridge, store } = useServices();
+  const coverageGaps = transcript?.coverageGaps;
+  const gaps = useMemo(() => gapPlacement(segments, coverageGaps ?? []), [segments, coverageGaps]);
+  const [models, setModels] = useState<ModelInfo[] | null>(null);
+  const hasGaps = (coverageGaps?.length ?? 0) > 0;
+  useEffect(() => {
+    if (!hasGaps) {
+      return undefined;
+    }
+    let live = true;
+    bridge
+      .call('models.list')
+      .then(({ models: list }) => {
+        if (live) {
+          setModels(list);
+        }
+      })
+      .catch((e: unknown) => {
+        console.warn('[review] models.list failed', e);
+      });
+    return () => {
+      live = false;
+    };
+  }, [bridge, hasGaps]);
+  const other = transcript === null || models === null ? null : otherModelFor(transcript.engine.model, store.settings.value?.transcription.cpuFallbackModelId ?? null, models);
+  const gapAction: GapAction | null =
+    other === null
+      ? null
+      : {
+          label: `Transcribe again with ${other.name}`,
+          run: () => {
+            // A finished transcript is replaced by a new pass (kept as a version); a stopped one continues with that model.
+            const queued = status === 'failed' ? api.retry('transcript', `model:${other.id}`) : api.transcribe(other.id);
+            void queued.then((message) => {
+              if (message !== null) {
+                onError('Transcription was not started', message);
+              }
+            });
+          },
+        };
+
   let body: JSX.Element | null = null;
   if (inProgress) {
     body = (
@@ -606,7 +694,8 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
           )}
         </span>
       </div>
-      {failure !== null && status === 'failed' ? (
+      {/* The transcript stage's failure, or the speakers stage's while the transcript itself is fine. */}
+      {failure !== null && (status === 'failed' || failure.stage !== 'transcript') ? (
         <FailedCard
           failure={failure}
           onDetails={onShowHistory}
@@ -640,6 +729,8 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
             follow={follow}
             revealRef={revealRef}
             focusRef={focusRef}
+            gaps={gaps}
+            gapAction={gapAction}
           />
         </>
       ) : null}

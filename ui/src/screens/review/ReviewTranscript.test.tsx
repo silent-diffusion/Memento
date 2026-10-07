@@ -247,6 +247,56 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect(container.querySelector('.hl')).toBeNull();
   });
 
+  it('shows a coverage notice where speech was not transcribed, offering another model', async () => {
+    await openWithTranscript();
+    const { transcript } = await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW });
+    const gap = transcript?.coverageGaps[0];
+    const after = transcript?.segments.find((s) => gap !== undefined && s.start >= gap.start);
+    if (gap === undefined || after === undefined) {
+      throw new Error('the sample has no coverage gap');
+    }
+    // Jump to the line after the gap with the transcript search (the list only renders rows near the view).
+    const field = container.querySelector<HTMLInputElement>('#tx-search');
+    if (field === null) {
+      throw new Error('no search field');
+    }
+    await typeInto(field, after.text.split(' ').slice(0, 4).join(' ').replace(/[.,?!]+$/, ''));
+    await until(() => (container.querySelector('#tx-search-count')?.textContent ?? '').includes('match'));
+    await press(field, 'Enter');
+    await until(() => container.querySelector('.tx-gap') !== null);
+
+    const notice = container.querySelector('.tx-gap');
+    expect(notice?.getAttribute('role')).toBe('note');
+    expect(notice?.querySelector('.tx-gap-text')?.textContent).toMatch(/^Nothing was transcribed between \d+:\d\d and \d+:\d\d, although there was speech\.$/);
+    // It sits right before the line that follows the gap.
+    expect(notice?.parentElement?.querySelector('.segm')?.getAttribute('data-segment-id')).toBe(after.id);
+    const call = vi.spyOn(bridge, 'call');
+    await click(button('Transcribe again with Small', notice ?? document));
+    expect(call).toHaveBeenCalledWith('transcript.retranscribe', { recordingId: DESIGN_REVIEW, modelId: 'whisper-small' });
+    await until(() => container.querySelector('.tx-running') !== null);
+    // Small kept the passage: once its pass is done, the notice is gone.
+    await until(() => container.querySelector('.tx-gap') === null && container.querySelector('.tx-running') === null, 8000);
+    expect((await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript?.engine.model).toBe('whisper-small');
+  });
+
+  it('shows a failed speakers stage with its remedy while the transcript itself is done', async () => {
+    await openWithTranscript();
+    await act(async () => {
+      await bridge.call('processing.retry', { recordingId: DESIGN_REVIEW, stage: 'speakers' });
+      await bridge.call('processing.cancel', { recordingId: DESIGN_REVIEW, stage: 'speakers' });
+    });
+    await until(() => container.querySelector('.tx-failed') !== null);
+    const card = container.querySelector('.tx-failed');
+    expect(card?.querySelector('.tx-failed-label')?.textContent).toBe('Speaker identification failed');
+    expect(card?.textContent).toContain('The transcript is kept without speakers.');
+    // The transcript stays on screen under it.
+    expect(container.querySelector('.segm')).not.toBeNull();
+    const call = vi.spyOn(bridge, 'call');
+    await click(button('Identify speakers', card ?? document));
+    expect(call).toHaveBeenCalledWith('processing.retry', { recordingId: DESIGN_REVIEW, stage: 'speakers', remedyId: 'retry' });
+    await until(() => container.querySelector('.tx-failed') === null);
+  });
+
   it('marks the transcript as reviewed and shows it in the header', async () => {
     await openWithTranscript();
     const chip = button('Mark as reviewed');

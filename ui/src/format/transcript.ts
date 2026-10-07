@@ -1,7 +1,8 @@
 // Transcript helpers (DESIGN.md §5.12, §9): where low-confidence words and search matches fall in a
 // segment's text, the playhead's segment, word re-alignment after an edit, talk-time shares, and the
 // wording of the transcript stage while it runs.
-import type { Speaker, SpeakerColour, StageStatus, TranscriptSegment, TranscriptVersionReason, TranscriptWord } from '../bridge/types';
+import type { CoverageGap, ModelInfo, Speaker, SpeakerColour, StageStatus, TranscriptSegment, TranscriptVersionReason, TranscriptWord } from '../bridge/types';
+import { formatDuration } from './duration';
 
 /** Below this a speaker assignment is shown as uncertain (dotted ring, "Speaker uncertain"). */
 export const UNCERTAIN_SPEAKER = 0.7;
@@ -340,4 +341,46 @@ export function transcribingText(stage: Pick<StageStatus, 'label' | 'percent'> |
     return /^\d/.test(stage.label) ? `Transcribing ${stage.label}` : stage.label;
   }
   return stage.percent === null ? 'Transcribing' : `Transcribing ${Math.round(stage.percent)}%`;
+}
+
+/** The coverage notice (BRIDGE.md, `Transcript.coverageGaps`). */
+export function gapNoticeText(gap: Pick<CoverageGap, 'start' | 'end'>): string {
+  return `Nothing was transcribed between ${formatDuration(gap.start * 1000)} and ${formatDuration(gap.end * 1000)}, although there was speech.`;
+}
+
+/**
+ * Where each coverage gap is shown: before the first segment that starts at or after the gap's
+ * start, keyed by that segment's index; `segments.length` means after the last segment.
+ */
+export function gapPlacement(segments: readonly Pick<TranscriptSegment, 'start'>[], gaps: readonly CoverageGap[]): Map<number, CoverageGap[]> {
+  const placed = new Map<number, CoverageGap[]>();
+  for (const gap of [...gaps].sort((a, b) => a.start - b.start)) {
+    // The first segment starting at or after the gap (segments are sorted by start).
+    let lo = 0;
+    let hi = segments.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if ((segments[mid]?.start ?? 0) < gap.start) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    placed.set(lo, [...(placed.get(lo) ?? []), gap]);
+  }
+  return placed;
+}
+
+/**
+ * The model the coverage notice offers to transcribe again with: Settings' CPU-fallback model when
+ * it is installed and is not the one that made the transcript, else another installed one; null
+ * when there is none.
+ */
+export function otherModelFor(
+  currentModelId: string,
+  cpuFallbackModelId: string | null,
+  models: readonly Pick<ModelInfo, 'id' | 'engine' | 'installed' | 'name'>[],
+): Pick<ModelInfo, 'id' | 'name'> | null {
+  const usable = models.filter((m) => m.engine === 'transcription' && m.installed && m.id !== currentModelId);
+  return usable.find((m) => m.id === cpuFallbackModelId) ?? usable[0] ?? null;
 }
