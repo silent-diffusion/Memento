@@ -17,7 +17,8 @@ const MARKERS = [
   /^\[[ xX]?\]\s*/,
 ];
 
-function stripMarkers(line: string): string {
+/** Removes leading list markers ("1.", "-", "•", "[ ]") from one line. */
+export function stripMarkers(line: string): string {
   let text = line.trim();
   for (let pass = 0; pass < 4; pass++) {
     const before = text;
