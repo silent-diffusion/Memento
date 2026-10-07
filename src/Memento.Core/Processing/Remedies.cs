@@ -13,4 +13,9 @@ public static class Remedies
     public const string ModelPrefix = "model:";
 
     public static string Model(string modelId) => ModelPrefix + modelId;
+
+    /// <summary><c>install:&lt;id&gt;</c>: download that model again (its file was damaged); the stage runs once it is installed.</summary>
+    public const string InstallPrefix = "install:";
+
+    public static string Install(string modelId) => InstallPrefix + modelId;
 }

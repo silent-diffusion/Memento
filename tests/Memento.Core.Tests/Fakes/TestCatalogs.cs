@@ -5,7 +5,8 @@ namespace Memento.Core.Tests.Fakes;
 /// <summary>A catalog with the real ids and 4-byte files, so tests can "install" a model by writing it.</summary>
 internal static class TestCatalogs
 {
-    private const string Zero = "0000000000000000000000000000000000000000000000000000000000000000";
+    /// <summary>SHA-256 of the four zero bytes <see cref="Install"/> writes, so installed files pass the check before use.</summary>
+    private const string Zero = "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119";
 
     public static readonly ModelCatalog Tiny = ModelCatalog.Parse($$"""
         { "schemaVersion": 1, "models": [

@@ -34,6 +34,13 @@ public interface IModelManager
     /// <exception cref="Bridge.BridgeException"><c>models.notFound</c> or <c>models.inUse</c>.</exception>
     Task RemoveAsync(string modelId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Checks an installed model against the catalog's SHA-256 before it is used; a file is hashed once per version
+    /// (size and last write time) in each run. A file that does not match is moved aside to <c>&lt;file&gt;.damaged</c>,
+    /// so it reads as not installed and can be downloaded again, and <c>models.progress</c> says so.
+    /// </summary>
+    Task<ModelCheck> VerifyAsync(string modelId, CancellationToken cancellationToken);
+
     /// <summary>Marks the model as in use until the lease is disposed, so it cannot be removed meanwhile.</summary>
     IDisposable Use(string modelId);
 }

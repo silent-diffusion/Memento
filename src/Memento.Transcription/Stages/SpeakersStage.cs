@@ -81,6 +81,29 @@ public sealed partial class SpeakersStage(
             return;
         }
 
+        var damaged = new List<ModelCatalogEntry>();
+        foreach (var model in new[] { segmentation!, embedding! })
+        {
+            if (await models.VerifyAsync(model.Id, cancellationToken) == ModelCheck.Damaged)
+            {
+                damaged.Add(model);
+            }
+        }
+
+        if (damaged.Count > 0)
+        {
+            var names = string.Join(" and ", damaged.Select(d => d.Name));
+            await FailAsync(
+                recordingId,
+                $"Speaker identification could not start: the installed {names} {(damaged.Count == 1 ? "file is" : "files are")} damaged (the SHA-256 checksum does not match the published one), so Memento set {(damaged.Count == 1 ? "it" : "them")} aside instead of using {(damaged.Count == 1 ? "it" : "them")}.",
+                "The transcript is kept without speakers. Download the speaker models again and speakers are identified by themselves.",
+                damaged.Select(d => new Remedy(Remedies.Install(d.Id), $"Download {d.Name} again")).ToList(),
+                ProjectStageFailure.CauseNoModel,
+                "Waiting for a model",
+                cancellationToken);
+            return;
+        }
+
         var folder = store.GetProjectFolder(recordingId);
         var spoken = transcript.Segments.Select(s => s.Track).OfType<string>().ToHashSet(StringComparer.Ordinal);
         var tracks = manifest.Tracks

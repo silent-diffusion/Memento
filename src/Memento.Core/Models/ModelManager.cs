@@ -20,6 +20,9 @@ public sealed partial class ModelManager : IModelManager, IDisposable
     public const string StateDone = "done";
     public const string StateFailed = "failed";
 
+    /// <summary>A file that failed its checksum is kept under this suffix until the model is installed again.</summary>
+    public const string DamagedSuffix = ".damaged";
+
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(250);
 
     private readonly ModelStoreOptions _options;
@@ -30,6 +33,7 @@ public sealed partial class ModelManager : IModelManager, IDisposable
     private readonly SemaphoreSlim _downloadGate = new(1, 1);
     private readonly ConcurrentDictionary<string, Download> _downloads = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, int> _inUse = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, (long Length, long WrittenTicks)> _verified = new(StringComparer.OrdinalIgnoreCase);
 
     public ModelManager(
         ModelCatalog catalog,
@@ -159,6 +163,7 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         }
 
         var path = PathOf(entry);
+        _verified.TryRemove(path, out _);
         if (File.Exists(path))
         {
             File.SetAttributes(path, FileAttributes.Normal);
@@ -167,7 +172,52 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         }
 
         DeletePart(entry);
+        DeleteDamaged(entry);
         return Task.CompletedTask;
+    }
+
+    public async Task<ModelCheck> VerifyAsync(string modelId, CancellationToken cancellationToken)
+    {
+        if (Catalog.Find(modelId) is not { } entry || !IsInstalled(entry))
+        {
+            return ModelCheck.NotInstalled;
+        }
+
+        var path = PathOf(entry);
+        var version = VersionOf(path);
+        if (_verified.TryGetValue(path, out var known) && known == version)
+        {
+            return ModelCheck.Verified;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        string hash;
+        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true))
+        {
+            hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
+        }
+
+        if (string.Equals(hash, entry.Sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            _verified[path] = version;
+            LogInstalledVerified(entry.Id, stopwatch.ElapsedMilliseconds);
+            return ModelCheck.Verified;
+        }
+
+        _verified.TryRemove(path, out _);
+        var aside = path + DamagedSuffix;
+        File.SetAttributes(path, FileAttributes.Normal);
+        File.Move(path, aside, overwrite: true);
+        LogDamaged(entry.Id, entry.Sha256, hash, aside);
+        Publish(entry, StateFailed, 0, DamagedMessage(entry));
+        return ModelCheck.Damaged;
+    }
+
+    /// <summary>The words for a model file that failed its checksum (Settings and the stage failure use them).</summary>
+    public static string DamagedMessage(ModelCatalogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return $"The installed {entry.Name} file is damaged: its SHA-256 checksum does not match the published one, so Memento set it aside and will not use it. Download it again to replace it.";
     }
 
     public IDisposable Use(string modelId)
@@ -205,6 +255,25 @@ public sealed partial class ModelManager : IModelManager, IDisposable
             DomainErrorCodes.ModelsNotFound,
             $"There is no model called '{modelId}' in this version of Memento. Nothing was changed. Choose one of the models listed in Settings.",
             modelId);
+
+    private static (long Length, long WrittenTicks) VersionOf(string path)
+    {
+        var info = new FileInfo(path);
+        return (info.Length, info.LastWriteTimeUtc.Ticks);
+    }
+
+    private void DeleteDamaged(ModelCatalogEntry entry)
+    {
+        var damaged = PathOf(entry) + DamagedSuffix;
+        try
+        {
+            File.Delete(damaged);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogPartNotRemoved(ex, damaged);
+        }
+    }
 
     private void DeletePart(ModelCatalogEntry entry)
     {
@@ -392,6 +461,8 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         }
 
         File.Move(part, target, overwrite: true);
+        _verified[target] = VersionOf(target);
+        DeleteDamaged(entry);
         LogVerified(entry.Id, hash);
     }
 
@@ -408,6 +479,12 @@ public sealed partial class ModelManager : IModelManager, IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Model {ModelId} verified: SHA-256 {Hash}")]
     private partial void LogVerified(string modelId, string hash);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Model {ModelId} checked against its SHA-256 before use in {ElapsedMs} ms")]
+    private partial void LogInstalledVerified(string modelId, long elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Model {ModelId} is damaged: SHA-256 {Actual} instead of {Expected}; moved aside to {Aside}")]
+    private partial void LogDamaged(string modelId, string expected, string actual, string aside);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Model {ModelId} removed")]
     private partial void LogRemoved(string modelId);

@@ -425,6 +425,31 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task ADamagedModelFileIsReportedSpecificallyAndDownloadingItAgainIsOffered()
+    {
+        InstallAll();
+        var path = _host.Models.PathOf(TinyCatalog.Find("whisper-large-v3-turbo")!);
+        File.WriteAllBytes(path, [0, 0xFF, 0, 0]); // the right size, flipped bytes
+
+        var id = await RecordAndProcessAsync();
+
+        var failure = Assert.Single((await ManifestAsync(id)).Failures);
+        Assert.Equal(ProjectStageFailure.CauseNoModel, failure.Cause);
+        Assert.Equal(
+            "Transcription could not start: the installed Large v3 Turbo model file is damaged (its SHA-256 checksum does not match the published one), so Memento set it aside instead of using it.",
+            failure.Message);
+        Assert.Equal("The recording is safe. Download the model again and transcription starts by itself.", failure.Kept);
+        Assert.Equal(["install:whisper-large-v3-turbo", "model:whisper-small"], failure.Remedies.Select(r => r.Id));
+        Assert.Equal("Download Large v3 Turbo again", failure.Remedies[0].Label);
+        Assert.Equal("Waiting for a model", Stage(await ManifestAsync(id), StageNames.Transcript).Label);
+        Assert.Empty(Jobs(WorkerJobKinds.Transcribe));
+        Assert.False(_host.Models.IsInstalled("whisper-large-v3-turbo"));
+        Assert.True(File.Exists(path + ModelManager.DamagedSuffix));
+        var progress = _host.Sink.Payloads("models.progress").Last();
+        Assert.Equal("failed", progress.GetProperty("state").GetString());
+    }
+
+    [Fact]
     public async Task WithoutTheSpeakerModelsTheTranscriptIsKeptWithoutSpeakers()
     {
         Install("whisper-large-v3-turbo");

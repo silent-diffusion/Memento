@@ -221,6 +221,51 @@ public sealed class ModelManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task AnInstalledFileWithFlippedBytesIsDetectedSetAsideAndDownloadedAgain()
+    {
+        var manager = Create();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+        Assert.Equal(ModelCheck.Verified, await manager.VerifyAsync("test", CancellationToken.None));
+
+        // Same size, a few bytes changed (disk damage, an interrupted copy, someone editing it).
+        var bytes = await File.ReadAllBytesAsync(ModelPath);
+        bytes[1000] ^= 0xFF;
+        bytes[^7] ^= 0x5A;
+        File.SetAttributes(ModelPath, FileAttributes.Normal);
+        await File.WriteAllBytesAsync(ModelPath, bytes);
+        Assert.True(manager.IsInstalled("test")); // the size alone cannot tell
+        _sink.Clear();
+
+        Assert.Equal(ModelCheck.Damaged, await manager.VerifyAsync("test", CancellationToken.None));
+
+        Assert.False(manager.IsInstalled("test"));
+        Assert.Null(manager.Resolve("test"));
+        Assert.True(File.Exists(ModelPath + ModelManager.DamagedSuffix));
+        var report = Assert.Single(_sink.Payloads("models.progress"));
+        Assert.Equal("failed", report.GetProperty("state").GetString());
+        Assert.Contains("damaged", report.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("Download it again", report.GetProperty("message").GetString(), StringComparison.Ordinal);
+
+        _sink.Clear();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+
+        Assert.Equal(_content, await File.ReadAllBytesAsync(ModelPath));
+        Assert.False(File.Exists(ModelPath + ModelManager.DamagedSuffix));
+        Assert.Equal(ModelCheck.Verified, await manager.VerifyAsync("test", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AModelThatIsNotInstalledIsNotVerified()
+    {
+        var manager = Create();
+
+        Assert.Equal(ModelCheck.NotInstalled, await manager.VerifyAsync("test", CancellationToken.None));
+        Assert.Equal(ModelCheck.NotInstalled, await manager.VerifyAsync("unknown", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task AFileOfTheWrongSizeDoesNotCountAsInstalled()
     {
         var manager = Create();

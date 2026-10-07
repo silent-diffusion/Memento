@@ -895,6 +895,11 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       if (!PIPELINE.includes(stage)) {
         throw invalid(`'${stage}' is not a stage. Nothing was retried.`);
       }
+      if (remedyId?.startsWith('install:') === true) {
+        // Like the host: the model downloads again and the stage waits for it.
+        env.models.install(remedyId.slice('install:'.length));
+        return;
+      }
       if (remedyId !== undefined && remedyId !== 'retry' && remedyId !== 'cpu' && !remedyId.startsWith('model:')) {
         throw invalid(`Remedy '${remedyId}' is not one Memento offers. Choose one of the fixes shown with the failure.`);
       }

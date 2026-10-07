@@ -373,7 +373,7 @@ export interface CoverageGap {
 export type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
 
 export interface StageRemedy {
-  /** Passed back as processing.retry's remedyId: "retry", "cpu" or "model:<catalog id>". */
+  /** Passed back as processing.retry's remedyId: "retry", "cpu", "model:<catalog id>" or "install:<catalog id>" (download a damaged model again). */
   id: string;
   label: string;
 }
@@ -542,7 +542,7 @@ export interface TranscriptRestoreVersionResult {
 export interface ProcessingRetryParams {
   recordingId: string;
   stage: StageName;
-  /** From StageFailure.remedies: "retry", "cpu" or "model:<catalog id>" ("model:whisper-small"). */
+  /** From StageFailure.remedies: "retry", "cpu", "model:<catalog id>" ("model:whisper-small") or "install:<catalog id>". */
   remedyId?: string;
 }
 

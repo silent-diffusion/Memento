@@ -80,6 +80,12 @@ public sealed partial class TranscriptStage(
             return;
         }
 
+        if (await models.VerifyAsync(modelId, cancellationToken) == ModelCheck.Damaged)
+        {
+            await FailDamagedModelAsync(recordingId, entry, cancellationToken);
+            return;
+        }
+
         var folder = store.GetProjectFolder(recordingId);
         var tracks = manifest.Tracks
             .Select(t => (Track: t, Path: Path.Combine(folder, t.File.Replace('/', Path.DirectorySeparatorChar))))
@@ -376,6 +382,26 @@ public sealed partial class TranscriptStage(
             cancellationToken);
     }
 
+    private Task FailDamagedModelAsync(string recordingId, ModelCatalogEntry entry, CancellationToken cancellationToken)
+    {
+        var remedies = new List<Remedy> { new(Remedies.Install(entry.Id), $"Download {entry.Name} again") };
+        var installed = models.Catalog.OfKind(ModelKinds.Transcription).FirstOrDefault(e => e.Id != entry.Id && models.IsInstalled(e.Id));
+        if (installed is not null)
+        {
+            remedies.Add(new Remedy(Remedies.Model(installed.Id), $"Use the {installed.Name} model (installed)"));
+        }
+
+        LogModelDamaged(recordingId, entry.Id);
+        return FailAsync(
+            recordingId,
+            $"Transcription could not start: the installed {entry.Name} model file is damaged (its SHA-256 checksum does not match the published one), so Memento set it aside instead of using it.",
+            "The recording is safe. Download the model again and transcription starts by itself.",
+            remedies,
+            ProjectStageFailure.CauseNoModel,
+            "Waiting for a model",
+            cancellationToken);
+    }
+
     private Task FailCrashedAsync(string recordingId, WorkerCrashedException crash, PassState state, EngineDevice device, string modelId, string fallbackModelId)
     {
         var at = state.Segments.Count > 0 ? $" at {HumanFormat.Clock((long)(state.LastEnd * 1000))}" : string.Empty;
@@ -462,6 +488,9 @@ public sealed partial class TranscriptStage(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId}: the transcription worker exited with code {ExitCode}; {Segments} segments kept")]
     private partial void LogCrashed(string recordingId, int exitCode, int segments);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId}: transcription model {ModelId} failed its checksum and was set aside")]
+    private partial void LogModelDamaged(string recordingId, string modelId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId}: the transcription worker reported {Code}")]
     private partial void LogJobFailed(string recordingId, string code);
