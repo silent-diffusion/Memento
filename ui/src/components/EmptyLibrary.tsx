@@ -1,9 +1,11 @@
-import type { JSX } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 import { DocumentIcon, MicrophoneIcon, TranscriptLinesIcon } from './icons';
 
 interface EmptyLibraryProps {
   onStartRecording: () => void;
   onImport: () => void;
+  /** M3: an import that failed, shown under the buttons (DESIGN.md §17). */
+  notice?: ComponentChildren;
 }
 
 const features = [
@@ -25,7 +27,7 @@ const features = [
 ] as const;
 
 /** First-run Library (DESIGN.md §6, renders/LibraryEmpty.dc.html). */
-export function EmptyLibrary({ onStartRecording, onImport }: EmptyLibraryProps): JSX.Element {
+export function EmptyLibrary({ onStartRecording, onImport, notice = null }: EmptyLibraryProps): JSX.Element {
   return (
     <div class="empty-column">
       <div class="empty-intro">
@@ -47,6 +49,8 @@ export function EmptyLibrary({ onStartRecording, onImport }: EmptyLibraryProps):
           Import audio or video
         </button>
       </div>
+
+      {notice}
 
       <ul class="feature-grid" aria-label="What Memento does">
         {features.map(({ title, body, Icon }) => (

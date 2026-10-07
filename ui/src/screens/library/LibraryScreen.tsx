@@ -20,13 +20,9 @@ import {
   SORT_OPTIONS,
   type LibraryViewAction,
 } from '../../state/libraryView';
+import { ImportErrorCard, importMedia } from './ImportMedia';
 import { ProcessingCard } from './ProcessingCard';
 import { RecordingCard, RecordingRow, type ItemHandlers } from './RecordingItems';
-
-// Import arrives in M3; the control is real but only says so for now.
-function importNotYetAvailable(): void {
-  console.info('[library] Import audio or video is not available in this version yet.');
-}
 
 function itemHandlers(services: AppServices): ItemHandlers {
   const { store } = services;
@@ -108,6 +104,9 @@ export function LibraryScreen(): JSX.Element {
         openSettings(services);
       }}
       recordingActive={store.recording.value?.state === 'recording' || store.recording.value?.state === 'paused'}
+      onImport={() => {
+        void importMedia(services);
+      }}
     />
   );
   const footer = <StatusFooter status={store.footer.value} lostAtMs={store.lostSource.value?.atMs ?? null} />;
@@ -136,7 +135,10 @@ export function LibraryScreen(): JSX.Element {
               onStartRecording={() => {
                 openRecord(services);
               }}
-              onImport={importNotYetAvailable}
+              onImport={() => {
+                void importMedia(services);
+              }}
+              notice={<ImportErrorCard />}
             />
           ) : null}
         </main>
@@ -159,6 +161,7 @@ export function LibraryScreen(): JSX.Element {
       <main class="library-main">
         <div class="library-column">
           <BannerSlot />
+          <ImportErrorCard />
 
           <div class="lib-heading">
             <div class="lib-heading-text">

@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
-import { SearchIcon, SettingsIcon } from './icons';
+import { MoreIcon, SearchIcon, SettingsIcon } from './icons';
+import { ActionMenu } from './Menus';
 
 export const SEARCH_PLACEHOLDER = 'Search recordings, transcripts, people';
 export const SEARCH_PLACEHOLDER_EMPTY = 'Search will work once you have a recording';
@@ -14,6 +15,8 @@ interface LibraryHeaderProps {
   onOpenSettings: () => void;
   /** While a recording is running, the primary button returns to it. */
   recordingActive?: boolean;
+  /** M3: More › Import audio or video. */
+  onImport?: () => void;
 }
 
 /** The 60 px Library header (DESIGN.md §3): wordmark, search, New recording, Settings. */
@@ -52,6 +55,15 @@ export function LibraryHeader(props: LibraryHeaderProps): JSX.Element {
           <span class="rec-dot" aria-hidden="true" />
           {props.recordingActive === true ? 'Back to recording' : 'New recording'}
         </button>
+        {props.onImport === undefined ? null : (
+          <ActionMenu
+            label="More library actions"
+            triggerClass="icon-btn header-icon-btn"
+            actions={[{ label: 'Import audio or video…', run: props.onImport }]}
+          >
+            <MoreIcon size={20} />
+          </ActionMenu>
+        )}
         <button class="icon-btn header-icon-btn" type="button" aria-label="Settings" onClick={props.onOpenSettings}>
           <SettingsIcon size={20} />
         </button>
