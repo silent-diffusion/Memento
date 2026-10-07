@@ -3,14 +3,16 @@
 // Automation (answer-dialog.ps1). Each step saves a screenshot; the run ends with a JSON summary.
 //
 //   node tools/e2e/m4-flow.mjs --play <speech file> --models <dir> [--seconds 180] [--data <dir>] [--out <dir>]
-//                              [--port <n>] [--from-review]
+//                              [--port <n>] [--from-review] [--simulate]
 //
 // --play is a public-domain recording of two readers that plays through the default output while Memento records the
 // microphone and system audio. --models is a folder with whisper/, sherpa-onnx/ and llama/ (Qwen3.5 4B): its files are
 // hard-linked into the private data root (copied when a link is not possible). The app runs with LOCALAPPDATA pointed
 // at --data (default artifacts/e2e-data-m4), so the real library is never touched; the microphone is recorded, so
 // delete --data afterwards. Claude is pointed at a fake server on this PC (MEMENTO_TEST_ANTHROPIC_URL) that refuses the
-// fake key; nothing leaves the PC. --from-review reuses the recording of an earlier run in --data.
+// fake key; nothing leaves the PC. --from-review reuses the recording of an earlier run in --data. --simulate (when
+// another app is recording the microphone) records from the simulated engine instead, without playing anything, and
+// then imports --play through "Import audio or video", so every later step reads real speech.
 
 import { execFileSync, spawn } from 'node:child_process';
 import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -35,7 +37,8 @@ const summary = { steps: [], timings: {}, checks: {} };
 
 let shotIndex = 0;
 let page;
-const app = new App({ dataRoot, port: Number(option('--port', '9777')) });
+const simulate = flag('--simulate');
+const app = new App({ dataRoot, port: Number(option('--port', '9777')), args: simulate ? ['--simulate-audio'] : [] });
 const library = () => join(app.memento, 'Library', 'projects');
 const t0 = Date.now();
 
@@ -148,9 +151,14 @@ async function openSettings(section) {
   await page.click({ name: section });
 }
 
+/** The title of the recording the documents are made from (the imported one with --simulate). */
+let reviewTitle = TITLE;
+
 async function openReview() {
   await home();
-  await page.click({ selector: '.lib-item .row-title' });
+  const row = await page.eval(`(() => { const t = [...document.querySelectorAll('.lib-item .row-title')].find((e) => e.innerText.trim() === ${JSON.stringify(reviewTitle)}); if (!t) return null; t.scrollIntoView({ block: 'center' }); const r = t.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  if (row === null) throw new Error(`No Library row titled "${reviewTitle}"`);
+  await clickAt(row);
   await page.waitFor(`!!document.querySelector('.review-panes') && document.querySelectorAll('.segm').length > 3`, 'Review with the transcript', 30_000);
 }
 
@@ -373,13 +381,13 @@ try {
     await page.key('Enter');
     await hasText('2 audio sources selected');
     await shot('record-ready');
-    const playback = startPlayback(play);
+    const playback = simulate ? null : startPlayback(play);
     await sleep(700);
     await page.click({ name: 'Start recording' });
     await hasText('RECORDING');
     await sleep(5000);
     await shot('recording');
-    log('recording', `microphone + system audio for ${seconds} s${play ? ', two readers playing' : ''}`);
+    log('recording', simulate ? `simulated microphone + system audio for ${seconds} s` : `microphone + system audio for ${seconds} s${play ? ', two readers playing' : ''}`);
     await waitElapsed(seconds);
     await page.click({ name: 'Stop and open review' });
     playback?.stop();
@@ -389,6 +397,21 @@ try {
     summary.timings.processingSeconds = Math.round((Date.now() - stoppedAt) / 1000);
     check(stages.every((s) => s.state === 'done'), `the recording was processed (${stages.map((s) => `${s.stage}:${s.state}`).join(', ')})`);
     log('processed', `${summary.timings.processingSeconds} s after stop`);
+    if (simulate) {
+      // The simulated engine records tones, not speech: the document steps read the two readers, imported.
+      await home();
+      const answered = answerDialog('Import audio or video', play);
+      await page.click({ name: 'More library actions' });
+      await page.click({ name: 'Import audio or video…' });
+      await answered;
+      await page.waitFor(`document.querySelectorAll('.lib-item').length >= 2`, 'the imported recording in the Library', 60_000);
+      recordingId = projectIds().filter((id) => id !== recordingId).at(-1);
+      reviewTitle = manifestOf(recordingId).details.title;
+      const importedAt = Date.now();
+      const imported = await waitProcessed(recordingId, 30);
+      check(imported.every((s) => s.state === 'done'), `the import was processed (${imported.map((s) => `${s.stage}:${s.state}`).join(', ')})`);
+      log('imported', `${play.split(/[\/]/).pop()} as ${recordingId}, processed in ${Math.round((Date.now() - importedAt) / 1000)} s`);
+    }
   }
   const transcript = transcriptOf(recordingId);
   summary.transcript = { segments: transcript.segments.length, speakers: transcript.speakers.map((s) => s.name) };
