@@ -4,8 +4,11 @@ on:
   push:
     tags: ["v*"]
 
+# Nothing may write by default. Only the publish job, which runs no project code and installs no packages, can
+# change the release (security audit 2026-10-07: a compromised npm or NuGet package running in the build must not
+# be able to replace Setup.exe or the update feed).
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
@@ -16,11 +19,17 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
 
 jobs:
-  release:
-    name: Build, test, pack and publish
+  build:
+    name: Build, test and pack
     runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -72,6 +81,7 @@ jobs:
         run: dotnet tool restore
 
       # The previous release lets vpk build a delta package. There is none before the first release.
+      # Reading a public release needs only the read-only token.
       - name: Download previous release
         continue-on-error: true
         run: >-
@@ -84,30 +94,18 @@ jobs:
         shell: pwsh
         run: ./build/pack.ps1 -SkipUiBuild -KeepOutput
 
-      # Creates or updates the GitHub release with Setup.exe, the portable zip and the update feed.
-      # The release text is the version's section of build/RELEASE-NOTES.md, embedded by pack.ps1.
-      - name: Publish GitHub release
-        run: >-
-          dotnet vpk upload github
-          --repoUrl ${{ github.server_url }}/${{ github.repository }}
-          --token ${{ secrets.GITHUB_TOKEN }}
-          --outputDir build/out
-          --tag ${{ github.ref_name }}
-          --releaseName "Memento ${{ steps.version.outputs.version }}"
-          --publish
-          --merge
-          ${{ startsWith(steps.version.outputs.version, '0.') && '--pre' || '' }}
-
       # CycloneDX bills of materials: the NuGet packages the app and the worker ship, and the UI's runtime npm
-      # packages (build/sbom.ps1). Attached to the release so anyone can check what an installer contains.
+      # packages (build/sbom.ps1). The publish job attaches them to the release.
       - name: Generate SBOM
         shell: pwsh
         run: ./build/sbom.ps1
 
-      - name: Attach SBOM to the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.ref_name }} build/sbom/memento-dotnet.cdx.json build/sbom/memento-ui.cdx.json --clobber
+      - name: SHA-256 of every release file
+        shell: pwsh
+        run: |
+          Get-ChildItem build/out, build/sbom -File |
+            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name } |
+            Set-Content build/sbom/SHA256SUMS.txt -Encoding ascii
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
@@ -117,3 +115,51 @@ jobs:
             build/out
             build/sbom
           if-no-files-found: error
+
+  publish:
+    name: Publish the GitHub release
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      # Only the tool manifest is needed (vpk); no project code runs here and nothing is installed from npm.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            dotnet-tools.json
+            nuget.config
+            global.json
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: installer
+          path: build
+
+      - name: Restore vpk
+        run: dotnet tool restore
+
+      # Creates or updates the GitHub release with Setup.exe, the portable zip and the update feed.
+      # The release text is the version's section of build/RELEASE-NOTES.md, embedded by pack.ps1.
+      - name: Publish GitHub release
+        run: >-
+          dotnet vpk upload github
+          --repoUrl ${{ github.server_url }}/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --outputDir build/out
+          --tag ${{ github.ref_name }}
+          --releaseName "Memento ${{ needs.build.outputs.version }}"
+          --publish
+          --merge
+          ${{ startsWith(needs.build.outputs.version, '0.') && '--pre' || '' }}
+
+      - name: Attach SBOM and checksums to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} build/sbom/memento-dotnet.cdx.json build/sbom/memento-ui.cdx.json build/sbom/SHA256SUMS.txt --clobber --repo ${{ github.repository }}
