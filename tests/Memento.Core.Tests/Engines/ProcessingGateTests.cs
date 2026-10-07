@@ -131,6 +131,67 @@ public sealed class ProcessingGateTests
     }
 
     [Fact]
+    public void ALoadThatComesBackEachTimeTheStageRestartsGetsLongerAndLongerToFinish()
+    {
+        var gate = new ProcessingGate(_time);
+        var resumes = 0;
+        gate.Changed += (_, _) =>
+        {
+            if (gate.Reason is null)
+            {
+                resumes++;
+            }
+        };
+
+        // Another heavy job that is busy whenever this stage runs and quiet whenever it waits: each run lasts the
+        // 10 s it takes to detect, each wait as long as the gate asks for.
+        var waits = new List<TimeSpan>();
+        var end = _time.GetUtcNow() + TimeSpan.FromMinutes(40);
+        while (_time.GetUtcNow() < end)
+        {
+            while (gate.Reason is null)
+            {
+                gate.Sample(true, false, false, 95);
+                _time.Advance(TimeSpan.FromSeconds(1));
+            }
+
+            var pausedAt = _time.GetUtcNow();
+            while (gate.Reason is not null)
+            {
+                gate.Sample(true, false, false, 20);
+                _time.Advance(TimeSpan.FromSeconds(1));
+            }
+
+            waits.Add(_time.GetUtcNow() - pausedAt);
+        }
+
+        // 15 s, 30 s, 1 min, 2 min, 4 min, then 5 min each: about a dozen restarts in 40 minutes instead of about 90.
+        Assert.InRange(resumes, 8, 14);
+        // (one 1-second sample more than the calm time: the first calm sample starts the count)
+        Assert.InRange(waits[0].TotalSeconds, ProcessingGate.CalmFor.TotalSeconds, ProcessingGate.CalmFor.TotalSeconds + 1);
+        Assert.InRange(waits[1].TotalSeconds, 30, 31);
+        Assert.InRange(waits[^1].TotalSeconds, ProcessingGate.MaxCalmFor.TotalSeconds, ProcessingGate.MaxCalmFor.TotalSeconds + 1);
+
+        // After a quiet spell longer than two minutes, the next busy pause starts from 15 s again.
+        _time.Advance(TimeSpan.FromMinutes(3));
+        gate.Sample(true, false, false, 20);
+        for (var i = 0; i < 11; i++)
+        {
+            gate.Sample(true, false, false, 95);
+            _time.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+        for (var i = 0; i < 16; i++)
+        {
+            gate.Sample(true, false, false, 20);
+            _time.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        Assert.Null(gate.Reason);
+    }
+
+    [Fact]
     public void ResumeReleasesABusyPauseUntilTheNextDetection()
     {
         var gate = new ProcessingGate(_time);

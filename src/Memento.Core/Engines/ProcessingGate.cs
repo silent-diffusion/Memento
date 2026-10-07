@@ -21,6 +21,15 @@ public sealed class ProcessingGate
 
     public static readonly TimeSpan CalmFor = TimeSpan.FromSeconds(15);
 
+    /// <summary>
+    /// A busy pause that starts within this long after the previous one ended needs twice the calm time of that one
+    /// (up to <see cref="MaxCalmFor"/>): a load that comes back each time the stage starts again (another heavy app,
+    /// or one that itself backs off) then gets room to finish instead of the stage restarting every half minute.
+    /// </summary>
+    public static readonly TimeSpan RepeatWithin = TimeSpan.FromMinutes(2);
+
+    public static readonly TimeSpan MaxCalmFor = TimeSpan.FromMinutes(5);
+
     private readonly object _sync = new();
     private readonly TimeProvider _time;
     private TaskCompletionSource _open = NewOpen();
@@ -32,6 +41,8 @@ public sealed class ProcessingGate
     private bool _heavyOnGpu;
     private DateTimeOffset? _busySince;
     private DateTimeOffset? _calmSince;
+    private DateTimeOffset? _busyEndedAt;
+    private TimeSpan _calmNeeded = CalmFor;
     private string? _reason;
 
     public ProcessingGate(TimeProvider time)
@@ -136,11 +147,12 @@ public sealed class ProcessingGate
                 else
                 {
                     _calmSince ??= now;
-                    if (now - _calmSince.Value >= CalmFor)
+                    if (now - _calmSince.Value >= _calmNeeded)
                     {
                         _cpuBusy = false;
                         _busySince = null;
                         _calmSince = null;
+                        _busyEndedAt = now;
                     }
                 }
             }
@@ -152,6 +164,11 @@ public sealed class ProcessingGate
             {
                 _busySince ??= now;
                 _cpuBusy = now - _busySince.Value >= BusyFor;
+                if (_cpuBusy)
+                {
+                    var again = _busyEndedAt is { } ended && now - ended <= RepeatWithin + BusyFor;
+                    _calmNeeded = again ? TimeSpan.FromTicks(Math.Min(_calmNeeded.Ticks * 2, MaxCalmFor.Ticks)) : CalmFor;
+                }
             }
 
             if (!_recording && !_cpuBusy)
