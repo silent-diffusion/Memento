@@ -1,6 +1,7 @@
 // User intents that touch the host. Each returns the host's message on failure so the caller can
 // show it inline (dialogs, settings rows); nothing here invents an error text of its own.
-import type { RecordingType, RecoveredRecording, SettingsSetParams, SettingsSnapshot } from '../bridge/types';
+import type { RecordingType, RecoveredRecording, SettingsSetParams } from '../bridge/types';
+import { mergeSettings } from '../bridge/settingsMerge';
 import type { AppServices } from './context';
 import { refreshLibrary } from './data';
 import type { SettingsSection } from './router';
@@ -101,38 +102,16 @@ export function resolveRecovery(services: AppServices, item: RecoveredRecording,
   }
 }
 
-/** The fields of a settings patch that change something: null and missing fields keep their value. */
-function definedFields<T extends object>(patch: Partial<T> | null | undefined): Partial<T> {
-  if (patch == null) {
-    return {};
-  }
-  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined && value !== null)) as Partial<T>;
-}
-
 /**
- * Saves a settings change. The store updates first so the control answers at once; on failure it
- * returns to the host's value and the host's message comes back for the row to show.
+ * Saves a settings change. The store updates first so the control answers at once (merged the way
+ * the host merges it); on failure it returns to the host's value and the host's message comes back
+ * for the row to show.
  */
 export async function updateSettings(services: AppServices, patch: SettingsSetParams): Promise<string | null> {
   const { bridge, store } = services;
   const before = store.settings.value;
   if (before !== null) {
-    const optimistic: SettingsSnapshot = {
-      ...before,
-      theme: patch.theme ?? before.theme,
-      listDensity: patch.listDensity ?? before.listDensity,
-      recording: patch.recording ?? before.recording,
-      // The M2 blocks merge field by field on the host; the optimistic copy does the same.
-      transcription: { ...before.transcription, ...definedFields(patch.transcription) },
-      speakers: { ...before.speakers, ...definedFields(patch.speakers) },
-      history: { ...before.history, ...definedFields(patch.history) },
-      // M3
-      general: patch.general ?? before.general,
-      export: patch.export ?? before.export,
-      ai: patch.ai == null ? before.ai : { ...patch.ai, providers: before.ai.providers },
-      storage: patch.storage ?? before.storage,
-    };
-    store.settings.value = optimistic;
+    store.settings.value = mergeSettings(before, patch);
   }
   try {
     store.settings.value = await bridge.call('settings.set', patch);

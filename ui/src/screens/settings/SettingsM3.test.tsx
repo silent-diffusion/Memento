@@ -141,7 +141,7 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     ]);
     await click(checks[5]);
     await until(() => h.callsOf('settings.set').length === 1);
-    expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai?.share.attachments).toBe(true);
+    expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai?.share?.attachments).toBe(true);
     expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai).not.toHaveProperty('providers');
   });
 

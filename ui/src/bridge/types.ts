@@ -680,13 +680,22 @@ export interface SettingsSetParams {
   speakers?: Partial<SpeakerSettings> | null;
   history?: Partial<HistorySettings> | null;
   /**
-   * M3: merged field by field on the host (`export.defaults` replaces whole); the UI sends whole
-   * blocks. `export.defaultFolder: null` and `storage.reclaimOlderThanDays: null` clear the value.
+   * M3: merged field by field on the host (`export.defaults` replaces whole). A missing or null
+   * field keeps its value, except `export.defaultFolder: null` and `storage.reclaimOlderThanDays:
+   * null`, which clear it.
    */
-  general?: GeneralSettings | null;
-  export?: ExportSettings | null;
-  ai?: AiSettingsInput | null;
-  storage?: StorageReclaimSettings | null;
+  general?: Partial<GeneralSettings> | null;
+  export?: Partial<ExportSettings> | null;
+  ai?: AiSettingsPatch | null;
+  storage?: Partial<StorageReclaimSettings> | null;
+}
+
+/** settings.set's `ai` block: each field optional, `share` merged field by field; never `providers`. */
+export interface AiSettingsPatch {
+  enabled?: boolean;
+  askBeforeSend?: boolean;
+  keepRecord?: boolean;
+  share?: Partial<AiShareSettings>;
 }
 
 // ---------------------------------------------------------------------------------------------

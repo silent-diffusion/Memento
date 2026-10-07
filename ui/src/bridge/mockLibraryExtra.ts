@@ -7,6 +7,7 @@ import { isoWithOffset, type MockProject } from './mockData';
 import { createMockExport, type ExportFlag, type MockExport } from './mockExport';
 import { visibleStages } from './mockLibrary';
 import { MockHostError } from './mockSession';
+import { mergeSettings } from './settingsMerge';
 import type {
   AiProvider,
   Attachment,
@@ -619,27 +620,21 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     exports,
     importAgain,
     mergeSettings(settings, params) {
-      const general = params.general ?? settings.general;
+      // Field by field, as the host: a null default folder or reclaim age clears it.
+      const merged = mergeSettings(settings, { general: params.general ?? null, export: params.export ?? null, ai: params.ai ?? null, storage: params.storage ?? null });
+      const { general, storage } = merged;
       // The page's JSON is not checked against the types, so another language can still arrive.
       if ((general.language as string) !== 'en') {
         throw invalid('English is the only interface language in this version. Nothing was changed.', general.language);
       }
-      const exportBlock = params.export ?? settings.export;
-      if (exportBlock.defaultFolder !== null && exportBlock.defaultFolder.trim() === '') {
-        throw invalid('The default export folder needs a path. Nothing was changed.', 'export.defaultFolder');
+      // As the host, a blank folder is no folder.
+      const folder = merged.export.defaultFolder?.trim() ?? '';
+      const exportBlock = { ...merged.export, defaultFolder: folder === '' ? null : folder };
+      const days = storage.reclaimOlderThanDays;
+      if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= 3650)) {
+        throw invalid('Recordings are made smaller after a whole number of days, from 1 to 3650. Nothing was changed.', String(days));
       }
-      const storage = params.storage ?? settings.storage;
-      if (storage.reclaimOlderThanDays !== null && !(Number.isInteger(storage.reclaimOlderThanDays) && storage.reclaimOlderThanDays > 0)) {
-        throw invalid('Recordings are made smaller after a whole number of days. Nothing was changed.', String(storage.reclaimOlderThanDays));
-      }
-      return {
-        ...settings,
-        general,
-        export: exportBlock,
-        // The providers are read-only here; only ai.setKey and ai.clearKey change them.
-        ai: params.ai == null ? settings.ai : { ...params.ai, providers: settings.ai.providers },
-        storage,
-      };
+      return { ...merged, export: exportBlock };
     },
   };
 }
