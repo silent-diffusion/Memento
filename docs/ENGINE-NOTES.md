@@ -140,7 +140,7 @@ Measured with `tests/Memento.AI.Tests` (`--filter Category=Hardware`) on the ref
 
 ### I.2 The local pipeline at the M4 integration (0.9.0), October 2026
 
-Measured with `LocalPipelineHardwareTests` (Meeting minutes of the 20-minute synthetic meeting, Qwen3.5 4B on Vulkan, 16k context asked, 3,000-token chunks → 2 chunks) and `FixedVerification` (the spike's 20 claims, 14 true and 6 planted false). **No run had a quiet PC:** another session's soak and processing apps, and another resident app's llama-server and speech server, shared the RTX 3060 (18–35 % utilisation from other processes, at times 4.3 GB of its memory), so the times are contended; accuracy is not affected.
+Measured with `LocalPipelineHardwareTests` (Meeting minutes of the 20-minute synthetic meeting, Qwen3.5 4B on Vulkan, 16k context asked, 3,000-token chunks → 2 chunks) and `FixedVerification` (the spike's 20 claims, 14 true and 6 planted false). **No run had a quiet PC:** another session's soak and processing apps, and another resident app's llama-server and speech server, shared the RTX 3060 (18–35 % utilisation from other processes, at times 4.3 GB of its memory), so the times in the table are contended; accuracy is not affected. A later run with the card nearly free (other processes 0.7 GB and 10–26 % of it, no other model loaded) took **152 s** (map 92 s, verify 59 s, load and warm-up 4 s) with the same 28 requests and the same results: recall 0.93 (U2 missed), precision 1.00, the fixed set 20/20 with 6/6 planted claims caught, agenda items 5 and 7 "Not reached".
 
 | | Before (8ce9c56) | After (0.9.0) |
 |---|---|---|
@@ -150,6 +150,7 @@ Measured with `LocalPipelineHardwareTests` (Meeting minutes of the 20-minute syn
 | Requests / model loads | 76 / 3 | **28 / 1** |
 | Pipeline time (map / verify / load and warm-up) | 338 s (174 / 164 / 33) | **225 s (142 / 80 / 8)** |
 | Output tokens (verify) | ~4,300 | 1,986 |
+| Pipeline time, card nearly free | — | **152 s (92 / 59 / 4)** |
 
 What moved the numbers, each measured on its own:
 
