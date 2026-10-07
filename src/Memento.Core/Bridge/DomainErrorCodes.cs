@@ -45,6 +45,9 @@ public static class DomainErrorCodes
     /// <summary>The download could not start or connect; <c>detail</c> is the cause.</summary>
     public const string ModelsDownloadFailed = "models.downloadFailed";
 
+    /// <summary><c>models.install</c> while another model is downloading; <c>detail</c> is that model's id (M2 clarification 6).</summary>
+    public const string ModelsBusy = "models.busy";
+
     /// <summary>Not enough free space for the model.</summary>
     public const string ModelsNoSpace = "models.noSpace";
 

@@ -9,6 +9,9 @@ public static class StageNames
     public const string Stored = "stored";
     public const string Transcript = "transcript";
     public const string Speakers = "speakers";
+
+    /// <summary>Local keyword topics after a transcript (M2 clarification 1); finished, it is left out of rows like <c>stored</c>.</summary>
+    public const string Topics = "topics";
     public const string Minutes = "minutes";
 
     /// <summary>Converts the lossless FLAC files to the chosen lossy format; always the last stage.</summary>

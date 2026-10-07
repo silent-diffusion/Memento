@@ -5,7 +5,7 @@ using Memento.Core.Projects;
 
 namespace Memento.Core.Bridge.Methods;
 
-/// <summary><c>processing.retry</c>: queues a failed stage again with the chosen remedy (<c>cpu</c>, <c>model:small</c>, <c>retry</c>).</summary>
+/// <summary><c>processing.retry</c>: queues a failed stage again with the chosen remedy (<c>cpu</c>, <c>model:whisper-small</c>, <c>retry</c>).</summary>
 public sealed class ProcessingRetryMethod(ProcessingOrchestrator processing, IProjectStore store) : BridgeMethod<ProcessingStageParams, EmptyResult>
 {
     public override string Name => BridgeMethodNames.ProcessingRetry;

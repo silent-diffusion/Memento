@@ -181,7 +181,7 @@ public sealed class TranscriptMethodTests : IDisposable
         var versions = (await ResultAsync("transcript.versions", new { recordingId = id })).GetProperty("versions").EnumerateArray().ToList();
         var original = Assert.Single(versions);
         Assert.Equal("transcribed", original.GetProperty("reason").GetString());
-        Assert.Equal("whisper.cpp small", original.GetProperty("engine").GetString());
+        Assert.Equal("whisper.cpp whisper-small", original.GetProperty("engine").GetString());
         Assert.Equal(3, original.GetProperty("segments").GetInt32());
 
         var restored = await ResultAsync("transcript.restoreVersion", new { recordingId = id, versionId = original.GetProperty("id").GetString() });
@@ -233,7 +233,7 @@ public sealed class TranscriptMethodTests : IDisposable
 
         Assert.Equal("engine.unavailable", await ErrorAsync("transcript.retranscribe", new { recordingId = id }));
         Assert.Equal("models.notFound", await ErrorAsync("transcript.retranscribe", new { recordingId = id, modelId = "nope" }));
-        Assert.Equal("engine.unavailable", await ErrorAsync("transcript.retranscribe", new { recordingId = id, modelId = "small" }));
+        Assert.Equal("engine.unavailable", await ErrorAsync("transcript.retranscribe", new { recordingId = id, modelId = "whisper-small" }));
     }
 
     [Fact]

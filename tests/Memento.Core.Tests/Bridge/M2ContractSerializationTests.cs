@@ -30,11 +30,11 @@ public sealed class M2ContractSerializationTests : IDisposable
     public void TranscriptShape()
     {
         var transcript = new Transcript(
-            1, "en", true, new TranscriptEngineInfo("whisper.cpp", "large-v3-turbo", "GPU (Vulkan)", "1.9.1", 123456),
+            1, "en", true, new TranscriptEngineInfo("whisper.cpp", "whisper-large-v3-turbo", "GPU (Vulkan)", "1.9.1", 123456),
             [Speaker], [Segment], false, 4, 0.5, [new CoverageGap(30, 55.5, "mic")]);
 
         Assert.Equal(
-            """{"transcript":{"schemaVersion":1,"language":"en","languageDetected":true,"engine":{"name":"whisper.cpp","model":"large-v3-turbo","device":"GPU (Vulkan)","version":"1.9.1","durationMs":123456},"speakers":[{"id":"spk1","name":"Speaker 1","renamed":false,"color":1,"talkTimeMs":3520}],"segments":[{"id":"s0001","start":12.4,"end":15.92,"track":"system","speaker":"spk1","speakerConfidence":0.82,"text":"Hello there.","confidence":0.91,"words":[{"w":"Hello","s":12.4,"e":12.71,"c":0.97},{"w":"there.","s":12.71,"e":15.92,"c":0.91}],"edited":{"at":"2026-10-06T10:00:00+01:00","original":"Hello their."}}],"reviewed":false,"version":4,"lowConfidenceThreshold":0.5,"coverageGaps":[{"start":30,"end":55.5,"track":"mic"}]},"status":"done","failure":null}""",
+            """{"transcript":{"schemaVersion":1,"language":"en","languageDetected":true,"engine":{"name":"whisper.cpp","model":"whisper-large-v3-turbo","device":"GPU (Vulkan)","version":"1.9.1","durationMs":123456},"speakers":[{"id":"spk1","name":"Speaker 1","renamed":false,"color":1,"talkTimeMs":3520}],"segments":[{"id":"s0001","start":12.4,"end":15.92,"track":"system","speaker":"spk1","speakerConfidence":0.82,"text":"Hello there.","confidence":0.91,"words":[{"w":"Hello","s":12.4,"e":12.71,"c":0.97},{"w":"there.","s":12.71,"e":15.92,"c":0.91}],"edited":{"at":"2026-10-06T10:00:00+01:00","original":"Hello their."}}],"reviewed":false,"version":4,"lowConfidenceThreshold":0.5,"coverageGaps":[{"start":30,"end":55.5,"track":"mic"}]},"status":"done","failure":null}""",
             Json(new TranscriptGetResult(transcript, "done", null), BridgeJsonContext.Default.TranscriptGetResult));
     }
 
@@ -43,9 +43,9 @@ public sealed class M2ContractSerializationTests : IDisposable
     {
         Assert.Equal("""{"transcript":null,"status":"none","failure":null}""", Json(new TranscriptGetResult(null, "none", null), BridgeJsonContext.Default.TranscriptGetResult));
         Assert.Equal(
-            """{"transcript":null,"status":"failed","failure":{"stage":"transcript","message":"Transcription stopped at 12:30.","kept":"The transcript up to 12:30 is kept.","remedies":[{"id":"cpu","label":"Retry on CPU"},{"id":"model:small","label":"Use the Small model"}]}}""",
+            """{"transcript":null,"status":"failed","failure":{"stage":"transcript","message":"Transcription stopped at 12:30.","kept":"The transcript up to 12:30 is kept.","remedies":[{"id":"cpu","label":"Retry on CPU"},{"id":"model:whisper-small","label":"Use the Small model"}]}}""",
             Json(
-                new TranscriptGetResult(null, "failed", new StageFailure("transcript", "Transcription stopped at 12:30.", "The transcript up to 12:30 is kept.", [new Remedy("cpu", "Retry on CPU"), new Remedy("model:small", "Use the Small model")])),
+                new TranscriptGetResult(null, "failed", new StageFailure("transcript", "Transcription stopped at 12:30.", "The transcript up to 12:30 is kept.", [new Remedy("cpu", "Retry on CPU"), new Remedy("model:whisper-small", "Use the Small model")])),
                 BridgeJsonContext.Default.TranscriptGetResult));
     }
 
@@ -76,10 +76,10 @@ public sealed class M2ContractSerializationTests : IDisposable
     [Fact]
     public void ModelsListShape()
     {
-        var info = new ModelInfo("large-v3-turbo", "transcription", "Large v3 Turbo", "d", 1_624_555_275, "MIT", false, new ModelInstalling(42, 682_000_000), true, "gpu", 2_684_354_560, "Most accurate");
+        var info = new ModelInfo("whisper-large-v3-turbo", "transcription", "Large v3 Turbo", "d", 1_624_555_275, "MIT", false, new ModelInstalling(42, 682_000_000), true, "gpu", 2_684_354_560, "Most accurate");
 
         Assert.Equal(
-            """{"models":[{"id":"large-v3-turbo","engine":"transcription","name":"Large v3 Turbo","description":"d","sizeBytes":1624555275,"license":"MIT","installed":false,"installing":{"percent":42,"bytesDone":682000000},"recommended":true,"runsOn":"gpu","minVramBytes":2684354560,"accuracyNote":"Most accurate"}]}""",
+            """{"models":[{"id":"whisper-large-v3-turbo","engine":"transcription","name":"Large v3 Turbo","description":"d","sizeBytes":1624555275,"license":"MIT","installed":false,"installing":{"percent":42,"bytesDone":682000000},"recommended":true,"runsOn":"gpu","minVramBytes":2684354560,"accuracyNote":"Most accurate"}]}""",
             Json(new ModelsListResult([info]), BridgeJsonContext.Default.ModelsListResult));
     }
 
@@ -91,7 +91,7 @@ public sealed class M2ContractSerializationTests : IDisposable
         Assert.Equal(8, models.Count);
         Assert.All(models, m => Assert.False(m.GetProperty("installed").GetBoolean()));
         Assert.All(models, m => Assert.Equal(JsonValueKind.Null, m.GetProperty("installing").ValueKind));
-        Assert.Equal(["small", "pyannote-segmentation-3-0", "nemo-titanet-small", "tesseract-eng"], models.Where(m => m.GetProperty("recommended").GetBoolean()).Select(m => m.GetProperty("id").GetString()));
+        Assert.Equal(["whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small", "tesseract-eng"], models.Where(m => m.GetProperty("recommended").GetBoolean()).Select(m => m.GetProperty("id").GetString()));
         Assert.Equal(["transcription", "speakers", "ocr"], models.Select(m => m.GetProperty("engine").GetString()).Distinct());
     }
 
@@ -99,11 +99,11 @@ public sealed class M2ContractSerializationTests : IDisposable
     public void EngineStatusShape()
     {
         var result = new EngineStatusResult(
-            new EngineStatusDetail(true, "GPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 5_368_709_120, "large-v3-turbo", null),
+            new EngineStatusDetail(true, "GPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 5_368_709_120, "whisper-large-v3-turbo", null),
             new EngineStatusDetail(false, null, null, null, "nemo-titanet-small", "PC is busy"));
 
         Assert.Equal(
-            """{"transcription":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"large-v3-turbo","paused":null},"speakers":{"ready":false,"device":null,"gpuName":null,"freeVramBytes":null,"model":"nemo-titanet-small","paused":"PC is busy"}}""",
+            """{"transcription":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"whisper-large-v3-turbo","paused":null},"speakers":{"ready":false,"device":null,"gpuName":null,"freeVramBytes":null,"model":"nemo-titanet-small","paused":"PC is busy"}}""",
             Json(result, BridgeJsonContext.Default.EngineStatusResult));
     }
 
@@ -117,7 +117,7 @@ public sealed class M2ContractSerializationTests : IDisposable
         Assert.Equal("transcription,speakers", string.Join(",", result.EnumerateObject().Select(p => p.Name)));
         var transcription = result.GetProperty("transcription");
         Assert.False(transcription.GetProperty("ready").GetBoolean());
-        Assert.Equal("large-v3-turbo", transcription.GetProperty("model").GetString());
+        Assert.Equal("whisper-large-v3-turbo", transcription.GetProperty("model").GetString());
         Assert.Equal("NVIDIA GeForce RTX 3060 Laptop GPU", transcription.GetProperty("gpuName").GetString());
         Assert.Equal(5L << 30, transcription.GetProperty("freeVramBytes").GetInt64());
     }
@@ -129,8 +129,8 @@ public sealed class M2ContractSerializationTests : IDisposable
             """{"event":"transcript.changed","payload":{"recordingId":"r1","version":3,"reason":"edited"}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.TranscriptChanged, new TranscriptChangedPayload("r1", 3, "edited"), BridgeJsonContext.Default.BridgeEventEnvelopeTranscriptChangedPayload));
         Assert.Equal(
-            """{"event":"models.progress","payload":{"modelId":"small","percent":42,"bytesDone":204800000,"bytesTotal":487601967,"state":"downloading","message":null}}""",
-            BridgeEventPublisher.Serialize(BridgeEventNames.ModelsProgress, new ModelsProgressPayload("small", 42, 204_800_000, 487_601_967, "downloading", null), BridgeJsonContext.Default.BridgeEventEnvelopeModelsProgressPayload));
+            """{"event":"models.progress","payload":{"modelId":"whisper-small","percent":42,"bytesDone":204800000,"bytesTotal":487601967,"state":"downloading","message":null}}""",
+            BridgeEventPublisher.Serialize(BridgeEventNames.ModelsProgress, new ModelsProgressPayload("whisper-small", 42, 204_800_000, 487_601_967, "downloading", null), BridgeJsonContext.Default.BridgeEventEnvelopeModelsProgressPayload));
         Assert.Equal(
             """{"event":"recording.liveTranscript","payload":{"sessionId":"s1","segments":[{"start":0,"end":10,"text":"Rough draft."}]}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.RecordingLiveTranscript, new LiveTranscriptPayload("s1", [new LiveTranscriptSegment(0, 10, "Rough draft.")]), BridgeJsonContext.Default.BridgeEventEnvelopeLiveTranscriptPayload));
@@ -153,14 +153,14 @@ public sealed class M2ContractSerializationTests : IDisposable
     [InlineData("transcript.mergeSpeakers", """{"recordingId":"x","fromSpeakerId":"a"}""")]
     [InlineData("transcript.markReviewed", """{"recordingId":"x"}""")]
     [InlineData("transcript.search", """{"recordingId":"x"}""")]
-    [InlineData("transcript.retranscribe", """{"modelId":"small"}""")]
+    [InlineData("transcript.retranscribe", """{"modelId":"whisper-small"}""")]
     [InlineData("transcript.versions", """{}""")]
     [InlineData("transcript.restoreVersion", """{"recordingId":"x"}""")]
     [InlineData("processing.retry", """{"recordingId":"x"}""")]
     [InlineData("processing.cancel", """{"stage":"transcript"}""")]
     [InlineData("processing.pause", """{"now":true}""")]
     [InlineData("models.install", """{}""")]
-    [InlineData("models.cancelInstall", """{"id":"small"}""")]
+    [InlineData("models.cancelInstall", """{"id":"whisper-small"}""")]
     [InlineData("models.remove", """{}""")]
     [InlineData("engine.status", """{"verbose":true}""")]
     public async Task MalformedParamsAreRejected(string method, string parameters)
@@ -175,6 +175,6 @@ public sealed class M2ContractSerializationTests : IDisposable
     {
         Assert.Equal("models.notFound", (await _host.CallAsync("models.install", """{"modelId":"gpt-9"}""")).GetProperty("error").GetProperty("code").GetString());
         Assert.Equal("models.notFound", (await _host.CallAsync("models.remove", """{"modelId":"gpt-9"}""")).GetProperty("error").GetProperty("code").GetString());
-        Assert.Equal("""{"id":7,"result":{}}""", (await _host.CallAsync("models.cancelInstall", """{"modelId":"small"}""")).GetRawText());
+        Assert.Equal("""{"id":7,"result":{}}""", (await _host.CallAsync("models.cancelInstall", """{"modelId":"whisper-small"}""")).GetRawText());
     }
 }

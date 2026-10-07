@@ -17,14 +17,7 @@ namespace Memento.Transcription.Tests;
 /// </summary>
 public sealed class StageTests : IDisposable
 {
-    private static readonly ModelCatalog TinyCatalog = ModelCatalog.Parse("""
-        { "schemaVersion": 1, "models": [
-          { "id": "large-v3-turbo", "engine": "whisper", "kind": "transcription", "name": "Large v3 Turbo", "description": "d", "fileName": "ggml-large-v3-turbo.bin", "sizeBytes": 4, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "url": "https://example.org/t", "license": "MIT", "runsOn": "gpu", "minVramBytes": 2684354560, "recommendedFor": "gpu", "accuracyNote": "Most accurate" },
-          { "id": "small", "engine": "whisper", "kind": "transcription", "name": "Small", "description": "d", "fileName": "ggml-small.bin", "sizeBytes": 4, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "url": "https://example.org/s", "license": "MIT", "runsOn": "either", "minVramBytes": 1073741824, "recommendedFor": "cpu", "accuracyNote": "Fast on CPU" },
-          { "id": "pyannote-segmentation-3-0", "engine": "sherpa-onnx", "kind": "speakers", "role": "segmentation", "name": "Segmentation", "description": "d", "fileName": "seg.onnx", "sizeBytes": 4, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "url": "https://example.org/p", "license": "MIT", "runsOn": "cpu", "recommendedFor": "any", "accuracyNote": "Required" },
-          { "id": "nemo-titanet-small", "engine": "sherpa-onnx", "kind": "speakers", "role": "embedding", "name": "TitaNet", "description": "d", "fileName": "emb.onnx", "sizeBytes": 4, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "url": "https://example.org/e", "license": "CC-BY-4.0", "runsOn": "cpu", "recommendedFor": "any", "accuracyNote": "Most accurate" }
-        ] }
-        """);
+    private static readonly ModelCatalog TinyCatalog = TestCatalogs.Tiny;
 
     private static readonly WorkerDevice Gpu = new("vulkan", "GPU (Vulkan)", "NVIDIA GeForce RTX 3060 Laptop GPU", 0, "1.9.1");
 
@@ -111,18 +104,9 @@ public sealed class StageTests : IDisposable
         return 0;
     }
 
-    private void Install(params string[] ids)
-    {
-        foreach (var id in ids)
-        {
-            var entry = TinyCatalog.Find(id)!;
-            var path = _host.Models.PathOf(entry);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(path, new byte[entry.SizeBytes]);
-        }
-    }
+    private void Install(params string[] ids) => TestCatalogs.Install(_host, ids);
 
-    private void InstallAll() => Install("large-v3-turbo", "small", "pyannote-segmentation-3-0", "nemo-titanet-small");
+    private void InstallAll() => Install("whisper-large-v3-turbo", "whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small");
 
     private async Task<string> RecordAndProcessAsync()
     {
@@ -159,7 +143,7 @@ public sealed class StageTests : IDisposable
         var id = await RecordAndProcessAsync();
 
         var manifest = await ManifestAsync(id);
-        Assert.Equal([StageNames.Stored, StageNames.Transcript, StageNames.Speakers], manifest.Stages.Select(s => s.Stage));
+        Assert.Equal([StageNames.Stored, StageNames.Transcript, StageNames.Speakers, StageNames.Topics], manifest.Stages.Select(s => s.Stage));
         Assert.All(manifest.Stages, s => Assert.Equal(StageStates.Done, s.State));
         Assert.Null(manifest.Processing);
 
@@ -167,7 +151,7 @@ public sealed class StageTests : IDisposable
         Assert.True(transcript.Complete);
         Assert.Equal(["s0001", "s0002"], transcript.Segments.Select(s => s.Id));
         Assert.All(transcript.Segments, s => Assert.Equal("mic", s.Track));
-        Assert.Equal(("whisper.cpp", "large-v3-turbo", "GPU (Vulkan)", "1.9.1"), (transcript.Engine.Name, transcript.Engine.Model, transcript.Engine.Device, transcript.Engine.Version));
+        Assert.Equal(("whisper.cpp", "whisper-large-v3-turbo", "GPU (Vulkan)", "1.9.1"), (transcript.Engine.Name, transcript.Engine.Model, transcript.Engine.Device, transcript.Engine.Version));
         Assert.Equal("en", transcript.Language);
         Assert.True(transcript.LanguageDetected);
         Assert.Equal(0.5, transcript.LowConfidenceThreshold);
@@ -210,6 +194,40 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task AFinishedTopicsStageIsLeftOutOfTheLibraryRowLikeStored()
+    {
+        InstallAll();
+
+        await RecordAndProcessAsync();
+
+        var row = Assert.Single((await _host.ResultAsync("library.list")).GetProperty("recordings").EnumerateArray());
+        Assert.Equal(["transcript", "speakers"], row.GetProperty("stages").EnumerateArray().Select(s => s.GetProperty("stage").GetString()));
+    }
+
+    [Fact]
+    public async Task HighlightsPointAtTheirLineOnceThereIsATranscript()
+    {
+        InstallAll();
+        var (sessionId, id) = await _host.StartAsync("Highlights", Mic, SystemAudio);
+        _host.Session.Advance(TimeSpan.FromSeconds(1.5));
+        await _host.ResultAsync("recording.markHighlight", JsonSerializer.Serialize(new { sessionId }));
+        _host.Session.Advance(TimeSpan.FromSeconds(0.5));
+        await _host.ResultAsync("recording.stop", JsonSerializer.Serialize(new { sessionId }));
+        await _host.Recordings.WhenIdleAsync();
+        await IdleAsync();
+
+        var marked = Assert.Single((await _host.Store.LoadAnnotationsAsync(id, CancellationToken.None)).Highlights);
+        Assert.Equal("s0002", marked.SegmentId);
+
+        var added = await _host.ResultAsync("annotations.addHighlight", JsonSerializer.Serialize(new { recordingId = id, highlight = new { atMs = 300 } }));
+        Assert.All(added.GetProperty("highlights").EnumerateArray(), h => Assert.NotEqual(JsonValueKind.Null, h.GetProperty("segmentId").ValueKind));
+        Assert.Contains(added.GetProperty("highlights").EnumerateArray(), h => h.GetProperty("segmentId").GetString() == "s0001");
+
+        var moved = await _host.ResultAsync("annotations.updateHighlight", JsonSerializer.Serialize(new { recordingId = id, highlight = new { id = marked.Id, atMs = 100 } }));
+        Assert.Equal("s0001", moved.GetProperty("highlights").EnumerateArray().Single(h => h.GetProperty("id").GetString() == marked.Id).GetProperty("segmentId").GetString());
+    }
+
+    [Fact]
     public async Task SpeechWithoutTranscriptIsFlaggedAsACoverageGap()
     {
         InstallAll();
@@ -238,7 +256,7 @@ public sealed class StageTests : IDisposable
         Assert.Equal(ProjectStageFailure.CauseCrashed, failure.Cause);
         Assert.StartsWith("Transcription stopped at 0:01: the engine stopped while using the graphics card (code 0xC0000409).", failure.Message, StringComparison.Ordinal);
         Assert.Contains("transcript up to 0:01 is kept", failure.Kept, StringComparison.Ordinal);
-        Assert.Equal(["cpu", "model:small", "retry"], failure.Remedies.Select(r => r.Id));
+        Assert.Equal(["cpu", "model:whisper-small", "retry"], failure.Remedies.Select(r => r.Id));
         var partial = await TranscriptAsync(id);
         Assert.False(partial.Complete);
         Assert.Equal("We approve the marketing budget.", Assert.Single(partial.Segments).Text);
@@ -276,28 +294,28 @@ public sealed class StageTests : IDisposable
 
         var failure = Assert.Single((await ManifestAsync(id)).Failures);
         Assert.Equal("Transcription could not start: the Large v3 Turbo model could not be loaded (invalid model file).", failure.Message);
-        Assert.Equal(["model:small", "cpu", "retry"], failure.Remedies.Select(r => r.Id));
+        Assert.Equal(["model:whisper-small", "cpu", "retry"], failure.Remedies.Select(r => r.Id));
         Assert.Null(await _host.Transcripts.LoadAsync(id, CancellationToken.None));
     }
 
     [Fact]
     public async Task WithoutTheModelTheStageWaitsWithASpecificMessage()
     {
-        Install("small");
+        Install("whisper-small");
 
         var id = await RecordAndProcessAsync();
 
         var failure = Assert.Single((await ManifestAsync(id)).Failures);
         Assert.Equal(ProjectStageFailure.CauseNoModel, failure.Cause);
         Assert.Equal("Transcription needs the Large v3 Turbo model, and it is not installed.", failure.Message);
-        Assert.Equal(["model:small", "retry"], failure.Remedies.Select(r => r.Id));
+        Assert.Equal(["model:whisper-small", "retry"], failure.Remedies.Select(r => r.Id));
         Assert.Equal("Waiting for a model", Stage(await ManifestAsync(id), StageNames.Transcript).Label);
         Assert.Empty(Jobs(WorkerJobKinds.Transcribe));
 
-        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "model:small" }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "model:whisper-small" }));
         await IdleAsync();
 
-        Assert.Equal("small", (await TranscriptAsync(id)).Engine.Model);
+        Assert.Equal("whisper-small", (await TranscriptAsync(id)).Engine.Model);
     }
 
     [Fact]
@@ -364,11 +382,11 @@ public sealed class StageTests : IDisposable
         var id = await RecordAndProcessAsync();
         await _host.ResultAsync("transcript.editSegment", JsonSerializer.Serialize(new { recordingId = id, segmentId = "s0001", text = "We approve it." }));
 
-        await _host.ResultAsync("transcript.retranscribe", JsonSerializer.Serialize(new { recordingId = id, modelId = "small", language = "en" }));
+        await _host.ResultAsync("transcript.retranscribe", JsonSerializer.Serialize(new { recordingId = id, modelId = "whisper-small", language = "en" }));
         await IdleAsync();
 
         var transcript = await TranscriptAsync(id);
-        Assert.Equal("small", transcript.Engine.Model);
+        Assert.Equal("whisper-small", transcript.Engine.Model);
         Assert.Equal(TranscriptChangeReasons.Retranscribed, transcript.LastChange!.Reason);
         Assert.Equal("en", Jobs(WorkerJobKinds.Transcribe)[^1].Transcribe!.Language);
         var versions = (await _host.ResultAsync("transcript.versions", JsonSerializer.Serialize(new { recordingId = id }))).GetProperty("versions").EnumerateArray().ToList();
@@ -393,7 +411,7 @@ public sealed class StageTests : IDisposable
     [Fact]
     public async Task WithoutTheSpeakerModelsTheTranscriptIsKeptWithoutSpeakers()
     {
-        Install("large-v3-turbo");
+        Install("whisper-large-v3-turbo");
 
         var id = await RecordAndProcessAsync();
 

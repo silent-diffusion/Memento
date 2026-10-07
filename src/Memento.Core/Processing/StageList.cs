@@ -3,10 +3,10 @@ using Memento.Core.Projects;
 
 namespace Memento.Core.Processing;
 
-/// <summary>Keeps a manifest's stage list in pipeline order: stored, transcript, speakers, minutes, optimize.</summary>
+/// <summary>Keeps a manifest's stage list in pipeline order: stored, transcript, speakers, topics, minutes, optimize.</summary>
 public static class StageList
 {
-    private static readonly string[] Order = [StageNames.Stored, StageNames.Transcript, StageNames.Speakers, StageNames.Minutes, StageNames.Optimize];
+    private static readonly string[] Order = [StageNames.Stored, StageNames.Transcript, StageNames.Speakers, StageNames.Topics, StageNames.Minutes, StageNames.Optimize];
 
     /// <summary>The list with <paramref name="status"/> in its place (replacing any earlier entry for that stage).</summary>
     public static IReadOnlyList<StageStatus> With(IReadOnlyList<StageStatus> stages, StageStatus status)

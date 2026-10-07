@@ -11,7 +11,7 @@ public sealed class WorkerClientTests
 {
     private static readonly WorkerJob Job = new(
         WorkerJobKinds.Transcribe,
-        new TranscribeJob([new WorkerTrack("mic", @"C:\x\mic.flac", 1.5, 2)], @"C:\m\ggml-small.bin", "small", ["vulkan", "cpu"], -1, "GPU", "auto", "Hello.", 8, true, 600, 5));
+        new TranscribeJob([new WorkerTrack("mic", @"C:\x\mic.flac", 1.5, 2)], @"C:\m\ggml-small.bin", "whisper-small", ["vulkan", "cpu"], -1, "GPU", "auto", "Hello.", 8, true, 600, 5));
 
     private readonly ScriptedWorkerLauncher _launcher = new();
 

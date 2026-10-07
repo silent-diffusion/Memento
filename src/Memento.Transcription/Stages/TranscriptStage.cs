@@ -19,7 +19,7 @@ namespace Memento.Transcription.Stages;
 /// Vulkan then CPU, from the lossless files) and the segments are merged by time, keeping their track. Silent tracks
 /// are skipped. Finished windows are saved to <c>transcript.partial.json</c> as they arrive, so a pause, a crash or
 /// closing Memento loses at most one window; the next run continues from there. A worker that dies is reported with
-/// the most specific remedy first and the transcript so far is kept. After the pass: coverage gaps, local topics.
+/// the most specific remedy first and the transcript so far is kept. After the pass: coverage gaps, and highlights attached to their lines.
 /// </summary>
 public sealed partial class TranscriptStage(
     IProjectStore store,
@@ -277,38 +277,19 @@ public sealed partial class TranscriptStage(
         }
 
         LogCompleted(recordingId, segments.Count, words, totalMs);
-        await ExtractTopicsAsync(recordingId, saved ?? document);
+        await AttachHighlightsAsync(recordingId, saved ?? document);
     }
 
-    /// <summary>Local topics (origin <c>local</c>): the previous local ones are replaced, the user's own are kept.</summary>
-    private async Task ExtractTopicsAsync(string recordingId, TranscriptDocument transcript)
+    /// <summary>Once there is a transcript, every highlight points at the line at its time (M2 clarification 5).</summary>
+    private async Task AttachHighlightsAsync(string recordingId, TranscriptDocument transcript)
     {
         try
         {
-            var labels = TopicExtractor.Extract(transcript.Segments);
-            await store.UpdateAnnotationsAsync(
-                recordingId,
-                d =>
-                {
-                    var kept = d.Topics.Where(t => t.Origin != AnnotationOrigins.Local).ToList();
-                    var added = labels
-                        .Where(l => !kept.Any(t => string.Equals(t.Label, l, StringComparison.OrdinalIgnoreCase)))
-                        .Select(l => new Topic(AnnotationIds.New('t'), l, AnnotationOrigins.Local));
-                    return d with { Topics = kept.Concat(added).ToList() };
-                },
-                CancellationToken.None);
-            writer.PublishTopicsChanged(recordingId, transcript.Version);
-            await _history.AppendAsync(
-                recordingId,
-                HistoryStages.Topics,
-                "completed",
-                labels.Count == 0 ? "No topics found" : $"Found {HumanFormat.Count(labels.Count, "topic", "topics")}",
-                labels.Count == 0 ? "The transcript is too short or too varied for keyword topics." : "Keyword scoring on this PC (no AI): " + string.Join(", ", labels));
+            await HighlightSegments.AttachAsync(store, recordingId, transcript.Segments, CancellationToken.None);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectSchemaException)
         {
-            LogTopicsFailed(ex, recordingId);
-            await _history.AppendAsync(recordingId, HistoryStages.Topics, "failed", "Topics could not be saved", "The transcript is kept; topics can be added by hand.");
+            LogHighlightsFailed(ex, recordingId);
         }
     }
 
@@ -335,7 +316,8 @@ public sealed partial class TranscriptStage(
             LowConfidenceThreshold = current.LowConfidenceThreshold,
             Complete = false,
         };
-        await writer.UpdateAsync(recordingId, TranscriptChangeReasons.Transcribed, _ => document, CancellationToken.None);
+        var saved = await writer.UpdateAsync(recordingId, TranscriptChangeReasons.Transcribed, _ => document, CancellationToken.None);
+        await AttachHighlightsAsync(recordingId, saved ?? document);
     }
 
     private Task FailNoModelAsync(string recordingId, string modelName, CancellationToken cancellationToken)
@@ -420,11 +402,14 @@ public sealed partial class TranscriptStage(
         var failure = new ProjectStageFailure(Name, message, kept, remedies, cause, time.GetLocalNow());
         await status.FailAsync(recordingId, failure, label, cancellationToken);
 
-        // Speakers wait for a complete transcript; they are queued again when the transcript is retried.
+        // Speakers and topics wait for a complete transcript; they are queued again when the transcript is retried.
         var manifest = await store.LoadAsync(recordingId, CancellationToken.None);
-        if (StageList.Find(manifest.Stages, StageNames.Speakers) is { State: StageStates.Queued })
+        foreach (var dependent in new[] { StageNames.Speakers, StageNames.Topics })
         {
-            await status.RemoveAsync(recordingId, StageNames.Speakers, CancellationToken.None);
+            if (StageList.Find(manifest.Stages, dependent) is { State: StageStates.Queued })
+            {
+                await status.RemoveAsync(recordingId, dependent, CancellationToken.None);
+            }
         }
 
         await _history.AppendAsync(recordingId, Name, "failed", cause == ProjectStageFailure.CauseNoModel ? "Waiting for a transcription model" : "Transcription failed", message + " " + kept);
@@ -445,8 +430,8 @@ public sealed partial class TranscriptStage(
     [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId}: the transcription worker is unavailable")]
     private partial void LogWorkerMissing(Exception exception, string recordingId);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId}: topics could not be saved")]
-    private partial void LogTopicsFailed(Exception exception, string recordingId);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId}: highlights could not be attached to transcript lines")]
+    private partial void LogHighlightsFailed(Exception exception, string recordingId);
 
     /// <summary>What the pass has finished so far, kept in step with <c>transcript.partial.json</c>.</summary>
     private sealed class PassState

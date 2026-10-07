@@ -63,6 +63,34 @@ public sealed class ProcessingGateTests
     }
 
     [Fact]
+    public void ResumeReleasesABusyPauseUntilTheNextDetection()
+    {
+        var gate = new ProcessingGate(_time);
+        gate.Sample(true, recordingActive: true, false, 10);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+
+        gate.Resume();
+        gate.Sample(true, recordingActive: true, false, 10);
+        Assert.Null(gate.Reason);
+
+        // The recording ends, and the next one pauses again.
+        gate.Sample(true, recordingActive: false, false, 10);
+        gate.Sample(true, recordingActive: true, false, 10);
+        Assert.Equal(ProcessingGate.BusyReason, gate.Reason);
+    }
+
+    [Fact]
+    public void ResumeDoesNotOverrideLowSpace()
+    {
+        var gate = new ProcessingGate(_time);
+        gate.Sample(true, false, lowSpace: true, 10);
+
+        gate.Resume();
+
+        Assert.Equal(ProcessingGate.LowSpaceReason, gate.Reason);
+    }
+
+    [Fact]
     public void LowSpaceWinsOverBusyAndTheUserWinsOverBoth()
     {
         var gate = new ProcessingGate(_time);

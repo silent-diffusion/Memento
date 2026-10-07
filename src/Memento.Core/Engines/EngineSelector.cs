@@ -12,8 +12,8 @@ namespace Memento.Core.Engines;
 public sealed class EngineSelector(IModelManager models, IResourceProbe probe)
 {
     public const string WhisperEngineName = "whisper.cpp";
-    public const string GpuRecommendedModelId = "large-v3-turbo";
-    public const string CpuRecommendedModelId = "small";
+    public const string GpuRecommendedModelId = "whisper-large-v3-turbo";
+    public const string CpuRecommendedModelId = "whisper-small";
 
     public ModelCatalog Catalog => models.Catalog;
 

@@ -48,7 +48,7 @@ public static class ProjectMapper
             sizeBytes);
 
     /// <summary>
-    /// Row and card pills: a finished <c>stored</c> or <c>optimize</c> stage is left out, so a recording with no
+    /// Row and card pills: a finished <c>stored</c>, <c>topics</c> or <c>optimize</c> stage is left out, so a recording with no
     /// other processing shows "Audio only" (DESIGN.md §4) instead of a "Stored" or "Smaller files" pill. Those stages
     /// are listed while active or queued and when they failed. <c>library.processing</c> keeps every stage.
     /// </summary>
@@ -59,7 +59,7 @@ public static class ProjectMapper
     }
 
     /// <summary>Stages that only store the audio (as opposed to adding a transcript or a document).</summary>
-    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Optimize;
+    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Optimize or StageNames.Topics;
 
     public static bool IsProcessing(IReadOnlyList<StageStatus> stages) => stages.Any(s => StageStates.IsRunning(s.State));
 

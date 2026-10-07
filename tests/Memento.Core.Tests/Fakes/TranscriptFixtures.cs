@@ -12,7 +12,7 @@ internal static class TranscriptFixtures
     public static TranscriptDocument Document(params TranscriptSegment[] segments) => new()
     {
         Language = "en",
-        Engine = new TranscriptEngineInfo("whisper.cpp", "small", "CPU", "1.9.1", 1000),
+        Engine = new TranscriptEngineInfo("whisper.cpp", "whisper-small", "CPU", "1.9.1", 1000),
         Segments = segments,
         Speakers = TranscriptSpeakers.WithTalkTime(
             segments.Select(s => s.Speaker).OfType<string>().Distinct().Select((id, i) => new Speaker(id, TranscriptSpeakers.DefaultName(i + 1), false, TranscriptSpeakers.ColorFor(i), 0)).ToList(),

@@ -4,7 +4,7 @@ using Memento.Core.Engines;
 
 namespace Memento.Core.Bridge.Methods;
 
-/// <summary><c>processing.resume</c>: lifts <c>processing.pause</c>; paused stages continue where they stopped.</summary>
+/// <summary><c>processing.resume</c>: lifts <c>processing.pause</c> and a "PC is busy" pause in effect now; paused stages continue where they stopped.</summary>
 public sealed class ProcessingResumeMethod(ProcessingGate gate) : BridgeMethod<EmptyParams, EmptyResult>
 {
     public override string Name => BridgeMethodNames.ProcessingResume;
@@ -15,7 +15,7 @@ public sealed class ProcessingResumeMethod(ProcessingGate gate) : BridgeMethod<E
 
     public override Task<EmptyResult> InvokeAsync(EmptyParams parameters, CancellationToken cancellationToken)
     {
-        gate.SetManual(false);
+        gate.Resume();
         return Task.FromResult(new EmptyResult());
     }
 }

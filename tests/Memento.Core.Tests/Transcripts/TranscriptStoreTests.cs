@@ -82,9 +82,29 @@ public sealed class TranscriptStoreTests : IDisposable
 
         Assert.Single(await _store.ListVersionsAsync(_id, CancellationToken.None));
 
-        _time.Advance(TranscriptStore.EditCoalescing);
+        // However long the run, it stays one version; a restore starts a new run.
+        _time.Advance(TimeSpan.FromHours(5));
         await WriteAsync(TranscriptChangeReasons.Edited, t => t! with { Reviewed = false });
-        Assert.Equal(2, (await _store.ListVersionsAsync(_id, CancellationToken.None)).Count);
+        Assert.Single(await _store.ListVersionsAsync(_id, CancellationToken.None));
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await WriteAsync(TranscriptChangeReasons.Restored, t => t);
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await WriteAsync(TranscriptChangeReasons.Edited, t => t! with { Reviewed = true });
+        Assert.Equal(
+            [TranscriptChangeReasons.Restored, TranscriptChangeReasons.Edited, TranscriptChangeReasons.Transcribed],
+            (await _store.ListVersionsAsync(_id, CancellationToken.None)).Select(v => v.Reason));
+    }
+
+    [Fact]
+    public async Task APassReplacingAPartialTranscriptKeepsNoVersion()
+    {
+        await ProjectAsync();
+        await WriteAsync(TranscriptChangeReasons.Transcribed, _ => TranscriptFixtures.Meeting() with { Complete = false });
+
+        await WriteAsync(TranscriptChangeReasons.Transcribed, _ => TranscriptFixtures.Meeting());
+
+        Assert.Empty(await _store.ListVersionsAsync(_id, CancellationToken.None));
     }
 
     [Fact]

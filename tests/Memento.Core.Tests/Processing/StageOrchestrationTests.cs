@@ -66,7 +66,7 @@ public sealed class StageOrchestrationTests : IDisposable
     [Fact]
     public async Task AFailureIsKeptWithRemediesAndRetryAppliesTheRemedy()
     {
-        Transcript.Behaviour = (run, _) => Transcript.FailAsync(run, "The engine stopped.", new Remedy(Remedies.Cpu, "Retry on CPU"), new Remedy("model:small", "Use the Small model"));
+        Transcript.Behaviour = (run, _) => Transcript.FailAsync(run, "The engine stopped.", new Remedy(Remedies.Cpu, "Retry on CPU"), new Remedy("model:whisper-small", "Use the Small model"));
         var id = await RecordAsync();
 
         var got = await _host.ResultAsync("transcript.get", JsonSerializer.Serialize(new { recordingId = id }));
@@ -74,7 +74,7 @@ public sealed class StageOrchestrationTests : IDisposable
         var failure = got.GetProperty("failure");
         Assert.Equal("transcript", failure.GetProperty("stage").GetString());
         Assert.Equal("The engine stopped.", failure.GetProperty("message").GetString());
-        Assert.Equal(["cpu", "model:small"], failure.GetProperty("remedies").EnumerateArray().Select(r => r.GetProperty("id").GetString()));
+        Assert.Equal(["cpu", "model:whisper-small"], failure.GetProperty("remedies").EnumerateArray().Select(r => r.GetProperty("id").GetString()));
 
         Transcript.Behaviour = null;
         await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "cpu" }));
@@ -86,9 +86,9 @@ public sealed class StageOrchestrationTests : IDisposable
         Assert.True(manifest.Processing!.ForceCpu);
         Assert.Empty(manifest.Failures);
 
-        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "model:medium" }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript", remedyId = "model:whisper-medium" }));
         await WaitIdleAsync();
-        Assert.Equal("medium", (await ManifestAsync(id)).Processing!.ModelId);
+        Assert.Equal("whisper-medium", (await ManifestAsync(id)).Processing!.ModelId);
     }
 
     [Fact]
@@ -169,8 +169,8 @@ public sealed class StageOrchestrationTests : IDisposable
 
         _host.Gate.SetManual(true);
         await TestRecordings.WaitUntilAsync(
-            async () => (await ManifestAsync(id)).Stages.Any(s => s.Stage == StageNames.Transcript && s.State == StageStates.Queued),
-            "the stage to go back to the queue");
+            async () => (await ManifestAsync(id)).Stages.Any(s => s.Stage == StageNames.Transcript && s.State == StageStates.Active && s.Label == "Paused · Paused by you"),
+            "the stage to wait, still active");
         _host.Gate.SetManual(false);
         await WaitIdleAsync();
 
@@ -201,7 +201,7 @@ public sealed class StageOrchestrationTests : IDisposable
         var request = new ProcessingRequest();
 
         Assert.True(ProcessingOrchestrator.ApplyRemedy(request, "cpu").ForceCpu);
-        Assert.Equal("small", ProcessingOrchestrator.ApplyRemedy(request, "model:small").ModelId);
+        Assert.Equal("whisper-small", ProcessingOrchestrator.ApplyRemedy(request, "model:whisper-small").ModelId);
         Assert.Same(request, ProcessingOrchestrator.ApplyRemedy(request, "retry"));
         Assert.Same(request, ProcessingOrchestrator.ApplyRemedy(request, null));
     }

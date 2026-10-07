@@ -46,7 +46,7 @@ public sealed partial class TranscriptService(
             StageStates.Failed => TranscriptStatuses.Failed,
             StageStates.Queued when gate.IsPaused || (stage.Label?.StartsWith("Paused", StringComparison.Ordinal) ?? false) => TranscriptStatuses.Paused,
             StageStates.Queued => TranscriptStatuses.Queued,
-            _ => gate.IsPaused ? TranscriptStatuses.Paused : TranscriptStatuses.Running,
+            _ => gate.IsPaused || (stage.Label?.StartsWith("Paused", StringComparison.Ordinal) ?? false) ? TranscriptStatuses.Paused : TranscriptStatuses.Running,
         };
         var failure = manifest.Failures.FirstOrDefault(f => f.Stage == StageNames.Transcript)
             ?? manifest.Failures.FirstOrDefault(f => f.Stage == StageNames.Speakers);

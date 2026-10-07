@@ -10,12 +10,11 @@ namespace Memento.Core.Transcripts;
 /// <summary>
 /// <c>transcript.json</c> of each project: atomic writes, a version counter, and (when Settings › History keeps
 /// versions) the replaced content under <c>versions/transcript.&lt;utc-stamp&gt;.json</c>, pruned after
-/// <see cref="HistorySettings.KeepDays"/>. Consecutive edits within <see cref="EditCoalescing"/> share one version.
+/// <see cref="HistorySettings.KeepDays"/>. Consecutive edits share one version.
 /// Writes to one project's transcript are serialized.
 /// </summary>
 public sealed partial class TranscriptStore(IProjectStore projects, TimeProvider time, ILogger<TranscriptStore> logger)
 {
-    public static readonly TimeSpan EditCoalescing = TimeSpan.FromMinutes(10);
     private const string VersionPrefix = "transcript.";
     private const string StampFormat = "yyyyMMdd'T'HHmmssfff'Z'";
 
@@ -71,7 +70,7 @@ public sealed partial class TranscriptStore(IProjectStore projects, TimeProvider
             }
 
             var now = time.GetLocalNow();
-            if (current is not null && history.KeepVersions && ShouldKeepVersion(current, reason, now))
+            if (current is not null && history.KeepVersions && ShouldKeepVersion(current, reason))
             {
                 await WriteVersionAsync(recordingId, current, now, cancellationToken);
             }
@@ -173,18 +172,16 @@ public sealed partial class TranscriptStore(IProjectStore projects, TimeProvider
     private static bool IsVersionId(string versionId) =>
         DateTime.TryParseExact(versionId, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out _);
 
-    private static bool ShouldKeepVersion(TranscriptDocument current, string reason, DateTimeOffset now)
+    /// <summary>
+    /// BRIDGE.md M2 clarification 3: a version is kept on the first edit after a pass or a restore (a run of edits is one
+    /// version), on retranscribe and on restore; a pass, a speakers pass or topics keep none.
+    /// </summary>
+    private static bool ShouldKeepVersion(TranscriptDocument current, string reason) => reason switch
     {
-        if (reason is TranscriptChangeReasons.Speakers or TranscriptChangeReasons.Topics)
-        {
-            return false;
-        }
-
-        // A run of edits is one version, not one per keystroke-save.
-        return !(reason == TranscriptChangeReasons.Edited
-            && current.LastChange is { Reason: TranscriptChangeReasons.Edited } last
-            && now - last.At < EditCoalescing);
-    }
+        TranscriptChangeReasons.Edited => current.LastChange?.Reason != TranscriptChangeReasons.Edited,
+        TranscriptChangeReasons.Retranscribed or TranscriptChangeReasons.Restored => true,
+        _ => false,
+    };
 
     private string PathOf(string recordingId) => Path.Combine(projects.GetProjectFolder(recordingId), ProjectLayout.TranscriptFile);
 

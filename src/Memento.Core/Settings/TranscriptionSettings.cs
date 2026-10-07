@@ -10,7 +10,7 @@ public sealed partial record TranscriptionSettings
     public const string TimingAfter = "after";
     public const string TimingDuring = "during";
     public const string AutoLanguage = "auto";
-    public const string DefaultCpuFallbackModelId = "small";
+    public const string DefaultCpuFallbackModelId = "whisper-small";
     public const double DefaultLowConfidenceThreshold = 0.5;
     public const double MinLowConfidenceThreshold = 0.05;
     public const double MaxLowConfidenceThreshold = 0.95;

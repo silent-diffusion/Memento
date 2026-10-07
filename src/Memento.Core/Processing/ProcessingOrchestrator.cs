@@ -159,7 +159,7 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
 
     /// <summary>
     /// <c>processing.retry</c>: queues a failed stage again, applying a remedy (<c>cpu</c>, <c>model:&lt;id&gt;</c>,
-    /// <c>retry</c>). Retrying the transcript also queues speakers when that is enabled.
+    /// <c>retry</c>). Retrying the transcript also queues speakers (when enabled) and topics.
     /// </summary>
     /// <exception cref="BridgeException"><c>bridge.invalidParams</c> for an unknown stage or remedy, <c>models.notFound</c>.</exception>
     public async Task RetryAsync(string recordingId, string stage, string? remedyId, CancellationToken cancellationToken)
@@ -361,7 +361,7 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
     private async Task QueueDependentsAsync(string recordingId, CancellationToken cancellationToken)
     {
         var settings = _settings.Current;
-        foreach (var dependent in _stages.Where(s => s.Name == StageNames.Speakers && s.AppliesTo(settings)))
+        foreach (var dependent in _stages.Where(s => (s.Name is StageNames.Speakers or StageNames.Topics) && s.AppliesTo(settings)))
         {
             await _status.SetAsync(recordingId, StageStatusWriter.QueuedStatus(dependent.Name), cancellationToken);
         }
@@ -568,9 +568,25 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
                 cancellationToken.ThrowIfCancellationRequested();
                 if (stage.IsHeavy && _gate.Reason is { } reason)
                 {
-                    await _status.SetAsync(running.RecordingId, new StageStatus(stage.Name, StageStates.Queued, null, "Paused · " + reason), cancellationToken);
+                    // BRIDGE.md M2 clarification 4: a waiting stage stays active and keeps its percentage.
+                    var current = StageList.Find((await _store.LoadAsync(running.RecordingId, cancellationToken)).Stages, stage.Name);
+                    await _status.SetAsync(
+                        running.RecordingId,
+                        new StageStatus(stage.Name, StageStates.Active, current?.Percent ?? 0, "Paused · " + reason),
+                        cancellationToken,
+                        clearFailure: false);
                     LogWaiting(running.RecordingId, stage.Name, reason);
-                    await _gate.WhenOpenAsync(cancellationToken);
+                    try
+                    {
+                        await _gate.WhenOpenAsync(cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Closing while it waits: queued again for the next launch.
+                        await RequeueQuietlyAsync(running.RecordingId, stage.Name);
+                        throw;
+                    }
+
                     continue;
                 }
 

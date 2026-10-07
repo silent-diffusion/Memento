@@ -22,6 +22,7 @@ public sealed class ProcessingGate
     private bool _recording;
     private bool _lowSpace;
     private bool _cpuBusy;
+    private bool _busyReleased;
     private DateTimeOffset? _busySince;
     private string? _reason;
 
@@ -71,6 +72,16 @@ public sealed class ProcessingGate
     public void SetManual(bool paused) => Update(() => _manual = paused);
 
     /// <summary>
+    /// <c>processing.resume</c> (BRIDGE.md M2 clarification 4): lifts a pause by the user and also releases a "PC is busy"
+    /// pause that is in effect now, until the busy condition ends and is detected again. Low disk space still pauses.
+    /// </summary>
+    public void Resume() => Update(() =>
+    {
+        _manual = false;
+        _busyReleased = _recording || _cpuBusy;
+    });
+
+    /// <summary>
     /// One sample from the busy watch. <paramref name="cpuBusyPercent"/> excludes Memento's own worker, so a
     /// transcription on the processor does not pause itself.
     /// </summary>
@@ -91,6 +102,12 @@ public sealed class ProcessingGate
                 _busySince ??= now;
                 _cpuBusy = now - _busySince.Value >= BusyFor;
             }
+
+            if (!_recording && !_cpuBusy)
+            {
+                // The busy condition is over: the next detection pauses again.
+                _busyReleased = false;
+            }
         });
     }
 
@@ -107,7 +124,7 @@ public sealed class ProcessingGate
         lock (_sync)
         {
             change();
-            var reason = _manual ? ManualReason : _lowSpace ? LowSpaceReason : (_recording || _cpuBusy) ? BusyReason : null;
+            var reason = _manual ? ManualReason : _lowSpace ? LowSpaceReason : (_recording || _cpuBusy) && !_busyReleased ? BusyReason : null;
             changed = reason != _reason;
             _reason = reason;
             if (reason is null)

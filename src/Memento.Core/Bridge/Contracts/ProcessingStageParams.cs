@@ -7,6 +7,6 @@ public sealed record ProcessingStageParams
 
     public required string Stage { get; init; }
 
-    /// <summary>From <see cref="StageFailure.Remedies"/> (<c>cpu</c>, <c>model:small</c>, <c>retry</c>); retry only.</summary>
+    /// <summary>From <see cref="StageFailure.Remedies"/> (<c>cpu</c>, <c>model:whisper-small</c>, <c>retry</c>); retry only.</summary>
     public string? RemedyId { get; init; }
 }

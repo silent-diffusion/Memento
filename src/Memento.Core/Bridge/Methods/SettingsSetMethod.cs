@@ -12,7 +12,7 @@ namespace Memento.Core.Bridge.Methods;
 /// so a request with one bad field changes nothing. The <c>recording</c> block is replaced whole; the M2 blocks
 /// (<c>transcription</c>, <c>speakers</c>, <c>history</c>) change only the fields they carry.
 /// </summary>
-public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selector) : BridgeMethod<SettingsSetParams, SettingsSnapshot>
+public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selector, IModelManager models) : BridgeMethod<SettingsSetParams, SettingsSnapshot>
 {
     public const string InvalidValueCode = DomainErrorCodes.SettingsInvalidValue;
     public const string LibraryMoveUnavailableCode = DomainErrorCodes.SettingsLibraryMoveUnavailable;
@@ -62,7 +62,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             throw new BridgeException(InvalidValueCode, m2Problem + " Nothing was changed.");
         }
 
-        ValidateModels(transcription, speakers);
+        ValidateModels(parameters.Transcription, parameters.Speakers);
 
         var updated = await store.UpdateAsync(
             current => current with
@@ -123,20 +123,35 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             KeepDays = patch.KeepDays ?? current.KeepDays,
         };
 
-    private void ValidateModels(TranscriptionSettings? transcription, SpeakerSettings? speakers)
+    /// <summary>
+    /// A model id sent in <c>settings.set</c> must name a catalog model of the right kind that is installed (BRIDGE.md M2
+    /// clarification 7); the error names the field. An id equal to the one in effect is accepted as it is, so a UI
+    /// that sends the whole block does not fail on a model it did not change.
+    /// </summary>
+    private void ValidateModels(TranscriptionSettingsPatch? transcription, SpeakersSettingsPatch? speakers)
     {
-        var catalog = selector.Catalog;
-        foreach (var id in new[] { transcription?.ModelId, transcription?.CpuFallbackModelId }.OfType<string>())
-        {
-            if (catalog.Find(id) is not { Kind: ModelKinds.Transcription })
-            {
-                throw new BridgeException(InvalidValueCode, $"There is no transcription model called '{id}'. Choose one of the models listed in Settings › Transcription. Nothing was changed.");
-            }
-        }
+        var current = store.Current;
+        Check("transcription.modelId", transcription?.ModelId, selector.EffectiveModelId(current.Transcription), ModelKinds.Transcription, null, "Settings › Transcription");
+        Check("transcription.cpuFallbackModelId", transcription?.CpuFallbackModelId, current.Transcription.CpuFallbackModelId, ModelKinds.Transcription, null, "Settings › Transcription");
+        Check("speakers.embeddingModelId", speakers?.EmbeddingModelId, current.Speakers.EmbeddingModelId, ModelKinds.Speakers, ModelRoles.Embedding, "Settings › Speakers");
 
-        if (speakers is not null && catalog.Find(speakers.EmbeddingModelId) is not { Kind: ModelKinds.Speakers, Role: ModelRoles.Embedding })
+        void Check(string field, string? id, string inEffect, string kind, string? role, string where)
         {
-            throw new BridgeException(InvalidValueCode, $"There is no voice model called '{speakers.EmbeddingModelId}'. Choose one of the voice models listed in Settings › Speakers. Nothing was changed.");
+            if (id is null || id == inEffect)
+            {
+                return;
+            }
+
+            var entry = selector.Catalog.Find(id);
+            if (entry is null || entry.Kind != kind || (role is not null && entry.Role != role))
+            {
+                throw new BridgeException(InvalidValueCode, $"{field}: there is no such model called '{id}'. Choose one of the models listed in {where}. Nothing was changed.", field);
+            }
+
+            if (!models.IsInstalled(id))
+            {
+                throw new BridgeException(InvalidValueCode, $"{field}: {entry.Name} is not installed, so it can't be chosen yet. Install it in {where} first. Nothing was changed.", field);
+            }
         }
     }
 
