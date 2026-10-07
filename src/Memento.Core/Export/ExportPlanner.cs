@@ -175,9 +175,14 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
     private static async Task CopyAsync(string source, string destination, CancellationToken cancellationToken)
     {
-        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true);
-        await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20, useAsync: true);
-        await input.CopyToAsync(output, cancellationToken);
+        await using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true))
+        await using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20, useAsync: true))
+        {
+            await input.CopyToAsync(output, cancellationToken);
+        }
+
+        // An attachment that came from the internet keeps that mark in the export too.
+        AttachmentService.CopyZoneIdentifier(source, destination);
     }
 
     private ExportItem AudioItem(string component, string name, string source, string codec, int sampleRate, int channels, long durationMs, ExportAudioChoice choice)

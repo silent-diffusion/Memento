@@ -26,12 +26,20 @@ public sealed partial class AttachmentService(
     /// <summary>100 MB per file (BRIDGE.md M3).</summary>
     public const long MaxBytes = 100L * 1024 * 1024;
 
-    /// <summary>Types Windows would run rather than open; <c>attachments.open</c> shows them in their folder instead.</summary>
-    private static readonly HashSet<string> RunnableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Document, image and media types <c>attachments.open</c> opens with their default app. Anything else (programs,
+    /// scripts, installers, shortcuts, disk images, help files and the many other types Windows would run) is shown in
+    /// its folder instead, so the person decides. An allowlist, because a list of what to refuse is never complete.
+    /// </summary>
+    private static readonly HashSet<string> OpenableExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".com", ".bat", ".cmd", ".msi", ".msp", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
-        ".scr", ".pif", ".lnk", ".url", ".reg", ".hta", ".cpl", ".msc", ".jar", ".appref-ms", ".application", ".gadget",
+        ".pdf", ".txt", ".md", ".csv", ".tsv", ".rtf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp", ".heic",
+        ".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wma", ".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm",
     };
+
+    /// <summary>The alternate data stream Windows uses to remember that a file came from the internet.</summary>
+    private const string ZoneIdentifierStream = ":Zone.Identifier";
 
     private readonly ILogger<AttachmentService> _logger = logger;
 
@@ -98,6 +106,7 @@ public sealed partial class AttachmentService(
             }
 
             sha256 = await FileHashes.Sha256Async(temporary, cancellationToken);
+            CopyZoneIdentifier(sourcePath, temporary);
             File.Move(temporary, destination, overwrite: false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
@@ -196,7 +205,7 @@ public sealed partial class AttachmentService(
                 record.Id);
         }
 
-        var target = RunnableExtensions.Contains(Path.GetExtension(path)) ? Path.GetDirectoryName(path)! : path;
+        var target = OpenableExtensions.Contains(Path.GetExtension(path)) ? path : Path.GetDirectoryName(path)!;
         if (!launcher.TryOpen(new Uri(target)))
         {
             throw new BridgeException(
@@ -222,6 +231,28 @@ public sealed partial class AttachmentService(
             DomainErrorCodes.AttachmentsNotFound,
             "That attachment is not in this recording any more; it may have been removed. Nothing was changed. Reopen the recording to see its attachments.",
             attachmentId);
+
+    /// <summary>
+    /// Keeps Windows' "this came from the internet" mark on the copy, so Office still opens a downloaded document in
+    /// Protected View and blocks its macros. Best effort: a file without the mark, or a drive without streams, is fine.
+    /// </summary>
+    internal static void CopyZoneIdentifier(string source, string destination)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            var zone = File.ReadAllBytes(source + ZoneIdentifierStream);
+            File.WriteAllBytes(destination + ZoneIdentifierStream, zone);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            // No mark to keep.
+        }
+    }
 
     private static void TryDelete(string path)
     {
