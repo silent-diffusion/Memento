@@ -189,7 +189,7 @@ async function caseImport() {
   run.check('import: History says it was interrupted', history.some((h) => /interrupted/i.test(h)), history.join(' | '));
   run.check('import: the half-imported copy was removed', !filesOf(run.folder(id)).some((f) => /\.(wav|flac)$/i.test(f.file)), filesOf(run.folder(id)).map((f) => f.file).join(', '));
   // Import again, through the row's own button.
-  await run.page.click({ name: 'Import again', exact: false }).catch(() => null);
+  await run.page.click('.pill-retry').catch(() => null);
   await run.until(() => stageOf(id, 'stored')?.state === 'done', 'import again to store', 10 * 60_000, 500).catch(() => null);
   run.check('import: Import again stores it', stageOf(id, 'stored')?.state === 'done', JSON.stringify(stageOf(id, 'stored')));
   return id;
@@ -209,14 +209,18 @@ async function caseExport(id) {
   };
   const { jobId } = await run.bridge('export.run', { recordingId: id, selection, destination: { folder: destination, createSubfolder: true }, remember: false });
   const progress = await run.until(async () => (await run.events('export.progress')).find((e) => e.payload.jobId === jobId && e.payload.state === 'running' && e.payload.percent >= 10), 'export at 10%', 120_000, 50).catch(() => null);
-  const projectBefore = filesOf(run.folder(id)).map((f) => `${f.file}:${f.bytes}`).sort();
+  // History gains the 'Export interrupted' line at the next launch; everything else must stay as it was.
+  const audioAndData = () => filesOf(run.folder(id)).filter((f) => f.file !== 'history.jsonl').map((f) => `${f.file}:${f.bytes}`).sort();
+  const projectBefore = audioAndData();
   await run.killApp();
   await relaunch();
-  const projectAfter = filesOf(run.folder(id)).map((f) => `${f.file}:${f.bytes}`).sort();
+  const projectAfter = audioAndData();
   const left = existsSync(destination) ? filesOf(destination).map((f) => f.file) : [];
   cases.push({ name, killedAt: progress ? `${progress.payload.percent}%` : 'unknown', leftInDestination: left, projectUnchanged: JSON.stringify(projectBefore) === JSON.stringify(projectAfter) });
   run.check('export: the project is untouched', JSON.stringify(projectBefore) === JSON.stringify(projectAfter));
-  run.check('export: no half-written files outside the hidden work folder', left.every((f) => f.startsWith('.memento-export-')), left.join(', '));
+  run.check('export: nothing it wrote is left in the destination', left.length === 0, left.join(', '));
+  const exportHistory = run.history(id).find((h) => h.summary === 'Export interrupted');
+  run.check('export: History says the export was interrupted', !!exportHistory, exportHistory?.detail ?? '(none)');
   run.log('export', `left in the destination: ${left.length} file(s) ${left.slice(0, 4).join(', ')}`);
 }
 
