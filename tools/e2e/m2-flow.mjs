@@ -3,11 +3,13 @@
 // of timings, what the transcript holds and the warnings and errors in the logs.
 //
 //   node tools/e2e/m2-flow.mjs --play <speech file> [--seconds 180] [--fail-seconds 120] [--data <dir>] [--out <dir>]
-//                              [--keep-models <dir>] [--skip-failure] [--no-busy-pause] [--from-review] [--port <n>]
+//                              [--keep-models <dir>] [--models <dir>] [--skip-failure] [--no-busy-pause] [--from-review]
+//                              [--port <n>]
 //
 // The app runs with LOCALAPPDATA pointed at --data (default artifacts/e2e-data-m2), so the real library is never
 // touched. Models are installed through Settings (about 2.2 GB from Hugging Face and GitHub); --keep-models copies the
-// installed models there at the end so a later run (or the simulated M1 run) can reuse them. The microphone is
+// installed models there at the end so a later run (or the simulated M1 run) can reuse them; --models copies such a
+// folder in first and checks the models are listed instead of downloading them. The microphone is
 // recorded: delete --data afterwards (it holds room audio). The speech file plays through the default output.
 
 import { execFileSync, spawn } from 'node:child_process';
@@ -25,6 +27,7 @@ const play = option('--play', null);
 const seconds = Number(option('--seconds', '180'));
 const failSeconds = Number(option('--fail-seconds', '120'));
 const keepModels = option('--keep-models', null);
+const models = option('--models', null) && resolve(option('--models', null));
 const summary = { steps: [], timings: {} };
 
 let shotIndex = 0;
@@ -156,6 +159,31 @@ const segmentCount = () => page.eval(`document.querySelectorAll('.segm').length`
 
 /** Steps 1–4: first run, models, the recording and its processing. Returns the recording's id. */
 async function recordAndProcess() {
+  // --models: models copied in from an earlier run, so steps 1–2 check them instead of downloading them again.
+  if (models) {
+    cpSync(models, join(app.memento, 'models'), { recursive: true });
+    page = await app.start();
+    await hasText('Your library is empty');
+    await hasText('Local transcription ready');
+    await shot('first-run-library');
+    await page.click({ name: 'Settings' });
+    await page.click({ name: 'Transcription' });
+    await page.waitFor(`!!document.querySelector('[aria-label="Remove Large v3 Turbo"]') && !!document.querySelector('[aria-label="Remove Small"]')`, 'the copied models listed as installed');
+    await hasText('Local · GPU');
+    await shot('settings-transcription-installed');
+    await page.click({ name: 'Speakers' });
+    await page.waitFor(`!!document.querySelector('[aria-label^="Remove Speech segmentation"]') && !!document.querySelector('[aria-label^="Remove Voice model (NeMo TitaNet small"]')`, 'the speaker models listed as installed');
+    await shot('settings-speakers-installed');
+    log('models copied', `${models}; Settings lists them as installed`);
+  } else {
+    await installModels();
+  }
+  await afterModels();
+  return recordAndProcessRest();
+}
+
+/** Steps 1–2 without --models: the first run says no model is installed, and the models are downloaded in Settings. */
+async function installModels() {
   // 1. First run: the empty Library; Settings › Transcription says no model is installed.
   page = await app.start();
   await hasText('Your library is empty');
@@ -184,7 +212,10 @@ async function recordAndProcess() {
   summary.timings.voiceDownloadSeconds = await install('Voice model (NeMo TitaNet small');
   await shot('settings-speakers-installed');
   log('models installed', JSON.stringify(summary.timings));
+}
 
+/** Settings for the recording (busy pause, smaller AAC files), from Settings › Speakers. */
+async function afterModels() {
   // --no-busy-pause: on a PC another job keeps busy, "Pause when the PC is busy" would hold transcription back.
   if (flag('--no-busy-pause')) {
     await page.click({ name: 'Transcription' });
@@ -198,7 +229,10 @@ async function recordAndProcess() {
   await page.click({ name: 'Smaller AAC' });
   await hasText('160 kbps');
   await page.click({ name: 'Library' });
+}
 
+/** Steps 3–4: the recording and its processing. Returns the recording's id. */
+async function recordAndProcessRest() {
   // 3. New recording: microphone and system audio while the speech file plays.
   await newRecording('M2 check two readers');
   await hasText('2 audio sources selected');
