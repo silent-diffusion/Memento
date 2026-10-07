@@ -91,6 +91,29 @@ export const ERROR_CODES = [
   'storage.nothingToReclaim',
   'app.startupRefused',
   'ai.keyWriteFailed',
+  // M4
+  'ai.disabled',
+  'ai.providerNotReady',
+  'ai.noKey',
+  'ai.invalidKey',
+  'ai.rateLimited',
+  'ai.network',
+  'ai.providerError',
+  'ai.contentTooLong',
+  'ai.modelNotInstalled',
+  'ai.notEnoughVram',
+  'ai.workerCrashed',
+  'generation.noTranscript',
+  'generation.busy',
+  'generation.notFound',
+  'templates.notFound',
+  'templates.builtIn',
+  'styles.notFound',
+  'styles.builtIn',
+  'styles.inUse',
+  'documents.notFound',
+  'documents.unsupportedEdit',
+  'documents.versionNotFound',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -386,7 +409,8 @@ export interface StageFailure {
   remedies: StageRemedy[];
 }
 
-export type ModelEngine = 'transcription' | 'speakers' | 'ocr';
+/** `llm` (M4): the Local provider's language models (Settings › AI and privacy › Local model). */
+export type ModelEngine = 'transcription' | 'speakers' | 'ocr' | 'llm';
 
 export interface ModelInstalling {
   percent: number;
@@ -662,6 +686,8 @@ export interface SettingsSnapshot {
   export: ExportSettings;
   ai: AiSettings;
   storage: StorageReclaimSettings;
+  /** M4 */
+  documents: DocumentsSettings;
 }
 
 /**
@@ -688,6 +714,8 @@ export interface SettingsSetParams {
   export?: Partial<ExportSettings> | null;
   ai?: AiSettingsPatch | null;
   storage?: Partial<StorageReclaimSettings> | null;
+  /** M4: merged field by field. */
+  documents?: Partial<DocumentsSettings> | null;
 }
 
 /** settings.set's `ai` block: each field optional, `share` merged field by field; never `providers`. */
@@ -696,6 +724,10 @@ export interface AiSettingsPatch {
   askBeforeSend?: boolean;
   keepRecord?: boolean;
   share?: Partial<AiShareSettings>;
+  /** M4: null clears the default (the Builder then picks the first ready provider). */
+  defaultProviderId?: ProviderId | null;
+  /** M4: a model catalog id (engine `llm`). */
+  localModelId?: string;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1105,6 +1137,8 @@ export interface ExportEstimateItem {
   /** The file name as it will be written. */
   name: string;
   bytes: number;
+  /** M4: the document a `documents` file belongs to. */
+  documentId?: string;
 }
 
 /** A ticked row that has nothing to write, and why. */
@@ -1380,11 +1414,444 @@ export interface AiSettingsInput {
 export interface AiSettings extends AiSettingsInput {
   /** Read side only: whether a key is stored, never the key. */
   providers: Record<AiProvider, AiProviderStatus>;
+  /** M4: the provider the Builder starts with; null picks the first ready one. */
+  defaultProviderId: ProviderId | null;
+  /** M4: the Local provider's model (catalog id, engine `llm`). */
+  localModelId: string;
 }
 
 export interface StorageReclaimSettings {
   /** null: never. */
   reclaimOlderThanDays: number | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// M4: AI, documents, templates, styles (docs/BRIDGE-M4.md)
+// ---------------------------------------------------------------------------------------------
+
+/** The built-in module types (src/Memento.Documents/Model/Modules/ModuleIds.cs). */
+export type ModuleId =
+  | 'title'
+  | 'summary'
+  | 'executiveSummary'
+  | 'participants'
+  | 'agenda'
+  | 'topic'
+  | 'discussion'
+  | 'decisions'
+  | 'actionItems'
+  | 'owner'
+  | 'deadline'
+  | 'openQuestions'
+  | 'quote'
+  | 'highlight'
+  | 'chapter'
+  | 'timeline'
+  | 'followUpEmail'
+  | 'nextMeeting'
+  | 'meetingPurpose'
+  | 'notes'
+  | 'fullTranscript'
+  | 'customText'
+  | 'customAi';
+
+/** What a module produces; the Builder preview draws a skeleton per shape. */
+export type ContentShape = 'paragraph' | 'list' | 'table' | 'chips' | 'labelValue' | 'quote' | 'timeline' | 'transcript' | 'text';
+
+export type ModuleGroup = 'structure' | 'detail' | 'custom';
+
+export type ModuleLength = 'short' | 'medium' | 'long';
+
+/** One palette entry. `generated` is false for modules placed as data (no AI involved). */
+export interface ModuleInfo {
+  id: ModuleId;
+  name: string;
+  group: ModuleGroup;
+  shape: ContentShape;
+  generated: boolean;
+  defaultLength: ModuleLength;
+  /** The rule that governs the module's content, in plain words. */
+  groundingRule: string | null;
+  /** What the module contains; also the default instructions. */
+  description: string;
+}
+
+/** A module's text size relative to the style's base size. */
+export type TextSize = 'smaller' | 'normal' | 'larger';
+
+/** One module of a template. `id` is unique within the template ("m01"). */
+export interface ModuleSettings {
+  id: string;
+  module: ModuleId;
+  instructions: string;
+  length: ModuleLength;
+  textSize: TextSize;
+  linkToTranscript: boolean;
+  /** The heading when it differs from the catalog name. */
+  customTitle: string | null;
+  /** Custom text only: the text placed as written. */
+  customText: string | null;
+}
+
+/** One to three modules side by side. */
+export interface TemplateRow {
+  modules: ModuleSettings[];
+}
+
+/** What the AI receives. Audio and video never exist here. */
+export interface InputSelection {
+  transcript: boolean;
+  details: boolean;
+  participants: boolean;
+  agenda: boolean;
+  highlights: boolean;
+  attachments: boolean;
+  previousDocuments: boolean;
+}
+
+export interface TemplateOutput {
+  alsoExportDocx: boolean;
+  alsoExportMarkdown: boolean;
+}
+
+export interface Template {
+  /** Empty for a template not saved yet. */
+  id: string;
+  name: string;
+  builtIn: boolean;
+  recordingTypes: RecordingType[];
+  rows: TemplateRow[];
+  inputs: InputSelection;
+  /** Null: the default provider from Settings. */
+  providerId: ProviderId | null;
+  styleId: string;
+  output: TemplateOutput;
+  modifiedAt: string;
+}
+
+export type ProviderId = 'anthropic' | 'openai' | 'local';
+
+export interface ProviderInfo {
+  id: ProviderId;
+  /** "Claude", "ChatGPT", "Local model". */
+  name: string;
+  /** "Anthropic", "OpenAI", "This PC". */
+  vendor: string;
+  kind: 'cloud' | 'local';
+  ready: boolean;
+  /** Why it is not ready: "No key saved", "Model not installed", "External AI is off". */
+  reason: string | null;
+  modelLabel: string | null;
+}
+
+export type HeadingColor = 'navy' | 'ink' | 'forest' | 'burgundy';
+
+export interface StyleSettings {
+  headingFace: 'sans' | 'serif';
+  bodyFace: 'sans' | 'serif';
+  baseSize: 'small' | 'normal' | 'large';
+  headingCase: 'normal' | 'smallCaps';
+  numberedHeadings: boolean;
+  headingColor: HeadingColor;
+  tableHeaderFill: boolean;
+  ruleUnderTitle: boolean;
+  linesBetweenSections: boolean;
+  spacing: 'tight' | 'normal' | 'airy';
+  paper: 'letter' | 'a4';
+  pageNumbers: boolean;
+  runningHeader: boolean;
+}
+
+export interface Style {
+  /** Empty for a style not saved yet. */
+  id: string;
+  name: string;
+  builtIn: boolean;
+  settings: StyleSettings;
+  usedByTemplates: number;
+  modifiedAt: string;
+}
+
+export type DocumentKind = 'generated' | 'written';
+
+export interface DocumentSummary {
+  id: string;
+  name: string;
+  kind: DocumentKind;
+  templateName: string | null;
+  styleId: string;
+  providerId: ProviderId | null;
+  generatedAt: string | null;
+  version: number;
+  versions: number;
+  modifiedAt: string;
+  sizeBytes: number;
+}
+
+export interface GenerationModuleRecord {
+  moduleId: string;
+  claims: number;
+  verified: number;
+  dropped: number;
+  notDiscussed: boolean;
+}
+
+/** How a document was made: kept with it ("How this was made"). */
+export interface GenerationRecord {
+  templateId: string;
+  templateName: string;
+  styleId: string;
+  providerId: ProviderId;
+  modelLabel: string;
+  startedAt: string;
+  durationMs: number;
+  /** The inputs actually sent. */
+  inputs: InputSelection;
+  payloadHash: string;
+  payloadKept: boolean;
+  chunks: number;
+  modules: GenerationModuleRecord[];
+}
+
+export type RunKind = 'text' | 'emphasis' | 'timestamp' | 'note';
+
+/** A run of text in a block (src/Memento.Documents/Model/Run.cs). `t` is the transcript time in seconds. */
+export interface Run {
+  kind: RunKind;
+  text: string;
+  style?: 'bold' | 'italic' | 'boldItalic' | null;
+  t?: number | null;
+}
+
+export interface ListItem {
+  runs: Run[];
+  items: ListItem[];
+}
+
+export interface TableCell {
+  runs: Run[];
+}
+
+/** The document blocks (src/Memento.Documents/Model/Blocks). */
+export type Block =
+  | { type: 'heading'; level: number; runs: Run[] }
+  | { type: 'paragraph'; runs: Run[] }
+  | { type: 'list'; style: 'bulleted' | 'numbered'; items: ListItem[] }
+  | { type: 'table'; columns: string[]; widths: number[]; rows: { cells: TableCell[] }[] }
+  | { type: 'chips'; items: string[] }
+  | { type: 'labelValue'; pairs: { label: string; runs: Run[] }[] }
+  | { type: 'quote'; runs: Run[]; attribution?: string | null; t?: number | null }
+  | { type: 'timeline'; entries: { t: number; runs: Run[] }[] }
+  | { type: 'transcript'; segments: { id?: string | null; speaker: string; t: number; text: string }[]; chapters: { t: number; title: string }[] };
+
+/** A document's content. The UI shows it through documents.renderHtml, never from these blocks. */
+export interface DocumentContent {
+  schemaVersion: 1;
+  id: string;
+  title: string;
+  meta: string;
+  rows: { blocks: Block[] }[];
+  record: GenerationRecord | null;
+}
+
+export type GenerationStage = 'composing' | 'generating' | 'verifying' | 'rendering' | 'done' | 'failed' | 'cancelled';
+
+export interface GenerationProgress {
+  jobId: string;
+  recordingId: string;
+  /** Set when done. */
+  documentId: string | null;
+  stage: GenerationStage;
+  /** The template module being written while generating. */
+  moduleId: string | null;
+  percent: number;
+  /** Failed: what happened, in DESIGN.md §17 words. */
+  message: string | null;
+}
+
+export type DocumentVersionReason = 'generated' | 'edited' | 'restored' | 'regenerated';
+
+export interface DocumentVersion {
+  id: string;
+  at: string;
+  reason: DocumentVersionReason;
+  changes: number;
+}
+
+/** documents.changed reasons. */
+export type DocumentChangeReason = 'generated' | 'edited' | 'created' | 'deleted' | 'restored';
+
+/** Settings › Documents › Defaults (M4). */
+export interface DocumentsSettings {
+  defaultTemplateId: string;
+  defaultStyleId: string;
+}
+
+export interface ModulesListResult {
+  modules: ModuleInfo[];
+}
+
+export interface TemplatesListResult {
+  templates: Template[];
+}
+
+export interface TemplateIdParams {
+  templateId: string;
+}
+
+export interface TemplateSaveParams {
+  template: Template;
+}
+
+export interface StylesListResult {
+  styles: Style[];
+}
+
+export interface StyleIdParams {
+  styleId: string;
+}
+
+export interface StyleSaveParams {
+  style: Style;
+}
+
+export interface StyleSampleParams {
+  settings: StyleSettings;
+}
+
+export interface HtmlResult {
+  html: string;
+}
+
+export interface ProvidersListResult {
+  providers: ProviderInfo[];
+  externalAiEnabled: boolean;
+}
+
+export interface GenerationPreviewParams {
+  recordingId: string;
+  template: Template;
+}
+
+export interface GenerationPreviewResult {
+  payloadText: string;
+  bytes: number;
+  chunks: number;
+  inputsUsed: InputSelection;
+  warnings: string[];
+}
+
+export interface GenerationPreviewHtmlParams {
+  /** Null while a template is edited without a recording (Settings › Documents › Manage): sample title and meta. */
+  recordingId: string | null;
+  template: Template;
+  styleId: string;
+}
+
+export interface GenerationStartParams {
+  recordingId: string;
+  template: Template;
+  /** Regenerate into this document (a new version of it). */
+  documentId?: string;
+}
+
+/** What "ask before every send" shows (DESIGN.md §5.19 dialog). */
+export interface GenerationSendSummary {
+  providerId: ProviderId;
+  providerName: string;
+  modelLabel: string | null;
+  inputsUsed: InputSelection;
+  bytes: number;
+  chunks: number;
+}
+
+export interface GenerationStartResult {
+  jobId: string;
+  /** Settings › Ask before every send: nothing runs until generation.confirm. */
+  confirmationRequired?: boolean;
+  summary?: GenerationSendSummary;
+}
+
+export interface GenerationConfirmParams {
+  jobId: string;
+  approved: boolean;
+}
+
+export interface DocumentIdParams {
+  recordingId: string;
+  documentId: string;
+}
+
+export interface DocumentsListResult {
+  documents: DocumentSummary[];
+}
+
+export interface DocumentGetResult {
+  document: DocumentContent;
+  summary: DocumentSummary;
+}
+
+export interface DocumentRenderParams {
+  recordingId: string;
+  documentId: string;
+  mode: 'view' | 'print';
+}
+
+export interface DocumentCreateParams {
+  recordingId: string;
+  name: string;
+  styleId: string;
+}
+
+export interface DocumentSaveEditParams {
+  recordingId: string;
+  documentId: string;
+  /** The edited `article.paper` markup. */
+  html: string;
+}
+
+export interface DocumentSaveEditResult {
+  document: DocumentContent;
+  version: number;
+}
+
+export interface DocumentNameParams {
+  recordingId: string;
+  documentId: string;
+  name: string;
+}
+
+export interface DocumentVersionsResult {
+  versions: DocumentVersion[];
+}
+
+export interface DocumentRestoreVersionParams {
+  recordingId: string;
+  documentId: string;
+  versionId: string;
+}
+
+export interface DocumentRestoreVersionResult {
+  document: DocumentContent;
+}
+
+export interface DocumentExportParams {
+  recordingId: string;
+  documentId: string;
+  format: DocumentExportFormat;
+  path?: string;
+}
+
+export interface DocumentExportResult {
+  path: string;
+  bytes: number;
+  sha256: string;
+}
+
+export interface DocumentsChangedPayload {
+  recordingId: string;
+  documentId: string;
+  reason: DocumentChangeReason;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1468,6 +1935,39 @@ export interface BridgeMethods {
   'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
   'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
   'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
+  // M4
+  'modules.list': { params: EmptyParams; result: ModulesListResult };
+  'templates.list': { params: EmptyParams; result: TemplatesListResult };
+  'templates.get': { params: TemplateIdParams; result: Template };
+  'templates.save': { params: TemplateSaveParams; result: Template };
+  'templates.duplicate': { params: TemplateIdParams; result: Template };
+  'templates.delete': { params: TemplateIdParams; result: EmptyResult };
+  'templates.resetBuiltIn': { params: TemplateIdParams; result: Template };
+  'styles.list': { params: EmptyParams; result: StylesListResult };
+  'styles.get': { params: StyleIdParams; result: Style };
+  'styles.save': { params: StyleSaveParams; result: Style };
+  'styles.duplicate': { params: StyleIdParams; result: Style };
+  'styles.delete': { params: StyleIdParams; result: EmptyResult };
+  'styles.resetBuiltIn': { params: StyleIdParams; result: Style };
+  'styles.sampleHtml': { params: StyleSampleParams; result: HtmlResult };
+  'providers.list': { params: EmptyParams; result: ProvidersListResult };
+  'generation.preview': { params: GenerationPreviewParams; result: GenerationPreviewResult };
+  'generation.previewHtml': { params: GenerationPreviewHtmlParams; result: HtmlResult };
+  'generation.start': { params: GenerationStartParams; result: GenerationStartResult };
+  'generation.confirm': { params: GenerationConfirmParams; result: EmptyResult };
+  'generation.cancel': { params: JobIdParams; result: EmptyResult };
+  'documents.list': { params: RecordingIdParams; result: DocumentsListResult };
+  'documents.get': { params: DocumentIdParams; result: DocumentGetResult };
+  'documents.renderHtml': { params: DocumentRenderParams; result: HtmlResult };
+  'documents.create': { params: DocumentCreateParams; result: DocumentSummary };
+  'documents.saveEdit': { params: DocumentSaveEditParams; result: DocumentSaveEditResult };
+  'documents.rename': { params: DocumentNameParams; result: DocumentSummary };
+  'documents.duplicate': { params: DocumentIdParams; result: DocumentSummary };
+  'documents.delete': { params: DocumentIdParams; result: EmptyResult };
+  'documents.makeTemplate': { params: DocumentNameParams; result: Template };
+  'documents.versions': { params: DocumentIdParams; result: DocumentVersionsResult };
+  'documents.restoreVersion': { params: DocumentRestoreVersionParams; result: DocumentRestoreVersionResult };
+  'documents.export': { params: DocumentExportParams; result: DocumentExportResult };
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -1488,6 +1988,11 @@ export interface BridgeEvents {
   'export.progress': ExportProgressPayload;
   'library.moveProgress': LibraryMoveProgressPayload;
   'storage.reclaimProgress': StorageReclaimProgressPayload;
+  // M4
+  'generation.progress': GenerationProgress;
+  'documents.changed': DocumentsChangedPayload;
+  'templates.changed': EmptyResult;
+  'styles.changed': EmptyResult;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -1571,6 +2076,38 @@ export const METHOD_NAMES = [
   'ai.setKey',
   'ai.clearKey',
   'app.setStartup',
+  'modules.list',
+  'templates.list',
+  'templates.get',
+  'templates.save',
+  'templates.duplicate',
+  'templates.delete',
+  'templates.resetBuiltIn',
+  'styles.list',
+  'styles.get',
+  'styles.save',
+  'styles.duplicate',
+  'styles.delete',
+  'styles.resetBuiltIn',
+  'styles.sampleHtml',
+  'providers.list',
+  'generation.preview',
+  'generation.previewHtml',
+  'generation.start',
+  'generation.confirm',
+  'generation.cancel',
+  'documents.list',
+  'documents.get',
+  'documents.renderHtml',
+  'documents.create',
+  'documents.saveEdit',
+  'documents.rename',
+  'documents.duplicate',
+  'documents.delete',
+  'documents.makeTemplate',
+  'documents.versions',
+  'documents.restoreVersion',
+  'documents.export',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -1589,4 +2126,8 @@ export const EVENT_NAMES = [
   'export.progress',
   'library.moveProgress',
   'storage.reclaimProgress',
+  'generation.progress',
+  'documents.changed',
+  'templates.changed',
+  'styles.changed',
 ] as const satisfies readonly EventName[];

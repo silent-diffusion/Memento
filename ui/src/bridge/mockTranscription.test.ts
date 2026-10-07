@@ -414,6 +414,9 @@ describe('preview host models and engine (M2)', () => {
       'nemo-titanet-small',
       '3dspeaker-eres2net-base',
       'tesseract-eng',
+      // M4: the Local provider's language models.
+      'qwen3.5-4b-instruct-q4',
+      'ministral-3-3b-instruct-q4',
     ]);
     expect(models.filter((m) => m.engine === 'speakers').map((m) => m.role)).toEqual(['segmentation', 'embedding', 'embedding']);
     expect(models.find((m) => m.recommended && m.engine === 'transcription')?.id).toBe('whisper-large-v3-turbo');
