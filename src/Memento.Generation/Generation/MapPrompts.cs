@@ -73,6 +73,15 @@ public static partial class MapPrompts
         _ => "what the user's instructions ask for",
     };
 
+    /// <summary>
+    /// When a section may be empty. A summary-like section that the user's instructions aim at something the excerpt does not
+    /// have ("decisions first, then risks" over a reading with no decisions) wrote nothing at all on the local model, so it
+    /// writes about what the excerpt does say; open questions and a stated purpose stay empty when there are none.
+    /// </summary>
+    public static string EmptyRule(string type) => type is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Topic or ModuleIds.Timeline or ModuleIds.CustomAi
+        ? "The user's instructions shape the section. When they ask for something this excerpt does not have (decisions, agenda items, risks), write about what the excerpt does say instead. Return an empty list only when the excerpt has no content for it at all (silence, greetings, small talk)."
+        : "If the excerpt has nothing for this section, return an empty list.";
+
     public static string PointsSystem(string type, string title, int perChunk) => $$$"""
         You write the "{{{title}}}" section of a document about a recording, from an excerpt of its transcript. {{{LineFormat}}}
         The section holds {{{PointsTask(type)}}}.
@@ -80,7 +89,7 @@ public static partial class MapPrompts
         - Write at most {{{perChunk.ToString(CultureInfo.InvariantCulture)}}} short, factual statements, one sentence each, about what this excerpt says.
         - Every statement cites the line it comes from: line is the line number and quote is copied word for word from that line (at most 20 words).
         - A proposal is not a decision; something postponed or left open is not settled.
-        - If the excerpt has nothing for this section, return an empty list.
+        - {{{EmptyRule(type)}}}
         {{{Grounding}}}
         Answer with JSON only: {"points":[{"text":"...","line":12,"quote":"..."}]}
         """;
