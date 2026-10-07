@@ -388,3 +388,14 @@ storage:  { reclaimOlderThanDays: number | null }
 ## Design references
 
 Export dialog: DESIGN §15 and `ExportDialog.dc.html`. Details sheet and agenda import: §14 and `AgendaImport.dc.html` (parsed state, uncertain items with the `accent-soft` notice and reasons, Replace, the AI fallback card disabled with the Settings pointer until M4). Settings: §11 for General, Export, Storage and history, AI and privacy (keys masked, Replace/Add), Documents (defaults rows disabled with "Available in a later version"; History rows live). Library first-run "Import audio or video" becomes live. Review › Details tab: Agenda with its source caption and a Replace link; Attachments list with open/remove.
+
+## Clarifications (M3, decided after the UI landed)
+
+1. `ExportEstimate.items[]` gains `component` (a key of `ExportSelection`); `unavailable` is `{ component, reason }[]`. The UI estimates with every row ticked once and sums the ticked rows itself, so `export.estimate` must be cheap and must return every component.
+2. `agenda.importFile`, `agenda.importDropped` and `agenda.parseText` accept `recordingId: null` before a recording exists; the UI keeps the preview and calls `agenda.apply` with the token once `recording.start` returns an id. Pending tokens live at least 30 minutes.
+3. `library.list` accepts `sort: 'size'` (largest first).
+4. Export folder naming is shared: characters Windows forbids become " - ", runs of spaces and dashes collapse, the title is capped at 80 characters, then a space and the first 10 characters of `createdAt`; e.g. `Design review - library screen 2026-10-05`. Host and UI must produce the same string.
+5. `status.footer.export` may be absent (older hosts); `settings.set` takes `ai` without `providers`; keys change only through `ai.setKey` / `ai.clearKey`.
+6. `AudioSource['kind']` and `Track.sourceKind` gain `'imported'` for media-import tracks (`sourceId: 'imported'`).
+7. `agenda.setCovered` with an unknown item answers `agenda.itemNotFound`.
+8. `library.importMedia` on a video container records the "audio only" warning as a History `info` entry; no extra field.
