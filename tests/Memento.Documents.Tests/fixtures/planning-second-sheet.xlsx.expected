@@ -1,0 +1,13 @@
+# Excel: notes on the first sheet, the agenda on a second sheet named "Agenda"; a merged title row, shared and
+# inline strings, times stored as day fractions with a time format, and a merged "Afternoon" section row.
+source: Xlsx
+title: Planning day at Northwind Studio
+warning: sheetChosen
+warning: columnsUnused
+Arrival and coffee | 09:00
+Where we are now | 09:30
+Goals for the next quarter | 10:15
+Lunch | 12:00
+Afternoon
+  Team breakouts | 13:30
+  Share-back and decisions | 16:00

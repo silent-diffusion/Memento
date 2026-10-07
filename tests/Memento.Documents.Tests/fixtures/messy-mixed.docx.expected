@@ -1,0 +1,20 @@
+# Word, messy: a Title style, an "Agenda" heading, automatic numbering mixed with a typed "4." (so Word's own
+# numbering shows 4 twice), lettered sub-items from w:numPr level 1, a List Bullet style next to a typed bullet,
+# a heading with a soft line break into the next item, a text box, and a table that is not the agenda.
+source: Docx
+title: Neighbourhood Garden Association
+warning: detailsSkipped
+warning: textBoxesIgnored
+warning: tableSkipped
+Welcome from the chair
+Apologies for absence
+Minutes of the 2030 AGM
+Treasurer's report
+? Election of committee members
+  Chair
+  Treasurer
+Members' proposals
+  Raised beds for the school plot
+  Rainwater tanks
+  Tool shed repairs
+? Any other business Date of next meeting

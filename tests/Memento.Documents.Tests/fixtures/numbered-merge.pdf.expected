@@ -1,0 +1,11 @@
+# PDF: numbered items, one wrapped onto a second line with a hanging indent, a bold heading run into its item on
+# the same line (marked), meeting details and a page footer left out.
+source: Pdf
+title: Quarterly review agenda
+warning: detailsSkipped
+Opening remarks
+Sales update
+Customer feedback from the spring survey, including the themes raised by the regional teams
+Product roadmap
+? Decisions Approve the hiring plan
+Close

@@ -1,0 +1,13 @@
+# Plain text, Windows line endings: an ALL-CAPS agenda title, meeting details, numbers with lettered sub-items,
+# and a numbering gap (3 → 5) that marks the item after it.
+source: Text
+title: PROJECT KICKOFF AGENDA
+warning: detailsSkipped
+Welcome and introductions
+Project goals
+  Scope for the first release
+  What is out of scope
+Timeline and milestones
+? Risks and open questions
+Roles and responsibilities
+Q&A

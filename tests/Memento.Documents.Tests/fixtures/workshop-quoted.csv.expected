@@ -1,0 +1,9 @@
+# CSV with a header, quoted fields, doubled quotes, a comma inside quotes and a line break inside a quoted cell.
+source: Csv
+warning: columnsUnused
+Registration and coffee | 09:00
+Opening keynote: "Designing for calm" | 09:30
+Breakout: accessibility, colour and type | 10:30
+Lunch | 12:00
+Panel discussion with Q&A | 13:00
+Closing remarks | 14:30

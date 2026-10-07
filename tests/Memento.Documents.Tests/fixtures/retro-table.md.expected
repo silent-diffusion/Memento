@@ -1,0 +1,8 @@
+# Markdown: a setext title and a pipe table with a time column and an owner column that is left out.
+source: Markdown
+title: Sprint 42 retrospective
+warning: columnsUnused
+What went well | 15:00
+What did not go well | 15:15
+Actions for next sprint | 15:30
+Kudos | 15:45
