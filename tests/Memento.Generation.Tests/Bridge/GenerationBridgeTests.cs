@@ -85,7 +85,9 @@ public sealed class GenerationBridgeTests : IDisposable
         Assert.Equal(1, _host.Providers.LocalCreated);
         Assert.Equal(0, _host.Providers.CloudCreated);
         Assert.Equal(LocalLlmDevices.Cpu, _host.Providers.Local[0].Device);
-        var stages = _host.Events("generation.progress").Select(e => e.GetProperty("stage").GetString()).Distinct().ToList();
+        // Exactly in this order: every event of a stage before the first of the next, the final one last.
+        var raw = _host.Events("generation.progress").Select(e => e.GetProperty("stage").GetString()).ToList();
+        var stages = raw.Where((s, i) => i == 0 || s != raw[i - 1]).ToList();
         Assert.Equal(["composing", "generating", "verifying", "rendering", "done"], stages);
         Assert.Contains(_host.Events("documents.changed"), e => e.GetProperty("documentId").GetString() == documentId && e.GetProperty("reason").GetString() == "generated");
         Assert.NotEmpty(_host.Events("library.changed"));

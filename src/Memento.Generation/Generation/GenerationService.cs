@@ -150,7 +150,7 @@ public sealed partial class GenerationService(
                 throw M4Errors.Busy();
             }
 
-            job = new Job("g" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant(), recordingId, documentId, prepared, time.GetUtcNow()) { Pending = confirm };
+            job = new Job("g" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant(), recordingId, documentId, prepared, time.GetUtcNow(), new GenerationProgressFeed(events.PublishGenerationProgress, time)) { Pending = confirm };
             _job = job;
         }
 
@@ -192,7 +192,7 @@ public sealed partial class GenerationService(
         }
         else
         {
-            Finish(job, "cancelled", null, 0, "Nothing was sent.", null);
+            _ = Finish(job, "cancelled", null, 0, "Nothing was sent.", null);
         }
     }
 
@@ -211,7 +211,7 @@ public sealed partial class GenerationService(
 
         if (job.Run is null)
         {
-            Finish(job, "cancelled", null, 0, "Nothing was sent.", null);
+            _ = Finish(job, "cancelled", null, 0, "Nothing was sent.", null);
             return;
         }
 
@@ -271,7 +271,7 @@ public sealed partial class GenerationService(
                 status.MapOutputTokens,
                 Bounded: !status.IsCloud,
                 BatchVerify: status.IsCloud);
-            var progress = new Progress<PipelineProgress>(p => Publish(job, p.Stage, p.ModuleId, p.Percent, p.Message));
+            var progress = new InlineProgress<PipelineProgress>(p => Publish(job, p.Stage, p.ModuleId, p.Percent, p.Message));
             var outcome = await pipeline.RunAsync(input, progress, token);
             token.ThrowIfCancellationRequested();
 
@@ -307,18 +307,18 @@ public sealed partial class GenerationService(
             await AlsoExportAsync(saved!, prepared, CancellationToken.None);
             var kept = record.Claims.Count(c => c.Kept);
             LogFinished(job.Id, documentId, record.DurationMs, record.Claims.Count, kept);
-            Finish(job, "done", documentId, 100, "The document is ready.", null);
+            await Finish(job, "done", documentId, 100, "The document is ready.", null);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             await HistoryAsync(job.RecordingId, "info", $"{Kind(prepared.Template)} generation cancelled", "No document was changed.", CancellationToken.None);
-            Finish(job, "cancelled", job.DocumentId, 0, "Generation was cancelled. No document was changed.", null);
+            await Finish(job, "cancelled", job.DocumentId, 0, "Generation was cancelled. No document was changed.", null);
         }
         catch (AiException ex)
         {
             LogFailed(job.Id, ex.Code, ex.Error.Diagnostic ?? "-");
             await HistoryAsync(job.RecordingId, "failed", $"{Kind(prepared.Template)} could not be generated", ex.Message, CancellationToken.None);
-            Finish(job, "failed", job.DocumentId, 0, ex.Message, ex.Code);
+            await Finish(job, "failed", job.DocumentId, 0, ex.Message, ex.Code);
         }
 #pragma warning disable CA1031 // A generation job must end with a specific failed event, whatever went wrong.
         catch (Exception ex)
@@ -327,37 +327,24 @@ public sealed partial class GenerationService(
             LogCrashed(ex, job.Id);
             const string Message = "The document could not be generated because of an error in Memento. Nothing was changed; the error was written to the Memento log. Try again.";
             await HistoryAsync(job.RecordingId, "failed", $"{Kind(prepared.Template)} could not be generated", Message, CancellationToken.None);
-            Finish(job, "failed", job.DocumentId, 0, Message, AiErrorCodes.ProviderError);
+            await Finish(job, "failed", job.DocumentId, 0, Message, AiErrorCodes.ProviderError);
         }
     }
 
-    private void Finish(Job job, string stage, string? documentId, double percent, string message, string? code)
+    /// <summary>Ends the job with its final event, which follows every event raised before it; the returned task completes once it is sent.</summary>
+    private Task Finish(Job job, string stage, string? documentId, double percent, string message, string? code)
     {
-        lock (job.EventGate)
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                job.Finished = true;
-            }
-
-            events.PublishGenerationProgress(new GenerationProgress(job.Id, job.RecordingId, documentId, stage, null, percent, message) { Code = code });
+            job.Finished = true;
         }
+
+        return job.Events.CompleteAsync(new GenerationProgress(job.Id, job.RecordingId, documentId, stage, null, percent, message) { Code = code });
     }
 
-    private void Publish(Job job, string stage, string? moduleId, double percent, string? message, bool force = false)
-    {
-        // Progress callbacks arrive on the pool and can trail the job: nothing is sent after its final event.
-        lock (job.EventGate)
-        {
-            if (job.Finished || !job.Throttle.TryPass(force || stage != job.LastStage))
-            {
-                return;
-            }
-
-            job.LastStage = stage;
-            events.PublishGenerationProgress(new GenerationProgress(job.Id, job.RecordingId, job.DocumentId, stage, moduleId, percent, message));
-        }
-    }
+    /// <summary>Queues a progress event on the job's ordered stream (throttled there; nothing passes after the final event).</summary>
+    private static void Publish(Job job, string stage, string? moduleId, double percent, string? message, bool force = false) =>
+        job.Events.Report(new GenerationProgress(job.Id, job.RecordingId, job.DocumentId, stage, moduleId, percent, message), force);
 
     private async Task<Prepared> PrepareAsync(string recordingId, BridgeTemplate template, string? excludeDocumentId, CancellationToken cancellationToken)
     {
@@ -520,7 +507,7 @@ public sealed partial class GenerationService(
         int Chunks,
         bool NeedsTranscript);
 
-    private sealed class Job(string id, string recordingId, string? documentId, Prepared prepared, DateTimeOffset created)
+    private sealed class Job(string id, string recordingId, string? documentId, Prepared prepared, DateTimeOffset created, GenerationProgressFeed events)
     {
         public string Id { get; } = id;
 
@@ -540,11 +527,7 @@ public sealed partial class GenerationService(
 
         public CancellationTokenSource Cancel { get; } = new();
 
-        public ProgressThrottle Throttle { get; } = new(TimeProvider.System);
-
-        public string? LastStage { get; set; }
-
-        /// <summary>Orders this job's events: no progress after the final one.</summary>
-        public object EventGate { get; } = new();
+        /// <summary>This job's progress events, in the order they were raised; nothing after the final one.</summary>
+        public GenerationProgressFeed Events { get; } = events;
     }
 }
