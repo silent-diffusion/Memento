@@ -399,7 +399,7 @@ public sealed partial class GenerationService(
             ModelLabel = status.ModelLabel ?? status.Model ?? string.Empty,
             StartedAt = started,
             DurationMs = durationMs,
-            Inputs = M4Mapping.ToRecord(M4Mapping.Used(prepared.Selection, prepared.Payload)),
+            Inputs = M4Mapping.ToRecord(prepared.Selection),
             Sent = prepared.Payload.Sections.Select(s => s.Summary.Length == 0 ? s.Title : $"{s.Title} ({s.Summary})").ToList(),
             NotSent = prepared.Payload.Excluded.Select(e => $"{e.Name}: {e.Reason}").ToList(),
             Bytes = Encoding.UTF8.GetByteCount(prepared.Payload.Text),

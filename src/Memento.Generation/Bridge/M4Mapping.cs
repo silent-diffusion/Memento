@@ -225,7 +225,8 @@ public static class M4Mapping
 
     /// <summary>
     /// The inputs the payload actually holds: a ticked input with nothing in it (no participants listed, no agenda, no
-    /// highlights) is not used, so the preview's pills, the send confirmation and the record name only what is sent.
+    /// highlights) is not used, so the preview's pills and the send confirmation name only what is sent. The record keeps
+    /// the ticks, which a regeneration starts from; its <c>sent</c> lines say what was read.
     /// </summary>
     public static PayloadSelection Used(PayloadSelection selection, ComposedPayload payload)
     {

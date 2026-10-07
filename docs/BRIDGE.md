@@ -582,6 +582,6 @@ Builder: DESIGN §10 and `Builder.dc.html`. Viewer: §12 and `DocView.dc.html`. 
 ## Decisions (M4 integration, 0.9.0)
 
 15. `documents.versions` lists the current content first (`id: "current"`), then the kept versions, newest first; the viewer shows the first as "Version n · current" without Restore. Before, the host listed only the kept versions while the UI took the newest of them for the current one, so after a regeneration the viewer showed version 1 as current and offered nothing to restore. `DocumentSummary.versions` counts the same entries.
-16. `generation.preview`'s `inputsUsed`, the send confirmation's summary and the record's `inputs` name only the inputs the payload holds: a ticked input with nothing in it (no participants, no agenda) is not "used".
+16. `generation.preview`'s `inputsUsed` and the send confirmation's summary name only the inputs the payload holds: a ticked input with nothing in it (no participants, no agenda) is not "used". The record's `inputs` stay the ticks (a regeneration starts from them); its `sent` lines name what was read.
 17. A failed `generation.progress` carries `code` in the UI type too; the failure card leads with what happened from it ("Claude did not accept the key", "The local model ran out of video memory").
 18. End-to-end runs may point Claude or ChatGPT at a fake server through `MEMENTO_TEST_ANTHROPIC_URL` / `MEMENTO_TEST_OPENAI_URL`; only a loopback address is honoured.

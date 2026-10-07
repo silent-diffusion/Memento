@@ -4,7 +4,7 @@ using Memento.Generation.Tests.Support;
 
 namespace Memento.Generation.Tests.Units;
 
-/// <summary>The preview, the send confirmation and the record name only the inputs the payload holds.</summary>
+/// <summary>The preview and the send confirmation name only the inputs the payload holds.</summary>
 public sealed class InputsUsedTests
 {
     [Fact]
