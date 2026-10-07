@@ -119,6 +119,7 @@ Storage format options (Settings › Recording): **Lossless FLAC** (default), or
 A single **orchestrator** in Core runs stages per project: `Stored → Transcribe → Speakers → (Documents on demand) → Optimize` (the last only when a smaller storage format is chosen). Each stage is an `IProcessingStage` with `RunAsync(project, progress, ct)`, is restartable, writes partial results, and appends to `history.jsonl` on start, progress milestones, completion and failure (with engine, model, device, duration).
 
 - One GPU stage runs at a time. Transcription pauses when a recording is active and "pause when busy" is on, or when free space is low.
+- "PC is busy" (`ProcessingGate`): other programs above 85 % of the processor for 10 s pause a stage on the processor (one on the graphics card is exempt); it resumes after 15 s at 70 % or less. A busy pause that starts within 2 minutes of the previous one needs twice that pause's calm time (up to 5 minutes), so a load that comes back each time the stage starts gets room to finish. A stage that starts again writes its History start line only once.
 - Resource probe: GPU presence and VRAM (via Vulkan or DXGI), CPU load, RAM. The default model is the most accurate one that fits; a smaller model is offered, never applied silently.
 - Failure keeps everything produced so far and offers the most specific remedy first (`Retry on CPU`, `Use the Medium model`).
 
