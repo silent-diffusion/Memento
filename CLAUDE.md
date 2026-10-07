@@ -18,7 +18,7 @@ Read in this order before changing anything: `docs/ARCHITECTURE.md` (how it is b
 - TypeScript: strict mode, Preact function components, no `any`, no default exports, CSS via `tokens.css` class names and a small set of component stylesheets. No UI libraries beyond Preact and its signals.
 - Use the token names from `design/tokens.css` verbatim. Never hand-tune a shadow or colour; apply the shadow tokens by role (DESIGN.md §2.5).
 - Keep host and UI contracts in sync: `src/Memento.Core/Bridge/Contracts/*.cs` ↔ `ui/src/bridge/types.ts`.
-- Dependencies: prefer managed, permissively licensed (MIT/Apache/BSD/OFL) packages. Record every new dependency and its license in `docs/THIRD-PARTY.md`. Anything that ships in the installer must be permissive; build-time-only tools may be weak-copyleft (MPL) if nothing from them is bundled. No GPL/AGPL anywhere. No network calls at build time other than package restore.
+- Dependencies: prefer managed, permissively licensed (MIT/Apache/BSD/OFL) packages. Record every new dependency and its license in `docs/THIRD-PARTY.md`. Anything that ships in the installer must be permissive; build-time-only tools may be weak-copyleft (MPL) if nothing from them is bundled. No GPL/AGPL anywhere. Microsoft runtime redistributables (the VC++ runtime DLLs shipped app-locally beside the worker) are accepted under Microsoft's redistribution terms and listed in THIRD-PARTY.md. No network calls at build time other than package restore.
 
 ## Repo layout and commands
 
