@@ -21,6 +21,8 @@ namespace Memento.Core.Tests.M3;
 /// </summary>
 internal sealed class M3Host : IDisposable
 {
+    private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
+
     public M3Host(bool settingsLibrary = false, Action<IServiceCollection>? configure = null)
     {
         Directory = new TempDirectory();
@@ -69,9 +71,9 @@ internal sealed class M3Host : IDisposable
     public T Get<T>()
         where T : notnull => Host.Get<T>();
 
-    public Task<JsonElement> CallAsync(string method, object parameters) => Host.CallAsync(method, JsonSerializer.Serialize(parameters));
+    public Task<JsonElement> CallAsync(string method, object parameters) => Host.CallAsync(method, JsonSerializer.Serialize(parameters, Web));
 
-    public Task<JsonElement> ResultAsync(string method, object parameters) => Host.ResultAsync(method, JsonSerializer.Serialize(parameters));
+    public Task<JsonElement> ResultAsync(string method, object parameters) => Host.ResultAsync(method, JsonSerializer.Serialize(parameters, Web));
 
     /// <summary>The error code of a call that must fail.</summary>
     public async Task<JsonElement> ErrorAsync(string method, object parameters)
