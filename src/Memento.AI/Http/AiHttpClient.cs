@@ -5,7 +5,8 @@ namespace Memento.AI.Http;
 /// <summary>
 /// The one <see cref="HttpClient"/> the cloud providers share: TLS 1.2+ (the system default), pooled connections
 /// recycled every five minutes so DNS changes are picked up, no client-wide timeout (the providers time each phase
-/// themselves), no cookies, no proxy credentials beyond the system's, and no request logging.
+/// themselves), no cookies, no redirects (.NET drops <c>Authorization</c> on a redirect but not <c>x-api-key</c>, and a
+/// 307/308 would resend the transcript), no proxy credentials beyond the system's, and no request logging.
 /// </summary>
 public sealed class AiHttpClient : IDisposable
 {
@@ -16,6 +17,7 @@ public sealed class AiHttpClient : IDisposable
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
             UseCookies = false,
+            AllowAutoRedirect = false,
             ConnectTimeout = TimeSpan.FromSeconds(20),
         };
         Client = new HttpClient(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };

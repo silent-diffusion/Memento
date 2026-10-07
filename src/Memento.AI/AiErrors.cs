@@ -80,6 +80,16 @@ public static class AiErrors
         HttpStatus: status,
         Diagnostic: Http(status, errorType));
 
+    /// <summary>The answer was a redirect: Memento does not follow one, so the key and the text never go to another address.</summary>
+    public static AiError Redirected(string provider, int status, string? toHost) => new(
+        AiErrorCodes.ProviderError,
+        provider,
+        toHost is { Length: > 0 }
+            ? $"{provider} answered with a redirect to {toHost} ({Http(status)}), and Memento does not follow redirects, so nothing was sent there. {CloudSafe} If a proxy or network filter is in between, allow the provider's address, then try again."
+            : $"{provider} answered with a redirect ({Http(status)}), and Memento does not follow redirects, so nothing was sent elsewhere. {CloudSafe} If a proxy or network filter is in between, allow the provider's address, then try again.",
+        HttpStatus: status,
+        Diagnostic: toHost is { Length: > 0 } ? Http(status) + " to " + toHost : Http(status));
+
     public static AiError Unreadable(string provider, string diagnostic) => new(
         AiErrorCodes.ProviderError,
         provider,
