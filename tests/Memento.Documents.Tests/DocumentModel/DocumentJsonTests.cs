@@ -158,6 +158,8 @@ public sealed class DocumentJsonTests
         Assert.Equal("Meeting minutes · Monday 5 October 2026, 4:00 PM · 1 h 10 min · Zoom", MetaLine.Format(SampleDocuments.MeetingMinutes().Meta));
         Assert.Equal("42 min", MetaLine.Duration(42 * 60 * 1000));
         Assert.Equal("2 h", MetaLine.Duration(2 * 3600 * 1000));
+        Assert.Equal("3 min", MetaLine.Duration(178_000));
+        Assert.Equal("2 h", MetaLine.Duration(((60 + 59) * 60 + 40) * 1000));
         Assert.Equal("1 participant", MetaLine.Format(new DocumentMeta { ParticipantCount = 1 }));
         Assert.Equal(("Design review: library screen", "5 October 2026"), MetaLine.RunningHeader(SampleDocuments.MeetingMinutes()));
     }
