@@ -4,6 +4,7 @@
 // "Restart to update", and connects to the restarted Memento to read its version in About.
 //
 //   node tools/e2e/h1-update.mjs --exe <installed Memento.exe> --feed <feed folder> --expect 0.5.1 [--data <dir>] [--out <dir>]
+import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Page } from './cdp.mjs';
@@ -64,6 +65,10 @@ try {
   await run.shot('after-restart');
   run.check(`the restarted Memento is ${expect}`, version.version === expect, version.version);
   run.check('nothing is left to install', result.after.status.state !== 'ready', result.after.status.state);
+  // The updated Memento was started by the updater, not by this script: close it the normal way (WM_CLOSE).
+  const updatedPid = Number(execFileSync('powershell.exe', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "Name='Memento.exe'" | Where-Object { $_.ExecutablePath -eq '${run.exe.replace(/'/g, "''")}' }).ProcessId`], { encoding: 'utf8' }).trim().split(/\s+/)[0]);
+  page.close();
+  if (updatedPid) execFileSync('taskkill', ['/PID', String(updatedPid)]);
 } catch (error) {
   run.check('the run reached the end', false, error.stack);
   await run.shot('failure').catch(() => null);
