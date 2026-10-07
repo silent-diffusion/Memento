@@ -148,6 +148,90 @@ public sealed class WorkerClientTests
     }
 
     [Fact]
+    public async Task OnlyOneGraphicsCardJobRunsAtATimeAndTheNextStartsOnceTheFirstWorkerHasExited()
+    {
+        var release = new TaskCompletionSource();
+        var running = 0;
+        var most = 0;
+        _launcher.Script = async (job, context, _) =>
+        {
+            var now = Interlocked.Increment(ref running);
+            most = Math.Max(most, now);
+            if (job.UsesGpu && now == 1 && !release.Task.IsCompleted)
+            {
+                await release.Task;
+            }
+
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Result, Transcription = new TranscribeResult("en", true, new WorkerDevice("vulkan", "GPU (Vulkan)", "GPU", 0, "1.9.1"), 1, 1) });
+            await Task.Delay(50, CancellationToken.None);
+            Interlocked.Decrement(ref running);
+            return 0;
+        };
+        using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance);
+
+        var first = client.RunAsync(Job, null, CancellationToken.None);
+        await TestRecordings.WaitUntilAsync(() => _launcher.Started.Count == 1, "the first worker");
+        var second = client.RunAsync(Job, null, CancellationToken.None);
+        await Task.Delay(200);
+
+        // The second GPU job has not even started a worker while the first runs.
+        Assert.Single(_launcher.Started);
+        release.SetResult();
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(2, _launcher.Started.Count);
+        Assert.True(_launcher.Started[0].Exited.IsCompleted);
+        Assert.Equal(1, most);
+    }
+
+    [Fact]
+    public async Task ProcessorJobsDoNotWaitForTheGraphicsCard()
+    {
+        var release = new TaskCompletionSource();
+        _launcher.Script = async (job, context, _) =>
+        {
+            if (job.UsesGpu)
+            {
+                await release.Task;
+            }
+
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Result });
+            return 0;
+        };
+        using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance);
+        var cpuJob = Job with { Transcribe = Job.Transcribe! with { Runtimes = ["cpu"] } };
+        var diarize = new WorkerJob(WorkerJobKinds.Diarize, Diarize: new DiarizeJob([new WorkerTrack("mic", @"C:\x\mic.flac", 0)], "s.onnx", "e.onnx", -1, 0.8f, 4));
+
+        var gpu = client.RunAsync(Job, null, CancellationToken.None);
+        await client.RunAsync(cpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        await client.RunAsync(diarize, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(Job.UsesGpu);
+        Assert.False(cpuJob.UsesGpu);
+        Assert.False(diarize.UsesGpu);
+        Assert.False(gpu.IsCompleted);
+        release.SetResult();
+        await gpu.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task AWorkerLeftBehindByAFailingCallerIsKilledAndAwaitedBeforeTheNextGpuJob()
+    {
+        _launcher.Script = async (_, context, cancel) =>
+        {
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Progress, Percent = 1 });
+            await Task.Delay(Timeout.Infinite, cancel);
+            return 0;
+        };
+        using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance);
+
+        await Assert.ThrowsAsync<IOException>(() => client.RunAsync(Job, _ => throw new IOException("disk full"), CancellationToken.None));
+
+        var left = Assert.Single(_launcher.Started);
+        Assert.True(left.Killed);
+        Assert.True(left.Exited.IsCompleted);
+    }
+
+    [Fact]
     public void OutOfMemoryIsRecognisedFromTheDiagnostics()
     {
         var crash = new WorkerCrashedException(1, ["ggml_vulkan: Device memory allocation of size 1 failed.", "ErrorOutOfDeviceMemory"]);

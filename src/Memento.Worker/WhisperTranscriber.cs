@@ -17,7 +17,8 @@ namespace Memento.Worker;
 /// The transcription job (ENGINE-NOTES.md §D): a speech-energy pass over every track first (silent tracks are skipped
 /// and windows without speech are not sent to the engine), then each track in overlapping windows through Whisper.net
 /// with runtime order Vulkan, CPU (never CUDA), the discrete GPU chosen by name, token timestamps and probabilities on,
-/// a short punctuated prompt, and DTW off. Each window's kept segments are sent as soon as it finishes.
+/// a short punctuated prompt, and DTW off. Each window's kept segments are sent as soon as it finishes. A job that may
+/// use the graphics card first takes the machine-wide GPU lock (<see cref="GpuLock"/>).
 /// </summary>
 internal sealed partial class WhisperTranscriber(ProtocolWriter output)
 {
@@ -27,6 +28,9 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
     public async Task<TranscribeResult> RunAsync(TranscribeJob job, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
+
+        // A job that may use the graphics card holds the machine-wide GPU lock for its whole run.
+        using var gpuLock = job.Runtimes.Contains(TranscriptionDefaults.RuntimeVulkan) ? GpuLock.Acquire(output, cancellationToken) : null;
         if (!File.Exists(job.ModelPath))
         {
             throw new WorkerFailure(WorkerErrorCodes.ModelLoad, $"the model file {Path.GetFileName(job.ModelPath)} is missing");
