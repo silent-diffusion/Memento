@@ -38,6 +38,9 @@ internal sealed class LocalHttpServer : IDisposable
     /// <summary>Answer every request with this status and no body.</summary>
     public int? FailWithStatus { get; set; }
 
+    /// <summary>Claim this start in the <c>Content-Range</c> of a 206 (a server answering another piece than asked).</summary>
+    public long? ContentRangeStart { get; set; }
+
     /// <summary>Paths answered with <c>302 Found</c> and this <c>Location</c>.</summary>
     public Dictionary<string, string> Redirects { get; } = new(StringComparer.Ordinal);
 
@@ -139,7 +142,7 @@ internal sealed class LocalHttpServer : IDisposable
                     return;
                 }
 
-                await WriteHeadAsync(stream, start > 0 ? 206 : 200, content.Length - start, start > 0 ? string.Create(CultureInfo.InvariantCulture, $"bytes {start}-{content.Length - 1}/{content.Length}") : null);
+                await WriteHeadAsync(stream, start > 0 ? 206 : 200, content.Length - start, start > 0 ? string.Create(CultureInfo.InvariantCulture, $"bytes {ContentRangeStart ?? start}-{content.Length - 1}/{content.Length}") : null);
                 long sent = 0;
                 for (var offset = start; offset < content.Length; offset += ChunkSize)
                 {

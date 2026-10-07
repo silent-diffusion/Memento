@@ -104,6 +104,38 @@ public sealed class ModelManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task AResumeAnsweredWithAnotherRangeStartsOverInsteadOfSplicing()
+    {
+        var manager = Create();
+        Directory.CreateDirectory(Path.GetDirectoryName(ModelPath)!);
+        await File.WriteAllBytesAsync(ModelPath + ".part", _content[..1_000_000]);
+        _server.ContentRangeStart = 0; // Claims to send from byte 0 while the part ends at 1,000,000.
+
+        await manager.InstallAsync("test", CancellationToken.None);
+        var last = await FinishedAsync();
+
+        Assert.Equal("done", last.GetProperty("state").GetString());
+        var requests = _server.Requests;
+        Assert.EndsWith("range 1000000-", requests[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("range", requests[1], StringComparison.Ordinal);
+        Assert.Equal(_content, await File.ReadAllBytesAsync(ModelPath));
+    }
+
+    [Fact]
+    public async Task AServerOfferingAnotherSizeFailsBeforeDownloading()
+    {
+        var manager = Create(size: _content.Length + 5);
+
+        var error = await Assert.ThrowsAsync<BridgeException>(() => manager.InstallAsync("test", CancellationToken.None));
+
+        Assert.Equal("models.downloadFailed", error.Code);
+        Assert.Contains("but the published file is", error.Message, StringComparison.Ordinal);
+        Assert.StartsWith("The download server offers", error.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(ModelPath + ".part"));
+        Assert.False(manager.IsInstalled("test"));
+    }
+
+    [Fact]
     public async Task ADroppedConnectionKeepsThePartForTheNextAttempt()
     {
         var manager = Create();

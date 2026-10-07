@@ -125,7 +125,9 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         {
             throw new BridgeException(
                 DomainErrorCodes.ModelsDownloadFailed,
-                $"{entry.Name} could not be downloaded: {Cause(failure)}. Nothing was installed. Check the internet connection, then install it again.",
+                failure is InvalidDataException
+                    ? failure.Message
+                    : $"{entry.Name} could not be downloaded: {Cause(failure)}. Nothing was installed. Check the internet connection, then install it again.",
                 Cause(failure));
         }
     }
@@ -492,53 +494,41 @@ public sealed partial class ModelManager : IModelManager, IDisposable
             return;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, entry.Url);
-        if (existing > 0)
+        var response = await RequestAsync(entry, existing, cancellationToken);
+        if (existing > 0 && !ContinuesAt(response, existing, entry.SizeBytes))
         {
-            request.Headers.Range = new RangeHeaderValue(existing, null);
-        }
+            if (response.StatusCode == HttpStatusCode.PartialContent)
+            {
+                // A piece other than the one asked for (another offset, or another file's length): appending it would
+                // splice two files together. Start over with the whole file.
+                LogResumeRefused(entry.Id, existing, response.Content.Headers.ContentRange?.ToString() ?? "none");
+                response.Dispose();
+                File.Delete(part);
+                response = await RequestAsync(entry, 0, cancellationToken);
+            }
 
-        HttpResponseMessage response;
-        using (var connect = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-        {
-            connect.CancelAfter(_options.ConnectTimeout);
-            try
-            {
-                response = await _client.Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, connect.Token);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new TimeoutException("The download server did not answer in time.");
-            }
+            existing = 0; // A 200 is the whole file: it replaces the part.
         }
 
         using (response)
         {
-            // Redirects are followed by the handler; whatever answered must still be one of the model hosts.
-            var answered = response.RequestMessage?.RequestUri;
-            if (!ModelDownloadHosts.IsAllowedDownload(new Uri(entry.Url), answered))
+            if (response.StatusCode == HttpStatusCode.PartialContent && existing == 0)
             {
-                throw new HttpRequestException(
-                    $"the download server sent it on to {answered?.Host ?? "an unknown address"}{(answered is { Scheme: not "https" } ? " without https" : string.Empty)}, which is not one of the servers Memento downloads models from");
+                throw new HttpRequestException("the server sent only part of the file when the whole file was asked for", null, response.StatusCode);
             }
 
-            if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && existing > 0)
+            if (response.Content.Headers.ContentLength is { } length && existing + length != entry.SizeBytes)
             {
-                File.Delete(part);
-                throw new HttpRequestException("the server refused to continue the earlier download; it will start over next time", null, response.StatusCode);
+                if (existing > 0)
+                {
+                    DeletePart(entry);
+                }
+
+                throw new InvalidDataException(
+                    $"The download server offers {HumanFormat.Bytes(existing + length)} for {entry.Name}, but the published file is {HumanFormat.Bytes(entry.SizeBytes)}, so it is not the right file. Nothing was installed or kept. Install it again later; if this keeps happening, the download server may have changed the file.");
             }
 
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new HttpRequestException(null, null, response.StatusCode);
-            }
-
-            var append = existing > 0 && response.StatusCode == HttpStatusCode.PartialContent;
-            if (!append)
-            {
-                existing = 0;
-            }
-
+            var append = existing > 0;
             download.Connected.TrySetResult(null);
             download.BytesDone = existing;
             Publish(entry, StateDownloading, existing, null);
@@ -587,6 +577,67 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         if (download.BytesDone < entry.SizeBytes)
         {
             throw new IOException($"the connection closed after {HumanFormat.Bytes(download.BytesDone)} of {HumanFormat.Bytes(entry.SizeBytes)}");
+        }
+    }
+
+    /// <summary>A 206 whose <c>Content-Range</c> starts exactly at <paramref name="from"/> of a file of the catalog size.</summary>
+    private static bool ContinuesAt(HttpResponseMessage response, long from, long size) =>
+        response.StatusCode == HttpStatusCode.PartialContent
+        && response.Content.Headers.ContentRange is { HasRange: true, Unit: "bytes" } range
+        && range.From == from
+        && range.Length == size
+        && (range.To is null || range.To == size - 1);
+
+    /// <summary>Asks for the file from byte <paramref name="from"/>; returns a successful answer from an allowed host.</summary>
+    private async Task<HttpResponseMessage> RequestAsync(ModelCatalogEntry entry, long from, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, entry.Url);
+        if (from > 0)
+        {
+            request.Headers.Range = new RangeHeaderValue(from, null);
+        }
+
+        HttpResponseMessage response;
+        using (var connect = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            connect.CancelAfter(_options.ConnectTimeout);
+            try
+            {
+                response = await _client.Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, connect.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("The download server did not answer in time.");
+            }
+        }
+
+        try
+        {
+            // Redirects are followed by the handler; whatever answered must still be one of the model hosts.
+            var answered = response.RequestMessage?.RequestUri;
+            if (!ModelDownloadHosts.IsAllowedDownload(new Uri(entry.Url), answered))
+            {
+                throw new HttpRequestException(
+                    $"the download server sent it on to {answered?.Host ?? "an unknown address"}{(answered is { Scheme: not "https" } ? " without https" : string.Empty)}, which is not one of the servers Memento downloads models from");
+            }
+
+            if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && from > 0)
+            {
+                DeletePart(entry);
+                throw new HttpRequestException("the server refused to continue the earlier download; it will start over next time", null, response.StatusCode);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException(null, null, response.StatusCode);
+            }
+
+            return response;
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
         }
     }
 
@@ -640,6 +691,9 @@ public sealed partial class ModelManager : IModelManager, IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Partial download {Path} could not be removed")]
     private partial void LogPartNotRemoved(Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Download of model {ModelId} asked to continue at byte {From} but got range {Range}; starting over")]
+    private partial void LogResumeRefused(string modelId, long from, string range);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Model stamp {Path} could not be read; the model is hashed again")]
     private partial void LogStampUnreadable(Exception exception, string path);
