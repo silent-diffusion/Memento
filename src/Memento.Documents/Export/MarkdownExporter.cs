@@ -163,6 +163,7 @@ public sealed class MarkdownExporter
     private static string Runs(IEnumerable<Run> runs)
     {
         var text = new StringBuilder();
+        var afterTimestamp = false;
         foreach (var run in runs)
         {
             switch (run.Kind)
@@ -173,7 +174,9 @@ public sealed class MarkdownExporter
                         text.Append(' ');
                     }
 
-                    text.Append('[').Append(string.IsNullOrWhiteSpace(run.Text) ? Timecode.Format(t) : run.Text).Append(']');
+                    // The label comes from edited markup: escaped, on one line, so "](javascript:…)" or "]\n# x" stays text.
+                    var label = string.IsNullOrWhiteSpace(run.Text) ? Timecode.Format(t) : Escape(OneLine(run.Text));
+                    text.Append('[').Append(label).Append(']');
                     break;
                 case RunKind.Emphasis:
                     var marker = run.Style switch { EmphasisStyle.Italic => "*", EmphasisStyle.BoldItalic => "***", _ => "**" };
@@ -187,13 +190,26 @@ public sealed class MarkdownExporter
                     text.Append(trail);
                     break;
                 default:
-                    text.Append(Escape(run.Text));
+                    var plain = Escape(run.Text);
+
+                    // Right after a timestamp's "]", a "(" would make it a link and a ":" a link definition.
+                    if (afterTimestamp && plain.Length > 0 && plain[0] is '(' or ':')
+                    {
+                        text.Append('\\');
+                    }
+
+                    text.Append(plain);
                     break;
             }
+
+            afterTimestamp = run.Kind == RunKind.Timestamp && run.T is not null;
         }
 
         return text.ToString();
     }
+
+    private static string OneLine(string value) =>
+        string.Join(' ', value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
     /// <summary>Emphasis markers must hug the text: "**bold** " not "**bold **".</summary>
     private static (string Lead, string Core, string Trail) SplitSpaces(string value)
