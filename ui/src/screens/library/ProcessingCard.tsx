@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import type { LibraryProcessingResult } from '../../bridge/types';
 import { formatDuration } from '../../format/duration';
-import { CARD_STAGE_NAMES, peopleWording, stageFill, stageStatusText, typeName } from '../../format/recording';
+import { cardStageName, peopleWording, stageFill, stageStatusText, typeName } from '../../format/recording';
 import { formatRecordedAt, parseIso } from '../../format/when';
 
 interface ProcessingCardProps {
@@ -38,7 +38,7 @@ export function ProcessingCard({ processing, now, onOpen }: ProcessingCardProps)
         {current.stages.map((stage) => (
           <div key={stage.stage} class="proc-stage">
             <div class="proc-stage-line">
-              <span class="proc-stage-name">{CARD_STAGE_NAMES[stage.stage]}</span>
+              <span class="proc-stage-name">{cardStageName(stage.stage)}</span>
               <span class={stage.state === 'failed' ? 'proc-stage-status proc-stage-status--failed' : 'proc-stage-status'}>
                 {stageStatusText(stage)}
               </span>
@@ -46,7 +46,7 @@ export function ProcessingCard({ processing, now, onOpen }: ProcessingCardProps)
             <div
               class="proc-track"
               role="progressbar"
-              aria-label={CARD_STAGE_NAMES[stage.stage]}
+              aria-label={cardStageName(stage.stage)}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={stage.state === 'done' ? 100 : stage.state === 'active' ? (stage.percent ?? undefined) : 0}

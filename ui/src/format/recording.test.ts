@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RecordingSummary, StageStatus } from '../bridge/types';
-import { CARD_STAGE_NAMES, metaLine, peopleWording, stageFill, stagePills, stageStatusText, summaryLine, typeName } from './recording';
+import { cardStageName, CARD_STAGE_NAMES, metaLine, peopleWording, stageFill, stageName, stagePills, stageStatusText, summaryLine, typeName } from './recording';
 
 const stage = (s: StageStatus['stage'], state: StageStatus['state'], percent: number | null = null, label: string | null = null): StageStatus => ({
   stage: s,
@@ -65,19 +65,22 @@ describe('meta line', () => {
   });
 });
 
+/** The pills without the stage they stand for, to compare their wording. */
+const pills = (stages: StageStatus[]): { kind: string; label: string }[] => stagePills(stages).map(({ kind, label }) => ({ kind, label }));
+
 describe('status pills', () => {
   it('reads "Audio only" (no pills) when nothing has run', () => {
-    expect(stagePills([])).toEqual([]);
+    expect(pills([])).toEqual([]);
   });
 
   it('hides a finished Stored stage, the normal state of every recording', () => {
-    expect(stagePills([stage('stored', 'done'), stage('transcript', 'done')])).toEqual([{ kind: 'done', label: 'Transcript' }]);
-    expect(stagePills([stage('stored', 'done')])).toEqual([]);
+    expect(pills([stage('stored', 'done'), stage('transcript', 'done')])).toEqual([{ kind: 'done', label: 'Transcript' }]);
+    expect(pills([stage('stored', 'done')])).toEqual([]);
   });
 
   it('words active, queued and done stages per DESIGN.md §5.4', () => {
     expect(
-      stagePills([stage('stored', 'done'), stage('transcript', 'active', 64), stage('speakers', 'queued'), stage('minutes', 'queued')]),
+      pills([stage('stored', 'done'), stage('transcript', 'active', 64), stage('speakers', 'queued'), stage('minutes', 'queued')]),
     ).toEqual([
       { kind: 'active', label: 'Transcribing 64%' },
       { kind: 'queued', label: 'Speakers' },
@@ -86,33 +89,33 @@ describe('status pills', () => {
   });
 
   it('puts a failed stage first and keeps Stored beside it to say the recording is safe', () => {
-    expect(stagePills([stage('stored', 'done'), stage('transcript', 'failed')])).toEqual([
+    expect(pills([stage('stored', 'done'), stage('transcript', 'failed')])).toEqual([
       { kind: 'failed', label: 'Transcript failed · Retry' },
       { kind: 'done', label: 'Stored' },
     ]);
   });
 
   it('shows storing progress while a new recording finalizes', () => {
-    expect(stagePills([stage('stored', 'active', 40)])).toEqual([{ kind: 'active', label: 'Storing 40%' }]);
+    expect(pills([stage('stored', 'active', 40)])).toEqual([{ kind: 'active', label: 'Storing 40%' }]);
   });
 
   it('hides a finished Smaller files stage like Stored', () => {
-    expect(stagePills([stage('stored', 'done'), stage('optimize', 'done')])).toEqual([]);
-    expect(stagePills([stage('transcript', 'done'), stage('optimize', 'done')])).toEqual([{ kind: 'done', label: 'Transcript' }]);
+    expect(pills([stage('stored', 'done'), stage('optimize', 'done')])).toEqual([]);
+    expect(pills([stage('transcript', 'done'), stage('optimize', 'done')])).toEqual([{ kind: 'done', label: 'Transcript' }]);
   });
 
   it('names the optimize stage while it is queued, running or failed', () => {
-    expect(stagePills([stage('optimize', 'queued')])).toEqual([{ kind: 'queued', label: 'Smaller files' }]);
-    expect(stagePills([stage('optimize', 'active', 30)])).toEqual([{ kind: 'active', label: 'Making smaller 30%' }]);
-    expect(stagePills([stage('optimize', 'active')])).toEqual([{ kind: 'active', label: 'Making smaller' }]);
-    expect(stagePills([stage('stored', 'done'), stage('optimize', 'failed')])).toEqual([
+    expect(pills([stage('optimize', 'queued')])).toEqual([{ kind: 'queued', label: 'Smaller files' }]);
+    expect(pills([stage('optimize', 'active', 30)])).toEqual([{ kind: 'active', label: 'Making smaller 30%' }]);
+    expect(pills([stage('optimize', 'active')])).toEqual([{ kind: 'active', label: 'Making smaller' }]);
+    expect(pills([stage('stored', 'done'), stage('optimize', 'failed')])).toEqual([
       { kind: 'failed', label: 'Smaller files failed · Retry' },
       { kind: 'done', label: 'Stored' },
     ]);
   });
 
   it('keeps finished Stored and Smaller files beside another failed stage', () => {
-    expect(stagePills([stage('stored', 'done'), stage('transcript', 'failed'), stage('optimize', 'done')])).toEqual([
+    expect(pills([stage('stored', 'done'), stage('transcript', 'failed'), stage('optimize', 'done')])).toEqual([
       { kind: 'failed', label: 'Transcript failed · Retry' },
       { kind: 'done', label: 'Stored' },
       { kind: 'done', label: 'Smaller files' },
@@ -126,9 +129,39 @@ describe('processing card columns', () => {
       stored: 'Stored',
       transcript: 'Transcribing',
       speakers: 'Speakers',
+      topics: 'Topics',
       minutes: 'Minutes',
       optimize: 'Smaller files',
     });
+  });
+
+  it('names the M2 stages in pipeline order, and any stage a newer host reports', () => {
+    expect(['stored', 'transcript', 'speakers', 'topics', 'optimize'].map(cardStageName)).toEqual([
+      'Stored',
+      'Transcribing',
+      'Speakers',
+      'Topics',
+      'Smaller files',
+    ]);
+    expect(cardStageName('summaries')).toBe('Summaries');
+    expect(stageName('speakers')).toBe('Speakers');
+    // The stages move through the pills as processing.progress reports them.
+    const order: [string, StageStatus[]][] = [
+      ['transcript', [stage('stored', 'done'), stage('transcript', 'active', 10, '10% · local GPU'), stage('speakers', 'queued'), stage('optimize', 'queued')]],
+      ['speakers', [stage('stored', 'done'), stage('transcript', 'done'), stage('speakers', 'active', 50, '50% · CPU'), stage('optimize', 'queued')]],
+      ['optimize', [stage('stored', 'done'), stage('transcript', 'done'), stage('speakers', 'done'), stage('optimize', 'active', 20)]],
+    ];
+    expect(order.map(([, stages]) => pills(stages).map((p) => `${p.kind}:${p.label}`).join(', '))).toEqual([
+      'active:Transcribing 10%, queued:Speakers, queued:Smaller files',
+      'done:Transcript, active:Speakers 50%, queued:Smaller files',
+      'done:Transcript, done:Speakers, active:Making smaller 20%',
+    ]);
+    expect(stagePills([stage('transcript', 'failed')])[0]).toEqual({ kind: 'failed', label: 'Transcript failed · Retry', stage: 'transcript' });
+  });
+
+  it('reads a stage waiting for a busy PC as paused, not running', () => {
+    expect(pills([stage('transcript', 'active', 40, 'Paused · PC is busy')])).toEqual([{ kind: 'queued', label: 'Transcript paused' }]);
+    expect(stageStatusText(stage('transcript', 'active', 40, 'Paused · PC is busy'))).toBe('Paused · PC is busy');
   });
 
   it('prefers the host label and falls back to plain words', () => {

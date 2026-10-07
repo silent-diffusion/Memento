@@ -245,6 +245,54 @@ describe('Library, populated (against the browser-preview host)', () => {
     expect(container.querySelector('.footer-storage--low')?.textContent).toBe('Low disk space · 4 GB free');
   });
 
+  it('shows a transcript match snippet under the meta line with the matched words bold', async () => {
+    await start();
+    const search = container.querySelector<HTMLInputElement>('#lib-search');
+    if (search === null) {
+      throw new Error('no search');
+    }
+    await act(() => {
+      search.value = 'processing card';
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await until(() => container.querySelector('.row-snippet') !== null);
+    const row = [...container.querySelectorAll('.lib-row')].find((r) => r.querySelector('.row-title')?.textContent === 'Design review: library screen');
+    const snippet = row?.querySelector('.row-snippet');
+    expect(snippet?.textContent).toMatch(/processing card/i);
+    expect([...(snippet?.querySelectorAll('b') ?? [])].map((b) => b.textContent.toLocaleLowerCase())).toEqual(['processing', 'card']);
+    // A title match carries no snippet.
+    await act(() => {
+      search.value = 'town';
+      search.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await until(() => text('.row-title')[0] === 'Town hall Q&A');
+    expect(container.querySelector('.row-snippet')).toBeNull();
+  });
+
+  it('retries a failed stage from its pill and from the row menu', async () => {
+    await start({ stepMs: 30 });
+    const failed = container.querySelector<HTMLElement>('[data-recording-id="20260930-130500-onbrd"] .pill.failed');
+    expect(failed?.textContent).toBe('Transcript failed · Retry');
+    expect([...(failed?.parentElement?.querySelectorAll('.pill') ?? [])].map((p) => p.textContent)).toEqual(['Transcript failed · Retry', 'Stored']);
+    // The keyboard gets the same Retry in the row menu.
+    await act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="More actions for Customer call: onboarding feedback"]')?.click();
+    });
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Rename', 'Change type', 'Retry transcript', 'Delete']);
+    await act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="More actions for Customer call: onboarding feedback"]')?.click();
+    });
+    await act(() => {
+      failed?.click();
+    });
+    // The click retried; it did not open the recording.
+    expect(store.route.value.name).toBe('library');
+    await until(() => container.querySelector('[data-recording-id="20260930-130500-onbrd"] .pill.failed') === null);
+    await until(() => (container.querySelector('[data-recording-id="20260930-130500-onbrd"] .row-pills')?.textContent ?? '').includes('Transcript'));
+    const project = await bridge.call('transcript.get', { recordingId: '20260930-130500-onbrd' });
+    expect(['queued', 'running', 'done']).toContain(project.status);
+  });
+
   it('shows the empty state for an empty library', async () => {
     await start({ library: 'empty' });
     expect(container.querySelector('h1')?.textContent).toBe('Your library is empty');
