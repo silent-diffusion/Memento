@@ -16,7 +16,7 @@ import { sourceFormat, type TrackFormat } from '../../format/estimate';
 import type { RecordPhase } from '../../format/recordFooter';
 import { isBuiltInType, typeName } from '../../format/recording';
 import { formatClock, parseIso } from '../../format/when';
-import { goToLibrary, updateSettings } from '../../state/actions';
+import { goToLibrary } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { createDetailsSaver, emptyDetails } from '../../state/detailsSaver';
 import { recordShortcut } from '../../state/recordShortcuts';
@@ -257,10 +257,17 @@ export function RecordScreen(): JSX.Element {
       router.navigate({ name: 'record', sessionId: result.sessionId });
       void saver.attach(result.recordingId);
       setHighlights([]);
-      // Remember the selection for next time (Settings › Recording shows it too).
-      if (settings !== null && settings.recording.defaultSourceIds.join('|') !== sourceIds.join('|')) {
-        void updateSettings(services, { recording: { ...settings.recording, defaultSourceIds: sourceIds } });
-      }
+      // The host remembers the sources and type for next time; read them back so Settings › Recording shows them.
+      // (Writing this screen's copy of the recording settings back would undo the remembered type and any change
+      // the host made since the copy was read.)
+      void bridge
+        .call('settings.get')
+        .then((current) => {
+          store.settings.value = current;
+        })
+        .catch((error: unknown) => {
+          console.warn('[record] settings.get failed', error);
+        });
     } catch (error) {
       setStageError(messageOf(error, 'The recording could not start. Nothing was recorded.'));
     } finally {

@@ -773,6 +773,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     'recording.start': (params) => {
       m3.throwIfMoving();
       const started = session.start(params);
+      // Like the host: the sources and type of a recording that starts are remembered for the next one.
+      settings = { ...settings, recording: { ...settings.recording, defaultSourceIds: [...params.sourceIds], defaultType: params.type } };
       startLiveDraft(started.sessionId);
       return started;
     },
