@@ -11,6 +11,7 @@ function fakeBridge(fail = false): { bridge: BridgeClient; calls: unknown[] } {
       calls.push({ method, params });
       return fail ? Promise.reject(new Error('The project file is locked.')) : Promise.resolve({});
     }) as unknown as BridgeClient['call'],
+    callWithFiles: vi.fn(() => Promise.resolve({})) as unknown as BridgeClient['callWithFiles'],
   };
   return { bridge, calls };
 }

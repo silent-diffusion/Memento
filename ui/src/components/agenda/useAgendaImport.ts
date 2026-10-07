@@ -34,7 +34,8 @@ export interface AgendaImportController {
   /** Problems agenda.apply would refuse, shown inline; Apply waits until they are fixed. */
   limitsOk: boolean;
   chooseFile: () => Promise<void>;
-  drop: (names: string[]) => Promise<void>;
+  /** Dropped files: their names go in the request and the files with the message, so the host reads their paths. */
+  drop: (files: readonly File[]) => Promise<void>;
   parseText: (text: string) => Promise<boolean>;
   apply: () => Promise<boolean>;
   discard: () => void;
@@ -162,12 +163,13 @@ export function useAgendaImport(saver: DetailsSaver, initialMode: AgendaMode | n
     await read('the file you choose', () => bridge.call('agenda.importFile', { recordingId: recordingId() }));
   };
 
-  const drop = async (names: string[]): Promise<void> => {
+  const drop = async (files: readonly File[]): Promise<void> => {
+    const names = files.map((file) => file.name);
     const first = names[0] ?? 'the dropped file';
     setError(null);
     setReading(first);
     try {
-      take(await bridge.call('agenda.importDropped', { recordingId: recordingId(), paths: names }));
+      take(await bridge.callWithFiles('agenda.importDropped', { recordingId: recordingId(), paths: names }, files));
       setReading(null);
     } catch (e) {
       setReading(null);

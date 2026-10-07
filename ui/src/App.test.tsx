@@ -9,6 +9,7 @@ import { createStore, type AppStore } from './state/store';
 const bridge: BridgeClient = {
   isHosted: false,
   call: vi.fn(() => new Promise<never>(() => undefined)),
+  callWithFiles: vi.fn(() => new Promise<never>(() => undefined)),
   on: vi.fn(() => () => undefined),
 };
 

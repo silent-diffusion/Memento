@@ -905,6 +905,12 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       logger.info(`[bridge:mock] ${request.method}`, request.params);
       deliver(answer(request));
     },
+    // The real host reads the dropped files' paths from the message; here their names stand in for them.
+    sendWithFiles: (request, files) => {
+      logger.info(`[bridge:mock] ${request.method} with ${files.length} file(s)`, request.params);
+      const params = files.length > 0 ? { ...(request.params as object), paths: files.map((file) => file.name) } : request.params;
+      deliver(answer({ ...request, params } as typeof request));
+    },
     subscribe: (listener) => {
       listeners.add(listener);
       startBackground();

@@ -3,9 +3,9 @@
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { App } from '../App';
-import { createBridgeClient, type BridgeClient } from '../bridge/client';
-import type { MockOptions } from '../bridge/mock';
-import type { MethodName } from '../bridge/types';
+import { createBridgeClient, webViewTransport, type BridgeClient, type WebViewMessaging } from '../bridge/client';
+import { createMockTransport, type MockOptions } from '../bridge/mock';
+import type { BridgeRequest, MethodName } from '../bridge/types';
 import { loadInitialData, refreshLibrary } from '../state/data';
 import type { Route } from '../state/router';
 import { connectEvents, createStore, type AppStore } from '../state/store';
@@ -89,11 +89,52 @@ export const dropFiles = async (target: Element | null, names: string[], text = 
   });
 };
 
-export async function mountApp(route: Route, mock: MockOptions = {}, now?: Date): Promise<Harness> {
+/** A message the page posted through a fake window.chrome.webview, with any objects attached to it. */
+export interface PostedMessage {
+  message: unknown;
+  additionalObjects: unknown[] | null;
+}
+
+/**
+ * A stand-in for WebView2's window.chrome.webview in front of the browser-preview host, recording
+ * what the page posts: postMessage, and postMessageWithAdditionalObjects with the dropped files.
+ */
+export function fakeWebView(mock: MockOptions): { webview: WebViewMessaging; posted: PostedMessage[] } {
+  const host = createMockTransport(quiet, mock);
+  const posted: PostedMessage[] = [];
+  const listeners = new Map<(event: { data: unknown }) => void, () => void>();
+  const webview: WebViewMessaging = {
+    postMessage: (message) => {
+      posted.push({ message, additionalObjects: null });
+      host.send(message as BridgeRequest);
+    },
+    postMessageWithAdditionalObjects: (message, additionalObjects) => {
+      const objects = Array.from(additionalObjects);
+      posted.push({ message, additionalObjects: objects });
+      host.sendWithFiles?.(message as BridgeRequest, objects as File[]);
+    },
+    addEventListener: (_type, listener) => {
+      listeners.set(
+        listener,
+        host.subscribe((data) => {
+          listener({ data });
+        }),
+      );
+    },
+    removeEventListener: (_type, listener) => {
+      listeners.get(listener)?.();
+      listeners.delete(listener);
+    },
+  };
+  return { webview, posted };
+}
+
+export async function mountApp(route: Route, mock: MockOptions = {}, now?: Date, webview?: WebViewMessaging): Promise<Harness> {
   const container = document.createElement('div');
   document.body.append(container);
   const bridge = createBridgeClient({
     logger: quiet,
+    ...(webview === undefined ? {} : { transport: webViewTransport(webview) }),
     mock: { live: false, recovery: false, stepMs: 10, ...(now === undefined ? {} : { now: () => now.getTime() }), ...mock },
   });
   const store = createStore(false);
@@ -111,6 +152,11 @@ export async function mountApp(route: Route, mock: MockOptions = {}, now?: Date)
   (bridge as { call: unknown }).call = (method: string, params?: unknown) => {
     calls.push([method, params]);
     return (original as (m: string, p?: unknown) => Promise<unknown>)(method, params);
+  };
+  const originalWithFiles = bridge.callWithFiles.bind(bridge);
+  (bridge as { callWithFiles: unknown }).callWithFiles = (method: string, params: unknown, files: readonly File[]) => {
+    calls.push([method, params]);
+    return (originalWithFiles as (m: string, p: unknown, f: readonly File[]) => Promise<unknown>)(method, params, files);
   };
   await act(async () => {
     render(<App bridge={bridge} store={store} {...(now === undefined ? {} : { now: () => now })} />, container);
