@@ -37,6 +37,8 @@ const summary = { steps: [], timings: {}, workerModules: [] };
 
 let shotIndex = 0;
 let page;
+// --no-mic: leave the microphone out of the recordings (when another app is recording it).
+const noMic = args.includes('--no-mic');
 const app = new App({ dataRoot, port: Number(option('--port', '9555')) });
 const library = () => join(app.memento, 'Library', 'projects');
 const t0 = Date.now();
@@ -432,6 +434,11 @@ try {
   await page.type('M3 check recording');
   await page.key('Enter');
   await hasText('2 audio sources selected');
+  if (noMic) {
+    // Another app is recording the microphone: record system audio only (the speech file still plays through it).
+    await page.click({ role: 'switch', name: 'Microphone', exact: false });
+    await hasText('1 audio source selected');
+  }
   const playback = startPlayback(play);
   await sleep(700);
   await page.click({ name: 'Start recording' });
@@ -442,7 +449,7 @@ try {
   await page.click({ name: 'Stop and open review' });
   playback?.stop();
   const recordedId = projectIds().find((id) => id !== importedId);
-  log('recorded', `${seconds} s, microphone + system audio`);
+  log('recorded', `${seconds} s, ${noMic ? 'system audio only' : 'microphone + system audio'}`);
   await waitProcessed(recordedId, 20);
   await page.waitFor(`document.querySelectorAll('.segm').length > 1`, 'the recording transcript in Review', 60_000);
   await shot('review-recording-transcript');
