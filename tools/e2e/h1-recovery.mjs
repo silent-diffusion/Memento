@@ -217,7 +217,8 @@ async function caseExport(id) {
   const projectAfter = audioAndData();
   const left = existsSync(destination) ? filesOf(destination).map((f) => f.file) : [];
   cases.push({ name, killedAt: progress ? `${progress.payload.percent}%` : 'unknown', leftInDestination: left, projectUnchanged: JSON.stringify(projectBefore) === JSON.stringify(projectAfter) });
-  run.check('export: the project is untouched', JSON.stringify(projectBefore) === JSON.stringify(projectAfter));
+  const changed = [...projectBefore.filter((f) => !projectAfter.includes(f)).map((f) => `-${f}`), ...projectAfter.filter((f) => !projectBefore.includes(f)).map((f) => `+${f}`)];
+  run.check('export: the project is untouched', changed.length === 0, changed.join(', '));
   run.check('export: nothing it wrote is left in the destination', left.length === 0, left.join(', '));
   const exportHistory = run.history(id).find((h) => h.summary === 'Export interrupted');
   run.check('export: History says the export was interrupted', !!exportHistory, exportHistory?.detail ?? '(none)');
