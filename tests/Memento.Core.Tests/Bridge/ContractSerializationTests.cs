@@ -39,7 +39,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history", Names(result));
         Assert.Equal(AppPaths.DefaultLibrary, result.GetProperty("libraryPath").GetString());
         Assert.Contains("\"theme\":\"system\"", json, StringComparison.Ordinal);
         Assert.Contains("\"listDensity\":\"comfortable\"", json, StringComparison.Ordinal);
@@ -55,7 +55,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history", Names(result));
         Assert.Equal("dark", result.GetProperty("theme").GetString());
     }
 
@@ -120,9 +120,22 @@ public sealed class ContractSerializationTests : IDisposable
 
         var json = await CallAsync("status.get");
 
-        Assert.Equal(
-            """{"id":1,"result":{"engine":{"ready":false,"device":null},"storage":{"freeBytes":1000,"lowSpace":true},"recording":{"active":false,"lastCheckpointAt":null,"lostSource":null},"processingPaused":"Low disk space"}}""",
-            json);
+        using var document = JsonDocument.Parse(json);
+        var result = document.RootElement.GetProperty("result");
+        Assert.Equal("engine,storage,recording,processingPaused", Names(result));
+        Assert.Equal("""{"freeBytes":1000,"lowSpace":true}""", result.GetProperty("storage").GetRawText());
+        Assert.Equal("""{"active":false,"lastCheckpointAt":null,"lostSource":null}""", result.GetProperty("recording").GetRawText());
+        Assert.Equal("Low disk space", result.GetProperty("processingPaused").GetString());
+        var engine = result.GetProperty("engine");
+        Assert.Equal("ready,device,detail", Names(engine));
+        Assert.False(engine.GetProperty("ready").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, engine.GetProperty("device").ValueKind);
+
+        // No GPU and no model installed: the recommended CPU model, not ready.
+        var detail = engine.GetProperty("detail");
+        Assert.Equal("ready,device,gpuName,freeVramBytes,model,paused", Names(detail));
+        Assert.Equal("small", detail.GetProperty("model").GetString());
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("gpuName").ValueKind);
     }
 
     [Fact]
@@ -171,7 +184,7 @@ public sealed class ContractSerializationTests : IDisposable
             BridgeJsonContext.Default.LibraryListResult);
 
         Assert.Equal(
-            """{"recordings":[{"id":"20261006-100000-k3f9ab","title":"Q3 planning sync","type":"meeting","createdAt":"2026-10-06T10:00:00+01:00","durationMs":3734000,"participantCount":5,"hasVideo":false,"stages":[{"stage":"transcript","state":"active","percent":64,"label":"64% \u00B7 local GPU"},{"stage":"speakers","state":"queued","percent":null,"label":"Queued"}],"people":["Avery","Rowan"],"isProcessing":true,"state":"ready","sizeBytes":123456789}],"totalDurationMs":3734000,"totalCount":1}""",
+            """{"recordings":[{"id":"20261006-100000-k3f9ab","title":"Q3 planning sync","type":"meeting","createdAt":"2026-10-06T10:00:00+01:00","durationMs":3734000,"participantCount":5,"hasVideo":false,"stages":[{"stage":"transcript","state":"active","percent":64,"label":"64% \u00B7 local GPU"},{"stage":"speakers","state":"queued","percent":null,"label":"Queued"}],"people":["Avery","Rowan"],"isProcessing":true,"state":"ready","sizeBytes":123456789,"matchSnippet":null}],"totalDurationMs":3734000,"totalCount":1}""",
             json);
     }
 
@@ -219,10 +232,10 @@ public sealed class ContractSerializationTests : IDisposable
     public void FooterStatusEvent()
     {
         Assert.Equal(
-            """{"event":"status.footer","payload":{"engine":{"ready":false,"device":null},"storage":{"freeBytes":227633266688,"lowSpace":false},"recording":{"active":true,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","lostSource":"Shure MV7"},"processingPaused":null}}""",
+            """{"event":"status.footer","payload":{"engine":{"ready":true,"device":"GPU","detail":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"large-v3-turbo","paused":null}},"storage":{"freeBytes":227633266688,"lowSpace":false},"recording":{"active":true,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","lostSource":"Shure MV7"},"processingPaused":null}}""",
             BridgeEventPublisher.SerializeFooterStatus(
                 new FooterStatusPayload(
-                    new EngineStatus(false, null),
+                    new EngineStatus(true, "GPU", new EngineStatusDetail(true, "GPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 5_368_709_120, "large-v3-turbo", null)),
                     new StorageStatus(227_633_266_688, false),
                     new RecordingFooterStatus(true, At, "Shure MV7"),
                     null)));

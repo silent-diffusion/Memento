@@ -1,5 +1,6 @@
 using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
+using Memento.Core.Engines;
 using Memento.Core.Host;
 using Memento.Core.Library;
 using Memento.Core.Settings;
@@ -15,7 +16,9 @@ public sealed class FooterStatusService(
     ILibraryLocation library,
     IFreeSpaceProbe freeSpace,
     RecordingStatusBoard board,
-    BridgeEventPublisher publisher)
+    BridgeEventPublisher publisher,
+    EngineStatusService engines,
+    ProcessingGate gate)
 {
     /// <summary>Default low-space threshold (ARCHITECTURE.md §5.7): 10 GB. Settings › Recording can change it.</summary>
     public const long LowSpaceThresholdBytes = 10L * 1024 * 1024 * 1024;
@@ -27,8 +30,9 @@ public sealed class FooterStatusService(
     private string? _lastPublished;
 
     /// <summary>
-    /// The engine is never ready in this version: no transcription engine ships before M2.
-    /// The footer says so plainly instead of showing a made-up state.
+    /// The footer now. <c>engine.ready</c> means the transcription model in effect is installed; <c>engine.detail</c>
+    /// says where it would run. <c>processingPaused</c> is the reason heavy stages wait: low disk space, "PC is busy"
+    /// (recording, or the processor busy) or "Paused by you".
     /// </summary>
     public FooterStatusPayload Compute()
     {
@@ -36,8 +40,9 @@ public sealed class FooterStatusService(
         var threshold = settings.Current.Recording.LowSpaceThresholdBytes;
         var low = free is not null && free < threshold;
         var storage = new StorageStatus(free, low);
-        var paused = board.ProcessingPaused ?? (low ? LowSpaceReason : null);
-        return new FooterStatusPayload(new EngineStatus(Ready: false, Device: null), storage, board.Recording, paused);
+        var paused = board.ProcessingPaused ?? (low ? LowSpaceReason : gate.Reason);
+        var detail = engines.Compute().Transcription;
+        return new FooterStatusPayload(new EngineStatus(detail.Ready, detail.Device, detail), storage, board.Recording, paused);
     }
 
     /// <summary>Publishes the current status if it differs from the last one sent, or always when <paramref name="force"/> is set.</summary>

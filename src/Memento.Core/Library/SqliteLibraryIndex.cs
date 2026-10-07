@@ -1,19 +1,21 @@
 using System.Globalization;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Projects;
+using Memento.Core.Transcripts;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Library;
 
 /// <summary>
-/// <see cref="ILibraryIndex"/> on SQLite (WAL journal, FTS5 over title, people and a transcript column that M2 fills).
-/// Connections are opened per call without pooling, so the file can always be set aside or rebuilt.
+/// <see cref="ILibraryIndex"/> on SQLite (WAL journal, FTS5 over title, people and transcript text). The transcript
+/// text and renamed speakers live in their own table, written only when a transcript changes, so manifest writes stay
+/// cheap. Connections are opened per call without pooling, so the file can always be set aside or rebuilt.
 /// </summary>
 public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
 {
     public const string DatabaseFileName = "library.db";
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     private const int SqliteCorrupt = 11;
     private const int SqliteNotADatabase = 26;
@@ -47,6 +49,10 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             percent INTEGER,
             label TEXT,
             PRIMARY KEY (recordingId, stage));
+        CREATE TABLE IF NOT EXISTS transcripts (
+            recordingId TEXT PRIMARY KEY,
+            text TEXT NOT NULL,
+            speakers TEXT NOT NULL);
         CREATE VIRTUAL TABLE IF NOT EXISTS recordings_fts USING fts5 (
             id UNINDEXED, title, people, transcript, tokenize = 'unicode61 remove_diacritics 2');
         """;
@@ -59,9 +65,10 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
     private readonly TimeProvider _time;
     private readonly ILogger<SqliteLibraryIndex> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly TranscriptStore? _transcripts;
     private string? _databasePath;
 
-    public SqliteLibraryIndex(ILibraryLocation library, IProjectStore store, TimeProvider time, ILogger<SqliteLibraryIndex> logger)
+    public SqliteLibraryIndex(ILibraryLocation library, IProjectStore store, TimeProvider time, ILogger<SqliteLibraryIndex> logger, TranscriptStore? transcripts = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(store);
@@ -71,6 +78,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         _store = store;
         _time = time;
         _logger = logger;
+        _transcripts = transcripts;
     }
 
     /// <summary>Where the database lives: <c>&lt;library&gt;\library.db</c>.</summary>
@@ -116,6 +124,33 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             await using var connection = await OpenAsync(cancellationToken);
             await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
             await DeleteRowsAsync(connection, transaction, recordingId, cancellationToken);
+            await using (var transcript = connection.CreateCommand())
+            {
+                transcript.Transaction = transaction;
+                transcript.CommandText = "DELETE FROM transcripts WHERE recordingId = $id";
+                transcript.Parameters.AddWithValue("$id", recordingId);
+                await transcript.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task SetTranscriptAsync(string recordingId, string text, IReadOnlyList<string> renamedSpeakers, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(renamedSpeakers);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            await EnsureInitializedLockedAsync(cancellationToken);
+            await using var connection = await OpenAsync(cancellationToken);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+            await SetTranscriptCoreAsync(connection, transaction, recordingId, text, renamedSpeakers, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         finally
@@ -151,8 +186,11 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         command.Parameters.AddWithValue("$match", (object?)match ?? DBNull.Value);
         var rows = await ReadRowsAsync(command, cancellationToken);
         var recordings = await AttachDetailsAsync(connection, rows, cancellationToken);
+        var snippets = match is null || rows.Count == 0
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : await ReadSnippetsAsync(connection, query.Text, cancellationToken);
         return new LibraryQueryResult(
-            recordings.Select(r => r.Summary).ToList(),
+            recordings.Select(r => snippets.TryGetValue(r.Summary.Id, out var snippet) ? r.Summary with { MatchSnippet = snippet } : r.Summary).ToList(),
             recordings.Sum(r => r.Summary.DurationMs),
             recordings.Count);
     }
@@ -265,7 +303,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             {
                 // The index is a cache: a different schema is dropped and rebuilt from the project folders.
                 await using var drop = connection.CreateCommand();
-                drop.CommandText = "DROP TABLE IF EXISTS people; DROP TABLE IF EXISTS stages; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS recordings_fts; DROP TABLE IF EXISTS meta;";
+                drop.CommandText = "DROP TABLE IF EXISTS people; DROP TABLE IF EXISTS stages; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS recordings_fts; DROP TABLE IF EXISTS transcripts; DROP TABLE IF EXISTS meta;";
                 await drop.ExecuteNonQueryAsync(cancellationToken);
                 existed = false;
             }
@@ -287,7 +325,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         await using (var clear = connection.CreateCommand())
         {
             clear.Transaction = transaction;
-            clear.CommandText = "DELETE FROM people; DELETE FROM stages; DELETE FROM recordings; DELETE FROM recordings_fts;";
+            clear.CommandText = "DELETE FROM people; DELETE FROM stages; DELETE FROM recordings; DELETE FROM recordings_fts; DELETE FROM transcripts;";
             await clear.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -298,6 +336,11 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             {
                 var manifest = await _store.LoadAsync(id, cancellationToken);
                 await UpsertCoreAsync(connection, transaction, manifest, SizeOf(manifest.Id), cancellationToken);
+                if (_transcripts is not null && await LoadTranscriptQuietlyAsync(id, cancellationToken) is { } transcript)
+                {
+                    await SetTranscriptCoreAsync(connection, transaction, id, transcript.IndexText(), transcript.RenamedSpeakers(), cancellationToken);
+                }
+
                 count++;
             }
             catch (ProjectNotFoundException)
@@ -320,7 +363,11 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             insert.CommandText = """
                 INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt)
                 VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt);
-                INSERT INTO recordings_fts (id, title, people, transcript) VALUES ($id, $title, $people, '');
+                INSERT INTO recordings_fts (id, title, people, transcript) VALUES (
+                    $id,
+                    $title,
+                    $people || ' ' || COALESCE((SELECT replace(speakers, char(10), ' ') FROM transcripts WHERE recordingId = $id), ''),
+                    COALESCE((SELECT text FROM transcripts WHERE recordingId = $id), ''));
                 """;
             insert.Parameters.AddWithValue("$id", manifest.Id);
             insert.Parameters.AddWithValue("$title", manifest.Details.Title);
@@ -424,6 +471,18 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             }
         }
 
+        // Renamed speakers count as people for search and the meta line (BRIDGE.md: participants + renamed speakers).
+        var speakers = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT recordingId, speakers FROM transcripts WHERE speakers <> ''";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                speakers[reader.GetString(0)] = reader.GetString(1).Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+            }
+        }
+
         var stages = new Dictionary<string, List<StageStatus>>(StringComparer.Ordinal);
         await using (var command = connection.CreateCommand())
         {
@@ -451,10 +510,78 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             IReadOnlyList<string> rowPeople = people.TryGetValue(row.Id, out var p) ? p : [];
             IReadOnlyList<StageStatus> rowStages = stages.TryGetValue(row.Id, out var s) ? s : [];
             var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes);
+            if (speakers.TryGetValue(row.Id, out var named))
+            {
+                summary = summary with { People = rowPeople.Concat(named.Where(n => !rowPeople.Contains(n, StringComparer.OrdinalIgnoreCase))).ToList() };
+            }
             result.Add(new ProcessingEntry(summary, rowStages));
         }
 
         return result;
+    }
+
+    private static async Task SetTranscriptCoreAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string recordingId,
+        string text,
+        IReadOnlyList<string> renamedSpeakers,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO transcripts (recordingId, text, speakers) VALUES ($id, $text, $speakers)
+                ON CONFLICT (recordingId) DO UPDATE SET text = excluded.text, speakers = excluded.speakers;
+            DELETE FROM recordings_fts WHERE id = $id;
+            INSERT INTO recordings_fts (id, title, people, transcript)
+                SELECT r.id, r.title,
+                       COALESCE((SELECT group_concat(name, ' ') FROM people WHERE recordingId = r.id), '') || ' ' || $speakersFlat,
+                       $text
+                FROM recordings r WHERE r.id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", recordingId);
+        command.Parameters.AddWithValue("$text", text);
+        command.Parameters.AddWithValue("$speakers", string.Join('\n', renamedSpeakers));
+        command.Parameters.AddWithValue("$speakersFlat", string.Join(' ', renamedSpeakers));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>For rows whose transcript matched any searched word: the words around the first match.</summary>
+    private static async Task<Dictionary<string, string>> ReadSnippetsAsync(SqliteConnection connection, string? text, CancellationToken cancellationToken)
+    {
+        var snippets = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (FtsQuery.BuildColumnAny(text, "transcript") is not { } match)
+        {
+            return snippets;
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id, snippet(recordings_fts, 3, '', '', '…', 14) FROM recordings_fts WHERE recordings_fts MATCH $match";
+        command.Parameters.AddWithValue("$match", match);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            if (!reader.IsDBNull(1) && reader.GetString(1).Trim() is { Length: > 0 } snippet)
+            {
+                snippets[reader.GetString(0)] = snippet;
+            }
+        }
+
+        return snippets;
+    }
+
+    private async Task<TranscriptDocument?> LoadTranscriptQuietlyAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _transcripts!.LoadAsync(recordingId, cancellationToken);
+        }
+        catch (ProjectSchemaException)
+        {
+            LogSkipped(recordingId);
+            return null;
+        }
     }
 
     private long SizeOf(string recordingId)

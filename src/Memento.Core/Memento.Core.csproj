@@ -13,6 +13,13 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Memento.Core.Tests" />
+    <InternalsVisibleTo Include="Memento.Transcription" />
+    <InternalsVisibleTo Include="Memento.Transcription.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The model manager's built-in catalog (Memento.Core.Models.catalog.json). -->
+    <EmbeddedResource Include="Models\catalog.json" LogicalName="Memento.Core.Models.catalog.json" />
   </ItemGroup>
 
 </Project>

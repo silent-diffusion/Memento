@@ -113,7 +113,91 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             normalized = normalized with { ListDensity = ListDensity.Comfortable };
         }
 
-        return normalized with { Recording = NormalizeRecording(settings.Recording) };
+        return normalized with
+        {
+            Recording = NormalizeRecording(settings.Recording),
+            Transcription = NormalizeTranscription(settings.Transcription),
+            Speakers = NormalizeSpeakers(settings.Speakers),
+            History = NormalizeHistory(settings.History),
+        };
+    }
+
+    /// <summary>Replaces each out-of-range transcription value with its default, keeping the rest.</summary>
+    private TranscriptionSettings NormalizeTranscription(TranscriptionSettings? transcription)
+    {
+        var defaults = new TranscriptionSettings();
+        if (transcription is null)
+        {
+            return defaults;
+        }
+
+        var result = transcription with
+        {
+            Timing = transcription.Timing ?? defaults.Timing,
+            Language = transcription.Language ?? defaults.Language,
+            CpuFallbackModelId = transcription.CpuFallbackModelId ?? defaults.CpuFallbackModelId,
+        };
+        if (!TranscriptionSettings.Timings.Contains(result.Timing, StringComparer.Ordinal))
+        {
+            LogInvalidValue("transcription.timing", result.Timing, defaults.Timing);
+            result = result with { Timing = defaults.Timing };
+        }
+
+        if (!TranscriptionSettings.IsValidLanguage(result.Language))
+        {
+            LogInvalidValue("transcription.language", result.Language, defaults.Language);
+            result = result with { Language = defaults.Language };
+        }
+
+        if (double.IsNaN(result.LowConfidenceThreshold)
+            || result.LowConfidenceThreshold is < TranscriptionSettings.MinLowConfidenceThreshold or > TranscriptionSettings.MaxLowConfidenceThreshold)
+        {
+            LogInvalidValue("transcription.lowConfidenceThreshold", result.LowConfidenceThreshold.ToString(CultureInfo.InvariantCulture), defaults.LowConfidenceThreshold.ToString(CultureInfo.InvariantCulture));
+            result = result with { LowConfidenceThreshold = defaults.LowConfidenceThreshold };
+        }
+
+        if (result.Validate() is not null)
+        {
+            LogInvalidValue("transcription.modelId", result.ModelId ?? "null", "the recommended model");
+            result = result with { ModelId = null, CpuFallbackModelId = defaults.CpuFallbackModelId };
+        }
+
+        return result;
+    }
+
+    private SpeakerSettings NormalizeSpeakers(SpeakerSettings? speakers)
+    {
+        var defaults = new SpeakerSettings();
+        if (speakers is null)
+        {
+            return defaults;
+        }
+
+        var result = speakers with { EmbeddingModelId = speakers.EmbeddingModelId ?? defaults.EmbeddingModelId };
+        if (result.Validate() is not null)
+        {
+            LogInvalidValue("speakers", result.ExpectedSpeakers?.ToString(CultureInfo.InvariantCulture) ?? "auto", "defaults");
+            result = result with { ExpectedSpeakers = null, EmbeddingModelId = defaults.EmbeddingModelId };
+        }
+
+        return result;
+    }
+
+    private HistorySettings NormalizeHistory(HistorySettings? history)
+    {
+        var defaults = new HistorySettings();
+        if (history is null)
+        {
+            return defaults;
+        }
+
+        if (history.Validate() is not null)
+        {
+            LogInvalidValue("history.keepDays", history.KeepDays.ToString(CultureInfo.InvariantCulture), defaults.KeepDays.ToString(CultureInfo.InvariantCulture));
+            return history with { KeepDays = defaults.KeepDays };
+        }
+
+        return history;
     }
 
     /// <summary>Replaces each out-of-range recording value with its default, keeping the rest.</summary>
@@ -196,6 +280,16 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
         if (settings.Recording.Validate() is { } problem)
         {
             throw new ArgumentException(problem, nameof(settings));
+        }
+
+        if (settings.Transcription is null || settings.Speakers is null || settings.History is null)
+        {
+            throw new ArgumentException("Transcription, speaker or history settings are missing.", nameof(settings));
+        }
+
+        if ((settings.Transcription.Validate() ?? settings.Speakers.Validate() ?? settings.History.Validate()) is { } m2Problem)
+        {
+            throw new ArgumentException(m2Problem, nameof(settings));
         }
     }
 

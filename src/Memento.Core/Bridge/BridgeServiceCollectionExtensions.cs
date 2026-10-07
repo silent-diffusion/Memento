@@ -45,6 +45,26 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, DialogPickFolderMethod>();
         services.AddSingleton<IBridgeHandler, StatusGetMethod>();
 
+        services.AddSingleton<IBridgeHandler, TranscriptGetMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptEditSegmentMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptSetSegmentSpeakerMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptRenameSpeakerMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptMergeSpeakersMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptMarkReviewedMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptSearchMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptRetranscribeMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptVersionsMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptRestoreVersionMethod>();
+        services.AddSingleton<IBridgeHandler, ProcessingRetryMethod>();
+        services.AddSingleton<IBridgeHandler, ProcessingCancelMethod>();
+        services.AddSingleton<IBridgeHandler, ProcessingPauseMethod>();
+        services.AddSingleton<IBridgeHandler, ProcessingResumeMethod>();
+        services.AddSingleton<IBridgeHandler, ModelsListMethod>();
+        services.AddSingleton<IBridgeHandler, ModelsInstallMethod>();
+        services.AddSingleton<IBridgeHandler, ModelsCancelInstallMethod>();
+        services.AddSingleton<IBridgeHandler, ModelsRemoveMethod>();
+        services.AddSingleton<IBridgeHandler, EngineStatusMethod>();
+
         services.AddSingleton<BridgeRouter>();
         services.AddSingleton<BridgeEventPublisher>();
         services.AddSingleton<FooterStatusService>();

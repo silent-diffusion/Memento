@@ -55,20 +55,46 @@ public sealed partial class ContractDocumentationTests
         Assert.All(Constants(typeof(DomainErrorCodes)), code => Assert.DoesNotContain("bridge.", code, StringComparison.Ordinal));
     }
 
+    /// <summary>The codes in backticks in BRIDGE.md's "## Error codes (M2)" section.</summary>
+    private static List<string> M2DocumentedCodes()
+    {
+        var section = ReadRepoFile("docs", "BRIDGE.md").Split("## Error codes (M2)")[1];
+        return BacktickedCode().Matches(section).Select(m => m.Groups[1].Value).ToList();
+    }
+
+    [GeneratedRegex("`([a-z]+\\.[a-zA-Z.]+)`")]
+    private static partial Regex BacktickedCode();
+
     [Fact]
     public void EveryHostErrorCodeIsDocumentedInBridgeMd()
     {
-        var errorSection = ReadRepoFile("docs", "BRIDGE.md").Split("## Error codes")[1];
+        // The M0/M1 "## Error codes" section and the M2 one.
+        var errorSections = string.Join('\n', ReadRepoFile("docs", "BRIDGE.md").Split("## Error codes").Skip(1));
 
-        Assert.All(HostErrorCodes(), code => Assert.Contains($"`{code}`", errorSection, StringComparison.Ordinal));
+        Assert.All(HostErrorCodes(), code => Assert.Contains($"`{code}`", errorSections, StringComparison.Ordinal));
     }
 
     [Fact]
     public void TheUiErrorCodeListIsExactlyTheHostCodes()
     {
         var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export const ERROR_CODES = [", "] as const");
+        var expected = HostErrorCodes();
 
-        Assert.Equal(HostErrorCodes().Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+        // The host and the UI land M2 in separate changes: until the UI lists the M2 codes, it must list exactly the
+        // others. Once it lists any of them, it must list them all.
+        var m2 = M2DocumentedCodes();
+        if (!ui.Intersect(m2, StringComparer.Ordinal).Any())
+        {
+            expected = expected.Except(m2, StringComparer.Ordinal).ToList();
+        }
+
+        Assert.Equal(expected.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void EveryM2CodeInBridgeMdIsAHostCode()
+    {
+        Assert.Equal(M2DocumentedCodes().Order(StringComparer.Ordinal), HostErrorCodes().Intersect(M2DocumentedCodes(), StringComparer.Ordinal).Order(StringComparer.Ordinal));
     }
 
     [Fact]

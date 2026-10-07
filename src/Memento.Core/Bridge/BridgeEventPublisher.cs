@@ -33,6 +33,12 @@ public sealed class BridgeEventPublisher(IBridgeEventSink sink)
     public void PublishLowSpace(StorageLowSpacePayload payload) =>
         sink.Post(Serialize(BridgeEventNames.StorageLowSpace, payload, BridgeJsonContext.Default.BridgeEventEnvelopeStorageLowSpacePayload));
 
+    public void PublishTranscriptChanged(TranscriptChangedPayload payload) =>
+        sink.Post(Serialize(BridgeEventNames.TranscriptChanged, payload, BridgeJsonContext.Default.BridgeEventEnvelopeTranscriptChangedPayload));
+
+    public void PublishModelsProgress(ModelsProgressPayload payload) =>
+        sink.Post(Serialize(BridgeEventNames.ModelsProgress, payload, BridgeJsonContext.Default.BridgeEventEnvelopeModelsProgressPayload));
+
     public static string SerializeThemeChanged(ThemeChangedPayload payload) =>
         Serialize(BridgeEventNames.ThemeChanged, payload, BridgeJsonContext.Default.BridgeEventEnvelopeThemeChangedPayload);
 

@@ -12,4 +12,9 @@ public static class BridgeEventNames
     public const string LibraryChanged = "library.changed";
     public const string ProcessingProgress = "processing.progress";
     public const string StorageLowSpace = "storage.lowSpace";
+    public const string TranscriptChanged = "transcript.changed";
+    public const string ModelsProgress = "models.progress";
+
+    /// <summary>Optional live draft; this build never sends it (BRIDGE.md M2).</summary>
+    public const string RecordingLiveTranscript = "recording.liveTranscript";
 }

@@ -36,4 +36,24 @@ public static class BridgeMethodNames
     public const string RecoveryAcknowledge = "recovery.acknowledge";
     public const string DialogPickFolder = "dialog.pickFolder";
     public const string StatusGet = "status.get";
+
+    public const string TranscriptGet = "transcript.get";
+    public const string TranscriptEditSegment = "transcript.editSegment";
+    public const string TranscriptSetSegmentSpeaker = "transcript.setSegmentSpeaker";
+    public const string TranscriptRenameSpeaker = "transcript.renameSpeaker";
+    public const string TranscriptMergeSpeakers = "transcript.mergeSpeakers";
+    public const string TranscriptMarkReviewed = "transcript.markReviewed";
+    public const string TranscriptSearch = "transcript.search";
+    public const string TranscriptRetranscribe = "transcript.retranscribe";
+    public const string TranscriptVersions = "transcript.versions";
+    public const string TranscriptRestoreVersion = "transcript.restoreVersion";
+    public const string ProcessingRetry = "processing.retry";
+    public const string ProcessingCancel = "processing.cancel";
+    public const string ProcessingPause = "processing.pause";
+    public const string ProcessingResume = "processing.resume";
+    public const string ModelsList = "models.list";
+    public const string ModelsInstall = "models.install";
+    public const string ModelsCancelInstall = "models.cancelInstall";
+    public const string ModelsRemove = "models.remove";
+    public const string EngineStatus = "engine.status";
 }

@@ -224,11 +224,11 @@ public sealed class BridgeRouterTests
     }
 
     [Fact]
-    public void TheProductionRegistrationExposesEveryM0AndM1Method()
+    public void TheProductionRegistrationExposesEveryM0M1AndM2Method()
     {
         using var host = new BridgeTestHost();
 
-        // Every method in docs/BRIDGE.md, M0 and M1.
+        // Every method in docs/BRIDGE.md, M0, M1 and M2.
         string[] expected =
         [
             "annotations.addChapter", "annotations.addHighlight", "annotations.addTopic", "annotations.removeChapter",
@@ -238,8 +238,12 @@ public sealed class BridgeRouterTests
             "recording.current", "recording.markHighlight", "recording.pause", "recording.resume", "recording.setSource",
             "recording.start", "recording.stop", "recovery.acknowledge", "recovery.list", "settings.get", "settings.set",
             "sources.list", "status.get", "ui.ready",
+            "engine.status", "models.cancelInstall", "models.install", "models.list", "models.remove",
+            "processing.cancel", "processing.pause", "processing.resume", "processing.retry",
+            "transcript.editSegment", "transcript.get", "transcript.markReviewed", "transcript.mergeSpeakers", "transcript.renameSpeaker",
+            "transcript.restoreVersion", "transcript.retranscribe", "transcript.search", "transcript.setSegmentSpeaker", "transcript.versions",
         ];
 
-        Assert.Equal(expected, host.Router.MethodNames.Order(StringComparer.Ordinal));
+        Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));
     }
 }
