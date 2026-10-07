@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "interview-notes",
+  "name": "Interview notes",
+  "documentKind": "Interview notes",
+  "recordingTypes": ["interview"],
+  "rows": [
+    {
+      "modules": [
+        { "id": "m01", "type": "summary", "title": "Summary", "instructions": "A neutral summary of the interview in four or five sentences.", "length": "medium", "textSize": "larger", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m02", "type": "meetingPurpose", "title": "Interview purpose", "instructions": "One line, taken from the recording details.", "length": "short", "textSize": "normal", "linkToTranscript": false },
+        { "id": "m03", "type": "participants", "title": "Participants", "instructions": "Interviewer and interviewee as named in the details.", "length": "short", "textSize": "normal", "linkToTranscript": false }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m04", "type": "topic", "title": "Main themes", "instructions": "One short paragraph per theme the interviewee spoke about, in their own terms.", "length": "long", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m05", "type": "quote", "title": "Key quotes", "instructions": "Two or three remarks, word for word, with who said them.", "length": "short", "textSize": "normal", "linkToTranscript": true },
+        { "id": "m06", "type": "highlight", "title": "Highlights", "instructions": "The highlights marked during the interview.", "length": "short", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m07", "type": "openQuestions", "title": "Follow-up questions", "instructions": "Questions left open that are worth asking next time.", "length": "short", "textSize": "normal", "linkToTranscript": false }
+      ]
+    }
+  ],
+  "inputs": { "transcript": true, "participants": true, "agenda": false, "highlights": true, "importedDocuments": false },
+  "providerId": null,
+  "defaultStyleId": "minimal",
+  "processingInstructions": "",
+  "output": { "alsoExportDocx": false, "alsoExportMarkdown": false, "alsoExportPdf": false },
+  "builtIn": true
+}

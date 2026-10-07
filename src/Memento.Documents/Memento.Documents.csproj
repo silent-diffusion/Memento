@@ -22,4 +22,10 @@
     <InternalsVisibleTo Include="Memento.Documents.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- M4b: the built-in templates and style presets ship as JSON resources. -->
+    <EmbeddedResource Include="Templates\BuiltIn\*.json" LogicalName="Memento.Documents.Templates.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Styles\BuiltIn\*.json" LogicalName="Memento.Documents.Styles.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

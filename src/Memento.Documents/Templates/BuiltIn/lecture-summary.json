@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "lecture-summary",
+  "name": "Lecture summary",
+  "documentKind": "Lecture summary",
+  "recordingTypes": ["lecture", "presentation"],
+  "rows": [
+    {
+      "modules": [
+        { "id": "m01", "type": "summary", "title": "Summary", "instructions": "What the lecture covered, in one paragraph.", "length": "medium", "textSize": "larger", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m02", "type": "chapter", "title": "Outline", "instructions": "The chapters with their start times.", "length": "medium", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m03", "type": "topic", "title": "Key concepts", "instructions": "Each concept the speaker defined or explained, with the explanation they gave.", "length": "long", "textSize": "normal", "linkToTranscript": true }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m04", "type": "quote", "title": "Worth quoting", "instructions": "One or two definitions or remarks, word for word.", "length": "short", "textSize": "normal", "linkToTranscript": true },
+        { "id": "m05", "type": "openQuestions", "title": "Questions to review", "instructions": "Questions raised by the audience or the speaker that were not answered.", "length": "short", "textSize": "normal", "linkToTranscript": false }
+      ]
+    }
+  ],
+  "inputs": { "transcript": true, "participants": false, "agenda": false, "highlights": true, "importedDocuments": true },
+  "providerId": null,
+  "defaultStyleId": "academic",
+  "processingInstructions": "",
+  "output": { "alsoExportDocx": false, "alsoExportMarkdown": false, "alsoExportPdf": false },
+  "builtIn": true
+}

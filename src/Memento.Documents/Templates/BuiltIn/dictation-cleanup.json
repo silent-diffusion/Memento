@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "dictation-cleanup",
+  "name": "Dictation clean-up",
+  "documentKind": "Dictation",
+  "recordingTypes": ["dictation"],
+  "rows": [
+    {
+      "modules": [
+        { "id": "m01", "type": "customAi", "title": "Text", "instructions": "Rewrite the dictation as clean prose: remove fillers, false starts and spoken punctuation, keep the speaker's words and order, add nothing.", "length": "long", "textSize": "normal", "linkToTranscript": false }
+      ]
+    },
+    {
+      "modules": [
+        { "id": "m02", "type": "actionItems", "title": "Tasks mentioned", "instructions": "Only tasks the speaker said they or someone else would do.", "length": "short", "textSize": "smaller", "linkToTranscript": true }
+      ]
+    }
+  ],
+  "inputs": { "transcript": true, "participants": false, "agenda": false, "highlights": false, "importedDocuments": false },
+  "providerId": null,
+  "defaultStyleId": "minimal",
+  "processingInstructions": "",
+  "output": { "alsoExportDocx": false, "alsoExportMarkdown": false, "alsoExportPdf": false },
+  "builtIn": true
+}
