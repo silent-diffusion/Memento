@@ -46,6 +46,72 @@ public sealed class WorkerClientTests
     }
 
     [Fact]
+    public async Task ASessionSendsFurtherLinesToTheRunningWorkerAndHoldsTheGraphicsCardUntilItEnds()
+    {
+        var llm = new WorkerJob(WorkerJobKinds.Llm, Llm: JsonDocument.Parse("""{"device":"gpu","session":true}""").RootElement.Clone());
+        _launcher.Script = async (job, context, token) =>
+        {
+            if (job.Kind != WorkerJobKinds.Llm)
+            {
+                context.Send(new WorkerReply { Type = WorkerMessageTypes.Result });
+                return 0;
+            }
+
+            var batches = 0;
+            await foreach (var command in context.Commands.ReadAllAsync(token))
+            {
+                if (command.Type == WorkerMessageTypes.End)
+                {
+                    break;
+                }
+
+                context.Send(new WorkerReply { Type = WorkerMessageTypes.Batch, Llm = command.Llm, Percent = ++batches });
+            }
+
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Result, Percent = batches });
+            return 0;
+        };
+        var client = Client;
+        var batchLines = new List<WorkerReply>();
+
+        await using (var session = await client.OpenAsync(llm, r => { batchLines.Add(r); return Task.CompletedTask; }, CancellationToken.None))
+        {
+            await session.SendAsync(new WorkerCommand(WorkerMessageTypes.Prompts, Llm: JsonDocument.Parse("""{"prompts":[1]}""").RootElement.Clone()));
+            await session.SendAsync(new WorkerCommand(WorkerMessageTypes.Prompts, Llm: JsonDocument.Parse("""{"prompts":[2]}""").RootElement.Clone()));
+
+            // The card stays taken while the session is open: a transcription waits.
+            var waiting = client.RunAsync(Job, null, CancellationToken.None);
+            await Task.Delay(100);
+            Assert.False(waiting.IsCompleted);
+
+            await session.SendAsync(new WorkerCommand(WorkerMessageTypes.End));
+            var result = await session.Completion;
+            Assert.Equal(2, result.Percent);
+            await waiting;
+        }
+
+        Assert.Equal([1d, 2d], batchLines.Select(b => b.Percent!.Value));
+        Assert.Equal("""{"prompts":[2]}""", batchLines[1].Llm!.Value.GetRawText());
+        Assert.Equal(2, _launcher.Started.Count);
+    }
+
+    [Fact]
+    public async Task DisposingAnOpenSessionStopsItsWorker()
+    {
+        _launcher.Script = async (_, _, token) =>
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            return 0;
+        };
+
+        var session = await Client.OpenAsync(Job, null, CancellationToken.None);
+        await session.DisposeAsync();
+
+        Assert.True(session.Completion.IsCompleted);
+        Assert.True(Assert.Single(_launcher.Started).Killed);
+    }
+
+    [Fact]
     public async Task AnErrorLineBecomesAStructuredException()
     {
         _launcher.Script = (_, context, _) =>

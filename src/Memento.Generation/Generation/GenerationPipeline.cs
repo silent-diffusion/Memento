@@ -36,7 +36,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(input);
         var warnings = new List<string>();
-        var runner = new RequestRunner(input.Provider, observer: input.OnResponse);
+        await using var runner = new RequestRunner(input.Provider, observer: input.OnResponse);
         var transcript = new TranscriptIndex(input.Payload.TranscriptLines);
         var clock = Stopwatch.StartNew();
         Report(progress, "composing", null, 2, "Preparing the inputs");

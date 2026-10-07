@@ -32,39 +32,61 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
     /// <exception cref="OperationCanceledException">Cancelled; the worker has been stopped.</exception>
     public async Task<WorkerReply> RunAsync(WorkerJob job, Func<WorkerReply, Task>? onReply, CancellationToken cancellationToken)
     {
+        await using var session = await OpenAsync(job, onReply, cancellationToken);
+        return await session.Completion;
+    }
+
+    /// <summary>
+    /// Starts <paramref name="job"/> and returns at once with a session that can send the worker further lines (a local
+    /// model job that stays loaded takes <c>prompts</c> and <c>end</c>); <see cref="WorkerSession.Completion"/> ends with
+    /// the result, or throws as <see cref="RunAsync"/> does. A job on the graphics card holds the card until it ends.
+    /// </summary>
+    /// <exception cref="WorkerUnavailableException">The worker could not be started.</exception>
+    /// <exception cref="OperationCanceledException">Cancelled while waiting for the graphics card.</exception>
+    public async Task<WorkerSession> OpenAsync(WorkerJob job, Func<WorkerReply, Task>? onReply, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(job);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!job.UsesGpu)
+        var gpu = job.UsesGpu;
+        if (gpu && !_gpu.Wait(0, CancellationToken.None))
         {
-            return await RunOneAsync(job, onReply, cancellationToken);
-        }
-
-        // One job on the graphics card at a time (ARCHITECTURE.md §6); the gate opens only once the previous worker has
-        // exited and let go of its video memory. The worker also takes a machine-wide lock (WorkerRuntimes.GpuLockName).
-        if (!_gpu.Wait(0, CancellationToken.None))
-        {
+            // One job on the graphics card at a time (ARCHITECTURE.md §6); the gate opens only once the previous worker has
+            // exited and let go of its video memory. The worker also takes a machine-wide lock (WorkerRuntimes.GpuLockName).
             LogWaitingForGpu();
             await _gpu.WaitAsync(cancellationToken);
         }
 
+        IWorkerProcess process;
         try
         {
-            return await RunOneAsync(job, onReply, cancellationToken);
+            process = launcher.Start();
         }
-        finally
+        catch
         {
-            _gpu.Release();
+            if (gpu)
+            {
+                _gpu.Release();
+            }
+
+            throw;
         }
+
+        _running[process.Id] = process;
+        var writer = new SemaphoreSlim(1, 1);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = PumpAsync(process, job, onReply, writer, started, gpu, cancellationToken);
+        await Task.WhenAny(started.Task, completion);
+        return new WorkerSession(process, completion, writer);
     }
 
-    private async Task<WorkerReply> RunOneAsync(WorkerJob job, Func<WorkerReply, Task>? onReply, CancellationToken cancellationToken)
+    /// <summary>Sends <c>start</c>, then reads the worker's lines until the final one; always lets go of the process and the card.</summary>
+    private async Task<WorkerReply> PumpAsync(IWorkerProcess process, WorkerJob job, Func<WorkerReply, Task>? onReply, SemaphoreSlim writer, TaskCompletionSource started, bool gpu, CancellationToken cancellationToken)
     {
-        using var process = launcher.Start();
-        _running[process.Id] = process;
         try
         {
-            await SendAsync(process, new WorkerCommand(WorkerMessageTypes.Start, job));
-            await using var registration = cancellationToken.Register(() => _ = StopAsync(process));
+            await WorkerSession.SendAsync(process, writer, new WorkerCommand(WorkerMessageTypes.Start, job));
+            started.TrySetResult();
+            await using var registration = cancellationToken.Register(() => _ = StopAsync(process, writer));
             while (true)
             {
                 string? line;
@@ -120,12 +142,19 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         }
         finally
         {
+            started.TrySetResult();
             _running.TryRemove(process.Id, out _);
             if (!process.Exited.IsCompleted)
             {
                 // Leaving early (an error while handling a line): the worker must be gone before the next one starts.
                 process.Kill();
                 await WaitGoneAsync(process);
+            }
+
+            process.Dispose();
+            if (gpu)
+            {
+                _gpu.Release();
             }
         }
     }
@@ -168,13 +197,6 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         }
     }
 
-    private static async Task SendAsync(IWorkerProcess process, WorkerCommand command)
-    {
-        var json = JsonSerializer.Serialize(command, WorkerJsonContext.Default.WorkerCommand);
-        await process.Input.WriteLineAsync(json);
-        await process.Input.FlushAsync();
-    }
-
     private static async Task<int> WaitForExitAsync(IWorkerProcess process)
     {
         try
@@ -212,11 +234,11 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         }
     }
 
-    private async Task StopAsync(IWorkerProcess process)
+    private async Task StopAsync(IWorkerProcess process, SemaphoreSlim writer)
     {
         try
         {
-            await SendAsync(process, new WorkerCommand(WorkerMessageTypes.Cancel));
+            await WorkerSession.SendAsync(process, writer, new WorkerCommand(WorkerMessageTypes.Cancel));
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
         {

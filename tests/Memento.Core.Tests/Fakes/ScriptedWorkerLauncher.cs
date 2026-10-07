@@ -53,8 +53,11 @@ internal sealed class ScriptedWorkerLauncher : IWorkerLauncher
 }
 
 /// <summary>What a script can do: send lines and see the job and cancel requests.</summary>
-internal sealed class ScriptedWorkerContext(ChannelWriter<string?> output)
+internal sealed class ScriptedWorkerContext(ChannelWriter<string?> output, ChannelReader<WorkerCommand> commands)
 {
+    /// <summary>The host's lines after <c>start</c>, other than <c>cancel</c> (a session's <c>prompts</c> and <c>end</c>).</summary>
+    public ChannelReader<WorkerCommand> Commands => commands;
+
     public void Send(WorkerReply reply) => output.TryWrite(JsonSerializer.Serialize(reply, WorkerJsonContext.Default.WorkerReply));
 
     public void SendRaw(string line) => output.TryWrite(line);
@@ -68,6 +71,7 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
     private readonly CancellationTokenSource _cancel = new();
     private readonly Func<WorkerJob, ScriptedWorkerContext, CancellationToken, Task<int>> _script;
     private readonly List<string> _received = [];
+    private readonly Channel<WorkerCommand> _commands = Channel.CreateUnbounded<WorkerCommand>();
 
     public ScriptedWorkerProcess(Func<WorkerJob, ScriptedWorkerContext, CancellationToken, Task<int>> script)
     {
@@ -131,7 +135,7 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
         if (command.Type == WorkerMessageTypes.Start)
         {
             Job = command.Job;
-            var context = new ScriptedWorkerContext(_output.Writer);
+            var context = new ScriptedWorkerContext(_output.Writer, _commands.Reader);
             _ = Task.Run(async () =>
             {
                 int code;
@@ -151,6 +155,10 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
         else if (command.Type == WorkerMessageTypes.Cancel)
         {
             _cancel.Cancel();
+        }
+        else
+        {
+            _commands.Writer.TryWrite(command);
         }
     }
 

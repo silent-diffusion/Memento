@@ -5,14 +5,16 @@ using Memento.Documents.Model.Records;
 namespace Memento.Generation.Generation;
 
 /// <summary>
-/// Sends a pass's requests: the local model runs them in order on one model load in one worker process
-/// (<see cref="LocalAiProvider.GenerateManyAsync"/>); a cloud provider gets them one by one, a few at a time. Each request
-/// is recorded by purpose, hash, tokens and stop reason (never by content).
+/// Sends a pass's requests: the local model runs every pass of a generation in order on one model load in one worker
+/// process (<see cref="LocalAiProvider.OpenSessionAsync"/>, unloaded when the runner is disposed); a cloud provider
+/// gets them one by one, a few at a time. Each request is recorded by purpose, hash, tokens and stop reason (never by
+/// content).
 /// </summary>
-public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3, Action<AiRequest, AiResponse>? observer = null)
+public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3, Action<AiRequest, AiResponse>? observer = null) : IAsyncDisposable
 {
     private readonly List<RecordRequest> _records = [];
     private long _modelLoadMs;
+    private LocalAiSession? _session;
 
     public IReadOnlyList<RecordRequest> Records => _records;
 
@@ -31,7 +33,8 @@ public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3
         if (provider is LocalAiProvider local)
         {
             var relay = progress is null ? null : new IndexRelay(progress);
-            responses = await local.GenerateManyAsync(requests, relay, cancellationToken);
+            _session ??= await local.OpenSessionAsync(cancellationToken);
+            responses = await _session.GenerateManyAsync(requests, relay, cancellationToken);
         }
         else
         {
@@ -44,7 +47,11 @@ public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3
                 try
                 {
                     results[i] = await provider.GenerateAsync(request, null, cancellationToken);
-                    progress?.Report(Interlocked.Increment(ref done));
+                    lock (results)
+                    {
+                        // Counted and reported under one lock, so the counts arrive in order.
+                        progress?.Report(++done);
+                    }
                 }
                 finally
                 {
@@ -74,6 +81,16 @@ public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3
         }
 
         return responses;
+    }
+
+    /// <summary>Unloads the local model, if a pass loaded it.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_session is { } session)
+        {
+            _session = null;
+            await session.DisposeAsync();
+        }
     }
 
     private sealed class IndexRelay(IProgress<int> target) : IProgress<AiProgress>
