@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Memento.Worker.exe: one process per transcription or speaker job (ARCHITECTURE.md §1), so a native abort in
+    whisper.cpp or onnxruntime cannot take the app down and video memory is released when the job ends. The host
+    launches it from the "worker" folder beside Memento.exe and speaks JSON lines over stdin/stdout (WorkerClient).
+    Whisper.net runs with the Vulkan and CPU runtimes only (no CUDA); sherpa-onnx does speaker identification.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Memento.Worker</RootNamespace>
+    <AssemblyName>Memento.Worker</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" />
+    <PackageReference Include="Whisper.net.Runtime" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" />
+    <!-- The Visual C++ runtime the Whisper.net native libraries import, shipped app-locally (docs/THIRD-PARTY.md). -->
+    <PackageReference Include="NtvLibs.MSVCP.vcruntime140.runtime.win-x64" />
+    <PackageReference Include="NtvLibs.MSVCP.vcruntime140_1.runtime.win-x64" />
+    <PackageReference Include="NtvLibs.MSVCP.msvcp140.runtime.win-x64" />
+    <PackageReference Include="NtvLibs.MSVCP.vcomp140.runtime.win-x64" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Memento.Core\Memento.Core.csproj" />
+    <ProjectReference Include="..\Memento.Audio\Memento.Audio.csproj" />
+    <ProjectReference Include="..\Memento.Transcription\Memento.Transcription.csproj" />
+  </ItemGroup>
+
+  <!--
+    Whisper.net copies every platform's native libraries (linux, arm64, x86, macOS: about 450 MB) even for win-x64
+    (ENGINE-NOTES.md §D). Keep only runtimes/win-x64 (CPU) and runtimes/vulkan/win-x64.
+  -->
+  <Target Name="MementoStripForeignWhisperRuntimes" BeforeTargets="AssignTargetPaths;_CopyOutOfDateSourceItemsToOutputDirectory;GetCopyToPublishDirectoryItems">
+    <ItemGroup>
+      <None Remove="@(None)" Condition="'%(None.TargetPath)' != '' and $([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/')) and !$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/win-x64/')) and !$([System.String]::Copy('%(None.TargetPath)').Replace('\','/').StartsWith('runtimes/vulkan/win-x64/'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

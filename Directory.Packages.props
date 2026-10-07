@@ -26,6 +26,18 @@
     <PackageVersion Include="NAudio.Wasapi" Version="2.4.0" />
     <PackageVersion Include="System.Drawing.Common" Version="8.0.8" />
   </ItemGroup>
+  <ItemGroup Label="Worker">
+    <!-- Whisper.net with the CPU and Vulkan runtimes only: no CUDA package (ENGINE-NOTES.md §D). -->
+    <PackageVersion Include="Whisper.net" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+    <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
+    <!-- The Visual C++ runtime DLLs the Whisper.net native libraries import, shipped app-locally beside the worker. -->
+    <PackageVersion Include="NtvLibs.MSVCP.vcruntime140.runtime.win-x64" Version="14.42.34430" />
+    <PackageVersion Include="NtvLibs.MSVCP.vcruntime140_1.runtime.win-x64" Version="14.42.34430" />
+    <PackageVersion Include="NtvLibs.MSVCP.msvcp140.runtime.win-x64" Version="14.42.34430" />
+    <PackageVersion Include="NtvLibs.MSVCP.vcomp140.runtime.win-x64" Version="14.42.34430" />
+  </ItemGroup>
   <ItemGroup Label="Tests">
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

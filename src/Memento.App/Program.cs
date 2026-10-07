@@ -6,10 +6,12 @@ using Memento.App.Hosting;
 using Memento.App.Theming;
 using Memento.Core;
 using Memento.Core.Bridge;
+using Memento.Core.Engines;
 using Memento.Core.Host;
 using Memento.Core.Recording;
 using Memento.Core.Recording.Simulation;
 using Memento.Core.Settings;
+using Memento.Transcription;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -129,8 +131,12 @@ internal static class Program
         builder.Services.AddSingleton<ThemeService>();
         builder.Services.AddSingleton<IThemeState>(services => services.GetRequiredService<ThemeService>());
         builder.Services.AddSingleton<IFolderPicker, WpfFolderPicker>();
+        builder.Services.AddSingleton<IResourceProbe, WindowsResourceProbe>();
         builder.Services.AddMementoBridge();
         builder.Services.AddMementoLibrary();
+
+        // Transcription and speakers run in Memento.Worker.exe from the "worker" folder beside the app.
+        builder.Services.AddMementoTranscription();
 
         // The simulated engine stays registered for --simulate-audio; otherwise the WASAPI engine and sources replace it
         // (the last registration wins). Either way recordings are stored as verified FLAC through Media Foundation.
