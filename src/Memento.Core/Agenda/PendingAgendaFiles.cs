@@ -27,6 +27,7 @@ public sealed class PendingAgendaFiles(PendingAgendaOptions options, TimeProvide
             await input.CopyToAsync(output, cancellationToken);
         }
 
+        await Attachments.MarkOfTheWeb.CopyAsync(sourcePath, copy, cancellationToken);
         _held[token] = new PendingAgendaFile(token, recordingId, copy, Path.GetFileName(sourcePath), time.GetUtcNow());
         return token;
     }

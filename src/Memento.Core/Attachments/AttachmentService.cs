@@ -26,11 +26,17 @@ public sealed partial class AttachmentService(
     /// <summary>100 MB per file (BRIDGE.md M3).</summary>
     public const long MaxBytes = 100L * 1024 * 1024;
 
-    /// <summary>Types Windows would run rather than open; <c>attachments.open</c> shows them in their folder instead.</summary>
-    private static readonly HashSet<string> RunnableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Document, image and media types <c>attachments.open</c> hands to their default app. Anything else (programs,
+    /// scripts, shortcuts, installers, disk images, macro-enabled Office files, help files…) is shown in its folder
+    /// instead, so the user decides. An allow-list: a list of dangerous types is never complete.
+    /// </summary>
+    private static readonly HashSet<string> OpenableExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".com", ".bat", ".cmd", ".msi", ".msp", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
-        ".scr", ".pif", ".lnk", ".url", ".reg", ".hta", ".cpl", ".msc", ".jar", ".appref-ms", ".application", ".gadget",
+        ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".odt", ".ods", ".odp", ".rtf",
+        ".txt", ".md", ".csv", ".tsv",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".webp",
+        ".wav", ".mp3", ".m4a", ".flac", ".wma", ".ogg", ".opus", ".mp4", ".m4v", ".mov", ".wmv",
     };
 
     private readonly ILogger<AttachmentService> _logger = logger;
@@ -98,6 +104,7 @@ public sealed partial class AttachmentService(
             }
 
             sha256 = await FileHashes.Sha256Async(temporary, cancellationToken);
+            await MarkOfTheWeb.CopyAsync(sourcePath, temporary, cancellationToken);
             File.Move(temporary, destination, overwrite: false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
@@ -196,7 +203,7 @@ public sealed partial class AttachmentService(
                 record.Id);
         }
 
-        var target = RunnableExtensions.Contains(Path.GetExtension(path)) ? Path.GetDirectoryName(path)! : path;
+        var target = OpenableExtensions.Contains(Path.GetExtension(path)) ? path : Path.GetDirectoryName(path)!;
         if (!launcher.TryOpen(new Uri(target)))
         {
             throw new BridgeException(
@@ -206,14 +213,23 @@ public sealed partial class AttachmentService(
         }
     }
 
-    /// <summary>The full path of the attachment's copy inside the project folder.</summary>
+    /// <summary>
+    /// The full path of the attachment's copy, which must be inside the project's <c>attachments/</c> folder: an entry in a
+    /// copied-in <c>project.json</c> naming <c>tracks/mic.flac</c> must never let <c>attachments.remove</c> delete a track.
+    /// </summary>
     public string FullPath(string recordingId, AttachmentRecord record)
     {
-        var folder = store.GetProjectFolder(recordingId);
-        var full = Path.GetFullPath(Path.Combine(folder, record.File.Replace('/', Path.DirectorySeparatorChar)));
-        return full.StartsWith(Path.GetFullPath(folder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            ? full
-            : throw new BridgeException(DomainErrorCodes.AttachmentsNotFound, "That attachment's entry is damaged. Nothing was changed.", record.Id);
+        try
+        {
+            return ProjectPaths.ResolveIn(store.GetProjectFolder(recordingId), ProjectLayout.AttachmentsFolder, record.File);
+        }
+        catch (InvalidDataException)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.AttachmentsNotFound,
+                $"The entry for \"{record.Name}\" does not point into the recording's attachments folder, so Memento will not open or delete it. Nothing was changed.",
+                record.Id);
+        }
     }
 
     private static AttachmentRecord Find(ProjectManifest manifest, string attachmentId) =>
