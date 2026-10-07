@@ -1,13 +1,17 @@
 using System.Text.Json;
 using Memento.Core.Bridge;
+using Memento.Core.Engines;
 using Memento.Core.Host;
 using Memento.Core.Library;
+using Memento.Core.Models;
 using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Recording;
 using Memento.Core.Recording.Simulation;
 using Memento.Core.Recovery;
 using Memento.Core.Settings;
+using Memento.Core.Transcripts;
+using Memento.Core.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -50,6 +54,9 @@ internal sealed class BridgeTestHost : IDisposable
             LevelsMinInterval = TimeSpan.Zero,
         });
         collection.AddSingleton<ISettingsStore>(sp => new JsonSettingsStore(SettingsFile, sp.GetRequiredService<ILogger<JsonSettingsStore>>()));
+        collection.AddSingleton(new ModelStoreOptions(_directory.File("models")));
+        collection.AddSingleton<IResourceProbe>(Probe);
+        collection.AddSingleton<IWorkerLauncher>(Workers);
         collection.AddMementoBridge();
         collection.AddMementoLibrary();
         // Manual time produces audio in bursts, so give the ring buffers room for the longest test (200 s).
@@ -77,6 +84,19 @@ internal sealed class BridgeTestHost : IDisposable
     public FakeFreeSpaceProbe FreeSpace { get; } = new();
 
     public FakeFolderPicker FolderPicker { get; } = new();
+
+    public FakeResourceProbe Probe { get; } = new();
+
+    /// <summary>The worker stand-in every job of this host runs in.</summary>
+    public ScriptedWorkerLauncher Workers { get; } = new();
+
+    public string ModelsRoot => _directory.File("models");
+
+    public ModelManager Models => _services.GetRequiredService<ModelManager>();
+
+    public ProcessingGate Gate => _services.GetRequiredService<ProcessingGate>();
+
+    public TranscriptStore Transcripts => _services.GetRequiredService<TranscriptStore>();
 
     public BridgeRouter Router => _services.GetRequiredService<BridgeRouter>();
 
