@@ -100,6 +100,14 @@ export function resolveRecovery(services: AppServices, item: RecoveredRecording,
   }
 }
 
+/** The fields of a settings patch that change something: null and missing fields keep their value. */
+function definedFields<T extends object>(patch: Partial<T> | null | undefined): Partial<T> {
+  if (patch == null) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined && value !== null)) as Partial<T>;
+}
+
 /**
  * Saves a settings change. The store updates first so the control answers at once; on failure it
  * returns to the host's value and the host's message comes back for the row to show.
@@ -113,9 +121,10 @@ export async function updateSettings(services: AppServices, patch: SettingsSetPa
       theme: patch.theme ?? before.theme,
       listDensity: patch.listDensity ?? before.listDensity,
       recording: patch.recording ?? before.recording,
-      transcription: patch.transcription ?? before.transcription,
-      speakers: patch.speakers ?? before.speakers,
-      history: patch.history ?? before.history,
+      // The M2 blocks merge field by field on the host; the optimistic copy does the same.
+      transcription: { ...before.transcription, ...definedFields(patch.transcription) },
+      speakers: { ...before.speakers, ...definedFields(patch.speakers) },
+      history: { ...before.history, ...definedFields(patch.history) },
     };
     store.settings.value = optimistic;
   }

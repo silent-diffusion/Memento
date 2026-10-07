@@ -388,6 +388,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
     stored: { done: 'Stored', failed: 'Storing failed', active: 'Storing', detail: 'Lossless FLAC tracks on this PC' },
     transcript: { done: 'Transcribed locally', failed: 'Transcription failed', active: 'Transcribing locally', detail: 'Local engine · GPU · English' },
     speakers: { done: 'Speakers identified', failed: 'Speaker identification failed', active: 'Identifying speakers', detail: 'Local engine · CPU' },
+    topics: { done: 'Topics found locally', failed: 'Topics could not be saved', active: 'Finding topics', detail: 'On this PC' },
     minutes: { done: 'Minutes generated', failed: 'Minutes failed', active: 'Generating minutes', detail: 'Sent the transcript, agenda and participants' },
     optimize: { done: 'Saved smaller files', failed: 'Making smaller files failed', active: 'Making smaller files', detail: 'AAC 128 kbps' },
   };

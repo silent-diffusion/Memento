@@ -6,7 +6,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useReducer } from 'preact/hooks';
 import { BridgeCallError, type BridgeClient } from '../../bridge/client';
-import type { ModelEngine, ModelInfo } from '../../bridge/types';
+import type { ModelEngine, ModelInfo, ModelRole } from '../../bridge/types';
 import { formatSize } from '../../format/storage';
 import { INITIAL_MODELS, isBusy, modelsReducer, phaseOf, type ModelPhase, type ModelsState } from '../../state/models';
 
@@ -118,6 +118,8 @@ interface ModelCardProps {
   /** Another model is downloading; one at a time. */
   busy: boolean;
   group: string;
+  /** False: the model is needed, not a choice (no radio). */
+  selectable: boolean;
   onDefault: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -125,25 +127,29 @@ interface ModelCardProps {
   onDismiss: () => void;
 }
 
-function ModelCard({ model, phase, isDefault, keepReason, busy, group, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
+function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
   const downloading = phase.kind === 'starting' || phase.kind === 'downloading' || phase.kind === 'verifying' || phase.kind === 'cancelling';
   const radioId = `${group}-${model.id}`;
-  const status = model.installed ? (isDefault ? 'Installed · default' : 'Installed') : downloading ? 'Downloading' : 'Not installed';
+  const status = model.installed ? (isDefault ? 'Installed · default' : selectable ? 'Installed' : 'Installed · needed') : downloading ? 'Downloading' : 'Not installed';
   return (
     <div class={isDefault ? 'model-card model-card--default' : 'model-card'} data-model-id={model.id}>
       <div class="model-main">
-        <input
-          id={radioId}
-          class="chk model-radio"
-          type="radio"
-          name={group}
-          checked={isDefault}
-          disabled={!model.installed}
-          aria-describedby={`${radioId}-desc`}
-          onChange={onDefault}
-        />
+        {selectable ? (
+          <input
+            id={radioId}
+            class="chk model-radio"
+            type="radio"
+            name={group}
+            checked={isDefault}
+            disabled={!model.installed}
+            aria-describedby={`${radioId}-desc`}
+            onChange={onDefault}
+          />
+        ) : (
+          <span class="model-radio model-radio--none" aria-hidden="true" />
+        )}
         <div class="model-text">
-          <label class="model-name" for={radioId}>
+          <label class="model-name" for={selectable ? radioId : undefined}>
             {model.name}
             {model.recommended ? <span class="model-tag">Recommended</span> : null}
             <span class="model-note">{model.accuracyNote}</span>
@@ -233,6 +239,10 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, onDefault
 interface ModelCardsProps {
   api: ModelsApi;
   engine: ModelEngine;
+  /** Only the models with this role (speaker models: segmentation or the voice models). */
+  role?: ModelRole;
+  /** False for a model that is needed rather than chosen: no radio, "Installed · needed". */
+  selectable?: boolean;
   /** The model the setting points at. */
   defaultId: string;
   label: string;
@@ -242,7 +252,7 @@ interface ModelCardsProps {
 }
 
 /** The catalog for one engine as a radio group of cards. */
-export function ModelCards({ api, engine, defaultId, label, onDefault, keep = {} }: ModelCardsProps): JSX.Element {
+export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {} }: ModelCardsProps): JSX.Element {
   const { state } = api;
   if (!state.loaded) {
     return <p class="settings-row-desc model-loading">Reading the installed models…</p>;
@@ -254,10 +264,10 @@ export function ModelCards({ api, engine, defaultId, label, onDefault, keep = {}
       </p>
     );
   }
-  const models = state.models.filter((m) => m.engine === engine);
+  const models = state.models.filter((m) => m.engine === engine && (role === undefined || m.role === role));
   const busy = isBusy(state);
   return (
-    <div class="model-cards" role="radiogroup" aria-label={label}>
+    <div class="model-cards" role={selectable ? 'radiogroup' : 'group'} aria-label={label}>
       {models.map((model) => {
         const phase = phaseOf(state, model.id);
         const ownDownload = phase.kind === 'starting' || phase.kind === 'downloading' || phase.kind === 'verifying';
@@ -266,8 +276,9 @@ export function ModelCards({ api, engine, defaultId, label, onDefault, keep = {}
             key={model.id}
             model={model}
             phase={phase}
-            group={`default-${engine}`}
-            isDefault={model.id === defaultId}
+            group={`default-${engine}${role === undefined ? '' : `-${role}`}`}
+            selectable={selectable}
+            isDefault={selectable && model.id === defaultId}
             keepReason={keep[model.id] ?? null}
             busy={busy && !ownDownload}
             onDefault={() => {

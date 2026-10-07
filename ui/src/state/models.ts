@@ -97,6 +97,11 @@ export function modelsReducer(state: ModelsState, action: ModelsAction): ModelsS
         case 'done':
           return withModel(withPhase(state, modelId, IDLE), modelId, { installed: true, installing: null });
         case 'failed':
+          // A failure is news only for a download this page sees running; the host also reports a
+          // cancelled download as failed (BRIDGE.md models.cancelInstall), which must not show as an error.
+          if (current.kind !== 'starting' && current.kind !== 'downloading' && current.kind !== 'verifying') {
+            return state;
+          }
           return withModel(
             withPhase(state, modelId, {
               kind: 'failed',

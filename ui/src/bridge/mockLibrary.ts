@@ -80,7 +80,7 @@ export function queryLibrary(
  * "Audio only". Running, queued and failed stages stay.
  */
 export function visibleStages(stages: readonly StageStatus[]): StageStatus[] {
-  return stages.filter((st) => !((st.stage === 'stored' || st.stage === 'optimize') && st.state === 'done'));
+  return stages.filter((st) => !((st.stage === 'stored' || st.stage === 'topics' || st.stage === 'optimize') && st.state === 'done'));
 }
 
 /** A recording as the preview host keeps it: the Library row and every stage of its pipeline. */

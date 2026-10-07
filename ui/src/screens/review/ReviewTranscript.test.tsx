@@ -124,11 +124,11 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect(uncertain.querySelector('.segm-speaker')?.getAttribute('title')).toBe('Speaker uncertain');
     expect(uncertain.querySelector('.segm-dot--uncertain')).not.toBeNull();
     expect(segment('Okay, I think everyone').querySelector('.segm-dot--uncertain')).toBeNull();
-    // The list is windowed: 131 lines, only those near the viewport rendered.
+    // The list is windowed: 130 lines (the sample's turbo pass dropped one), only those near the viewport rendered.
     const list = container.querySelector('.segm-list');
-    expect(list?.getAttribute('aria-label')).toBe('Transcript, 131 lines');
+    expect(list?.getAttribute('aria-label')).toBe('Transcript, 130 lines');
     expect(container.querySelectorAll('.segm').length).toBeLessThan(40);
-    expect(container.querySelector('.segm')?.getAttribute('aria-setsize')).toBe('131');
+    expect(container.querySelector('.segm')?.getAttribute('aria-setsize')).toBe('130');
   });
 
   it('seeks on click and on Enter, and follows the playhead with the current segment', async () => {
@@ -297,7 +297,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     const card = container.querySelector('.tx-failed');
     expect(card?.querySelector('.tx-failed-label')?.textContent).toBe('Transcription failed');
     expect(card?.textContent).toContain('The GPU ran out of memory at 64%. The recording is safe and the partial transcript was kept.');
-    expect([...(card?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(['Retry on CPU', 'Use the Medium model', 'Details']);
+    expect([...(card?.querySelectorAll('button') ?? [])].map((b) => b.textContent)).toEqual(['Retry on CPU', 'Use the Small model', 'Try again', 'Details']);
     expect(container.querySelector('.tx-partial')?.textContent).toMatch(/^The partial transcript, up to /);
     expect(container.querySelector('.segm')).not.toBeNull();
     await click(button('Details', card ?? document));

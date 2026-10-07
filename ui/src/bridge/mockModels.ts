@@ -1,6 +1,6 @@
-// The browser preview's model manager: a small catalog of transcription and speaker models, one
-// simulated download at a time with models.progress, cancel and remove. Sizes and notes are
-// illustrative; nothing is downloaded.
+// The browser preview's model manager: the host's catalog ids (BRIDGE.md M2 clarification 8) with
+// sizes and notes copied from the host catalog, one simulated download at a time with
+// models.progress, cancel and remove. Nothing is downloaded.
 import { formatSize } from '../format/storage';
 import { MockHostError } from './mockSession';
 import type { EngineStatusDetail, EventName, EventPayload, ModelInfo } from './types';
@@ -11,99 +11,130 @@ const GB = 1024 ** 3;
 /** How a simulated download ends: normally, refused for space, or dropped part-way (`?models=nospace|fail`). */
 export type ModelFailureMode = 'none' | 'noSpace' | 'network';
 
-export function sampleModels(): ModelInfo[] {
-  const model = (m: Omit<ModelInfo, 'installing'>): ModelInfo => ({ ...m, installing: null });
+/** The ids every side uses (catalog.json on the host). */
+export const MODEL_IDS = {
+  turbo: 'whisper-large-v3-turbo',
+  medium: 'whisper-medium',
+  small: 'whisper-small',
+  base: 'whisper-base',
+  segmentation: 'pyannote-segmentation-3-0',
+  titanet: 'nemo-titanet-small',
+  eres2net: '3dspeaker-eres2net-base',
+  tesseract: 'tesseract-eng',
+} as const;
+
+/**
+ * The catalog as the preview starts: Large v3 Turbo, Small and both speaker models installed, or
+ * nothing installed (`?models=none`, the first run).
+ */
+export function sampleModels(installed: 'sample' | 'none' = 'sample'): ModelInfo[] {
+  const has = (id: string): boolean =>
+    installed === 'sample' && ([MODEL_IDS.turbo, MODEL_IDS.small, MODEL_IDS.segmentation, MODEL_IDS.titanet] as string[]).includes(id);
+  const model = (m: Omit<ModelInfo, 'installing' | 'installed'>): ModelInfo => ({ ...m, installed: has(m.id), installing: null });
   return [
     model({
-      id: 'large-v3',
-      engine: 'transcription',
-      name: 'Large v3',
-      description: 'The most accurate model, for meetings with several voices, accents and technical words.',
-      sizeBytes: Math.round(1.5 * GB),
-      license: 'MIT',
-      installed: true,
-      recommended: true,
-      runsOn: 'gpu',
-      minVramBytes: 4 * GB,
-      accuracyNote: 'Most accurate',
-    }),
-    model({
-      id: 'large-v3-turbo',
+      id: MODEL_IDS.turbo,
       engine: 'transcription',
       name: 'Large v3 Turbo',
-      description: 'Nearly as accurate as Large v3 and several times faster on a graphics card.',
-      sizeBytes: Math.round(0.8 * GB),
+      description: 'Whisper large-v3-turbo. The most accurate model; fast on a graphics card.',
+      sizeBytes: 1_624_555_275,
       license: 'MIT',
-      installed: false,
-      recommended: false,
+      recommended: true,
       runsOn: 'gpu',
-      minVramBytes: 3 * GB,
-      accuracyNote: 'Fast and accurate',
+      minVramBytes: Math.round(2.5 * GB),
+      accuracyNote: 'Most accurate',
+      role: null,
     }),
     model({
-      id: 'medium',
+      id: MODEL_IDS.medium,
       engine: 'transcription',
       name: 'Medium',
-      description: 'A balance of speed and accuracy that also runs on older graphics cards.',
-      sizeBytes: Math.round(0.77 * GB),
+      description: 'Whisper medium. Accurate, slower than Large v3 Turbo on a graphics card.',
+      sizeBytes: 1_533_763_059,
       license: 'MIT',
-      installed: false,
       recommended: false,
-      runsOn: 'either',
+      runsOn: 'gpu',
       minVramBytes: 2 * GB,
-      accuracyNote: 'Balanced',
+      accuracyNote: 'Very accurate',
+      role: null,
     }),
     model({
-      id: 'small',
+      id: MODEL_IDS.small,
       engine: 'transcription',
       name: 'Small',
-      description: 'Used when no graphics card is available. Good for clear speech and dictation.',
-      sizeBytes: 466 * MB,
+      description: 'Whisper small. Good accuracy and the best choice without a graphics card.',
+      sizeBytes: 487_601_967,
       license: 'MIT',
-      installed: true,
       recommended: false,
-      runsOn: 'cpu',
-      minVramBytes: null,
+      runsOn: 'either',
+      minVramBytes: 1 * GB,
       accuracyNote: 'Fast on CPU',
+      role: null,
     }),
     model({
-      id: 'base',
+      id: MODEL_IDS.base,
       engine: 'transcription',
       name: 'Base',
-      description: 'The quickest model; expect more mistakes with names and numbers.',
-      sizeBytes: 142 * MB,
+      description: 'Whisper base. Smallest download; rough drafts on slow computers.',
+      sizeBytes: 147_951_465,
       license: 'MIT',
-      installed: false,
+      recommended: false,
+      runsOn: 'either',
+      minVramBytes: 512 * MB,
+      accuracyNote: 'Fastest, least accurate',
+      role: null,
+    }),
+    model({
+      id: MODEL_IDS.segmentation,
+      engine: 'speakers',
+      name: 'Speech segmentation (pyannote 3.0)',
+      description: 'Finds where each voice speaks. Needed for speaker identification together with a voice model.',
+      sizeBytes: 5_992_913,
+      license: 'MIT',
+      recommended: true,
+      runsOn: 'cpu',
+      minVramBytes: null,
+      accuracyNote: 'Required',
+      role: 'segmentation',
+    }),
+    model({
+      id: MODEL_IDS.titanet,
+      engine: 'speakers',
+      name: 'Voice model (NeMo TitaNet small, English)',
+      description: 'Tells voices apart. Separated two readers exactly and kept one reader whole in testing.',
+      sizeBytes: 40_257_283,
+      license: 'CC-BY-4.0',
+      recommended: true,
+      runsOn: 'cpu',
+      minVramBytes: null,
+      accuracyNote: 'Most accurate',
+      role: 'embedding',
+    }),
+    model({
+      id: MODEL_IDS.eres2net,
+      engine: 'speakers',
+      name: 'Voice model (3D-Speaker ERes2Net base)',
+      description: 'An alternative voice model trained on Mandarin speech; try it when TitaNet merges voices.',
+      sizeBytes: 39_593_761,
+      license: 'Apache-2.0',
       recommended: false,
       runsOn: 'cpu',
       minVramBytes: null,
-      accuracyNote: 'Fastest, least accurate',
+      accuracyNote: 'Alternative',
+      role: 'embedding',
     }),
     model({
-      id: 'voice-resnet34',
-      engine: 'speakers',
-      name: 'Voice embeddings · ResNet34',
-      description: 'Tells voices apart in meetings of up to about eight people.',
-      sizeBytes: 26 * MB,
+      id: MODEL_IDS.tesseract,
+      engine: 'ocr',
+      name: 'Tesseract English',
+      description: 'English language data for the Tesseract OCR engine (agenda photos). Used from version 0.4.',
+      sizeBytes: 4_113_088,
       license: 'Apache-2.0',
-      installed: true,
       recommended: true,
-      runsOn: 'either',
+      runsOn: 'cpu',
       minVramBytes: null,
-      accuracyNote: 'Recommended for meetings',
-    }),
-    model({
-      id: 'voice-ecapa',
-      engine: 'speakers',
-      name: 'Voice embeddings · ECAPA',
-      description: 'More accurate with many similar voices, a little slower.',
-      sizeBytes: 83 * MB,
-      license: 'Apache-2.0',
-      installed: false,
-      recommended: false,
-      runsOn: 'either',
-      minVramBytes: null,
-      accuracyNote: 'Best with many speakers',
+      accuracyNote: 'Per-word confidence',
+      role: null,
     }),
   ];
 }
@@ -115,6 +146,10 @@ export interface ModelManagerEnvironment {
   /** Model ids a running stage is using right now. */
   inUse(): readonly string[];
   failure: ModelFailureMode;
+  /** `?models=none`: start with nothing installed, like a first run. */
+  installed?: 'sample' | 'none';
+  /** Called after a model finished installing (stages waiting for a model start by themselves). */
+  onInstalled?: (modelId: string) => void;
   /** Milliseconds between progress steps (shorter in tests). */
   stepMs?: number;
 }
@@ -129,7 +164,7 @@ export interface MockModelManager {
 }
 
 export function createMockModels(env: ModelManagerEnvironment): MockModelManager {
-  const models = sampleModels();
+  const models = sampleModels(env.installed ?? 'sample');
   let running: { modelId: string; timer: ReturnType<typeof setInterval> } | null = null;
   const stepMs = env.stepMs ?? 250;
 
@@ -168,9 +203,9 @@ export function createMockModels(env: ModelManagerEnvironment): MockModelManager
       if (running !== null) {
         const busy = find(running.modelId);
         throw new MockHostError(
-          'models.downloadFailed',
+          'models.busy',
           `${busy.name} is still downloading. Models download one at a time; wait for it or cancel it, then try again. Nothing was changed.`,
-          'busy',
+          busy.id,
         );
       }
       const free = env.failure === 'noSpace' ? Math.min(env.freeBytes(), 300 * MB) : env.freeBytes();
@@ -211,14 +246,25 @@ export function createMockModels(env: ModelManagerEnvironment): MockModelManager
         setTimeout(() => {
           update(modelId, { installing: null, installed: true });
           env.emit('models.progress', { modelId, percent: 100, bytesDone: total, bytesTotal: total, state: 'done', message: null });
+          env.onInstalled?.(modelId);
         }, stepMs * 2);
       }, stepMs);
       running = { modelId, timer };
     },
     cancelInstall: (modelId) => {
-      find(modelId);
+      const model = find(modelId);
       if (running?.modelId === modelId) {
         stop();
+        // Like the host: the download's last progress is `failed`, saying it was cancelled, before the call answers.
+        const done = model.installing?.bytesDone ?? 0;
+        env.emit('models.progress', {
+          modelId,
+          percent: 0,
+          bytesDone: done,
+          bytesTotal: model.sizeBytes,
+          state: 'failed',
+          message: `The download of ${model.name} was cancelled; the partial file was removed.`,
+        });
       }
       update(modelId, { installing: null });
     },
@@ -241,7 +287,7 @@ export function engineDetail(
   manager: MockModelManager,
   modelId: string,
   device: 'GPU' | 'CPU',
-  paused: string | null,
+  paused: EngineStatusDetail['paused'],
 ): EngineStatusDetail {
   const ready = manager.isInstalled(modelId);
   return {

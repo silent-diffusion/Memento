@@ -74,11 +74,10 @@ export interface Pill {
 }
 
 /**
- * Pipeline stages the UI can name: the host's StageName, plus `topics`, which the M2 contract writes
- * to History and which a later host may report as a stage of its own. Unknown names fall back to a
- * capitalised form, so a newer host never breaks the row.
+ * Pipeline stages the UI can name: the host's StageName. Unknown names fall back to a capitalised
+ * form, so a newer host never breaks the row.
  */
-export type PipelineStage = StageName | 'topics';
+export type PipelineStage = StageName;
 
 const DONE_NAMES: Record<PipelineStage, string> = {
   stored: 'Stored',
@@ -122,8 +121,11 @@ export function stageName(stage: string): string {
   return named(DONE_NAMES, stage);
 }
 
-/** Stages that only keep the audio safe or small: a finished one is the normal state, not news. */
-const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'optimize']);
+/**
+ * Stages whose finished state is the normal state, not news: keeping the audio safe or small, and
+ * the quick local topics pass after speakers (the host leaves a finished one out of rows too).
+ */
+const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'topics', 'optimize']);
 
 function pillFor(stage: StageStatus): Pill {
   const base = { stage: stage.stage };
