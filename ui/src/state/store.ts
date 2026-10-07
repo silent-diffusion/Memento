@@ -7,6 +7,7 @@ import type {
   LibraryListResult,
   LibraryProcessingResult,
   RecordingLevelsPayload,
+  RecordingLiveTranscriptPayload,
   RecordingSourceLostPayload,
   RecordingStatePayload,
   RecoveredRecording,
@@ -44,6 +45,8 @@ export interface AppStore {
   /** The latest source loss of the active session; cleared when the session ends. */
   lostSource: Signal<RecordingSourceLostPayload | null>;
   lowSpace: Signal<StorageLowSpacePayload | null>;
+  /** The latest live draft (recording.liveTranscript) of a session; null until one arrives. */
+  liveTranscript: Signal<RecordingLiveTranscriptPayload | null>;
 
   toasts: ToastQueue;
   dialog: Signal<DialogRequest | null>;
@@ -70,6 +73,7 @@ export function createStore(initialDark: boolean, toasts: ToastQueue = createToa
     levels: signal<RecordingLevelsPayload | null>(null),
     lostSource: signal<RecordingSourceLostPayload | null>(null),
     lowSpace: signal<StorageLowSpacePayload | null>(null),
+    liveTranscript: signal<RecordingLiveTranscriptPayload | null>(null),
     toasts,
     dialog: signal<DialogRequest | null>(null),
     overlays: signal(0),
@@ -173,6 +177,10 @@ export function connectEvents(bridge: BridgeClient, store: AppStore, hooks: Even
     }),
     bridge.on('storage.lowSpace', (payload) => {
       store.lowSpace.value = payload;
+    }),
+    // Each draft replaces the last; the full pass after recording replaces the draft entirely.
+    bridge.on('recording.liveTranscript', (payload) => {
+      store.liveTranscript.value = payload;
     }),
   ];
   return () => {

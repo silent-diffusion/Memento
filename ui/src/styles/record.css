@@ -483,6 +483,39 @@
   color: var(--text-3);
 }
 
+/* M2: the live draft. Mono time over 14 px text; the newest line trails off in text-3. */
+.rec-live {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rec-live-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rec-live-at {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.rec-live-text {
+  font-size: 14px;
+}
+
+.rec-live-more {
+  color: var(--text-3);
+}
+
+.rec-live-foot {
+  font-size: 12px;
+}
+
 .rec-agenda {
   gap: 12px;
 }

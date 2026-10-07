@@ -3,6 +3,8 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../App';
 import { createBridgeClient, type BridgeClient } from '../../bridge/client';
+import type { MockOptions } from '../../bridge/mock';
+import { LIVE_DRAFT_GRACE_MS, liveTranscriptCopy } from './RecordParts';
 import { loadInitialData, refreshLibrary } from '../../state/data';
 import { connectEvents, createStore, type AppStore } from '../../state/store';
 
@@ -40,8 +42,8 @@ describe('Recording session (against the browser-preview host)', () => {
     return match;
   };
 
-  const setUp = async (): Promise<void> => {
-    bridge = createBridgeClient({ logger: quiet, mock: { live: false, recovery: false } });
+  const setUp = async (mock: MockOptions = {}): Promise<void> => {
+    bridge = createBridgeClient({ logger: quiet, mock: { live: false, recovery: false, ...mock } });
     store = createStore(false);
     disconnect = connectEvents(bridge, store, {
       onLibraryChanged: () => {
@@ -338,5 +340,38 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(update?.[1]).toMatchObject({ recordingId: store.recording.value?.recordingId, highlight: { note: 'Decision: launch date' } });
     const project = await bridge.call('project.get', { recordingId: store.recording.value?.recordingId ?? '' });
     expect(project.highlights.map((h) => h.note)).toEqual(['Decision: launch date']);
+  });
+
+  it('shows the live draft when the host sends one (?live=1)', async () => {
+    await setUp({ liveTranscript: true });
+    store.route.value = { name: 'record', sessionId: null };
+    await mount();
+    await until(() => container.querySelectorAll('.src').length === 5);
+    const card = (): Element | null => container.querySelector('[aria-label="Live transcript"]');
+    expect(card()?.textContent).toContain('Words appear here a few seconds behind the recording.');
+    await act(async () => {
+      button('Start recording').click();
+      await Promise.resolve();
+    });
+    await until(() => (card()?.querySelectorAll('.rec-live-line').length ?? 0) >= 2, 10_000);
+    const lines = [...(card()?.querySelectorAll('.rec-live-line') ?? [])];
+    expect(lines[0]?.querySelector('.rec-live-at')?.textContent).toBe('00:00:00');
+    expect(lines.at(-1)?.querySelector('.rec-live-more')?.textContent).toBe(' …');
+    expect(lines[0]?.querySelector('.rec-live-more')).toBeNull();
+    expect(card()?.querySelector('.pill')?.textContent).toBe('Local · GPU');
+    expect(card()?.textContent).toContain('Rough draft. Speaker names and corrections happen in Review.');
+  });
+
+  it('says live transcription is off when Timing is After recording', async () => {
+    await setUp();
+    store.route.value = { name: 'record', sessionId: null };
+    await mount();
+    await until(() => container.querySelectorAll('.src').length === 5);
+    const card = container.querySelector('[aria-label="Live transcript"]');
+    expect(card?.textContent).toContain('Live transcription is off.');
+    expect(card?.querySelector('.pill')).toBeNull();
+    expect(liveTranscriptCopy('during', 'recording', 2_000)).toBe('Listening. Words appear here a few seconds behind the recording.');
+    expect(liveTranscriptCopy('during', 'recording', LIVE_DRAFT_GRACE_MS)).toMatch(/^Live transcription is not available in this version of Memento\./);
+    expect(liveTranscriptCopy('after', 'recording', 60_000)).toMatch(/^Live transcription is off\./);
   });
 });
