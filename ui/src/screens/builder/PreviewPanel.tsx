@@ -9,7 +9,7 @@ import { AlertIcon } from '../../components/paper/icons';
 import { Paper } from '../../components/paper/Paper';
 import { INPUT_NAMES } from '../../format/documents';
 import type { BuilderTab } from './draft';
-import { failureWords, progressWords, type ActiveGeneration } from './generation';
+import { failureLead, failureWords, progressWords, type ActiveGeneration } from './generation';
 
 const TABS: readonly { id: BuilderTab; label: string }[] = [
   { id: 'preview', label: 'Preview' },
@@ -100,8 +100,7 @@ function FailureCard({
   onSwitch: (provider: ProviderInfo) => void;
   onDismiss: () => void;
 }): JSX.Element {
-  const refused = job.failureCode !== null;
-  const lead = refused ? `The ${job.template.name.toLocaleLowerCase()} could not be started` : `${job.provider.kind === 'local' ? 'The local model' : job.provider.name} didn't respond`;
+  const lead = failureLead(job);
   return (
     <div class="ai-failure" role="alert">
       <div class="ai-failure-text">
@@ -312,6 +311,10 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
               <div class="output-row">
                 <Toggle label="Also export as Word document" checked={props.output.alsoExportDocx} onChange={(alsoExportDocx) => { props.onOutput({ ...props.output, alsoExportDocx }); }} />
                 <span class="output-name">Also export as Word (.docx)</span>
+              </div>
+              <div class="output-row">
+                <Toggle label="Also export as PDF" checked={props.output.alsoExportPdf === true} onChange={(alsoExportPdf) => { props.onOutput({ ...props.output, alsoExportPdf }); }} />
+                <span class="output-name">Also export as PDF</span>
               </div>
               <div class="output-row">
                 <Toggle label="Also export as Markdown" checked={props.output.alsoExportMarkdown} onChange={(alsoExportMarkdown) => { props.onOutput({ ...props.output, alsoExportMarkdown }); }} />

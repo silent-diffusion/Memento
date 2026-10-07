@@ -1721,6 +1721,8 @@ export interface GenerationProgress {
   percent: number;
   /** Failed: what happened, in DESIGN.md §17 words. */
   message: string | null;
+  /** Failed: the error code (ai.network, ai.notEnoughVram…). */
+  code?: string | null;
 }
 
 export type DocumentVersionReason = 'generated' | 'edited' | 'restored' | 'regenerated';
