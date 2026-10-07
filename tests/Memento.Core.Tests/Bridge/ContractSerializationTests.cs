@@ -39,7 +39,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage", Names(result));
         Assert.Equal(AppPaths.DefaultLibrary, result.GetProperty("libraryPath").GetString());
         Assert.Contains("\"theme\":\"system\"", json, StringComparison.Ordinal);
         Assert.Contains("\"listDensity\":\"comfortable\"", json, StringComparison.Ordinal);
@@ -55,7 +55,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage", Names(result));
         Assert.Equal("dark", result.GetProperty("theme").GetString());
     }
 
@@ -122,7 +122,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("engine,storage,recording,processingPaused", Names(result));
+        Assert.Equal("engine,storage,recording,processingPaused,export", Names(result));
         Assert.Equal("""{"freeBytes":1000,"lowSpace":true}""", result.GetProperty("storage").GetRawText());
         Assert.Equal("""{"active":false,"lastCheckpointAt":null,"lostSource":null}""", result.GetProperty("recording").GetRawText());
         Assert.Equal("Low disk space", result.GetProperty("processingPaused").GetString());
@@ -232,7 +232,7 @@ public sealed class ContractSerializationTests : IDisposable
     public void FooterStatusEvent()
     {
         Assert.Equal(
-            """{"event":"status.footer","payload":{"engine":{"ready":true,"device":"GPU","detail":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"whisper-large-v3-turbo","paused":null}},"storage":{"freeBytes":227633266688,"lowSpace":false},"recording":{"active":true,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","lostSource":"Shure MV7"},"processingPaused":null}}""",
+            """{"event":"status.footer","payload":{"engine":{"ready":true,"device":"GPU","detail":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"whisper-large-v3-turbo","paused":null}},"storage":{"freeBytes":227633266688,"lowSpace":false},"recording":{"active":true,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","lostSource":"Shure MV7"},"processingPaused":null,"export":{"active":false,"percent":null,"title":null}}}""",
             BridgeEventPublisher.SerializeFooterStatus(
                 new FooterStatusPayload(
                     new EngineStatus(true, "GPU", new EngineStatusDetail(true, "GPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 5_368_709_120, "whisper-large-v3-turbo", null)),

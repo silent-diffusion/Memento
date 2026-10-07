@@ -5,6 +5,7 @@ using Memento.App.Bridge;
 using Memento.App.Hosting;
 using Memento.App.Theming;
 using Memento.Core;
+using Memento.Core.Agendas;
 using Memento.Core.Library;
 using Memento.Core.Settings;
 using Memento.Core.Status;
@@ -48,6 +49,7 @@ internal sealed partial class MainWindow : Window
     private readonly CommandLineOptions _options;
     private readonly ILibraryLocation _library;
     private readonly ILogger<MainWindow> _logger;
+    private readonly DroppedFiles _dropped;
     private string? _mappedLibrary;
 
     public MainWindow(
@@ -58,6 +60,7 @@ internal sealed partial class MainWindow : Window
         CommandLineOptions options,
         ILibraryLocation library,
         ISettingsStore settings,
+        DroppedFiles dropped,
         ILogger<MainWindow> logger)
     {
         _theme = theme;
@@ -67,6 +70,7 @@ internal sealed partial class MainWindow : Window
         _options = options;
         _library = library;
         _logger = logger;
+        _dropped = dropped;
         settings.Changed += (_, e) =>
         {
             if (!string.Equals(e.Previous.EffectiveLibraryPath, e.Current.EffectiveLibraryPath, StringComparison.OrdinalIgnoreCase))
@@ -170,6 +174,7 @@ internal sealed partial class MainWindow : Window
         core.NewWindowRequested += OnNewWindowRequested;
         core.NavigationCompleted += OnNavigationCompleted;
         core.ProcessFailed += OnProcessFailed;
+        core.WebMessageReceived += OnDroppedFiles; // before the bridge, so a drop's paths are known when its request runs
         _bridge.Attach(core, Dispatcher);
         core.Navigate(WebViewBridge.Origin + "index.html");
         return true;
@@ -242,6 +247,24 @@ internal sealed partial class MainWindow : Window
         {
             e.Cancel = true;
             LogNavigationBlocked(e.Uri);
+        }
+    }
+
+    /// <summary>
+    /// A drop on the page arrives with the dropped <c>File</c> objects (<c>postMessageWithAdditionalObjects</c>); their
+    /// real paths are kept for <c>agenda.importDropped</c>, which the same message carries. Only our page's messages count.
+    /// </summary>
+    private void OnDroppedFiles(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        if (!e.Source.StartsWith(WebViewBridge.Origin, StringComparison.Ordinal) || e.AdditionalObjects is not { Count: > 0 } objects)
+        {
+            return;
+        }
+
+        var paths = objects.OfType<CoreWebView2File>().Select(f => f.Path).ToList();
+        if (paths.Count > 0)
+        {
+            _dropped.Register(paths);
         }
     }
 

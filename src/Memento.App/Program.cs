@@ -147,6 +147,7 @@ internal static class Program
         }
 
         builder.Services.AddMediaFoundationStorage();
+        builder.Services.AddMementoM3Host();
         builder.Services.AddSingleton<LibraryStartup>();
         builder.Services.AddHostedService<RecordingLifetime>();
         builder.Services.AddHostedService<FooterStatusLoop>();
