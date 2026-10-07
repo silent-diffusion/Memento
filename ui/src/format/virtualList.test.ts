@@ -2,15 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { computeWindow, KEEP_REACH, RowHeights, rowAt } from './virtualList';
 
 describe('transcript list windowing', () => {
-  it('lays rows out from the estimate until they are measured', () => {
+  it('lays rows out from the estimate, then from the measured average', () => {
     const heights = new RowHeights(4, 80);
     expect([...heights.offsets()]).toEqual([0, 80, 160, 240, 320]);
     expect(heights.set(1, 120)).toBe(true);
     expect(heights.set(1, 120)).toBe(false);
     // An element that is not laid out (0 px) does not count as measured.
     expect(heights.set(2, 0)).toBe(false);
-    expect([...heights.offsets()]).toEqual([0, 80, 200, 280, 360]);
-    expect(heights.total()).toBe(360);
+    // Unmeasured rows now count as the average measured height.
+    expect([...heights.offsets()]).toEqual([0, 120, 240, 360, 480]);
+    expect(heights.total()).toBe(480);
+    expect(heights.typical()).toBe(120);
   });
 
   it('finds the row under a position', () => {
@@ -53,8 +55,8 @@ describe('transcript list windowing', () => {
     heights.set(0, 30);
     heights.set(2, 30);
     heights.resize(2);
-    expect(heights.total()).toBe(40);
+    expect(heights.total()).toBe(60);
     heights.resize(3);
-    expect(heights.total()).toBe(50);
+    expect(heights.total()).toBe(90);
   });
 });

@@ -177,6 +177,7 @@ function TranscriptList({
   const [view, setView] = useState({ top: 0, bottom: typeof window === 'undefined' ? 1200 : window.innerHeight });
   const [, setMeasured] = useState(0);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  const pendingReveal = useRef<{ index: number; tries: number } | null>(null);
   const speakerById = useMemo(() => new Map(speakers.map((s) => [s.id, s])), [speakers]);
   const editingIndex = editing === null ? -1 : segments.findIndex((s) => s.id === editing.segmentId);
 
@@ -244,6 +245,21 @@ function TranscriptList({
     if (changed) {
       setMeasured((n) => n + 1);
     }
+    // A jump to a row that was not rendered used estimated offsets: put the row where it belongs now.
+    const pending = pendingReveal.current;
+    const target = pending === null ? null : list.querySelector<HTMLElement>(`[data-index="${pending.index}"]`);
+    if (pending !== null && target !== null) {
+      const box = target.getBoundingClientRect();
+      const delta = followScrollDelta(box.top, box.bottom, stickyBottom(), window.innerHeight);
+      pending.tries -= 1;
+      if (delta === null || pending.tries <= 0) {
+        pendingReveal.current = null;
+      }
+      if (delta !== null) {
+        follow.noteProgrammaticScroll();
+        window.scrollBy({ top: delta, behavior: 'auto' });
+      }
+    }
   });
 
   /** Scrolls the page so row `index` sits a third of the way down the visible part. */
@@ -263,7 +279,10 @@ function TranscriptList({
       return;
     }
     const sticky = stickyBottom();
-    const delta = followScrollDelta(rect.top + rowTop, rect.top + rowBottom, sticky, window.innerHeight);
+    // A rendered row has a real position; otherwise its place comes from the (partly estimated) offsets.
+    const el = list.querySelector<HTMLElement>(`[data-index="${index}"]`);
+    const box = el?.getBoundingClientRect() ?? null;
+    const delta = followScrollDelta(box?.top ?? rect.top + rowTop, box?.bottom ?? rect.top + rowBottom, sticky, window.innerHeight);
     if (delta === null) {
       if (!onlyIfNeeded) {
         measureView();
@@ -271,10 +290,15 @@ function TranscriptList({
       return;
     }
     follow.noteProgrammaticScroll();
-    // Render the destination at once so the row exists when the scroll lands.
-    const destinationTop = Math.max(0, sticky - (rect.top - delta));
-    setView({ top: destinationTop, bottom: destinationTop + window.innerHeight });
-    window.scrollBy({ top: delta, behavior: prefersReducedMotion() || Math.abs(delta) > 4000 ? 'auto' : 'smooth' });
+    if (box === null) {
+      // Render the destination at once, jump there, and correct once the rows there are measured.
+      const destinationTop = Math.max(0, sticky - (rect.top - delta));
+      setView({ top: destinationTop, bottom: destinationTop + window.innerHeight });
+      pendingReveal.current = { index, tries: 4 };
+      window.scrollBy({ top: delta, behavior: 'auto' });
+      return;
+    }
+    window.scrollBy({ top: delta, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   };
 
   revealRef.current = (segmentId) => {

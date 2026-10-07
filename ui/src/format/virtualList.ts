@@ -2,9 +2,13 @@
 // from measured heights where known and an estimate otherwise, and only the rows near the viewport
 // are rendered, with spacers standing in for the rest.
 
-/** Heights by row index; unknown rows use `estimate`. */
+/**
+ * Heights by row index. A row not measured yet counts as the average of those that are (or as
+ * `estimate` before any are), so far-off rows land close to where they will really be.
+ */
 export class RowHeights {
   private readonly measured = new Map<number, number>();
+  private measuredSum = 0;
   private offsetsCache: Float64Array | null = null;
 
   constructor(
@@ -22,9 +26,10 @@ export class RowHeights {
       return;
     }
     this.count = count;
-    for (const index of [...this.measured.keys()]) {
+    for (const [index, height] of [...this.measured]) {
       if (index >= count) {
         this.measured.delete(index);
+        this.measuredSum -= height;
       }
     }
     this.offsetsCache = null;
@@ -33,19 +38,27 @@ export class RowHeights {
   /** Forgets every measurement (the rows' content changed throughout). */
   clear(): void {
     this.measured.clear();
+    this.measuredSum = 0;
     this.offsetsCache = null;
   }
 
+  /** What an unmeasured row counts as: the average measured height, or the estimate. */
+  typical(): number {
+    return this.measured.size === 0 ? this.estimate : this.measuredSum / this.measured.size;
+  }
+
   height(index: number): number {
-    return this.measured.get(index) ?? this.estimate;
+    return this.measured.get(index) ?? this.typical();
   }
 
   /** Records a measured height; 0 (not laid out, e.g. in tests) is ignored. Returns true if it changed. */
   set(index: number, height: number): boolean {
-    if (!(height > 0) || index < 0 || index >= this.count || this.measured.get(index) === height) {
+    const before = this.measured.get(index);
+    if (!(height > 0) || index < 0 || index >= this.count || before === height) {
       return false;
     }
     this.measured.set(index, height);
+    this.measuredSum += height - (before ?? 0);
     this.offsetsCache = null;
     return true;
   }
