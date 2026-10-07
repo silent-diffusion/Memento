@@ -16,8 +16,8 @@ public sealed class AiProviderFactory(Lazy<AiHttpClient> http, ISecretReader sec
 {
     public IAiProvider CreateCloud(string id, string model) => id switch
     {
-        ProviderIds.Anthropic => new AnthropicProvider(http.Value.Client, secrets, new AnthropicOptions { Model = model }, loggers.CreateLogger<AnthropicProvider>(), time),
-        ProviderIds.OpenAi => new OpenAiProvider(http.Value.Client, secrets, new OpenAiOptions { Model = model }, loggers.CreateLogger<OpenAiProvider>(), time),
+        ProviderIds.Anthropic => new AnthropicProvider(http.Value.Client, secrets, new AnthropicOptions { Model = model, BaseUrl = TestEndpoints.Loopback(TestEndpoints.AnthropicVariable) ?? AnthropicOptions.DefaultBaseUrl }, loggers.CreateLogger<AnthropicProvider>(), time),
+        ProviderIds.OpenAi => new OpenAiProvider(http.Value.Client, secrets, new OpenAiOptions { Model = model, BaseUrl = TestEndpoints.Loopback(TestEndpoints.OpenAiVariable) ?? OpenAiOptions.DefaultBaseUrl }, loggers.CreateLogger<OpenAiProvider>(), time),
         _ => throw new ArgumentOutOfRangeException(nameof(id), id, "Not a cloud provider."),
     };
 
