@@ -46,6 +46,7 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(DocumentVersionsResult))]
 [JsonSerializable(typeof(DocumentRestoreParams))]
 [JsonSerializable(typeof(DocumentRestoreResult))]
+[JsonSerializable(typeof(DocumentVersionResult))]
 [JsonSerializable(typeof(DocumentExportParams))]
 [JsonSerializable(typeof(DocumentFileResult))]
 [JsonSerializable(typeof(DocumentCopyResult))]

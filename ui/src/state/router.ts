@@ -27,7 +27,8 @@ export type Route =
   // M4
   /** The Document builder for a recording (null: a template opened from Settings), with a template and the document Regenerate writes into. */
   | { name: 'builder'; recordingId: string | null; templateId: string | null; documentId: string | null }
-  | { name: 'document'; recordingId: string; documentId: string }
+  /** `versionId` (after 1.2.0): open that kept version read-only (Review's History opens it). */
+  | { name: 'document'; recordingId: string; documentId: string; versionId?: string }
   | { name: 'style'; styleId: string };
 
 export const LIBRARY_ROUTE: Route = { name: 'library' };
@@ -70,7 +71,11 @@ export function parseRoute(hash: string): Route {
     case 'document': {
       const recordingId = decode(arg);
       const documentId = decode(parts[2]);
-      return recordingId === null || documentId === null ? LIBRARY_ROUTE : { name: 'document', recordingId, documentId };
+      if (recordingId === null || documentId === null) {
+        return LIBRARY_ROUTE;
+      }
+      const versionId = query.get('version');
+      return versionId === null || versionId === '' ? { name: 'document', recordingId, documentId } : { name: 'document', recordingId, documentId, versionId };
     }
     case 'style': {
       const styleId = decode(arg);
@@ -108,7 +113,7 @@ export function formatRoute(route: Route): string {
       return `#/builder${route.recordingId === null ? '' : `/${encodeURIComponent(route.recordingId)}`}${search === '' ? '' : `?${search}`}`;
     }
     case 'document':
-      return `#/document/${encodeURIComponent(route.recordingId)}/${encodeURIComponent(route.documentId)}`;
+      return `#/document/${encodeURIComponent(route.recordingId)}/${encodeURIComponent(route.documentId)}${route.versionId === undefined ? '' : `?version=${encodeURIComponent(route.versionId)}`}`;
     case 'style':
       return `#/style/${encodeURIComponent(route.styleId)}`;
   }

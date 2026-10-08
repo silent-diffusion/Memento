@@ -24,7 +24,8 @@ import './docview.css';
 import { blockKind, currentBlock, insertTable, insertTimestamp, selectionRange, setBlock, toggleInline, toggleList, type BlockKind } from './editing';
 import { playheadOf } from './playhead';
 import { createEditSaver, type EditSaver, type SaveState } from './saver';
-import { HowMade, versionMeta, Versions } from './SideColumn';
+import { HowMade, numberedVersions, versionMeta, Versions } from './SideColumn';
+import { restoreDocumentVersion, VersionBanner, type ViewedVersion } from './VersionBanner';
 import { Toolbar, type ToolbarCommand } from './Toolbar';
 
 function messageOf(error: unknown): string {
@@ -36,7 +37,8 @@ type Confirm =
   | { kind: 'delete' }
   | { kind: 'makeTemplate' };
 
-export function DocumentScreen({ recordingId, documentId }: { recordingId: string; documentId: string }): JSX.Element {
+/** `versionId` (after 1.2.0): open that kept version read-only first (Review's History). */
+export function DocumentScreen({ recordingId, documentId, versionId }: { recordingId: string; documentId: string; versionId?: string }): JSX.Element {
   const services = useServices();
   const { bridge, store, router } = services;
   const now = services.now();
@@ -56,6 +58,9 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
   const [templateName, setTemplateName] = useState('');
   const [reload, setReload] = useState(0);
   const [versionsReload, setVersionsReload] = useState(0);
+  // After 1.2.0: a kept version open read-only in place of the paper, with a banner to restore it or go back.
+  const [viewing, setViewing] = useState<ViewedVersion | null>(versionId === undefined ? null : { versionId, html: null, error: null });
+  const [restoringVersion, setRestoringVersion] = useState(false);
   const article = useRef<HTMLElement | null>(null);
   const lastRange = useRef<Range | null>(null);
   const saverRef = useRef<EditSaver | null>(null);
@@ -394,6 +399,60 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
     }
   };
 
+  // A version opened from Review's History or the Versions list: its paper, read once.
+  useEffect(() => {
+    setViewing(versionId === undefined ? null : { versionId, html: null, error: null });
+  }, [versionId]);
+  const viewingId = viewing?.versionId ?? null;
+  useEffect(() => {
+    if (viewingId === null) {
+      return undefined;
+    }
+    let live = true;
+    bridge
+      .call('documents.getVersion', { recordingId, documentId, versionId: viewingId })
+      .then((result) => {
+        if (live) {
+          setViewing((v) => (v?.versionId === viewingId ? { ...v, html: result.html } : v));
+        }
+      })
+      .catch((e: unknown) => {
+        if (live) {
+          setViewing((v) => (v?.versionId === viewingId ? { ...v, error: messageOf(e) } : v));
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [bridge, recordingId, documentId, viewingId]);
+  const openVersion = (version: DocumentVersion): void => {
+    void saverRef.current?.flush().finally(() => {
+      setViewing(version.id === 'current' ? null : { versionId: version.id, html: null, error: null });
+    });
+  };
+  const viewed = viewing === null || versions === null ? null : (numberedVersions(versions).find((v) => v.version.id === viewing.versionId) ?? null);
+  const restoreViewed = (): void => {
+    if (viewing === null) {
+      return;
+    }
+    const number = viewed?.number ?? null;
+    const label = number === null ? 'restore an earlier version' : `restore version ${number}`;
+    setRestoringVersion(true);
+    restoreDocumentVersion(bridge, undo, recordingId, documentId, viewing.versionId, label)
+      .then(() => {
+        setViewing(null);
+        setReload((n) => n + 1);
+        setVersionsReload((n) => n + 1);
+        undo.announce(number === null ? 'Version restored' : `Version ${number} restored`);
+      })
+      .catch((e: unknown) => {
+        store.toasts.show({ tone: 'warning', title: 'The version was not restored', body: `${messageOf(e)} Nothing was changed.` });
+      })
+      .finally(() => {
+        setRestoringVersion(false);
+      });
+  };
+
   const saveWords = save.kind === 'saving' ? 'Saving…' : save.kind === 'pending' ? 'Edited' : save.kind === 'failed' ? 'Not saved' : 'Saved';
   const playhead = playheadOf(store, recordingId);
 
@@ -524,6 +583,20 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
         <main class="doc-main">
           <div class="doc-layout">
             <section class="doc-column" aria-label="Document">
+              {viewing !== null ? (
+                <VersionBanner
+                  name={summary?.name ?? 'The document'}
+                  number={viewed?.number ?? null}
+                  meta={viewed === null ? null : versionMeta(viewed.version, now)}
+                  error={viewing.error}
+                  ready={viewing.html !== null}
+                  restoring={restoringVersion}
+                  onRestore={restoreViewed}
+                  onBack={() => {
+                    setViewing(null);
+                  }}
+                />
+              ) : (
               <Toolbar
                 kind={kind}
                 bold={marks.bold}
@@ -540,6 +613,7 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
                 playheadSeconds={playhead === null ? null : playhead / 1000}
                 durationSeconds={(project?.summary.durationMs ?? 0) / 1000}
               />
+              )}
               {save.kind === 'failed' ? (
                 <p class="doc-save-error" role="alert">
                   {save.message}
@@ -551,7 +625,11 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
                   beginEdit();
                 }}
               >
-                <Paper key={paperKey} html={html} label={summary?.name ?? 'Document'} editable articleRef={article} onEdit={edited} onTimestamp={openReview} loadingText="Opening the document…" class="doc-paper" />
+                {viewing !== null ? (
+                  <Paper key={`version-${viewing.versionId}`} html={viewing.html} label={`${summary?.name ?? 'Document'}, an earlier version (read only)`} onTimestamp={openReview} loadingText="Opening this version…" class="doc-paper doc-paper--version" />
+                ) : (
+                  <Paper key={paperKey} html={html} label={summary?.name ?? 'Document'} editable articleRef={article} onEdit={edited} onTimestamp={openReview} loadingText="Opening the document…" class="doc-paper" />
+                )}
               </div>
             </section>
             <aside class="doc-side" aria-label="About this document">
@@ -590,6 +668,8 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
                 onRestore={(version, number) => {
                   setConfirm({ kind: 'restore', version, number });
                 }}
+                onOpen={openVersion}
+                openId={viewing?.versionId ?? null}
               />
               <p class="doc-footnote">Timestamps link back to the transcript. Edits save as you type and stay inside this recording.</p>
             </aside>

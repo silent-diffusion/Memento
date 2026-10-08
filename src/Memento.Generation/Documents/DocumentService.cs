@@ -283,6 +283,15 @@ public sealed partial class DocumentService(
         return new DocumentVersionInfo(CurrentVersionId, document.LastChange?.At ?? document.ModifiedAt, reason, 0, document.Version);
     }
 
+    /// <summary><c>documents.getVersion</c>: a kept version's content and its paper, drawn with the style it names.</summary>
+    public async Task<DocumentVersionResult> GetVersionAsync(string recordingId, string documentId, string versionId, CancellationToken cancellationToken)
+    {
+        await LoadAsync(recordingId, documentId, cancellationToken);
+        var version = await store.LoadVersionAsync(recordingId, documentId, versionId, cancellationToken) ?? throw M4Errors.VersionNotFound(versionId);
+        var style = await styles.FindOrDefaultAsync(version.Document.StyleId, cancellationToken);
+        return new DocumentVersionResult(M4Mapping.ToContent(version.Document), renderer.RenderViewer(version.Document, style).Html);
+    }
+
     public async Task<DocumentRestoreResult> RestoreVersionAsync(string recordingId, string documentId, string versionId, CancellationToken cancellationToken)
     {
         await LoadAsync(recordingId, documentId, cancellationToken);

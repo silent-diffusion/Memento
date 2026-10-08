@@ -17,8 +17,10 @@ namespace Memento.Worker;
 /// The transcription job (ENGINE-NOTES.md §D): a speech-energy pass over every track first (silent tracks are skipped
 /// and windows without speech are not sent to the engine), then each track in overlapping windows through Whisper.net
 /// with runtime order Vulkan, CPU (never CUDA), the discrete GPU chosen by name, token timestamps and probabilities on,
-/// a short punctuated prompt, and DTW off. Each window's kept segments are sent as soon as it finishes. A job that may
-/// use the graphics card first takes the machine-wide GPU lock (<see cref="GpuLock"/>).
+/// a short punctuated prompt, and DTW off. The engine hears each window with its long silences shortened
+/// (<see cref="SpeechPacker"/>), and every line's times are mapped back and aligned to the sound under it
+/// (<see cref="SpeechAligner"/>, ENGINE-NOTES.md §K). Each window's kept segments are sent as soon as it finishes. A job
+/// that may use the graphics card first takes the machine-wide GPU lock (<see cref="GpuLock"/>).
 /// </summary>
 internal sealed partial class WhisperTranscriber(ProtocolWriter output)
 {
@@ -56,7 +58,7 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
             var regions = energy.Regions();
             var silent = SpeechEnergy.IsSilent(regions);
             var windows = WindowPlanner.Plan(energy.DurationSeconds, job.WindowSeconds, job.OverlapSeconds);
-            var plan = new TrackPlan(track, energy.DurationSeconds, silent, regions, windows);
+            var plan = new TrackPlan(track, energy.DurationSeconds, silent, regions, energy.SoundRegions(), windows);
             plans.Add(plan);
             output.Send(new WorkerReply
             {
@@ -86,7 +88,8 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
         // Within a window the engine reports its own percentage; it is passed on (throttled) so a short recording
         // in a single window still shows progress.
         double done = 0;
-        var windowLength = 0.0;
+        var progressFrom = 0.0;
+        var progressSpan = 0.0;
         var lastSent = -1.0;
         string? currentTrack = null;
         var builder = factory.CreateBuilder()
@@ -100,7 +103,7 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
             .WithLanguage(string.IsNullOrWhiteSpace(job.Language) ? "auto" : job.Language)
             .WithProgressHandler(progress =>
             {
-                var percent = Math.Round(Math.Min(99.9, 100 * (done + (windowLength * progress / 100.0)) / work), 1);
+                var percent = Math.Round(Math.Min(99.9, 100 * (progressFrom + (progressSpan * progress / 100.0)) / work), 1);
                 if (percent - lastSent >= 2)
                 {
                     lastSent = percent;
@@ -110,6 +113,7 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
         await using var processor = builder.Build();
 
         string? language = job.Language == "auto" ? null : job.Language;
+        var detectLanguage = string.IsNullOrWhiteSpace(job.Language) || job.Language == "auto";
         foreach (var plan in plans.Where(p => !p.Silent))
         {
             TranscriptWord? lastWord = null;
@@ -121,18 +125,46 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
                 var window = plan.Windows[i];
                 var samples = reader.Read(window.Start, window.End);
                 currentTrack = plan.Track.Id;
-                windowLength = window.End - window.Start;
+                var windowLength = window.End - window.Start;
                 var segments = new List<WorkerSegment>();
                 if (SpeechEnergy.HasSpeech(plan.Regions, window.Start, window.End))
                 {
                     var offset = plan.Track.OffsetSeconds + window.Start;
                     var raw = new List<WorkerSegment>();
+                    // The engine hears the window with long silences shortened, in chunks cut between words; its
+                    // times are mapped back to the window and aligned to the sound under each line (ENGINE-NOTES.md §K).
+                    var chunks = SpeechPacker.Pack(samples, TrackAudio.SampleRate, window.Start, plan.Sound);
+                    var packedSeconds = Math.Max(1e-6, chunks.Sum(c => c.Seconds));
+                    var before = 0.0;
+                    // With "auto" the language is detected once per window, as before chunking: the first chunk
+                    // detects it and the window's other chunks use it (detection is an extra encoder pass).
+                    string? windowLanguage = null;
+                    var pinned = false;
+                    if (detectLanguage)
+                    {
+                        processor.ChangeLanguage("auto");
+                    }
+
                     try
                     {
-                        await foreach (var segment in processor.ProcessAsync(samples, cancellationToken))
+                        foreach (var chunk in chunks)
                         {
-                            language ??= string.IsNullOrWhiteSpace(segment.Language) ? null : segment.Language;
-                            raw.Add(WordBuilder.ToSegment(ToRaw(segment), offset, keepWords: true));
+                            progressFrom = done + (windowLength * before / packedSeconds);
+                            progressSpan = windowLength * chunk.Seconds / packedSeconds;
+                            before += chunk.Seconds;
+                            await foreach (var segment in processor.ProcessAsync(chunk.Samples, cancellationToken))
+                            {
+                                language ??= string.IsNullOrWhiteSpace(segment.Language) ? null : segment.Language;
+                                windowLanguage ??= string.IsNullOrWhiteSpace(segment.Language) ? null : segment.Language;
+                                var built = WordBuilder.ToSegment(chunk.ToWindow(ToRaw(segment)), offset, keepWords: true);
+                                raw.Add(SpeechAligner.Align(built, plan.Sound, plan.Track.OffsetSeconds));
+                            }
+
+                            if (detectLanguage && windowLanguage is not null && !pinned)
+                            {
+                                processor.ChangeLanguage(windowLanguage);
+                                pinned = true;
+                            }
                         }
 
                         // A window ended early by a cancel is never reported as finished.
@@ -281,5 +313,7 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
     [GeneratedRegex(@"ggml_vulkan: (\d+) = (.+?) \(", RegexOptions.CultureInvariant)]
     private static partial Regex VulkanDeviceLine();
 
-    private sealed record TrackPlan(WorkerTrack Track, double Duration, bool Silent, IReadOnlyList<(double Start, double End)> Regions, IReadOnlyList<AudioWindow> Windows);
+    /// <param name="Regions">Speech (what the coverage check and the silent-track rule use).</param>
+    /// <param name="Sound">Everything audible (what the engine hears and line times are aligned to).</param>
+    private sealed record TrackPlan(WorkerTrack Track, double Duration, bool Silent, IReadOnlyList<(double Start, double End)> Regions, IReadOnlyList<(double Start, double End)> Sound, IReadOnlyList<AudioWindow> Windows);
 }

@@ -11,6 +11,7 @@ import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, ty
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
 import { createMockClipboard } from './mockClipboard';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
+import { linkHistory } from './mockHistory';
 import { localModelsInstalled } from './mockLocalModel';
 import type {
   AnnotationOrigin,
@@ -876,6 +877,13 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     'transcript.versions': (params) => ({ versions: transcription.versions(params.recordingId) }),
     'transcript.restoreVersion': (params) => ({ transcript: transcription.restoreVersion(params.recordingId, params.versionId) }),
+    'transcript.getVersion': (params) => ({ transcript: transcription.getVersion(params.recordingId, params.versionId) }),
+    'history.links': (params) => {
+      const project = find(params.recordingId);
+      transcription.prepare(params.recordingId);
+      const copies = [...transcription.copies(params.recordingId), ...m4.documents.copies(params.recordingId)];
+      return { links: linkHistory(project.history, copies) };
+    },
     'processing.retry': (params) => {
       if (params.stage === 'stored') {
         m3.importAgain(params.recordingId);

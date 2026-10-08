@@ -75,6 +75,10 @@ interface VersionsProps {
   versions: DocumentVersion[] | null;
   now: Date;
   onRestore: (version: DocumentVersion, number: number) => void;
+  /** After 1.2.0: a version's title opens it read-only (the current one goes back to it). */
+  onOpen?: (version: DocumentVersion, number: number) => void;
+  /** The version open read-only, or null. */
+  openId?: string | null;
 }
 
 /** Newest first, numbered from the oldest (version 1). */
@@ -91,7 +95,27 @@ export function versionMeta(version: DocumentVersion, now: Date): string {
   return parts.join(' · ');
 }
 
-export function Versions({ history, versions, now, onRestore }: VersionsProps): JSX.Element {
+/** A version's title: a button that opens it when the viewer offers that, else plain text. */
+function VersionTitle({ text, version, number, open, onOpen }: { text: string; version: DocumentVersion; number: number; open: boolean; onOpen: VersionsProps['onOpen'] }): JSX.Element {
+  if (onOpen === undefined) {
+    return <span class="doc-ver-title">{text}</span>;
+  }
+  return (
+    <button
+      class="doc-ver-title doc-ver-open"
+      type="button"
+      aria-pressed={open}
+      title={version.id === 'current' ? 'Back to the version you have now' : 'Open this version to read it or restore it'}
+      onClick={() => {
+        onOpen(version, number);
+      }}
+    >
+      {text}
+    </button>
+  );
+}
+
+export function Versions({ history, versions, now, onRestore, onOpen, openId = null }: VersionsProps): JSX.Element {
   if (history?.keepVersions !== true) {
     return (
       <div class="versions-block">
@@ -113,13 +137,13 @@ export function Versions({ history, versions, now, onRestore }: VersionsProps): 
         list.map(({ version, number }, i) =>
           i === 0 ? (
             <div key={version.id} class="ver cur doc-ver">
-              <span class="doc-ver-title">Version {number} · current</span>
+              <VersionTitle text={`Version ${number} · current`} version={version} number={number} open={openId === null} onOpen={onOpen} />
               <span class="doc-ver-meta">{versionMeta(version, now)}</span>
             </div>
           ) : (
-            <div key={version.id} class="ver doc-ver">
+            <div key={version.id} class={openId === version.id ? 'ver doc-ver doc-ver--open' : 'ver doc-ver'}>
               <div class="doc-ver-row">
-                <span class="doc-ver-title">Version {number}</span>
+                <VersionTitle text={`Version ${number}`} version={version} number={number} open={openId === version.id} onOpen={onOpen} />
                 <button
                   class="btn ghost doc-ver-restore"
                   type="button"

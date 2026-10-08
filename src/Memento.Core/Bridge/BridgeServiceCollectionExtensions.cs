@@ -64,6 +64,8 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<Export.TranscriptClipboard>();
         services.AddSingleton<IBridgeHandler, TranscriptCopyMethod>();
 
+        services.AddSingleton<IBridgeHandler, TranscriptGetVersionMethod>();
+        services.AddSingleton<IBridgeHandler, HistoryLinksMethod>();
         services.AddSingleton<IBridgeHandler, ProcessingRetryMethod>();
         services.AddSingleton<IBridgeHandler, ProcessingCancelMethod>();
         services.AddSingleton<IBridgeHandler, ProcessingPauseMethod>();

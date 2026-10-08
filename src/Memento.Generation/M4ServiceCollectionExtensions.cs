@@ -45,6 +45,7 @@ public static class M4ServiceCollectionExtensions
         services.TryAddSingleton<GenerationPipeline>();
         services.TryAddSingleton<GenerationService>();
         services.TryAddSingleton<IDocumentExportSource, DocumentExportSource>();
+        services.TryAddSingleton<IDocumentHistorySource, DocumentHistorySource>();
 
         services.AddSingleton<IBridgeHandler, ModulesListMethod>();
         services.AddSingleton<IBridgeHandler, TemplatesListMethod>();
@@ -77,6 +78,7 @@ public static class M4ServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, DocumentsMakeTemplateMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsVersionsMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsRestoreVersionMethod>();
+        services.AddSingleton<IBridgeHandler, DocumentsGetVersionMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsExportMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsCopyMethod>();
         return services;

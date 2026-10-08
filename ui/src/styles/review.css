@@ -811,6 +811,50 @@
   font-size: 12px;
 }
 
+/* After 1.2.0: a line that opens the version it made, and the version read in place of the transcript (§5.19). */
+.history-open {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  text-decoration: underline dotted var(--text-3);
+  text-underline-offset: 3px;
+}
+
+.history-open:hover {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.history-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.history-item--open .history-open {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.tx-version-banner {
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+
+.tx-version-back {
+  font-size: 13px;
+  color: var(--accent-text);
+}
+
+.tx-version-speaker {
+  cursor: default;
+}
+
 /* ------------------------------------------------------------------------------------------- */
 /* M2: the transcript (DESIGN.md §5.12, §9) and its states (§17).                                */
 /* ------------------------------------------------------------------------------------------- */

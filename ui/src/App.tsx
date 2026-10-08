@@ -44,7 +44,7 @@ function Screen({ route }: { route: Route }): JSX.Element {
     case 'builder':
       return <BuilderScreen recordingId={route.recordingId} templateId={route.templateId} documentId={route.documentId} />;
     case 'document':
-      return <DocumentScreen recordingId={route.recordingId} documentId={route.documentId} />;
+      return <DocumentScreen recordingId={route.recordingId} documentId={route.documentId} {...(route.versionId === undefined ? {} : { versionId: route.versionId })} />;
     case 'style':
       return <StyleEditorScreen styleId={route.styleId} />;
   }

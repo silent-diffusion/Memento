@@ -128,8 +128,8 @@ public sealed class DocumentStoreAndComposerTests : IDisposable
             .Where(n => n.Split('.')[0] is "modules" or "templates" or "styles" or "providers" or "generation" or "documents")
             .ToList();
 
-        // 32 at M4, documents.copy after 1.2.0.
-        Assert.Equal(33, names.Count);
+        // 32 at M4, documents.copy and documents.getVersion after 1.2.0.
+        Assert.Equal(34, names.Count);
         Assert.All(names, n => Assert.Contains(n, _host.Host.Router.MethodNames));
     }
 

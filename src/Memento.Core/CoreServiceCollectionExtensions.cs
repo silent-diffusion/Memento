@@ -63,6 +63,7 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<WorkerClient>();
         services.AddSingleton<TranscriptWriter>();
         services.AddSingleton<TranscriptService>();
+        services.AddSingleton<History.HistoryService>();
         return services;
     }
 
