@@ -134,6 +134,6 @@ describe('Settings › Documents (M4)', () => {
     await until(() => document.querySelector('.builder-paper article.paper') !== null);
     expect(document.querySelector('[data-spoke-back]')?.textContent).toBe('Settings');
     expect(document.querySelector('.builder-paper .paper-title')?.textContent).toBe('Sample recording');
-    expect([...document.querySelectorAll('.spoke-actions button')].map((b) => b.textContent)).toEqual(['Save template']);
+    expect([...document.querySelectorAll('.spoke-actions button')].map((b) => b.textContent)).toEqual(['Save template', 'Save as new template']);
   });
 });

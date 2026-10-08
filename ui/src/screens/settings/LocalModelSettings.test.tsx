@@ -25,7 +25,7 @@ describe('Local model readiness in Settings and the Builder (against the browser
     h.unmount();
   });
 
-  const openSettings = async (m4: MockOptions['m4']): Promise<void> => {
+  const openSettings = async (m4: NonNullable<MockOptions['m4']>): Promise<void> => {
     h = await mountApp({ name: 'settings', section: 'ai-privacy' }, { m4 });
     await until(() => document.querySelectorAll('[data-model-id^="qwen"], [data-model-id^="ministral"]').length === 2 && document.querySelector('.model-in-use') !== null);
   };

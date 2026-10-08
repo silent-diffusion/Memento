@@ -1,0 +1,34 @@
+/* The Builder's template list in the header (DESIGN.md §10, 1.1.0) and its "not saved" question. Shadows and colours
+   come from tokens.css by role; the popover surface is the shared .popover. */
+
+.tpl-chooser {
+  position: relative;
+  flex: none;
+}
+
+.tpl-confirm {
+  left: 0;
+  right: auto;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 16px;
+  gap: 10px;
+  white-space: normal;
+}
+
+.tpl-confirm-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.tpl-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tpl-error {
+  font-size: 13px;
+  color: var(--danger);
+}

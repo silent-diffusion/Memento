@@ -30,6 +30,7 @@ import { layoutOfDocument } from './regenerate';
 import { ConfirmSendDialog, PayloadSheet } from './SendDialogs';
 import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
+import { TemplateChooser } from './TemplateChooser';
 
 /** The preview paper is asked for once changes pause this long. */
 export const PREVIEW_DEBOUNCE_MS = 200;
@@ -86,6 +87,8 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   const [announcement, setAnnouncement] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [reloadStyles, setReloadStyles] = useState(0);
+  /** The template as opened or last saved (JSON), or null until the next render records it. */
+  const clean = useRef<string | null>(null);
 
   const job = generationOf(store).value;
   const settings = store.settings.value;
@@ -159,6 +162,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       if (!isAlive()) {
         return;
       }
+      clean.current = null;
       setTemplate(chosen);
       dispatch({ type: 'load', rows: rowsOf(chosen) });
     };
@@ -208,6 +212,14 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
 
   // The live preview paper, after a short pause in changes.
   const current = template === null ? null : composed(template, structure.rows);
+  // The template as it was opened or last saved, to tell whether switching templates would lose changes.
+  const currentKey = current === null ? null : JSON.stringify(current);
+  useEffect(() => {
+    if (clean.current === null && currentKey !== null) {
+      clean.current = currentKey;
+    }
+  }, [currentKey]);
+  const dirty = currentKey !== null && clean.current !== null && clean.current !== currentKey;
   const previewKey = current === null ? null : JSON.stringify([current.name, current.styleId, current.rows]);
   const previewSequence = useRef(0);
   useEffect(() => {
@@ -306,24 +318,35 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
     void startGeneration(services, { recordingId, template: current, provider: chosen, documentId });
   };
 
-  const saveTemplate = (): void => {
+  /** Another template from the header's list: its structure, inputs, provider, style and output replace the current ones. */
+  const openTemplate = (next: Template): void => {
+    clean.current = null;
+    setTemplate(next);
+    dispatch({ type: 'load', rows: rowsOf(next) });
+    setAnnouncement(`${next.name} opened, ${moduleWords(moduleCount(rowsOf(next)))}.`);
+  };
+
+  /** Save template (a built-in is saved as a copy), or Save as new template (an empty id: always a new one). */
+  const saveTemplate = (asNew = false): void => {
     if (current === null || savingTemplate) {
       return;
     }
     setSavingTemplate(true);
     bridge
-      .call('templates.save', { template: current })
+      .call('templates.save', { template: asNew ? { ...current, id: '' } : current })
       .then((saved) => {
         setSavingTemplate(false);
         const copied = saved.id !== current.id;
+        clean.current = null;
         setTemplate({ ...current, id: saved.id, name: saved.name, builtIn: saved.builtIn, modifiedAt: saved.modifiedAt });
         store.toasts.show({
           tone: 'ok',
-          title: copied && current.builtIn ? `Saved as “${saved.name}”` : `Template “${saved.name}” saved`,
-          body:
-            copied && current.builtIn
+          title: copied ? `Saved as “${saved.name}”` : `Template “${saved.name}” saved`,
+          body: asNew
+            ? `A new template; “${current.name}” stays as it was. Choose either from the template list in the builder.`
+            : copied && current.builtIn
               ? `${current.name} is built in, so it stays as it is; your arrangement is a template of its own.`
-              : 'Use it from Create document in any recording.',
+              : 'Choose it from the template list in the builder, for any recording.',
         });
       })
       .catch((e: unknown) => {
@@ -427,12 +450,16 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
             }}
           />
           <span class="pill done">Template · {moduleWords(count)}</span>
+          <TemplateChooser currentId={template?.id ?? null} currentName={template?.name ?? ''} dirty={dirty} disabled={template === null || busy} onOpen={openTemplate} />
         </>
       }
       actions={
         <>
-          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={saveTemplate}>
+          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(); }}>
             Save template
+          </button>
+          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(true); }}>
+            Save as new template
           </button>
           {recordingId === null ? null : (
             <button
