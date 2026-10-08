@@ -202,6 +202,81 @@ try {
   const exportManifest = JSON.parse(readFileSync(join(exported, 'manifest.json'), 'utf8'));
   run.check('the manifest records the options', JSON.stringify(exportManifest.transcriptOptions) === JSON.stringify({ timestamps: false, speakers: false, layout: 'auto' }), JSON.stringify(exportManifest.transcriptOptions));
   await run.shot('export-done');
+  // 9. Just this line or merge (after 1.2.0). Avery Quinn has line 0; picking Avery on another line first asks how.
+  const pickFor = async (index, name) => {
+    await page().click({ selector: `[data-index="${index}"] .segm-speaker` });
+    await page().waitFor(`document.activeElement?.getAttribute('role') === 'combobox'`, 'the speaker search');
+    await page().type(name);
+    await page().key('Enter');
+    await page().waitFor(`!!document.querySelector('.speaker-menu--choices')`, 'the Just this line / Merge choices');
+  };
+  const lineIndex = transcriptOf(id).segments.findIndex((s, i) => i > 0 && s.speaker !== avery.id && s.speaker !== null);
+  if (lineIndex < 0) {
+    run.check('a line by another speaker to move', false, 'every line is Avery Quinn’s');
+  } else {
+    const other = transcriptOf(id).segments[lineIndex].speaker;
+    const otherName = transcriptOf(id).speakers.find((s) => s.id === other)?.name;
+    const otherLines = transcriptOf(id).segments.filter((s) => s.speaker === other).map((s) => s.id);
+    await pickFor(lineIndex, 'Avery Quinn');
+    const labels = await page().eval(`[...document.querySelectorAll('.speaker-menu--choices .speaker-choice-label')].map((l) => l.textContent)`);
+    run.check('picking another speaker offers Just this line or Merge', labels[0] === 'Just this line' && labels[1] === `Merge ${otherName} into Avery Quinn`, labels.join(' | '));
+    await run.shot('speaker-choices');
+    await page().key('Enter'); // the first choice: Just this line
+    await run.until(() => transcriptOf(id).segments[lineIndex].speaker === avery.id, 'the one line moved to Avery Quinn');
+    run.check('Just this line moved only that line', otherLines.length === 1 || transcriptOf(id).speakers.some((s) => s.id === other), `${otherLines.length} lines of ${otherName} before`);
+    await page().click({ name: `Undo move line to Avery Quinn` });
+    await run.until(() => transcriptOf(id).segments[lineIndex].speaker === other, 'the line back after Undo');
+
+    await pickFor(lineIndex, 'Avery Quinn');
+    await page().click({ selector: '.speaker-menu--choices [data-choice="merge"]' });
+    await run.until(() => !transcriptOf(id).speakers.some((s) => s.id === other), `${otherName} merged into Avery Quinn`);
+    run.check('Merge moved every line and the old speaker went away', otherLines.every((l) => transcriptOf(id).segments.find((s) => s.id === l)?.speaker === avery.id), `${otherLines.length} lines`);
+    run.check('the merge is one Undo step', (await undoLabel()) === 'Undo merge speakers', await undoLabel());
+    await run.shot('speaker-merged');
+    await page().click({ name: 'Undo merge speakers' });
+    await run.until(() => transcriptOf(id).speakers.some((s) => s.id === other), `${otherName} back after Undo`);
+    run.check('Undo put the merged speaker back with every line', otherLines.every((l) => transcriptOf(id).segments.find((s) => s.id === l)?.speaker === other));
+  }
+
+  // 10. Too many speakers: the voices found plus Avery Quinn are more than the two people in the file. Who spoke = 2,
+  // then Reduce to 2 speakers (one Undo step), then Identify speakers again with 2 (regrouped from voices.json).
+  const found = transcriptOf(id).speakers.length;
+  run.log('speakers before Who spoke', `${found}: ${transcriptOf(id).speakers.map((s) => s.name).join(', ')}`);
+  run.check('the result is over-segmented (more than the 2 voices)', found > 2, `${found} speakers`);
+  await page().click({ selector: '.people-who-toggle' });
+  await page().click({ name: 'How many people spoke: Auto' });
+  await page().waitFor(`[...document.querySelectorAll('[role="option"]')].some((o) => o.textContent.trim() === '2 speakers')`, 'the count options');
+  await page().eval(`[...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === '2 speakers').click()`);
+  await run.until(() => run.manifest(id).details.whoSpoke?.count === 2, 'Who spoke = 2 in project.json');
+  run.check('Who spoke is saved with the recording (schema v3)', run.manifest(id).schemaVersion === 3, JSON.stringify(run.manifest(id).details.whoSpoke));
+  await page().waitFor(`!!document.querySelector('.people-reduce')`, 'Reduce to 2 speakers');
+  await run.shot('who-spoke-2');
+  await page().click({ selector: '.people-reduce' });
+  await run.until(() => transcriptOf(id).speakers.length <= 2 || transcriptOf(id).speakers.filter((s) => !s.renamed).length === 0, 'the reduce in transcript.json');
+  const reduced = transcriptOf(id).speakers;
+  run.check('Reduce left 2 speakers (named ones stay apart)', reduced.length === 2, reduced.map((s) => `${s.name}${s.renamed ? ' (named)' : ''}`).join(', '));
+  run.check('the reduce is one Undo step', (await undoLabel()) === 'Undo reduce to 2 speakers', await undoLabel());
+  await run.shot('reduced');
+  await page().eval(`document.activeElement?.blur()`);
+  await page().key('z', ['ctrl']);
+  await run.until(() => transcriptOf(id).speakers.length === found, 'every speaker back after Ctrl+Z');
+  run.check('Ctrl+Z put every merged speaker back', true, `${found} speakers`);
+  await page().key('y', ['ctrl']);
+  await run.until(() => transcriptOf(id).speakers.length === 2, '2 speakers again after Ctrl+Y');
+
+  const diarized = run.history(id).filter((h) => h.stage === 'speakers' && h.event === 'started').length;
+  await page().click({ selector: '.people-identify' });
+  await run.until(() => run.history(id).filter((h) => h.stage === 'speakers' && h.event === 'completed').length > diarized, 'the speakers identified again', 10 * 60_000, 500);
+  await run.until(() => run.manifest(id).stages.find((s) => s.stage === 'speakers')?.state === 'done', 'the speakers stage done');
+  const again = transcriptOf(id).speakers;
+  const start = run.history(id).filter((h) => h.stage === 'speakers' && h.event === 'started').at(-1);
+  const done = run.history(id).filter((h) => h.stage === 'speakers' && h.event === 'completed').at(-1);
+  run.check('Identify speakers again ends with 2 speakers', again.length === 2, again.map((s) => s.name).join(', '));
+  run.check('it regrouped what was heard instead of listening again', start?.summary === 'Identifying speakers (from the voices heard before)', `${start?.summary} · ${start?.detail}`);
+  run.check('History names the recording’s own count', (start?.detail ?? '').includes('2 expected (this recording)') && done?.summary === 'Found 2 speakers', done?.detail);
+  run.check('voices.json is kept beside the transcript', existsSync(join(run.folder(id), 'voices.json')));
+  await page().waitFor(`[...document.querySelectorAll('.person[data-speaker-id]')].length === 2`, 'two people in the People list', 10_000).catch(() => null);
+  await run.shot('identified-again');
   await run.shot('done');
   await run.app.close();
 } catch (error) {
