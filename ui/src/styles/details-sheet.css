@@ -459,3 +459,54 @@ button.btn.add-pill {
   height: 36px;
   padding: 0 16px;
 }
+
+/* Who spoke (the recording's own speaker count and names): How many, then the names with
+   "Use participants", then one sentence on what they do. Also in Review's People pane. */
+.who-spoke {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.who-spoke-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.who-spoke-row .menu-root {
+  display: flex;
+  min-width: 0;
+}
+
+.who-spoke-row .select-btn {
+  width: auto;
+  height: 32px;
+  max-width: 200px;
+}
+
+.who-spoke-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.who-spoke-names {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.who-spoke-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.sheet-from-speakers {
+  flex: none;
+}

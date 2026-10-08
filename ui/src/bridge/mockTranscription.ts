@@ -17,6 +17,7 @@ import type {
   SettingsSnapshot,
   Speaker,
   SpeakerColour,
+  SpeakerMerge,
   StageFailure,
   StageName,
   StageStatus,
@@ -25,7 +26,10 @@ import type {
   TranscriptGetResult,
   TranscriptMergeSpeakersParams,
   TranscriptRemoveSpeakerParams,
+  TranscriptReduceSpeakersParams,
+  TranscriptReduceSpeakersResult,
   TranscriptRestoreSpeakerParams,
+  TranscriptRestoreSpeakersParams,
   TranscriptRenameSpeakerParams,
   TranscriptRetranscribeParams,
   TranscriptSearchMatch,
@@ -104,6 +108,8 @@ export interface MockTranscription {
   renameSpeaker(params: TranscriptRenameSpeakerParams): { speakers: Speaker[] };
   mergeSpeakers(params: TranscriptMergeSpeakersParams): { speakers: Speaker[]; segmentsChanged: number };
   restoreSpeaker(params: TranscriptRestoreSpeakerParams): { speakers: Speaker[]; segmentsChanged: number };
+  restoreSpeakers(params: TranscriptRestoreSpeakersParams): { speakers: Speaker[]; segmentsChanged: number };
+  reduceSpeakers(params: TranscriptReduceSpeakersParams): TranscriptReduceSpeakersResult;
   removeSpeaker(params: TranscriptRemoveSpeakerParams): { speakers: Speaker[] };
   markReviewed(recordingId: string, reviewed: boolean): { reviewed: boolean };
   search(recordingId: string, query: string): TranscriptSearchMatch[];
@@ -717,7 +723,7 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
     return [queued('transcript'), ...(env.settings().speakers.identify ? [queued('speakers')] : []), queued('topics')];
   };
 
-  return {
+  const api: MockTranscription = {
     prepare: (recordingId) => {
       entryOf(recordingId);
     },
@@ -861,6 +867,58 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       env.changed(recordingId);
       notify(recordingId, transcript, 'speakers');
       return { speakers: clone(transcript.speakers), segmentsChanged };
+    },
+
+    restoreSpeakers: ({ recordingId, speakers }) => {
+      const { transcript } = transcriptOf(recordingId);
+      if (speakers.length === 0 || speakers.length > 500) {
+        throw invalid('Restore 1 to 500 speakers at a time. Nothing was changed.');
+      }
+      for (const entry of speakers) {
+        for (const id of entry.segmentIds) {
+          segmentOf(transcript, id);
+        }
+      }
+      let segmentsChanged = 0;
+      let answer: Speaker[] = transcript.speakers;
+      for (const entry of speakers) {
+        const result = api.restoreSpeaker({ recordingId, speaker: entry.speaker, segmentIds: entry.segmentIds });
+        segmentsChanged += result.segmentsChanged;
+        answer = result.speakers;
+      }
+      return { speakers: answer, segmentsChanged };
+    },
+
+    reduceSpeakers: ({ recordingId, count }) => {
+      const p = project(recordingId);
+      const { transcript } = transcriptOf(recordingId);
+      if (!Number.isInteger(count) || count < 1 || count > 20) {
+        throw invalid(`Reduce to 1 to 20 speakers; ${count} is not possible. Nothing was changed.`);
+      }
+      // The preview keeps no voices: the unnamed speaker with the least talk time goes into the one with the most.
+      const merged: SpeakerMerge[] = [];
+      let segmentsChanged = 0;
+      while (transcript.speakers.length > count) {
+        recountTalk(transcript);
+        const from = [...transcript.speakers].filter((s) => !s.renamed).sort((a, b) => a.talkTimeMs - b.talkTimeMs)[0];
+        const into = [...transcript.speakers].filter((s) => s !== from).sort((a, b) => b.talkTimeMs - a.talkTimeMs)[0];
+        if (from === undefined || into === undefined) {
+          break;
+        }
+        const lines = transcript.segments.filter((s) => s.speaker === from.id).map((s) => s.id);
+        merged.push({ speaker: { id: from.id, name: from.name, color: from.color, renamed: from.renamed }, intoSpeakerId: into.id, segmentIds: lines });
+        segmentsChanged += lines.length;
+        transcript.segments = transcript.segments.map((s) => (s.speaker === from.id ? { ...s, speaker: into.id } : s));
+        transcript.speakers = transcript.speakers.filter((s) => s.id !== from.id);
+      }
+      recountTalk(transcript);
+      if (merged.length > 0) {
+        bump(transcript);
+        refreshPeople(p, transcript);
+        env.changed(recordingId);
+        notify(recordingId, transcript, 'speakers');
+      }
+      return { speakers: clone(transcript.speakers), merged, segmentsChanged, basis: 'talkTime' };
     },
 
     removeSpeaker: ({ recordingId, speakerId }) => {
@@ -1153,4 +1211,5 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       return null;
     },
   };
+  return api;
 }

@@ -40,6 +40,8 @@ interface OutlineProps {
   onMergeSpeakers: (from: Speaker, into: Speaker) => void;
   /** After 1.2.0: a click on a speaker's name filters the transcript to their lines. */
   speakerFilter?: SpeakerFilterProps;
+  /** Shown under the People label: Who spoke, Reduce, Identify speakers again (PeopleWhoSpoke). */
+  peopleExtra?: JSX.Element | null;
 }
 
 /** The People list's part in the transcript filter (DESIGN.md §9, after 1.2.0). */
@@ -317,6 +319,7 @@ export function OutlinePane({
   onRenameSpeaker,
   onMergeSpeakers,
   speakerFilter,
+  peopleExtra = null,
 }: OutlineProps): JSX.Element {
   const [newChapterAt, setNewChapterAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
@@ -442,6 +445,7 @@ export function OutlinePane({
         <div class="outline-head">
           <span class="lbl">People</span>
         </div>
+        {peopleExtra}
         <div class="outline-list">
           {hasSpeakers ? (
             <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} />

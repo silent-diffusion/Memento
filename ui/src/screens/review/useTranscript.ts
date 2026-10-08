@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { BridgeClient } from '../../bridge/client';
 import type {
   Speaker,
+  SpeakerLines,
+  TranscriptReduceSpeakersResult,
   SpeakerRestore,
   StageName,
   StageStatus,
@@ -35,6 +37,10 @@ export interface TranscriptApi {
   restoreSpeaker: (speaker: SpeakerRestore, segmentIds: string[]) => Promise<void>;
   /** Undo of adding a speaker: removes one no line is assigned to. */
   removeSpeaker: (speakerId: string) => Promise<void>;
+  /** Merges the most alike speakers until `count` are left; resolves to the merges made (empty when none). */
+  reduceSpeakers: (count: number) => Promise<TranscriptReduceSpeakersResult>;
+  /** Undo of a reduce: the speakers back with their lines, in the order given. */
+  restoreSpeakers: (entries: SpeakerLines[]) => Promise<void>;
   markReviewed: (reviewed: boolean) => Promise<string | null>;
   retry: (stage: StageName, remedyId?: string) => Promise<string | null>;
   transcribe: (modelId?: string, language?: string) => Promise<string | null>;
@@ -187,6 +193,30 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
     removeSpeaker: async (speakerId) => {
       const { speakers } = await bridge.call('transcript.removeSpeaker', { recordingId, speakerId });
       apply((r) => withSpeakers(r, speakers));
+    },
+    reduceSpeakers: async (count) => {
+      const answer = await bridge.call('transcript.reduceSpeakers', { recordingId, count });
+      const moved = new Map<string, string>();
+      for (const merge of answer.merged) {
+        for (const id of merge.segmentIds) {
+          moved.set(id, merge.intoSpeakerId);
+        }
+      }
+      // A line merged twice ends with the last speaker it went to.
+      apply((r) => withSpeakers(r, answer.speakers, (s) => (moved.has(s.id) ? { ...s, speaker: moved.get(s.id) ?? s.speaker } : s)));
+      setReload((n) => n + 1);
+      return answer;
+    },
+    restoreSpeakers: async (entries) => {
+      const { speakers } = await bridge.call('transcript.restoreSpeakers', { recordingId, speakers: entries });
+      const owner = new Map<string, string>();
+      for (const entry of entries) {
+        for (const id of entry.segmentIds) {
+          owner.set(id, entry.speaker.id);
+        }
+      }
+      apply((r) => withSpeakers(r, speakers, (s) => (owner.has(s.id) ? { ...s, speaker: owner.get(s.id) ?? s.speaker, speakerConfidence: 1 } : s)));
+      setReload((n) => n + 1);
     },
     markReviewed: (reviewed) =>
       attempt(async () => {

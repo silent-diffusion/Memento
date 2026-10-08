@@ -380,4 +380,53 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await click(button('Done'));
     await until(() => [...container.querySelectorAll('.facts dd')].some((d) => d.textContent === 'Teams'));
   });
+
+  it('adds the named speakers to the participants from the sheet, and Undo takes them out again', async () => {
+    await open();
+    await until(() => container.querySelector('.person[data-speaker-id]') !== null);
+    const speakers = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript?.speakers ?? [];
+    const unnamed = speakers.find((s) => !s.renamed);
+    await act(async () => {
+      await bridge.call('transcript.renameSpeaker', { recordingId: DESIGN_REVIEW, speakerId: unnamed?.id ?? '', name: 'Dana Whitfield' });
+    });
+    await until(() => [...container.querySelectorAll('.person-name')].some((p) => p.textContent === 'Dana Whitfield'));
+    const before = (await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.participants;
+    expect(before).not.toContain('Dana Whitfield');
+
+    await click(button('Edit details'));
+    const pills = (): string[] => [...(document.querySelector('.sheet-content .sheet-well')?.querySelectorAll('.sheet-pill') ?? [])].map((p) => p.textContent.trim());
+    expect(pills()).toEqual(before);
+    // Only names not listed yet, never "Speaker n".
+    expect(button('Add from speakers').title).toBe('Adds Dana Whitfield');
+    await click(button('Add from speakers'));
+    expect(pills()).toEqual([...before, 'Dana Whitfield']);
+    expect(document.querySelector('.sheet-content .sheet-caption[role="status"]')?.textContent).toBe('Added Dana Whitfield from the speakers.');
+    await settle(700);
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.participants).toEqual([...before, 'Dana Whitfield']);
+
+    // The sheet's own Undo, then again with the app's Undo after closing the sheet.
+    await click(button('Undo add from speakers'));
+    expect(pills()).toEqual(before);
+    await click(button('Add from speakers'));
+    await click(button('Done'));
+    await settle(50);
+    expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe('Undo add participants from speakers');
+    await click(container.querySelector<HTMLElement>('.undo-btn') ?? container);
+    await settle(50);
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.participants).toEqual(before);
+  });
+
+  it('shows Who spoke in the sheet: how many, the names with Use participants, and what they do', async () => {
+    await open();
+    await click(button('Edit details'));
+    const sheet = document.querySelector<HTMLElement>('.sheet-content');
+    expect(sheet?.querySelector('.who-spoke-hint')?.textContent).toBe('Memento finds how many people spoke. Set a number if it finds too many.');
+    await click(button('How many people spoke: Auto', sheet ?? document.body));
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent.trim() === '3 speakers') ?? document.body);
+    await click(button('Use participants', sheet ?? document.body));
+    const participants = (await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.participants;
+    expect(sheet?.querySelector('.who-spoke-hint')?.textContent).toBe('Speakers are identified as 3 speakers and named in the order they first speak. Rename any that are off in Review.');
+    await settle(700);
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 3, names: participants.slice(0, 20) });
+  });
 });

@@ -131,6 +131,52 @@
   overflow-wrap: anywhere;
 }
 
+/* After a pick in a line's menu: Just this line, or Merge {old} into {new}, each with what it does. */
+.speaker-choice-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.speaker-choice {
+  height: auto;
+  min-height: 34px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  white-space: normal;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.speaker-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.speaker-choice-label {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.speaker-choice-detail {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.speaker-choice--back {
+  color: var(--text-2);
+}
+
+.speaker-menu-list:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
 .speaker-menu-empty {
   margin: 0;
   padding: 4px 12px 8px;

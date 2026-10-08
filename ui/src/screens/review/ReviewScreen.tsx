@@ -3,7 +3,7 @@
 // topics, history and transcript versions come with it (M2).
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { HistoryEntry, HistoryLink, Project, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
+import type { HistoryEntry, HistoryLink, Project, Speaker, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
 import { DetailsSheet } from '../../components/DetailsSheet';
 import type { AgendaMode } from '../../components/agenda/useAgendaImport';
 import { StatusFooter } from '../../components/StatusFooter';
@@ -16,12 +16,14 @@ import { activeChapterIndex } from '../../format/player';
 import { silenceGaps } from '../../format/silences';
 import { useUiFlag } from '../../state/uiPrefs';
 import { peopleWording, typeName } from '../../format/recording';
+import { orderSpeakers } from '../../format/speakerOrder';
 import { calendarDaysBetween, formatClock, formatWhen, parseIso } from '../../format/when';
 import { goToLibrary, openRecord, requestDelete } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { createDetailsSaver, type DetailsSaver } from '../../state/detailsSaver';
 import { undoOf } from '../../state/undo';
 import { PlayerStrip, usePeaks, usePlayer } from './Player';
+import { PeopleWhoSpoke } from './PeopleWhoSpoke';
 import { DetailsPane, OutlinePane, type DetailsTab } from './ReviewPanes';
 import { TRANSCRIPT_SCROLLER, TranscriptPane } from './TranscriptPane';
 import { FloatingPopovers } from '../../components/Floating';
@@ -214,6 +216,20 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const saved = (): void => {
     undoOf(store).announce('Saved');
   };
+  /** After Reduce: says when named speakers kept the count from being reached (they are never merged with each other). */
+  const reduced = (count: number, { merged, left }: { merged: number; left: readonly Speaker[] }): void => {
+    if (merged === 0 && left.length > count) {
+      warn('The speakers were not reduced', `All ${left.length} speakers are named, and named speakers are never merged with each other. Merge them in the People list if two are the same person.`);
+    } else if (left.length > count) {
+      store.toasts.show({
+        tone: 'ok',
+        title: `Reduced to ${left.length} speakers`,
+        body: `${merged} ${merged === 1 ? 'speaker was' : 'speakers were'} merged. The ${left.filter((s) => s.renamed).length} named speakers stay apart, so ${left.length} are left instead of ${count}. Undo puts them back.`,
+      });
+    } else {
+      undoOf(store).announce(`Reduced to ${left.length} ${left.length === 1 ? 'speaker' : 'speakers'}`);
+    }
+  };
 
   // Undo: one stack for this recording while Review is open (state/undo.ts); every change goes through the actions.
   const undo = undoOf(store);
@@ -324,6 +340,10 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const chapterIndex = project === null ? -1 : activeChapterIndex(project.chapters, player.positionMs);
   const chapterName = project?.chapters[chapterIndex]?.title ?? 'Transcript';
   const speakersIdentified = transcript !== null && transcript.speakers.length > 0;
+  // Every speaker list: named people first, then "Speaker n", each by first appearance.
+  const orderedSpeakers = useMemo(() => (transcript === null ? [] : orderSpeakers(transcript.speakers, transcript.segments)), [transcript]);
+  const identifying = transcriptApi.stages.some((s) => s.stage === 'speakers' && (s.state === 'active' || s.state === 'queued'));
+  const expectedSetting = store.settings.value?.speakers.expectedSpeakers ?? 'auto';
   const currentVersion = useMemo(
     () =>
       transcript === null
@@ -456,7 +476,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               project={project}
               positionMs={player.positionMs}
               onSeek={player.seek}
-              speakers={speakersIdentified ? transcript.speakers : null}
+              speakers={speakersIdentified ? orderedSpeakers : null}
               speakerFilter={{
                 selected: filter.speakers,
                 counts: view.counts.speakers,
@@ -500,6 +520,30 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               onMergeSpeakers={(from, into) => {
                 actions.mergeSpeakers(from, into).catch(fail(`${from.name} was not merged into ${into.name}`));
               }}
+              peopleExtra={
+                <PeopleWhoSpoke
+                  whoSpoke={project.details.whoSpoke}
+                  participants={project.details.participants}
+                  speakers={speakersIdentified ? orderedSpeakers : null}
+                  settingsDefault={expectedSetting === 'auto' ? null : expectedSetting}
+                  identifying={identifying}
+                  keepsVersions={historySettings?.keepVersions === true}
+                  onChange={(whoSpoke) => {
+                    actions.setWhoSpoke(whoSpoke).catch(fail('Who spoke was not saved'));
+                  }}
+                  onReduce={(count) => {
+                    actions
+                      .reduceSpeakers(count)
+                      .then((result) => {
+                        reduced(count, result);
+                      })
+                      .catch(fail(`The speakers were not reduced to ${count}`));
+                  }}
+                  onIdentifyAgain={() => {
+                    void transcriptApi.retry('speakers').then(report('Speakers were not identified again'));
+                  }}
+                />
+              }
             />
 
             <section class="review-centre" aria-label="Player and transcript">
@@ -598,6 +642,10 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
         <DetailsSheet
           saver={saver}
           agendaMode={sheetAgendaMode}
+          speakerNames={orderedSpeakers.map((s) => s.name)}
+          onUndoable={(entry) => {
+            undo.push(entry);
+          }}
           onClose={() => {
             setSheetOpen(false);
             setReload((n) => n + 1);

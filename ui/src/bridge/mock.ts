@@ -415,6 +415,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           notes: '',
           tags: [],
           agenda: { source: null, parsedLocally: true, items: [] },
+          whoSpoke: { count: null, names: [] },
         },
         trackSources: result.tracks.map((t) => t.sourceKind),
         tracks: result.tracks,
@@ -681,7 +682,28 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     'project.get': (params) => toProject(find(params.recordingId)),
     'project.updateDetails': (params) => {
       const project = find(params.recordingId);
-      project.details = { ...project.details, ...params.details };
+      let details = params.details;
+      const whoSpoke = details.whoSpoke;
+      if (whoSpoke !== undefined) {
+        if (whoSpoke.count !== null && (!Number.isInteger(whoSpoke.count) || whoSpoke.count < 1 || whoSpoke.count > 20)) {
+          throw invalid(`The number of speakers is a whole number from 1 to 20, or none to let Memento decide; ${whoSpoke.count} is not.`);
+        }
+        const names: string[] = [];
+        for (const raw of whoSpoke.names) {
+          const name = raw.trim();
+          if (name === '' || name.length > 100) {
+            throw invalid('Each speaker name needs 1 to 100 characters.');
+          }
+          if (!names.some((n) => n.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+            names.push(name);
+          }
+        }
+        if (names.length > 20) {
+          throw invalid(`At most 20 speakers can be named; this list has ${names.length}.`);
+        }
+        details = { ...details, whoSpoke: { count: whoSpoke.count, names } };
+      }
+      project.details = { ...project.details, ...details };
       project.summary = {
         ...project.summary,
         title: project.details.title,
@@ -869,6 +891,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     'transcript.mergeSpeakers': (params) => transcription.mergeSpeakers(params),
     'transcript.restoreSpeaker': (params) => transcription.restoreSpeaker(params),
     'transcript.removeSpeaker': (params) => transcription.removeSpeaker(params),
+    'transcript.restoreSpeakers': (params) => transcription.restoreSpeakers(params),
+    'transcript.reduceSpeakers': (params) => transcription.reduceSpeakers(params),
     'transcript.markReviewed': (params) => transcription.markReviewed(params.recordingId, params.reviewed),
     'transcript.search': (params) => ({ matches: transcription.search(params.recordingId, params.query) }),
     'transcript.retranscribe': (params) => {
