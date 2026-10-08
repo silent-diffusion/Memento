@@ -78,6 +78,7 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(TranscriptVersionsResult))]
 [JsonSerializable(typeof(TranscriptRestoreVersionParams))]
 [JsonSerializable(typeof(TranscriptResult))]
+[JsonSerializable(typeof(HistoryLinksResult))]
 [JsonSerializable(typeof(ProcessingStageParams))]
 [JsonSerializable(typeof(ModelsListResult))]
 [JsonSerializable(typeof(ModelIdParams))]

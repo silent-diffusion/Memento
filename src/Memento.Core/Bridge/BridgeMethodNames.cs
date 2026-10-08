@@ -50,6 +50,8 @@ public static class BridgeMethodNames
     public const string TranscriptVersions = "transcript.versions";
     public const string TranscriptRestoreVersion = "transcript.restoreVersion";
     public const string TranscriptCopy = "transcript.copy";
+    public const string TranscriptGetVersion = "transcript.getVersion";
+    public const string HistoryLinks = "history.links";
     public const string ProcessingRetry = "processing.retry";
     public const string ProcessingCancel = "processing.cancel";
     public const string ProcessingPause = "processing.pause";
@@ -117,6 +119,7 @@ public static class BridgeMethodNames
     public const string DocumentsMakeTemplate = "documents.makeTemplate";
     public const string DocumentsVersions = "documents.versions";
     public const string DocumentsRestoreVersion = "documents.restoreVersion";
+    public const string DocumentsGetVersion = "documents.getVersion";
     public const string DocumentsExport = "documents.export";
     public const string DocumentsCopy = "documents.copy";
 
