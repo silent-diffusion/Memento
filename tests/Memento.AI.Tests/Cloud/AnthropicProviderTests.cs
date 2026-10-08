@@ -249,7 +249,7 @@ public sealed class AnthropicProviderTests : IDisposable
     public async Task NoAnswerWithinTheTimeoutIsANetworkErrorAndIsNotRetried()
     {
         _server.Enqueue(ScriptedResponse.Stall()).Enqueue(AnthropicStreams.Text(["never"]));
-        var options = new AnthropicOptions { BaseUrl = _server.BaseUrl, Http = new CloudHttpOptions { ResponseTimeout = TimeSpan.FromMilliseconds(300) } };
+        var options = new AnthropicOptions { BaseUrl = _server.BaseUrl, Http = new CloudHttpOptions { ResponseTimeout = TimeSpan.FromSeconds(2) } };
 
         var error = await Assert.ThrowsAsync<AiException>(() => Provider(options).GenerateAsync(AiRequest.Create("test.timeout", string.Empty, "Hi"), null, CancellationToken.None));
 
@@ -267,7 +267,7 @@ public sealed class AnthropicProviderTests : IDisposable
             Parts = [(ScriptedResponse.Format("message_start", """{"type":"message_start","message":{"model":"claude-opus-5-5","usage":{"input_tokens":1}}}"""), TimeSpan.Zero)],
             StallAfterBody = true,
         });
-        var options = new AnthropicOptions { BaseUrl = _server.BaseUrl, Http = new CloudHttpOptions { StreamIdleTimeout = TimeSpan.FromMilliseconds(300) } };
+        var options = new AnthropicOptions { BaseUrl = _server.BaseUrl, Http = new CloudHttpOptions { StreamIdleTimeout = TimeSpan.FromSeconds(2) } };
 
         var error = await Assert.ThrowsAsync<AiException>(() => Provider(options).GenerateAsync(AiRequest.Create("test.idle", string.Empty, "Hi"), null, CancellationToken.None));
 

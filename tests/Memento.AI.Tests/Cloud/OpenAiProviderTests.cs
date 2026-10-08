@@ -173,7 +173,7 @@ public sealed class OpenAiProviderTests : IDisposable
     public async Task TimeoutIsANetworkError()
     {
         _server.Enqueue(ScriptedResponse.Stall());
-        var options = new OpenAiOptions { BaseUrl = _server.BaseUrl, Http = new CloudHttpOptions { ResponseTimeout = TimeSpan.FromMilliseconds(300) } };
+        var options = new OpenAiOptions { BaseUrl = _server.BaseUrl, Http = new CloudHttpOptions { ResponseTimeout = TimeSpan.FromSeconds(2) } };
 
         var error = await Assert.ThrowsAsync<AiException>(() => Provider(options).GenerateAsync(AiRequest.Create("t", string.Empty, "x"), null, CancellationToken.None));
 
