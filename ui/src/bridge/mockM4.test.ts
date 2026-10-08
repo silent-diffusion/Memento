@@ -174,7 +174,7 @@ describe('M4 browser-preview host', () => {
     const nokey = await client({ m4: { ai: 'nokey' } }).call('providers.list');
     expect(nokey.providers.map((p) => p.reason)).toEqual(['No key saved', 'No key saved', 'Model not installed']);
     const local = await client({ m4: { ai: 'local' } }).call('providers.list');
-    expect(local.providers.find((p) => p.id === 'local')).toMatchObject({ ready: true, modelLabel: 'Qwen3.5 4B' });
+    expect(local.providers.find((p) => p.id === 'local')).toMatchObject({ ready: true, modelLabel: 'Qwen3.5 4B · graphics card' });
   });
 
   it('asks before sending, then writes the document through every stage', async () => {

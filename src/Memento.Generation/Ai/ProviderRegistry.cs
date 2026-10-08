@@ -3,6 +3,7 @@ using Memento.AI;
 using Memento.AI.Local;
 using Memento.Core.Ai;
 using Memento.Core.Engines;
+using Memento.Core.Formatting;
 using Memento.Core.Models;
 using Memento.Core.Settings;
 
@@ -11,9 +12,11 @@ namespace Memento.Generation.Ai;
 /// <summary>
 /// The three providers (ARCHITECTURE.md §8): Claude and ChatGPT with keys from the DPAPI store and the model from
 /// Settings, and the local model from the catalog run in Memento.Worker. Readiness (<c>providers.list</c>) is worked out
-/// without constructing a provider: external AI allowed and a key saved for the cloud ones; the model installed and,
-/// for a model that needs the graphics card, enough free video memory for the local one. Processor jobs are sent with
-/// <c>device: cpu</c>, which loads llama.cpp's CPU build.
+/// without constructing a provider: external AI allowed and a key saved for the cloud ones; for the local one, an
+/// installed model (<see cref="LocalModelChoice.EffectiveId"/>), so Local is ready whenever any local model is installed.
+/// A graphics-card model without room on the card gives way to an installed processor model, or else runs on the
+/// processor itself; the status names the model, where it runs and why. Processor jobs are sent with <c>device: cpu</c>,
+/// which loads llama.cpp's CPU build.
 /// </summary>
 public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secrets, IModelManager models, IResourceProbe probe, IAiProviderFactory factory)
 {
@@ -86,8 +89,10 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
     private ProviderStatus LocalStatus()
     {
         var snapshot = probe.Sample();
-        var modelId = LocalModelChoice.EffectiveId(settings.Current.Ai.LocalModelId, models.Catalog, snapshot);
-        var entry = modelId is null ? null : models.Catalog.Find(modelId) is { } found ? LocalModelCatalog.ToLocal(found) : null;
+        var saved = settings.Current.Ai.LocalModelId;
+        var catalog = models.Catalog;
+        var modelId = LocalModelChoice.EffectiveId(saved, catalog, snapshot, models.IsInstalled);
+        var entry = modelId is null ? null : catalog.Find(modelId) is { } found ? LocalModelCatalog.ToLocal(found) : null;
         if (entry is null)
         {
             return new ProviderStatus(ProviderIds.Local, false, AiErrorCodes.ModelNotInstalled, "Model not installed",
@@ -101,18 +106,44 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
                 AiErrors.ModelNotInstalled(LocalAiProvider.ProviderName, entry.Name).Message, entry.Id, entry.Name, entry);
         }
 
-        var free = snapshot.DiscreteGpu?.FreeVramBytes;
-        var device = entry.RunsOn == "gpu" ? LocalLlmDevices.Gpu : LocalLlmDevices.Auto;
-        var plan = LocalVramPlanner.Plan(entry.Llm, device, free, 0, VramMarginBytes);
-        if (!plan.Fits)
+        // A model chosen in Settings that is not installed any more: say which one stands in. The hardware's recommendation
+        // is not named when it is missing; the installed model simply writes.
+        var notes = new List<string>();
+        if (saved is not null && saved != entry.Id && catalog.Find(saved) is { Kind: ModelKinds.Llm } missing && !models.IsInstalled(saved))
         {
-            var error = AiErrors.NotEnoughVram(LocalAiProvider.ProviderName, entry.Name, free ?? 0, plan.NeededVramBytes);
-            return new ProviderStatus(ProviderIds.Local, false, AiErrorCodes.NotEnoughVram, "Not enough video memory",
-                error.Message + " Ministral 3 3B runs on the processor.", entry.Id, entry.Name, entry, path, plan);
+            notes.Add($"{missing.Name}, chosen in Settings, is not installed, so {entry.Name} writes the documents.");
+        }
+
+        var free = snapshot.DiscreteGpu?.FreeVramBytes;
+        var plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, 0, VramMarginBytes);
+        if (!plan.UseGpu && entry.RunsOn == "gpu")
+        {
+            // A graphics-card model that does not fit now: an installed processor model runs instead, else this one runs on the processor.
+            var standIn = catalog.OfKind(ModelKinds.Llm)
+                .Where(m => m.Id != entry.Id && m.RunsOn != "gpu" && models.IsInstalled(m.Id))
+                .Select(LocalModelCatalog.ToLocal)
+                .OfType<LocalModelEntry>()
+                .FirstOrDefault();
+            var tooSmall = free is { } shortBy and > 0
+                ? $"The graphics card has {HumanFormat.Bytes(shortBy)} free and {entry.Name} needs {HumanFormat.Bytes(plan.NeededVramBytes)} on it"
+                : $"No graphics card memory is free for {entry.Name}";
+            if (standIn is not null && models.Resolve(standIn.Id) is { } standInPath)
+            {
+                notes.Add($"{tooSmall}, so {standIn.Name} writes instead this time.");
+                entry = standIn;
+                path = standInPath;
+                plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, 0, VramMarginBytes);
+            }
+            else
+            {
+                notes.Add($"{tooSmall}, so it runs on the processor, which takes several times longer.");
+            }
         }
 
         var where = plan.UseGpu ? "graphics card" : "processor";
-        var note = string.Create(CultureInfo.InvariantCulture, $"Runs on the {where} with a {plan.ContextTokens / 1024}k context. Nothing leaves this PC.");
-        return new ProviderStatus(ProviderIds.Local, true, null, null, note, entry.Id, $"{entry.Name} · {where}", entry, path, plan);
+        var k = plan.ContextTokens / 1024;
+        var article = k is 8 or 11 or 18 or (>= 80 and < 90) ? "an" : "a";
+        notes.Add(string.Create(CultureInfo.InvariantCulture, $"Runs on the {where} with {article} {k}k context. Nothing leaves this PC."));
+        return new ProviderStatus(ProviderIds.Local, true, null, null, string.Join(' ', notes), entry.Id, $"{entry.Name} · {where}", entry, path, plan);
     }
 }

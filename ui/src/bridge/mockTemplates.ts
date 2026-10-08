@@ -405,10 +405,10 @@ export function createMockTemplateStore(env: TemplateStoreEnvironment): MockTemp
       const existing = templates.find((t) => t.id === template.id);
       const cleanRows = template.rows.filter((r) => r.modules.length > 0);
       if (existing?.builtIn !== false) {
-        // New, or a built-in saved over: a copy of its own (built-ins stay as they are).
+        // New, or a built-in saved over: a copy of its own (built-ins stay as they are), never with a name in use.
         const taken = templates.map((t) => t.name);
         const trimmed = template.name.trim();
-        const name = trimmed === existing?.name ? copyName(trimmed, taken) : trimmed;
+        const name = taken.some((t) => t.toLocaleLowerCase() === trimmed.toLocaleLowerCase()) ? copyName(trimmed, taken) : trimmed;
         const saved: Template = { ...clone(template), rows: cleanRows, id: nextId('tpl'), name, builtIn: false, modifiedAt: env.now() };
         templates.push(saved);
         env.emit('templates.changed', {});

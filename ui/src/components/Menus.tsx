@@ -91,6 +91,8 @@ function popKeyDown(
 export interface SelectOption<T extends string> {
   value: T;
   label: string;
+  /** A heading shown above the first option of each run of options with the same group ("Built in"). */
+  group?: string;
 }
 
 interface SelectMenuProps<T extends string> {
@@ -168,9 +170,15 @@ export function SelectMenu<T extends string>({
               popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close, pop.floating);
             }}
           >
-            {options.map((option) => {
+            {options.map((option, index) => {
               const selected = option.value === value;
-              return (
+              const heading = option.group !== undefined && option.group !== options[index - 1]?.group ? option.group : null;
+              return [
+                heading === null ? null : (
+                  <li key={`group-${heading}`} class="menu-label" role="presentation">
+                    {heading}
+                  </li>
+                ),
                 <li
                   key={option.value}
                   class="item menu-item"
@@ -191,8 +199,8 @@ export function SelectMenu<T extends string>({
                     {selected ? <CheckIcon size={12} /> : null}
                   </span>
                   {option.label}
-                </li>
-              );
+                </li>,
+              ];
             })}
           </ul>
         </PopoverLayer>

@@ -50,16 +50,15 @@ public sealed class TemplateService(ITemplateStore templates, IStyleStore styles
             throw M4Errors.StyleNotFound(stored.DefaultStyleId);
         }
 
-        // BRIDGE.md M4: built-ins are never saved over; saving one creates a copy.
+        // BRIDGE.md M4: built-ins are never saved over; saving one creates a copy. A new template never takes the name of
+        // one that is already in the library ("Meeting minutes (copy)", then "Meeting minutes (copy 2)"), so the
+        // Builder's template list tells them apart.
         var asNew = existing is null || existing.BuiltIn;
-        if (existing is { BuiltIn: true } && string.Equals(existing.Name, stored.Name, StringComparison.Ordinal))
-        {
-            stored = stored with { Name = stored.Name + " (copy)" };
-        }
-
         if (asNew)
         {
-            var taken = (await templates.ListAsync(cancellationToken)).Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+            var all = await templates.ListAsync(cancellationToken);
+            stored = stored with { Name = UniqueName(stored.Name, all.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase)) };
+            var taken = all.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
             var id = string.IsNullOrWhiteSpace(template.Id) || existing is not null ? StoreIds.Unique(StoreIds.Slug(stored.Name), taken.Contains) : template.Id;
             if (!StoreIds.IsValid(id))
             {
@@ -71,6 +70,23 @@ public sealed class TemplateService(ITemplateStore templates, IStyleStore styles
 
         var saved = await SaveStoredAsync(stored with { ModifiedAt = time.GetLocalNow() }, cancellationToken);
         return M4Mapping.ToBridge(saved);
+    }
+
+    /// <summary><paramref name="name"/> when no template has it, else "name (copy)", "name (copy 2)", …</summary>
+    internal static string UniqueName(string name, IReadOnlySet<string> taken)
+    {
+        if (!taken.Contains(name))
+        {
+            return name;
+        }
+
+        var copy = name + " (copy)";
+        for (var n = 2; taken.Contains(copy); n++)
+        {
+            copy = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{name} (copy {n})");
+        }
+
+        return copy;
     }
 
     public async Task<DocumentTemplate> SaveStoredAsync(DocumentTemplate template, CancellationToken cancellationToken)

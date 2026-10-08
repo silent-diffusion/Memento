@@ -44,6 +44,10 @@ public sealed class EngineSelector(IModelManager models, IResourceProbe probe)
         };
     }
 
+    /// <summary>The local language model in effect for the saved choice (an installed one whenever any is installed).</summary>
+    public string? EffectiveLocalModelId(string? chosen, ResourceSnapshot? snapshot = null) =>
+        Ai.LocalModelChoice.EffectiveId(chosen, models.Catalog, snapshot ?? probe.Sample(), models.IsInstalled);
+
     /// <summary>The transcription model in effect: the saved choice, or the recommended one.</summary>
     public string EffectiveModelId(TranscriptionSettings settings, ResourceSnapshot? snapshot = null)
     {

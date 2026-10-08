@@ -28,7 +28,7 @@ internal static class M4SettingsBlocks
     public static SettingsSnapshot Complete(SettingsSnapshot snapshot, AppSettings settings, EngineSelector selector)
     {
         var ai = settings.Ai;
-        var localModel = LocalModelChoice.EffectiveId(ai.LocalModelId, selector.Catalog, selector.Sample());
+        var localModel = selector.EffectiveLocalModelId(ai.LocalModelId);
         return snapshot with
         {
             Ai = snapshot.Ai with

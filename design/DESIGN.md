@@ -411,7 +411,7 @@ Canvas artboards: *Review and transcript · light / dark*. Opened from a Library
 
 Canvas artboards: *Document builder · light / dark*. Opened from Review's **Create document** or from a saved template. This is the README's visual composer: structure on the left and centre, inputs and output on the right, and no free-form "prompt box" as the primary control.
 
-**Header**: back to the recording it was opened from · template name input (16/700) · `done` pill "Template · n modules" (live count) · right: ghost **Save template**, primary **Generate {document}** with a trailing arrow. Generate is the only moment anything is sent anywhere; it opens the Document viewer (§12).
+**Header**: back to the recording it was opened from · template name input (16/700) · `done` pill "Template · n modules" (live count) · **Template** select (1.1.0: built-ins first, then your saved templates; switching with unsaved changes asks first) · right: ghost **Save template**, ghost **Save as new template**, primary **Generate {document}** with a trailing arrow. Generate is the only moment anything is sent anywhere; it opens the Document viewer (§12).
 
 **Body**: `max-width 1360`, three columns, 24 px gaps: palette (≈236 px), structure (flexible, ≥ 440 px), preview/inputs (≈400 px).
 

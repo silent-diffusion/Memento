@@ -8,7 +8,8 @@ import { formatDuration } from '../format/duration';
 import { definedFields } from './settingsMerge';
 import { isoWithOffset, type MockProject } from './mockData';
 import { createMockDocuments, type MockDocuments, type TranscriptLine } from './mockDocuments';
-import { MODEL_IDS, type MockModelManager } from './mockModels';
+import { effectiveLocalModelId, localProviderInfo, recommendedLocalModelId, type LocalModelsFlag, type VramFlag } from './mockLocalModel';
+import { type MockModelManager } from './mockModels';
 import { articleOpen, metaLine, moduleOpen, skeletonHtml, titleBlock } from './mockPaper';
 import { MockHostError } from './mockSession';
 import { createMockTemplateStore, MODULE_CATALOG, moduleInfo, sampleHtml, type MockTemplateStore } from './mockTemplates';
@@ -34,9 +35,13 @@ export type GenerationFlag = 'ok' | 'fail' | 'rate';
 export interface M4Flags {
   ai: AiFlag;
   gen: GenerationFlag;
+  /** `?vram=low`: another app holds the graphics card's memory. */
+  vram: VramFlag;
+  /** `?llm=qwen|ministral|both|none`: the local models installed at start (default: Qwen with `?ai=local`). */
+  llm?: LocalModelsFlag;
 }
 
-export const DEFAULT_M4_FLAGS: M4Flags = { ai: 'off', gen: 'ok' };
+export const DEFAULT_M4_FLAGS: M4Flags = { ai: 'off', gen: 'ok', vram: 'ok' };
 
 export function m4FlagsFromQuery(query: URLSearchParams): Partial<M4Flags> {
   const flags: Partial<M4Flags> = {};
@@ -47,6 +52,13 @@ export function m4FlagsFromQuery(query: URLSearchParams): Partial<M4Flags> {
   const gen = query.get('gen');
   if (gen === 'fail' || gen === 'rate') {
     flags.gen = gen;
+  }
+  if (query.get('vram') === 'low') {
+    flags.vram = 'low';
+  }
+  const llm = query.get('llm');
+  if (llm === 'qwen' || llm === 'ministral' || llm === 'both' || llm === 'none') {
+    flags.llm = llm;
   }
   return flags;
 }
@@ -90,7 +102,7 @@ export type M4Method = (typeof M4_METHODS)[number];
 export type M4Handlers = { [M in M4Method]: (params: MethodParams<M>) => MethodResult<M> };
 
 /** The M4 settings as the preview starts, for an `?ai=` flag (README defaults: external AI off). */
-export function m4Settings(base: SettingsSnapshot, flag: AiFlag): Pick<SettingsSnapshot, 'ai' | 'documents'> {
+export function m4Settings(base: SettingsSnapshot, flag: AiFlag, vram: VramFlag = 'ok'): Pick<SettingsSnapshot, 'ai' | 'documents'> {
   const enabled = flag === 'nokey' || flag === 'ready';
   return {
     ai: {
@@ -98,7 +110,8 @@ export function m4Settings(base: SettingsSnapshot, flag: AiFlag): Pick<SettingsS
       enabled,
       providers: flag === 'nokey' ? { anthropic: { hasKey: false }, openai: { hasKey: false } } : base.ai.providers,
       defaultProviderId: flag === 'local' ? 'local' : null,
-      localModelId: MODEL_IDS.qwen,
+      localModelId: recommendedLocalModelId(vram),
+      localModelChosen: false,
     },
     documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' },
   };
@@ -138,6 +151,13 @@ export interface MockM4 {
   store: MockTemplateStore;
   /** settings.set's `documents` block and the M4 `ai` fields, validated as the host does. */
   mergeSettings(settings: SettingsSnapshot, params: SettingsSetParams): SettingsSnapshot;
+  /** The snapshot as settings.get answers it: the local model in effect (an installed one whenever any is). */
+  present(settings: SettingsSnapshot): SettingsSnapshot;
+}
+
+/** The local model chosen in Settings, or null for the hardware default. */
+function chosenLocalModel(ai: SettingsSnapshot['ai']): string | null {
+  return ai.localModelChosen === true ? ai.localModelId : null;
 }
 
 interface Job {
@@ -169,22 +189,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       const reason = !ai.enabled ? 'External AI is off' : ai.providers[id].hasKey ? null : 'No key saved';
       return { id, name: label.name, vendor: label.vendor, kind: 'cloud', ready: reason === null, reason, modelLabel: label.model, code: !ai.enabled ? 'ai.disabled' : reason === null ? null : 'ai.noKey', detail: null, modelId: null };
     };
-    const local = ((): ProviderInfo => {
-      const model = env.models.list().find((m) => m.id === ai.localModelId);
-      const installed = model?.installed === true;
-      return {
-        id: 'local',
-        name: PROVIDER_LABELS.local.name,
-        vendor: PROVIDER_LABELS.local.vendor,
-        kind: 'local',
-        ready: installed,
-        reason: installed ? null : 'Model not installed',
-        modelLabel: model?.name ?? null,
-        code: installed ? null : 'ai.modelNotInstalled',
-        detail: null,
-        modelId: model?.id ?? null,
-      };
-    })();
+    const local = localProviderInfo(env.models.list(), chosenLocalModel(ai), env.flags.vram);
     return [cloud('anthropic'), cloud('openai'), local];
   };
 
@@ -576,7 +581,13 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       if (local?.engine !== 'llm') {
         throw invalid('That is not a local language model. Nothing was changed.', ai.localModelId);
       }
-      return { ...settings, documents: documentsBlock };
+      const chosen = typeof params.ai?.localModelId === 'string' ? true : (ai.localModelChosen ?? false);
+      return { ...settings, ai: { ...ai, localModelChosen: chosen }, documents: documentsBlock };
+    },
+    present(settings) {
+      const chosen = chosenLocalModel(settings.ai);
+      const localModelId = effectiveLocalModelId(env.models.list(), chosen, env.flags.vram);
+      return { ...settings, ai: { ...settings.ai, localModelId, localModelChosen: chosen !== null && chosen === localModelId } };
     },
   };
 }

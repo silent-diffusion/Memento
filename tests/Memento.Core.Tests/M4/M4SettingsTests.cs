@@ -79,7 +79,7 @@ public sealed class M4SettingsTests : IDisposable
         Assert.Equal("qwen3.5-4b-q4", LocalModelChoice.RecommendedId(catalog, With(5L << 30)));
         Assert.Equal("ministral-3-3b-q4", LocalModelChoice.RecommendedId(catalog, With(2L << 30)));
         Assert.Equal("ministral-3-3b-q4", LocalModelChoice.RecommendedId(catalog, With(null)));
-        Assert.Equal("qwen3.5-4b-q4", LocalModelChoice.EffectiveId("qwen3.5-4b-q4", catalog, With(null)));
-        Assert.Equal("ministral-3-3b-q4", LocalModelChoice.EffectiveId("whisper-small", catalog, With(null)));
+        Assert.Equal("qwen3.5-4b-q4", LocalModelChoice.EffectiveId("qwen3.5-4b-q4", catalog, With(null), _ => true));
+        Assert.Equal("ministral-3-3b-q4", LocalModelChoice.EffectiveId("whisper-small", catalog, With(null), _ => false));
     }
 }

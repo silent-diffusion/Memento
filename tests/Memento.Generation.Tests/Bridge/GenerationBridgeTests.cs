@@ -42,11 +42,13 @@ public sealed class GenerationBridgeTests : IDisposable
         Assert.Equal((true, null, null), Of(keyed, "anthropic"));
         Assert.Equal("claude-opus-5-5", keyed.GetProperty("providers")[0].GetProperty("modelLabel").GetString());
 
-        // The graphics-card model needs its video memory.
+        // The graphics-card model needs its video memory; without it the installed processor model writes instead.
         _host.InstallLocalModel(LocalModelCatalog.Qwen35FourB);
         await _host.ResultAsync("settings.set", new { ai = new { localModelId = LocalModelCatalog.Qwen35FourB } });
         _host.Host.Probe.Snapshot = FakeResourceProbe.WithGpu(2L << 30);
-        Assert.Equal((false, AiErrorCodes.NotEnoughVram, "Not enough video memory"), Of(await _host.ResultAsync("providers.list", new { }), "local"));
+        var low = await _host.ResultAsync("providers.list", new { });
+        Assert.Equal((true, null, null), Of(low, "local"));
+        Assert.Equal("Ministral 3 3B · processor", low.GetProperty("providers")[2].GetProperty("modelLabel").GetString());
         _host.Host.Probe.Snapshot = FakeResourceProbe.WithGpu(5L << 30);
         var fits = await _host.ResultAsync("providers.list", new { });
         Assert.Equal((true, null, null), Of(fits, "local"));

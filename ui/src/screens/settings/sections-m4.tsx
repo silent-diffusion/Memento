@@ -2,7 +2,7 @@
 // templates and styles manager) and AI and privacy › the default provider and the local model,
 // installed through the model manager like the transcription models.
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ProviderId, ProviderInfo, Style, Template } from '../../bridge/types';
 import { SelectMenu } from '../../components/Menus';
 import { updateSettings } from '../../state/actions';
@@ -115,6 +115,26 @@ export function DocumentDefaultsRows(): JSX.Element {
 
 const NO_DEFAULT = 'first-ready';
 
+/** Under the local model cards: which model writes documents now and where it runs, as providers.list says. */
+export function LocalModelInUse({ provider }: { provider: ProviderInfo | null }): JSX.Element | null {
+  if (provider === null) {
+    return null;
+  }
+  return (
+    <p class="model-in-use" role="status" data-local-ready={provider.ready ? 'true' : 'false'}>
+      {provider.ready ? (
+        <>
+          Documents are written with <strong>{provider.modelLabel ?? 'the local model'}</strong>. {provider.detail ?? ''}
+        </>
+      ) : (
+        <>
+          <strong>{provider.reason ?? 'The local model is not ready'}.</strong> {provider.detail ?? ''}
+        </>
+      )}
+    </p>
+  );
+}
+
 /** Settings › AI and privacy: which provider the Builder starts with, and the local model. */
 export function AiProviderDefaults(): JSX.Element {
   const services = useServices();
@@ -124,6 +144,7 @@ export function AiProviderDefaults(): JSX.Element {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const aiKey = JSON.stringify(settings?.ai ?? null);
+  const installedLocal = models.state.models.filter((m) => m.engine === 'llm' && m.installed).length;
 
   useEffect(() => {
     let live = true;
@@ -138,13 +159,40 @@ export function AiProviderDefaults(): JSX.Element {
     return () => {
       live = false;
     };
-  }, [bridge, aiKey, models.state.models.filter((m) => m.engine === 'llm' && m.installed).length]);
+  }, [bridge, aiKey, installedLocal]);
+
+  // The local model in effect follows what is installed (BRIDGE.md: an installed one whenever any is), so the
+  // snapshot is read again when a local model finishes installing or is removed.
+  const loadedInstalls = useRef<number | null>(null);
+  useEffect(() => {
+    if (!models.state.loaded) {
+      return undefined;
+    }
+    if (loadedInstalls.current === null || loadedInstalls.current === installedLocal) {
+      loadedInstalls.current = installedLocal;
+      return undefined;
+    }
+    loadedInstalls.current = installedLocal;
+    let live = true;
+    bridge
+      .call('settings.get')
+      .then((fresh) => {
+        if (live) {
+          store.settings.value = fresh;
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [bridge, store, models.state.loaded, installedLocal]);
 
   if (settings === null) {
     return <></>;
   }
   const ai = settings.ai;
   const note = (p: ProviderInfo): string => (p.ready ? '' : ` (${(p.reason ?? 'not ready').toLocaleLowerCase()})`);
+  const local = providers.find((p) => p.id === 'local') ?? null;
   return (
     <>
       <SettingsGroup label="Writing documents">
@@ -170,15 +218,20 @@ export function AiProviderDefaults(): JSX.Element {
           label="Local model"
           description="Writes documents on this PC without sending anything. Downloaded once and checked before it is used."
           below={
-            <ModelCards
-              api={models}
-              engine="llm"
-              defaultId={ai.localModelId}
-              label="Local model"
-              onDefault={(localModelId) => {
-                void updateSettings(services, { ai: { localModelId } }).then(setError);
-              }}
-            />
+            <>
+              <ModelCards
+                api={models}
+                engine="llm"
+                defaultId={ai.localModelId}
+                label="Local model"
+                useLabel="Use this model"
+                defaultStatus="Installed · selected"
+                onDefault={(localModelId) => {
+                  void updateSettings(services, { ai: { localModelId } }).then(setError);
+                }}
+              />
+              <LocalModelInUse provider={local} />
+            </>
           }
         />
       </SettingsGroup>
