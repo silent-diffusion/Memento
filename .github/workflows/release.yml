@@ -109,9 +109,9 @@ jobs:
       - name: SHA-256 of every release file
         shell: pwsh
         run: |
-          Get-ChildItem build/out, build/sbom -File |
-            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name } |
-            Set-Content build/sbom/SHA256SUMS.txt -Encoding ascii
+          $files = Get-ChildItem build/out, build/sbom -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' }
+          $lines = foreach ($f in $files) { "{0}  {1}" -f (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $f.Name }
+          Set-Content build/sbom/SHA256SUMS.txt -Value $lines -Encoding ascii
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
