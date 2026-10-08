@@ -123,6 +123,10 @@ interface ModelCardProps {
   group: string;
   /** False: the model is needed, not a choice (no radio). */
   selectable: boolean;
+  /** The visible words beside the radio of an installed model ("Use this model"), or null for none. */
+  useLabel: string | null;
+  /** The status of the chosen model ("Installed · default"). */
+  defaultStatus: string;
   onDefault: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -130,10 +134,10 @@ interface ModelCardProps {
   onDismiss: () => void;
 }
 
-function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
+function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, useLabel, defaultStatus, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
   const downloading = phase.kind === 'starting' || phase.kind === 'downloading' || phase.kind === 'verifying' || phase.kind === 'cancelling';
   const radioId = `${group}-${model.id}`;
-  const status = model.installed ? (isDefault ? 'Installed · default' : selectable ? 'Installed' : 'Installed · needed') : downloading ? 'Downloading' : 'Not installed';
+  const status = model.installed ? (isDefault ? defaultStatus : selectable ? 'Installed' : 'Installed · needed') : downloading ? 'Downloading' : 'Not installed';
   return (
     <div class={isDefault ? 'model-card model-card--default' : 'model-card'} data-model-id={model.id}>
       <div class="model-main">
@@ -163,6 +167,11 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
           <span class="model-facts">
             {modelFacts(model)} · <span class={model.installed ? 'model-installed' : ''}>{status}</span>
           </span>
+          {selectable && useLabel !== null && model.installed ? (
+            <label class="model-use" for={radioId}>
+              {useLabel}
+            </label>
+          ) : null}
           {model.installed && (isDefault || keepReason !== null) ? (
             <span class="model-needed" id={`${radioId}-needed`}>
               {NEEDED_NOTE}
@@ -258,10 +267,14 @@ interface ModelCardsProps {
   onDefault: (modelId: string) => void;
   /** Models another setting relies on, with the reason they cannot be removed. */
   keep?: Readonly<Record<string, string>>;
+  /** Visible words beside each installed model's radio ("Use this model"). */
+  useLabel?: string;
+  /** The status of the chosen model (default "Installed · default"). */
+  defaultStatus?: string;
 }
 
 /** The catalog for one engine as a radio group of cards. */
-export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {} }: ModelCardsProps): JSX.Element {
+export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {}, useLabel, defaultStatus = 'Installed · default' }: ModelCardsProps): JSX.Element {
   const { state } = api;
   if (!state.loaded) {
     return <p class="settings-row-desc model-loading">Reading the installed models…</p>;
@@ -287,6 +300,8 @@ export function ModelCards({ api, engine, role, selectable = true, defaultId, la
             phase={phase}
             group={`default-${engine}${role === undefined ? '' : `-${role}`}`}
             selectable={selectable}
+            useLabel={useLabel ?? null}
+            defaultStatus={defaultStatus}
             isDefault={selectable && model.id === defaultId}
             keepReason={keep[model.id] ?? null}
             busy={busy && !ownDownload}

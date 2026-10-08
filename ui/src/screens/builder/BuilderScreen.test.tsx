@@ -226,7 +226,7 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
 
     await open({ m4: { ai: 'local' } });
     await click(document.querySelector('#builder-tab-inputs'));
-    expect(providers()).toEqual(['Local modelQwen3.5 4B · on this PC']);
+    expect(providers()).toEqual(['Local modelQwen3.5 4B · graphics card · on this PC']);
     expect(document.querySelector<HTMLInputElement>('.provider.on input')?.checked).toBe(true);
     expect(button('Generate minutes').disabled).toBe(false);
   });

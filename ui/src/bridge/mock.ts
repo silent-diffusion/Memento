@@ -9,6 +9,7 @@ import { createMockTranscription, type StageFlag } from './mockTranscription';
 import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
+import { localModelsInstalled } from './mockLocalModel';
 import type {
   AnnotationOrigin,
   BridgeEventEnvelope,
@@ -140,7 +141,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' },
   };
   const m4Flags: M4Flags = { ...DEFAULT_M4_FLAGS, ...options.m4 };
-  settings = { ...settings, ...m4Settings(settings, m4Flags.ai) };
+  settings = { ...settings, ...m4Settings(settings, m4Flags.ai, m4Flags.vram) };
   const isDark = (): boolean => settings.theme === 'dark' || (settings.theme === 'system' && prefersDark());
 
   const projects = new Map<string, MockProject>();
@@ -285,7 +286,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     inUse: () => transcription.inUse(),
     failure: options.models ?? 'none',
     installed: options.modelsInstalled ?? 'sample',
-    alsoInstalled: m4Flags.ai === 'local' ? [MODEL_IDS.qwen] : [],
+    alsoInstalled: m4Flags.llm !== undefined ? localModelsInstalled(m4Flags.llm) : m4Flags.ai === 'local' ? [MODEL_IDS.qwen] : [],
     onInstalled: () => {
       refreshEngine();
       emitFooter();
@@ -611,7 +612,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       return { opened: false };
     },
     'ui.ready': () => ({}),
-    'settings.get': () => settings,
+    'settings.get': () => m4.present(settings),
     'settings.set': (params) => {
       if (params.libraryPath != null && params.libraryPath !== settings.libraryPath) {
         throw new MockHostError(
@@ -645,7 +646,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         refreshEngine();
         emitFooter();
       }
-      return settings;
+      return m4.present(settings);
     },
     'library.list': (params) => queryLibrary(summaries(), params, (id, query) => transcription.librarySnippet(id, query)),
     'library.processing': () => processingOf(listed()),

@@ -335,6 +335,26 @@
   font-weight: 600;
 }
 
+/* "Use this model": the words of the card's radio, so the choice reads without the radio alone. */
+.model-use {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* Under the local model cards: the model that will write and where it runs (providers.list). */
+.model-in-use {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.model-in-use strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* "Needed by the current settings": why Remove is off on this card. */
 .model-needed {
   display: block;

@@ -1446,8 +1446,13 @@ export interface AiSettings extends AiSettingsInput {
   providers: Record<AiProvider, AiProviderStatus>;
   /** M4: the provider the Builder starts with; null picks the first ready one. */
   defaultProviderId: ProviderId | null;
-  /** M4: the Local provider's model (catalog id, engine `llm`). */
+  /**
+   * M4: the local model in effect (catalog id, engine `llm`): the installed choice, else the installed one the
+   * hardware suits, else any installed one; with none installed, the one to download (1.1.0).
+   */
   localModelId: string;
+  /** M4: true when localModelId is the model chosen in Settings rather than one the host picked. */
+  localModelChosen?: boolean;
 }
 
 export interface StorageReclaimSettings {
