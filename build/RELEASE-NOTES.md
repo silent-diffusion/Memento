@@ -7,6 +7,16 @@ packed into the installer package, and the release workflow uses it as the GitHu
 
 Editing on the spot, undo everywhere, a window into the model's work, and a graphics card that explains itself. Memento updates itself to it.
 
+### Review
+
+- **The speaker menu searches and scrolls.** Clicking a line's speaker opens a menu with a **Find or add a speaker** field at the top. Typing filters the list (names that start with the text first; case and accents ignored), the list scrolls inside the window instead of running off it, and the arrow keys, Page Up and Page Down, Enter and Esc work. The last row, **Add "…" as a new speaker**, creates the speaker and gives it the line. The People list's merge menu is the same menu.
+- **Correct a line where you read it.** Clicking a line's words edits them in place with the caret where you clicked; Enter or clicking away saves (the original wording is kept, as before), Esc cancels. Clicking the line's time plays it; double-click and F2 still edit. Playback never scrolls away from a line you are editing.
+- **Highlights and chapters are renamed in place**: click the name in the outline, or a highlight's note under its line. Outline rows also get a remove button.
+
+### Undo
+
+- **Undo and Ctrl+Z work everywhere.** An **Undo** button in the Review, Builder and document viewer headers, with Ctrl+Z to undo and Ctrl+Y or Ctrl+Shift+Z to redo. One step at a time, up to 50, kept per recording, template or document. In Review: line edits, moving a line to another speaker, adding, renaming and merging speakers (an undone merge brings the speaker back with its name and colour and gives back its lines), highlights and chapters (add, rename, remove), topics, participants' names, tags and Mark as reviewed. In the Builder: adding, moving and removing sections, rows, every section setting (a run of typing is one step) and the template's settings. In the viewer: paragraph edits and the document's name. A text field keeps the keys for its own undo while you are typing in it. The status line says "Undone: merge speakers"; if the host refuses a step, it says why and the step stays.
+
 ### Graphics card
 
 - **Memento now says who is using the graphics card.** The reading was right all along (within a few megabytes of the driver's own figure), but a card held by another program read as "0.1 GB free" with no explanation, so the local model ran on the processor for no visible reason. Settings › Transcription, Settings › AI and privacy and the Builder's Local card now say, for example: "The graphics card has 0.8 GB of 6 GB free. Ollama (llama-server.exe, started by LocalDictation) is using 5.0 GB. Qwen3.5 4B needs 3.6 GB on the card, so it runs on the processor until that memory is free." Memento's own processes count as one "Memento", and a program started by another names it. **Check again** re-reads the card without a restart, so you can close the other program and see the memory come back.
