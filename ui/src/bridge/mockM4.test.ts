@@ -43,9 +43,12 @@ async function progressUntilEnd(bridge: BridgeClient, jobId: string): Promise<Ge
 
 describe('M4 contract names (BRIDGE.md, M4 sections)', () => {
   it('lists every M4 method, event and error code in types.ts, in the contract’s order', () => {
-    expect(METHOD_NAMES.slice(METHOD_NAMES.indexOf('modules.list'))).toEqual([...M4_METHODS]);
-    expect(EVENT_NAMES.slice(-4)).toEqual(['generation.progress', 'documents.changed', 'templates.changed', 'styles.changed']);
-    expect(ERROR_CODES.slice(ERROR_CODES.indexOf('ai.disabled'))).toEqual([
+    // The H1 updates.* names follow the M4 ones.
+    const m4 = METHOD_NAMES.indexOf('modules.list');
+    expect(METHOD_NAMES.slice(m4, m4 + M4_METHODS.length)).toEqual([...M4_METHODS]);
+    expect(METHOD_NAMES.slice(m4 + M4_METHODS.length)).toEqual(['updates.status', 'updates.check', 'updates.apply']);
+    expect(EVENT_NAMES.slice(-5)).toEqual(['generation.progress', 'documents.changed', 'templates.changed', 'styles.changed', 'updates.progress']);
+    expect(ERROR_CODES.slice(ERROR_CODES.indexOf('ai.disabled'), ERROR_CODES.indexOf('library.unavailable'))).toEqual([
       'ai.disabled',
       'ai.providerNotReady',
       'ai.noKey',

@@ -103,6 +103,18 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         }
     }
 
+    /// <summary>Some recording has stage work queued, waiting or running (updates wait for this to end).</summary>
+    public bool IsProcessing
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _pending.Count > 0 || _running is not null;
+            }
+        }
+    }
+
     /// <summary>The stage running now for <paramref name="recordingId"/>, or <c>null</c>.</summary>
     public string? RunningStage(string recordingId)
     {

@@ -6,4 +6,7 @@ public sealed record FooterStatusPayload(EngineStatus Engine, StorageStatus Stor
 {
     /// <summary>The export running in the background (M3): "Exporting {title} · 42%".</summary>
     public ExportFooterStatus Export { get; init; } = ExportFooterStatus.Idle;
+
+    /// <summary>The update downloading in the background (H1): "Downloading Memento 0.5.1 · 42%".</summary>
+    public UpdateFooterStatus Update { get; init; } = UpdateFooterStatus.Idle;
 }

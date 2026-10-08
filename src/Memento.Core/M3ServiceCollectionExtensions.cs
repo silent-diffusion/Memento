@@ -30,6 +30,9 @@ public static class M3ServiceCollectionExtensions
         services.TryAddSingleton(SecretStoreOptions.Default);
         services.TryAddSingleton<ISecretStore, DpapiSecretStore>();
         services.TryAddSingleton(PendingAgendaOptions.Default);
+        services.TryAddSingleton(Export.ExportJournalOptions.Default);
+        services.TryAddSingleton<Export.ExportJournal>();
+        services.TryAddSingleton<Export.InterruptedExports>();
 
         services.AddSingleton<M3EventPublisher>();
         services.AddSingleton<SettingsExtras>();

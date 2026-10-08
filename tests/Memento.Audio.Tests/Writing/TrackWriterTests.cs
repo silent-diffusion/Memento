@@ -64,6 +64,52 @@ public sealed class TrackWriterTests : IDisposable
     }
 
     [Fact]
+    public void ATimeTheDeviceDeliveredNothingIsWrittenAsSilenceSoTheTrackStaysInStep()
+    {
+        var packet = Signals.AsBytes(Signals.Constant(480, 2, 0.1f)); // 10 ms
+        TrackWriter writer;
+        using (writer = NewWriter("mic"))
+        {
+            writer.SetStart(_now);
+            var t = _now;
+            for (var i = 0; i < 50; i++, t += 10 * Ms)
+            {
+                writer.Write(packet, t);
+            }
+
+            t += 120_000 * Ms; // the PC slept, or Memento was frozen, for two minutes
+            for (var i = 0; i < 50; i++, t += 10 * Ms)
+            {
+                writer.Write(packet, t);
+            }
+
+            writer.Write(packet, t + (30 * Ms)); // a little jitter is not a gap
+        }
+
+        // 0.5 s + 120 s of silence + 0.5 s + 10 ms + 30 ms of jitter kept as it was (no gap below 100 ms).
+        Assert.Equal((500 + 120_000 + 500 + 10) * 48, writer.FramesWritten);
+        Assert.Equal(120_000 * 48, writer.FilledGapFrames);
+    }
+
+    [Fact]
+    public void APauseIsNotMistakenForAGap()
+    {
+        var packet = Signals.AsBytes(Signals.Constant(480, 2, 0.1f));
+        TrackWriter writer;
+        using (writer = NewWriter("mic"))
+        {
+            writer.SetStart(_now);
+            writer.Write(packet, _now);
+            writer.Pause(_now + (10 * Ms));
+            writer.Resume(_now + (5_010 * Ms)); // the device kept delivering, but packets in a pause are dropped
+            writer.Write(packet, _now + (5_010 * Ms));
+        }
+
+        Assert.Equal(20 * 48, writer.FramesWritten);
+        Assert.Equal(0, writer.FilledGapFrames);
+    }
+
+    [Fact]
     public void FramesBeforeStartAndAfterEndAreNotWritten()
     {
         using var writer = NewWriter("system");

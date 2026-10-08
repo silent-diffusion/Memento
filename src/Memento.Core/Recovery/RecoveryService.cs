@@ -247,7 +247,8 @@ public sealed partial class RecoveryService(
                     now,
                     "recovered",
                     "info",
-                    "Recovered after Memento closed during recording",
+                    // A state file that says "stopped" means the recording had ended and Memento closed while saving it.
+                    state?.State == "stopped" ? "Recovered after Memento closed while saving the recording" : "Recovered after Memento closed during recording",
                     $"{intact} of {HumanFormat.Count(stateTracks.Count, "track", "tracks")} intact · {HumanFormat.Clock(recoveredMs)} recovered"
                         + (mayBeMissingMs > 0 ? $" · up to {HumanFormat.Clock(mayBeMissingMs)} after the last checkpoint may be missing" : " · nothing is missing")),
                 cancellationToken);

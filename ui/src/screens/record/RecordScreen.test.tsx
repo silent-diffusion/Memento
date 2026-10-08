@@ -140,6 +140,34 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(container.querySelector<HTMLButtonElement>('.player-play')?.disabled).toBe(true);
   });
 
+  it('remembers the sources through the host without undoing recording settings changed since the screen read them', async () => {
+    await setUp();
+    // Changed behind this page's back (another path than Settings): the store still holds FLAC.
+    const host = await bridge.call('settings.get');
+    await bridge.call('settings.set', { recording: { ...host.recording, storage: { codec: 'aac', bitrateKbps: 128, downmixMono: false, keepOnlyMix: false } } });
+    expect(store.settings.value?.recording.storage.codec).toBe('flac');
+    store.route.value = { name: 'record', sessionId: null };
+    await mount();
+    await until(() => container.querySelectorAll('.src').length === 5);
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Zoom"]')?.click();
+      await Promise.resolve();
+    });
+    await until(() => container.querySelector('.rec-subline')?.textContent === '2 audio sources selected · audio only');
+    await act(async () => {
+      button('Start recording').click();
+      await Promise.resolve();
+    });
+    await until(() => store.recording.value?.state === 'recording');
+    await until(() => store.settings.value?.recording.defaultSourceIds.length === 2);
+
+    const after = await bridge.call('settings.get');
+    expect(after.recording.storage.codec).toBe('aac');
+    expect(after.recording.defaultSourceIds).toEqual(store.settings.value?.recording.defaultSourceIds);
+    expect(store.settings.value?.recording.storage.codec).toBe('aac');
+  });
+
   it('rejoins an active session through recording.current, highlights included', async () => {
     await setUp();
     const started = await bridge.call('recording.start', { title: 'Q3 planning sync', type: 'meeting', sourceIds: ['mic:usb-mv7'] });

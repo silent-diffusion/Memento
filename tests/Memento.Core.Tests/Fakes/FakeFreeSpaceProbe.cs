@@ -5,6 +5,12 @@ namespace Memento.Core.Tests.Fakes;
 /// <summary>Free space under test control. Thread-safe: the disk watch samples it from a timer.</summary>
 internal sealed class FakeFreeSpaceProbe : IFreeSpaceProbe
 {
+    /// <summary>
+    /// Only the first queries are kept: the disk watch samples every 20 ms in the test host, and keeping every path
+    /// grew the 8-hour simulated soak's managed heap by 15 MB (1.4 million entries) as if Memento leaked.
+    /// </summary>
+    public const int KeptQueries = 1000;
+
     private readonly object _gate = new();
     private readonly List<string> _queried = [];
     private long? _freeBytes;
@@ -39,11 +45,19 @@ internal sealed class FakeFreeSpaceProbe : IFreeSpaceProbe
         }
     }
 
+    /// <summary>Every query, also those past <see cref="KeptQueries"/>.</summary>
+    public long QueryCount { get; private set; }
+
     public long? GetFreeBytes(string path)
     {
         lock (_gate)
         {
-            _queried.Add(path);
+            QueryCount++;
+            if (_queried.Count < KeptQueries)
+            {
+                _queried.Add(path);
+            }
+
             return _freeBytes;
         }
     }

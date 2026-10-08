@@ -19,7 +19,8 @@ public sealed class FooterStatusService(
     BridgeEventPublisher publisher,
     EngineStatusService engines,
     ProcessingGate gate,
-    Export.ExportStatusBoard? exports = null)
+    Export.ExportStatusBoard? exports = null,
+    Updates.UpdateStatusBoard? updates = null)
 {
     /// <summary>Default low-space threshold (ARCHITECTURE.md §5.7): 10 GB. Settings › Recording can change it.</summary>
     public const long LowSpaceThresholdBytes = 10L * 1024 * 1024 * 1024;
@@ -46,6 +47,7 @@ public sealed class FooterStatusService(
         return new FooterStatusPayload(new EngineStatus(detail.Ready, detail.Device, detail), storage, board.Recording, paused)
         {
             Export = exports?.Current ?? ExportFooterStatus.Idle,
+            Update = updates?.Current ?? UpdateFooterStatus.Idle,
         };
     }
 

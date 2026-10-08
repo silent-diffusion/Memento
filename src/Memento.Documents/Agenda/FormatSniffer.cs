@@ -11,6 +11,15 @@ namespace Memento.Documents.Agenda;
 /// </summary>
 internal static class FormatSniffer
 {
+    /// <summary>The most a Word or Excel package may unpack to (a large real agenda workbook is a few megabytes).</summary>
+    public const long MaxExpandedPackageBytes = 200L * 1024 * 1024;
+
+    /// <summary>Unpacked versus packed size beyond which a package counts as a zip bomb.</summary>
+    public const long MaxCompressionRatio = 100;
+
+    /// <summary>The most characters the Open XML SDK reads from one part.</summary>
+    public const long MaxCharactersInPart = 50_000_000;
+
     public static SniffResult Sniff(ReadOnlySpan<byte> bytes, AgendaParseOptions options)
     {
         if (bytes.Length == 0)
@@ -128,6 +137,7 @@ internal static class FormatSniffer
     private static SniffResult SniffPackage(ReadOnlySpan<byte> bytes, AgendaParseOptions options)
     {
         List<string> names;
+        long expanded;
         try
         {
             using var zip = new ZipArchive(new MemoryStream(bytes.ToArray(), writable: false), ZipArchiveMode.Read);
@@ -140,10 +150,17 @@ internal static class FormatSniffer
             }
 
             names = zip.Entries.Select(e => e.FullName.Replace('\\', '/')).ToList();
+            expanded = zip.Entries.Sum(e => e.Length);
         }
         catch (Exception e) when (ParseGuard.IsDamage(e, CancellationToken.None))
         {
             throw AgendaErrors.Unreadable(options, "a Word or Excel file", e);
+        }
+
+        // A "zip bomb" inflates a small file to gigabytes; an agenda never needs more than this once unpacked.
+        if (expanded > MaxExpandedPackageBytes || (bytes.Length > 0 && expanded / bytes.Length > MaxCompressionRatio && expanded > 10L * 1024 * 1024))
+        {
+            throw AgendaErrors.Unreadable(options, "a Word or Excel file");
         }
 
         if (names.Any(n => n.StartsWith("word/", StringComparison.OrdinalIgnoreCase)))

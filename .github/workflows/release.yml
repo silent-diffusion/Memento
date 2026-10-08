@@ -26,6 +26,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -51,6 +52,11 @@ jobs:
             throw "Tag ${{ github.ref_name }} does not match <Version>$version</Version> in Directory.Build.props."
           }
           "version=$version" >> $env:GITHUB_OUTPUT
+          # 0.1–0.4 were pre-releases; 0.5.0 and everything after it (1.0.0 is the first public release) are full releases,
+          # except a version with a suffix (0.6.0-rc.1). The app's update check follows the same rule (UpdatePolicy).
+          $core = [version]($version.Split('-')[0])
+          $prerelease = ($core -lt [version]'0.5.0') -or $version.Contains('-')
+          "prerelease=$($prerelease.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
       - name: Install UI dependencies
         working-directory: ui
@@ -157,7 +163,7 @@ jobs:
           --releaseName "Memento ${{ needs.build.outputs.version }}"
           --publish
           --merge
-          ${{ startsWith(needs.build.outputs.version, '0.') && '--pre' || '' }}
+          ${{ needs.build.outputs.prerelease == 'true' && '--pre' || '' }}
 
       - name: Attach SBOM and checksums to the release
         env:

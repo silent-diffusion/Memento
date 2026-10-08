@@ -64,6 +64,32 @@ public sealed partial class SpeakersStage(
         var current = settings.Current.Speakers;
         var segmentation = models.Catalog.Entries.FirstOrDefault(e => e.Kind == ModelKinds.Speakers && e.Role == ModelRoles.Segmentation);
         var embedding = models.Catalog.Find(current.EmbeddingModelId);
+
+        // Checked against their SHA-256 before use (hashed only when a stamp does not vouch for them), so a damaged file
+        // is named as damaged rather than as not installed.
+        var damaged = new List<ModelCatalogEntry>();
+        foreach (var model in new[] { segmentation, embedding }.OfType<ModelCatalogEntry>())
+        {
+            if (await models.VerifyAsync(model.Id, cancellationToken) == ModelCheck.Damaged)
+            {
+                damaged.Add(model);
+            }
+        }
+
+        if (damaged.Count > 0)
+        {
+            var names = string.Join(" and ", damaged.Select(d => d.Name));
+            await FailAsync(
+                recordingId,
+                $"Speaker identification could not start: the installed {names} {(damaged.Count == 1 ? "file is" : "files are")} damaged (the SHA-256 checksum does not match the published one), so Memento set {(damaged.Count == 1 ? "it" : "them")} aside instead of using {(damaged.Count == 1 ? "it" : "them")}.",
+                "The transcript is kept without speakers. Download the speaker models again and speakers are identified by themselves.",
+                damaged.Select(d => new Remedy(Remedies.Install(d.Id), $"Download {d.Name} again")).ToList(),
+                ProjectStageFailure.CauseNoModel,
+                "Waiting for a model",
+                cancellationToken);
+            return;
+        }
+
         var segmentationPath = segmentation is null ? null : models.Resolve(segmentation.Id);
         var embeddingPath = embedding is null ? null : models.Resolve(embedding.Id);
         if (segmentationPath is null || embeddingPath is null)

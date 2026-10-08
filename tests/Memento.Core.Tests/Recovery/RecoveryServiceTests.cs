@@ -110,6 +110,8 @@ public sealed class RecoveryServiceTests : IDisposable
         Assert.Equal(2000, recovered.Recovery!.RecoveredDurationMs);
         Assert.Equal(0, recovered.Recovery.MayBeMissingMs);
         Assert.Equal(2000, recovered.Mix!.DurationMs);
+        var history = await host.Store.ReadHistoryAsync(manifest.Id, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == "recovered" && h.Summary == "Recovered after Memento closed while saving the recording");
     }
 
     [Fact]

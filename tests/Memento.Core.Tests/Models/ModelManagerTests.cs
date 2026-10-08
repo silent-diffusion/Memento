@@ -326,7 +326,7 @@ public sealed class ModelManagerTests : IDisposable
         Assert.Null(manager.Resolve("test"));
         var failed = await FinishedAsync();
         Assert.Equal("failed", failed.GetProperty("state").GetString());
-        Assert.Contains("did not match its published checksum", failed.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("does not match the published one", failed.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.False(File.Exists(ModelPath));
         Assert.Single(Directory.GetFiles(Path.GetDirectoryName(ModelPath)!, "ggml-test.bin.corrupt-*"));
         Assert.False(manager.IsInstalled("test"));
@@ -351,7 +351,7 @@ public sealed class ModelManagerTests : IDisposable
         damaged[0] ^= 0x80;
         await File.WriteAllBytesAsync(ModelPath, damaged);
 
-        Assert.False(await manager.VerifyAsync("test", CancellationToken.None));
+        Assert.Equal(ModelCheck.Damaged, await manager.VerifyAsync("test", CancellationToken.None));
         Assert.False(manager.IsInstalled("test"));
         Assert.False(File.Exists(ModelPath + ".verified.json"));
     }
@@ -402,6 +402,53 @@ public sealed class ModelManagerTests : IDisposable
         Assert.False(changed.IsInstalled("test"));
         Assert.Null(changed.Resolve("test"));
         Assert.True(File.Exists(ModelPath)); // Not hashed again or set aside: the stamp already says what it is.
+        Assert.Equal(ModelCheck.NotInstalled, await changed.VerifyAsync("test", CancellationToken.None));
+        Assert.True(File.Exists(ModelPath));
+    }
+
+    [Fact]
+    public async Task AnInstalledFileWithFlippedBytesIsReportedDamagedByVerifyAndDownloadedAgain()
+    {
+        var manager = Create();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+        Assert.Equal(ModelCheck.Verified, await manager.VerifyAsync("test", CancellationToken.None));
+
+        // Same size, a few bytes changed (disk damage, an interrupted copy, someone editing it).
+        var bytes = await File.ReadAllBytesAsync(ModelPath);
+        bytes[1000] ^= 0xFF;
+        bytes[^7] ^= 0x5A;
+        File.SetAttributes(ModelPath, FileAttributes.Normal);
+        _sink.Clear();
+        await File.WriteAllBytesAsync(ModelPath, bytes);
+        File.SetLastWriteTimeUtc(ModelPath, DateTime.UtcNow.AddMinutes(1)); // a later write, even within one clock tick
+
+        Assert.Equal(ModelCheck.Damaged, await manager.VerifyAsync("test", CancellationToken.None));
+
+        Assert.False(manager.IsInstalled("test"));
+        Assert.Null(manager.Resolve("test"));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(ModelPath)!, "ggml-test.bin.corrupt-*"));
+        var report = Assert.Single(_sink.Payloads("models.progress"));
+        Assert.Equal("failed", report.GetProperty("state").GetString());
+        Assert.Contains("damaged", report.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("Download it again", report.GetProperty("message").GetString(), StringComparison.Ordinal);
+
+        _sink.Clear();
+        await manager.InstallAsync("test", CancellationToken.None);
+        await FinishedAsync();
+
+        Assert.Equal(_content, await File.ReadAllBytesAsync(ModelPath));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(ModelPath)!, "ggml-test.bin.corrupt-*"));
+        Assert.Equal(ModelCheck.Verified, await manager.VerifyAsync("test", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AModelThatIsNotInstalledIsNotVerified()
+    {
+        var manager = Create();
+
+        Assert.Equal(ModelCheck.NotInstalled, await manager.VerifyAsync("test", CancellationToken.None));
+        Assert.Equal(ModelCheck.NotInstalled, await manager.VerifyAsync("unknown", CancellationToken.None));
     }
 
     [Fact]

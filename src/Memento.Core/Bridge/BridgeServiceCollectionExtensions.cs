@@ -1,6 +1,7 @@
 using Memento.Core.Bridge.Methods;
 using Memento.Core.Library;
 using Memento.Core.Status;
+using Memento.Core.Updates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -66,6 +67,15 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, EngineStatusMethod>();
 
         services.AddMementoM3();
+
+        // Self-update (H1): the app replaces the client with Velopack; tests and build folders keep "cannot update".
+        services.AddSingleton<IBridgeHandler, UpdatesStatusMethod>();
+        services.AddSingleton<IBridgeHandler, UpdatesCheckMethod>();
+        services.AddSingleton<IBridgeHandler, UpdatesApplyMethod>();
+        services.TryAddSingleton<IUpdateClient>(sp => new NoUpdateClient(sp.GetRequiredService<Host.IAppInfo>().Version));
+        services.TryAddSingleton<UpdateStatusBoard>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<UpdateService>();
 
         services.AddSingleton<BridgeRouter>();
         services.AddSingleton<BridgeEventPublisher>();

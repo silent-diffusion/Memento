@@ -54,6 +54,25 @@ export function sourceName(source: Pick<AudioSource, 'kind' | 'name'>): string {
   }
 }
 
+/**
+ * The switch's accessible name for each source: its name, and when two sources share a name (two outputs both called
+ * "System audio", two microphones) also the line that tells them apart, "System audio: Speakers (Realtek(R) Audio)",
+ * then a number if even that repeats. Found by the H1 accessibility pass on a PC with two outputs.
+ */
+export function sourceToggleLabels(sources: readonly AudioSource[]): Map<string, string> {
+  const count = (key: (s: AudioSource) => string, value: string): number => sources.filter((s) => key(s) === value).length;
+  const first = (s: AudioSource): string => (count(sourceName, sourceName(s)) > 1 ? `${sourceName(s)}: ${sourceSubline(s)}` : sourceName(s));
+  const labels = new Map<string, string>();
+  const seen = new Map<string, number>();
+  for (const source of sources) {
+    const label = first(source);
+    const n = (seen.get(label) ?? 0) + 1;
+    seen.set(label, n);
+    labels.set(source.id, count(first, label) > 1 ? `${label} (${n})` : label);
+  }
+  return labels;
+}
+
 interface SourcesCardProps {
   rows: SourceRow[] | null;
   error: string | null;
@@ -62,6 +81,7 @@ interface SourcesCardProps {
 }
 
 export function SourcesCard({ rows, error, onToggle, onRescan }: SourcesCardProps): JSX.Element {
+  const labels = sourceToggleLabels((rows ?? []).map((r) => r.source));
   return (
     <section class="rec-card rec-sources" aria-label="Sources">
       <div class="rec-card-head">
@@ -86,7 +106,7 @@ export function SourcesCard({ rows, error, onToggle, onRescan }: SourcesCardProp
             <div key={row.source.id} class={row.on ? 'src' : 'src off'}>
               <div class="src-row">
                 <Toggle
-                  label={sourceName(row.source)}
+                  label={labels.get(row.source.id) ?? sourceName(row.source)}
                   checked={row.on}
                   disabled={row.busy}
                   onChange={(on) => {

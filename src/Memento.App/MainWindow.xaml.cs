@@ -44,6 +44,7 @@ internal sealed partial class MainWindow : Window
 
     private readonly ThemeService _theme;
     private readonly WebViewBridge _bridge;
+    private bool _closed;
     private readonly FooterStatusService _footer;
     private readonly UiLifecycle _lifecycle;
     private readonly CommandLineOptions _options;
@@ -61,8 +62,11 @@ internal sealed partial class MainWindow : Window
         ILibraryLocation library,
         ISettingsStore settings,
         DroppedFiles dropped,
+        LibraryOpener opener,
         ILogger<MainWindow> logger)
     {
+        ArgumentNullException.ThrowIfNull(opener);
+        opener.Opened += (_, _) => Dispatcher.BeginInvoke(() => MapLibrary(_closed ? null : WebView.CoreWebView2));
         _theme = theme;
         _bridge = bridge;
         _footer = footer;
@@ -75,13 +79,19 @@ internal sealed partial class MainWindow : Window
         {
             if (!string.Equals(e.Previous.EffectiveLibraryPath, e.Current.EffectiveLibraryPath, StringComparison.OrdinalIgnoreCase))
             {
-                Dispatcher.BeginInvoke(() => MapLibrary(WebView.CoreWebView2));
+                Dispatcher.BeginInvoke(() => MapLibrary(_closed ? null : WebView.CoreWebView2));
             }
         };
 
         InitializeComponent();
         ApplyTheme(theme.IsDark);
-        theme.EffectiveThemeChanged += (_, isDark) => Dispatcher.BeginInvoke(() => ApplyTheme(isDark));
+        theme.EffectiveThemeChanged += (_, isDark) => Dispatcher.BeginInvoke(() =>
+        {
+            if (!_closed)
+            {
+                ApplyTheme(isDark);
+            }
+        });
 
         if (options.IsScreenshotRun)
         {
@@ -96,6 +106,18 @@ internal sealed partial class MainWindow : Window
         }
 
         Loaded += OnLoaded;
+    }
+
+    /// <summary>
+    /// The WebView2 control is disposed with the window, but host services (recording levels, processing progress,
+    /// the footer) keep publishing until the host has stopped. From here on nothing touches the control: a queued event
+    /// posted to a disposed WebView2 throws on the UI thread and ended a normal close with a crash report.
+    /// </summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        _closed = true;
+        _bridge.Detach();
+        base.OnClosed(e);
     }
 
     /// <summary>Brings the window forward when a second Memento is started.</summary>
@@ -202,6 +224,14 @@ internal sealed partial class MainWindow : Window
         var folder = LibraryUrls.MappedFolder(_library.Root);
         if (string.Equals(folder, _mappedLibrary, StringComparison.OrdinalIgnoreCase))
         {
+            return;
+        }
+
+        if (!Directory.Exists(_library.Root) && !LibraryAvailability.IsDefault(_library.Root))
+        {
+            // The library's drive is not connected (or the folder was moved): nothing to serve, and nothing is created
+            // in its place. The page says so through library.list; the mapping follows once the library is back.
+            LogLibraryNotMapped(_library.Root);
             return;
         }
 
@@ -370,6 +400,9 @@ internal sealed partial class MainWindow : Window
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Project folders in {Folder} served at https://library.memento/")]
     private partial void LogLibraryMapped(string folder);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The library {Root} is not available; library.memento is not mapped")]
+    private partial void LogLibraryNotMapped(string root);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Interface files are missing from {Folder}")]
     private partial void LogUiMissing(string folder);

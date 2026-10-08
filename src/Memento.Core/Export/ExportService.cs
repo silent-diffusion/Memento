@@ -34,7 +34,8 @@ public sealed partial class ExportService(
     LibraryActivity activity,
     IAppInfo app,
     TimeProvider time,
-    ILogger<ExportService> logger) : IAsyncDisposable, IDisposable
+    ILogger<ExportService> logger,
+    ExportJournal? journal = null) : IAsyncDisposable, IDisposable
 {
     /// <summary>Room left on the drive beyond the estimate before an export is refused.</summary>
     public const long SpaceMarginBytes = 16L * 1024 * 1024;
@@ -277,6 +278,9 @@ public sealed partial class ExportService(
             work = Path.Combine(output, WorkFolderPrefix + job.Id);
             var workInfo = Directory.CreateDirectory(work);
             workInfo.Attributes |= FileAttributes.Hidden;
+            var started = time.GetLocalNow();
+            void Journal() => journal?.Set(new ExportJournalEntry(job.Id, plan.RecordingId, plan.Title, started, output, work, written.ToList(), createdFolders.ToList()));
+            Journal();
 
             var files = new List<ExportManifestFile>();
             var taken = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -312,6 +316,7 @@ public sealed partial class ExportService(
                 job.CurrentFile = name;
                 Publish(job, force: false, throttle);
                 var bytes = await WriteFileAsync(item.WriteAsync, destination, work, name, written, token);
+                Journal();
                 var relative = item.Folder is null ? name : item.Folder + "/" + name;
                 files.Add(new ExportManifestFile(relative, bytes.Length, bytes.Sha256));
                 job.Files++;
@@ -364,7 +369,20 @@ public sealed partial class ExportService(
             LogFailed(ex, job.Id, plan.RecordingId);
         }
 
+        ForgetQuietly(job.Id);
         Publish(job, force: true, throttle);
+    }
+
+    private void ForgetQuietly(string jobId)
+    {
+        try
+        {
+            journal?.Remove(jobId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogNotCleaned(ex, jobId);
+        }
     }
 
     /// <summary>Writes one file into the work folder, hashes it, and moves it to <paramref name="destination"/> (never over an existing file).</summary>

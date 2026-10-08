@@ -116,6 +116,25 @@ public sealed class ModelCatalogTests
     }
 
     [Fact]
+    public void AMirrorOnThisPcKeepsEverySizeAndChecksum()
+    {
+        var mirrored = ModelCatalog.Default.WithMirror(new Uri("http://127.0.0.1:9470/"));
+
+        Assert.Equal(ModelCatalog.Default.Entries.Count, mirrored.Entries.Count);
+        var turbo = mirrored.Find("whisper-large-v3-turbo")!;
+        Assert.Equal("http://127.0.0.1:9470/whisper/ggml-large-v3-turbo.bin", turbo.Url);
+        Assert.Equal(ModelCatalog.Default.Find("whisper-large-v3-turbo")!.Sha256, turbo.Sha256);
+        Assert.Equal(ModelCatalog.Default.Find("whisper-large-v3-turbo")!.SizeBytes, turbo.SizeBytes);
+    }
+
+    [Theory]
+    [InlineData("https://example.org/models/")]
+    [InlineData("http://192.168.1.10/")]
+    [InlineData("file:///C:/models/")]
+    public void AMirrorElsewhereIsRefused(string mirror) =>
+        Assert.Throws<ArgumentException>(() => ModelCatalog.Default.WithMirror(new Uri(mirror)));
+
+    [Fact]
     public void RejectsMalformedJson()
     {
         Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse("{ not json"));

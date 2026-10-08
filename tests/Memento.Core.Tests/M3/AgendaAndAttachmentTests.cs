@@ -305,6 +305,36 @@ public sealed class AgendaAndAttachmentTests : IDisposable
         Assert.Equal("""{"attachment":null,"cancelled":true}""", cancelled.GetRawText());
     }
 
+    [Theory]
+    [InlineData("help.chm")]
+    [InlineData("installer.msix")]
+    [InlineData("disk.iso")]
+    [InlineData("tool.py")]
+    [InlineData("macros.xlsm")]
+    [InlineData("search.search-ms")]
+    public async Task OnlyDocumentsImagesAndMediaOpenAnythingElseShowsItsFolder(string name)
+    {
+        var id = await _m3.RecordAsync();
+        var attachment = (await _m3.ResultPickingAsync("attachments.add", _m3.WriteFile(name, "x"), new { recordingId = id })).GetProperty("attachment").GetProperty("id").GetString();
+
+        await _m3.ResultAsync("attachments.open", new { recordingId = id, attachmentId = attachment });
+
+        Assert.Equal(Path.Combine(_m3.Host.Store.GetProjectFolder(id), "attachments"), _m3.Host.Launcher.Opened.Single().LocalPath);
+    }
+
+    [Fact]
+    public async Task ADownloadedFileKeepsItsInternetMarkWhenAttached()
+    {
+        var id = await _m3.RecordAsync();
+        var source = _m3.WriteFile("downloaded.docx", "PK");
+        File.WriteAllText(source + ":Zone.Identifier", "[ZoneTransfer]\r\nZoneId=3\r\n");
+
+        await _m3.ResultPickingAsync("attachments.add", source, new { recordingId = id });
+
+        var copy = Path.Combine(_m3.Host.Store.GetProjectFolder(id), "attachments", "downloaded.docx");
+        Assert.Equal("[ZoneTransfer]\r\nZoneId=3\r\n", File.ReadAllText(copy + ":Zone.Identifier"));
+    }
+
     [Fact]
     public async Task ChangeTypeAcceptsCustomTypesUpTo40Characters()
     {

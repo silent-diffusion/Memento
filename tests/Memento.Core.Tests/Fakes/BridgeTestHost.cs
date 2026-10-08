@@ -55,6 +55,7 @@ internal sealed class BridgeTestHost : IDisposable
         });
         collection.AddSingleton<ISettingsStore>(sp => new JsonSettingsStore(SettingsFile, sp.GetRequiredService<ILogger<JsonSettingsStore>>()));
         collection.AddSingleton(new ModelStoreOptions(_directory.File("models")));
+        collection.AddSingleton(new Memento.Core.Export.ExportJournalOptions(_directory.File("exports-running.json")));
         collection.AddSingleton<IResourceProbe>(Probe);
         collection.AddSingleton<IWorkerLauncher>(Workers);
         collection.AddMementoBridge();

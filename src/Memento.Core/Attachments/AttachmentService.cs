@@ -36,7 +36,8 @@ public sealed partial class AttachmentService(
         ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".odt", ".ods", ".odp", ".rtf",
         ".txt", ".md", ".csv", ".tsv",
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".webp",
-        ".wav", ".mp3", ".m4a", ".flac", ".wma", ".ogg", ".opus", ".mp4", ".m4v", ".mov", ".wmv",
+        ".wav", ".mp3", ".m4a", ".aac", ".flac", ".wma", ".ogg", ".opus",
+        ".mp4", ".m4v", ".mov", ".wmv", ".avi", ".mkv", ".webm",
     };
 
     private readonly ILogger<AttachmentService> _logger = logger;

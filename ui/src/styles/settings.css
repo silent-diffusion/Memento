@@ -203,6 +203,38 @@
   color: var(--accent-text);
 }
 
+.settings-inline--quiet {
+  color: var(--text-2);
+}
+
+/* Settings › General › About: the licenses from docs/THIRD-PARTY.md (H1). */
+.about-licenses {
+  flex: 1 1 100%;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-top: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.about-licenses-text {
+  margin: 8px 0 4px;
+}
+
+.about-licenses-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.about-licenses-list li {
+  margin: 2px 0;
+}
+
+.about-licenses-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .settings-later {
   padding: 20px;
   gap: 4px;

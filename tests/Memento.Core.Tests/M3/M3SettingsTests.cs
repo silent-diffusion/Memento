@@ -23,7 +23,7 @@ public sealed class M3SettingsTests : IDisposable
     {
         var result = await _m3.ResultAsync("settings.get", new { });
 
-        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en"}""", result.GetProperty("general").GetRawText());
+        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true}""", result.GetProperty("general").GetRawText());
         Assert.Equal(
             """{"saveCopiesOutside":false,"defaultFolder":null,"askWhereEachTime":true,"createSubfolder":true,"defaults":{"audioMixed":{"on":true,"format":"flac","bitrateKbps":null},"tracks":{"on":false,"format":"flac","bitrateKbps":null},"transcript":{"on":true,"formats":["json","markdown"]},"documents":{"on":false,"documentIds":[],"format":"docx"},"details":{"on":false},"attachments":{"on":false}}}""",
             result.GetProperty("export").GetRawText());
@@ -115,7 +115,7 @@ public sealed class M3SettingsTests : IDisposable
     [Fact]
     public async Task UnknownFieldsInAnM3BlockAreRejected()
     {
-        var response = await _m3.Host.CallAsync("settings.set", """{"general":{"autoUpdate":true}}""");
+        var response = await _m3.Host.CallAsync("settings.set", """{"general":{"checkHourly":true}}""");
 
         Assert.Equal(BridgeErrorCodes.InvalidParams, response.GetProperty("error").GetProperty("code").GetString());
 
@@ -211,6 +211,28 @@ public sealed class M3SettingsTests : IDisposable
         Assert.False(store.HasKey("openai"));
         await store.SetKeyAsync("openai", "sk-replacement-key", CancellationToken.None);
         Assert.True(store.HasKey("openai"));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(_m3.Directory.File("secrets.bin"))!, "secrets.bin.unreadable-*")); // the unusable file is kept, not overwritten
+    }
+
+    [Fact]
+    public async Task ASecretsFileThatCannotBeReadNowIsNeverOverwritten()
+    {
+        var path = _m3.Directory.File("secrets.bin");
+        using (var first = new DpapiSecretStore(new SecretStoreOptions(path), NullLogger<DpapiSecretStore>.Instance))
+        {
+            await first.SetKeyAsync("anthropic", "test-anthropic-first-key-123", CancellationToken.None);
+        }
+
+        var before = await File.ReadAllBytesAsync(path);
+        using var store = new DpapiSecretStore(new SecretStoreOptions(path), NullLogger<DpapiSecretStore>.Instance);
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            // Locked (an antivirus scan, a backup): saving the other provider's key must fail, not drop this one.
+            await Assert.ThrowsAnyAsync<IOException>(() => store.SetKeyAsync("openai", "sk-openai-second-key", CancellationToken.None));
+        }
+
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+        Assert.Equal("test-anthropic-first-key-123", await store.GetKeyAsync("anthropic", CancellationToken.None));
     }
 
     [Fact]

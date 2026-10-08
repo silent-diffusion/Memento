@@ -1,4 +1,4 @@
-import type { EngineStatus, EngineStatusDetail, FooterExportStatus, FooterStatusPayload, StorageStatus } from '../bridge/types';
+import type { EngineStatus, EngineStatusDetail, FooterExportStatus, FooterStatusPayload, FooterUpdateStatus, StorageStatus } from '../bridge/types';
 import { formatTimecode } from './duration';
 import { formatFreeSpace } from './storage';
 
@@ -104,6 +104,12 @@ export function footerStorageLine(status: FooterStatusPayload | null): StorageLi
 }
 
 /** M3: "Exporting Q3 planning sync · 42%" while an export runs (status.footer `export`). */
+/** "Downloading Memento 0.5.1 · 42%" while an update downloads in the background (H1). */
+export function updateFooterLine(status: FooterUpdateStatus): string {
+  const name = status.version === null ? 'an update' : `Memento ${status.version}`;
+  return status.percent === null ? `Downloading ${name}` : `Downloading ${name} · ${Math.round(status.percent)}%`;
+}
+
 export function exportFooterLine(status: FooterExportStatus): string {
   const title = status.title ?? 'a recording';
   return status.percent === null ? `Exporting ${title}` : `Exporting ${title} · ${Math.round(status.percent)}%`;

@@ -114,4 +114,9 @@ public static class BridgeMethodNames
     public const string DocumentsVersions = "documents.versions";
     public const string DocumentsRestoreVersion = "documents.restoreVersion";
     public const string DocumentsExport = "documents.export";
+
+    // H1: updates.
+    public const string UpdatesStatus = "updates.status";
+    public const string UpdatesCheck = "updates.check";
+    public const string UpdatesApply = "updates.apply";
 }

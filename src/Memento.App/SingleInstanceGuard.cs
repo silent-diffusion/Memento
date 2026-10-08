@@ -1,16 +1,22 @@
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using Memento.Core;
 
 namespace Memento.App;
 
 /// <summary>
-/// One Memento per Windows session. The first instance owns a named mutex and waits on a named
-/// event; a second instance sets the event (after allowing the first to take the foreground) and exits.
+/// One Memento per data folder in a Windows session (in practice one per user, since the data folder is always
+/// <c>%LOCALAPPDATA%\Memento</c>). The first instance owns a named mutex and waits on a named event; a second
+/// instance sets the event (after allowing the first to take the foreground) and exits. The names carry a hash of the
+/// data folder, so a test run with its own LOCALAPPDATA never hands off to, or blocks, the Memento a person is using.
 /// </summary>
 internal sealed partial class SingleInstanceGuard : IDisposable
 {
-    private const string MutexName = @"Local\Memento.SingleInstance";
-    private const string ActivateEventName = @"Local\Memento.Activate";
     private const int AsfwAny = -1;
+    private static readonly string MutexName = @"Local\Memento.SingleInstance." + DataRootKey();
+    private static readonly string ActivateEventName = @"Local\Memento.Activate." + DataRootKey();
 
     private readonly Mutex _mutex;
     private readonly EventWaitHandle? _activate;
@@ -86,6 +92,13 @@ internal sealed partial class SingleInstanceGuard : IDisposable
         }
 
         _mutex.Dispose();
+    }
+
+    /// <summary>16 hex digits of the SHA-256 of the full data folder path, ignoring case.</summary>
+    private static string DataRootKey()
+    {
+        var root = Path.GetFullPath(AppPaths.DataRoot).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root)))[..16];
     }
 
     [LibraryImport("user32.dll", SetLastError = true)]

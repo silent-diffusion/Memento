@@ -165,6 +165,49 @@ public sealed class ExportTests : IDisposable
     }
 
     [Fact]
+    public async Task ARunningExportIsJournalledAndForgottenWhenItFinishes()
+    {
+        var id = await _m3.RecordAsync();
+        _m3.Mp3.Gate = new TaskCompletionSource();
+        var selection = new ExportSelection { Details = new ExportToggle { On = true }, AudioMixed = new ExportAudioChoice { On = true, Format = "mp3", BitrateKbps = 128 } };
+        var journal = _m3.Host.Get<ExportJournal>();
+
+        var jobId = (await _m3.ResultAsync("export.run", Run(id, selection, createSubfolder: true))).GetProperty("jobId").GetString();
+        await TestRecordings.WaitUntilAsync(() => _m3.Mp3.Calls > 0, "the MP3 encode to start");
+
+        var entry = Assert.Single(journal.Entries);
+        Assert.Equal(jobId, entry.JobId);
+        Assert.Equal(id, entry.RecordingId);
+        Assert.StartsWith(Destination, entry.OutputFolder, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(entry.Work);
+        _m3.Mp3.Gate.SetResult();
+        await FinishedAsync(jobId!);
+        Assert.Empty(journal.Entries);
+    }
+
+    [Fact]
+    public async Task AnExportCutShortByACrashIsCleanedUpAtTheNextLaunch()
+    {
+        var id = await _m3.RecordAsync();
+        var output = Path.Combine(Destination, "Weekly sync 2026-10-06");
+        var work = Path.Combine(output, ".memento-export-xdead");
+        Directory.CreateDirectory(work);
+        File.WriteAllText(Path.Combine(work, "abc.part.wav"), "half");
+        var written = Path.Combine(output, "Weekly sync 2026-10-06.wav");
+        File.WriteAllText(written, "complete file of an incomplete export");
+        _m3.Host.Get<ExportJournal>().Set(new ExportJournalEntry("xdead", id, "Weekly sync", DateTimeOffset.Now, output, work, [written], [output]));
+
+        var cleaned = await _m3.Host.Get<InterruptedExports>().CleanUpAsync(CancellationToken.None);
+
+        Assert.Equal(1, cleaned);
+        Assert.False(Directory.Exists(output));
+        Assert.Empty(_m3.Host.Get<ExportJournal>().Entries);
+        var history = await _m3.Host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var line = Assert.Single(history, h => h.Summary == "Export interrupted");
+        Assert.Equal($"Memento closed while exporting to {output}. The 1 file it had written there was removed; nothing inside Memento was changed. Export again from Review.", line.Detail);
+    }
+
+    [Fact]
     public async Task AFailedFileIsNamedAndTheRestRemoved()
     {
         var id = await _m3.RecordAsync();
@@ -313,6 +356,48 @@ public sealed class ExportTests : IDisposable
         Assert.Equal(longText, words);
         Assert.Equal("00:00:40,000 --> 00:00:40,500", cues[ok][1]);
         Assert.Equal("01:02:03,457", SrtWriter.Time(3723.4567));
+    }
+
+    [Fact]
+    public async Task ACraftedProjectJsonCannotWriteOrReadOutsideItsFolders()
+    {
+        var id = await _m3.RecordAsync();
+        var folder = _m3.Host.Store.GetProjectFolder(id);
+        Directory.CreateDirectory(Path.Combine(folder, "attachments"));
+        File.WriteAllText(Path.Combine(folder, "attachments", "agenda.txt"), "agenda");
+        var outside = _m3.Directory.File("outside-secret.txt");
+        File.WriteAllText(outside, "not part of the recording");
+        await _m3.Host.Store.UpdateAsync(
+            id,
+            m => m with
+            {
+                Attachments =
+                [
+                    new AttachmentRecord { Id = "a1", Name = @"..\..\..\Startup\evil.bat", File = "attachments/agenda.txt", SizeBytes = 6 },
+                ],
+            },
+            CancellationToken.None);
+
+        var payload = await RunAsync(id, new ExportSelection { Attachments = new ExportToggle { On = true } }, createSubfolder: true);
+
+        Assert.Equal("done", payload.GetProperty("state").GetString());
+        var written = Directory.EnumerateFiles(_m3.Directory.Path, "*", SearchOption.AllDirectories)
+            .Where(f => !f.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+            .Select(f => Path.GetRelativePath(_m3.Directory.Path, f))
+            .ToList();
+        Assert.DoesNotContain(written, f => f.EndsWith("evil.bat", StringComparison.OrdinalIgnoreCase) && !f.StartsWith("Exports", StringComparison.OrdinalIgnoreCase));
+        var exported = Directory.EnumerateFiles(Destination, "*", SearchOption.AllDirectories).Select(Path.GetFileName).ToList();
+        Assert.Contains("evil.bat", exported); // the name, made safe, inside the export's Attachments folder
+        Assert.All(Directory.EnumerateFiles(Destination, "*", SearchOption.AllDirectories), f => Assert.StartsWith(Destination, f, StringComparison.OrdinalIgnoreCase));
+
+        // A file named outside the project folder makes the whole manifest untrusted (ProjectPaths): nothing is exported.
+        await _m3.Host.Store.UpdateAsync(
+            id,
+            m => m with { Attachments = [.. m.Attachments, new AttachmentRecord { Id = "a2", Name = "secret.txt", File = "../../../outside-secret.txt", SizeBytes = 25 }] },
+            CancellationToken.None);
+        await _m3.ErrorAsync("export.run", Run(id, new ExportSelection { Attachments = new ExportToggle { On = true } }, createSubfolder: true));
+        await _m3.Get<ExportService>().WhenIdleAsync();
+        Assert.DoesNotContain("secret.txt", Directory.EnumerateFiles(Destination, "*", SearchOption.AllDirectories).Select(Path.GetFileName)); // never read
     }
 
     private static RecordingSummary Summary() =>

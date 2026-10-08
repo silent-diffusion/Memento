@@ -430,6 +430,32 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task ADamagedModelFileIsReportedSpecificallyAndDownloadingItAgainIsOffered()
+    {
+        InstallAll();
+        var path = _host.Models.PathOf(TinyCatalog.Find("whisper-large-v3-turbo")!);
+        File.WriteAllBytes(path, [0, 0xFF, 0, 0]); // the right size, flipped bytes
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1)); // a later write, even within one clock tick
+
+        var id = await RecordAndProcessAsync();
+
+        var failure = Assert.Single((await ManifestAsync(id)).Failures);
+        Assert.Equal(ProjectStageFailure.CauseNoModel, failure.Cause);
+        Assert.Equal(
+            "Transcription could not start: the installed Large v3 Turbo model file is damaged (its SHA-256 checksum does not match the published one), so Memento set it aside instead of using it.",
+            failure.Message);
+        Assert.Equal("The recording is safe. Download the model again and transcription starts by itself.", failure.Kept);
+        Assert.Equal(["install:whisper-large-v3-turbo", "model:whisper-small"], failure.Remedies.Select(r => r.Id));
+        Assert.Equal("Download Large v3 Turbo again", failure.Remedies[0].Label);
+        Assert.Equal("Waiting for a model", Stage(await ManifestAsync(id), StageNames.Transcript).Label);
+        Assert.Empty(Jobs(WorkerJobKinds.Transcribe));
+        Assert.False(_host.Models.IsInstalled("whisper-large-v3-turbo"));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + ".corrupt-*"));
+        var progress = _host.Sink.Payloads("models.progress").Last();
+        Assert.Equal("failed", progress.GetProperty("state").GetString());
+    }
+
+    [Fact]
     public async Task WithoutTheSpeakerModelsTheTranscriptIsKeptWithoutSpeakers()
     {
         Install("whisper-large-v3-turbo");
@@ -637,6 +663,44 @@ public sealed class StageTests : IDisposable
         Assert.Equal(["system"], jobs[^1].Diarize!.Tracks.Select(t => t.Id));
         Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
         Assert.All((await TranscriptAsync(id)).Segments, s => Assert.NotNull(s.Speaker));
+    }
+
+    [Fact]
+    public async Task PausesBeforeAnyTrackIsDoneLeaveOneStartLineInHistory()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        var attempts = 0;
+        var started = Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource()).ToArray();
+        var diarizer = TwoTrackDiarizer((_, _) => Task.FromResult(true));
+        _host.Workers.Script = async (job, context, cancel) =>
+        {
+            if (job.Kind == WorkerJobKinds.Diarize && Interlocked.Increment(ref attempts) <= started.Length)
+            {
+                // The PC gets busy before the first track is done, three times in a row.
+                started[attempts - 1].TrySetResult();
+                await Task.Delay(Timeout.Infinite, cancel);
+            }
+
+            return await diarizer(job, context, cancel);
+        };
+
+        var id = await _host.RecordAsync("Busy again and again", 2, Mic, SystemAudio);
+        foreach (var start in started)
+        {
+            await start.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            _host.Gate.SetManual(true);
+            await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Speakers).Label == "Paused · Paused by you", "speakers to pause");
+            _host.Gate.SetManual(false);
+        }
+
+        await IdleAsync();
+
+        Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var starts = history.Where(h => h.Stage == "speakers" && h.Event == "started").ToList();
+        Assert.Equal(["Identifying speakers"], starts.Select(h => h.Summary));
+        Assert.Single(history, h => h.Stage == "speakers" && h.Event == "completed");
     }
 
     [Fact]

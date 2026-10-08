@@ -9,6 +9,23 @@ body {
   min-height: 100vh;
 }
 
+/*
+ * Contrast corrections to tokens.css (PRODUCT-SPEC "Accessibility": text at least 4.5:1 in both themes), measured with
+ * tools/e2e/h1-contrast.mjs. text-3 was 3.3–3.7:1 (light) and 3.7–4.4:1 (dark) on the grounds it sits on; it keeps its
+ * hue and now reaches 4.5:1 on all of them. The white label on the dark theme's light orange and red fills was
+ * 2.0–3.5:1; labels on the accent and danger fills now use --on-accent, the ground colour in dark (4.7–8.3:1) and
+ * white in light (5.2:1 at the middle of the accent fill). To be folded into design/tokens.css by its owner.
+ */
+.app {
+  --text-3: #68645e;
+  --on-accent: #ffffff;
+}
+
+.app.dark {
+  --text-3: #96928b;
+  --on-accent: #1f1e1b;
+}
+
 /* The tokens style controls by class; reset what browsers add to real <button>/<ul> elements. */
 button.btn,
 button.icon-btn,

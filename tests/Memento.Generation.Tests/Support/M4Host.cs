@@ -62,7 +62,7 @@ internal sealed class M4Host : IDisposable
         var path = Host.Models.PathOf(entry);
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, new byte[entry.SizeBytes]);
-        if (!Host.Models.VerifyAsync(id, CancellationToken.None).GetAwaiter().GetResult())
+        if (Host.Models.VerifyAsync(id, CancellationToken.None).GetAwaiter().GetResult() != Memento.Core.Models.ModelCheck.Verified)
         {
             throw new InvalidOperationException($"The test model {id} did not verify.");
         }

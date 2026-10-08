@@ -2,6 +2,7 @@
 import type { BridgeClient } from '../bridge/client';
 import type { LibraryListResult } from '../bridge/types';
 import { libraryViewReducer, listParams, type LibraryViewAction } from './libraryView';
+import { adoptCurrentSession } from './currentSession';
 import type { AppStore } from './store';
 
 function messageOf(error: unknown): string {
@@ -69,6 +70,7 @@ export function updateLibraryView(bridge: BridgeClient, store: AppStore, action:
 export async function loadInitialData(bridge: BridgeClient, store: AppStore): Promise<void> {
   store.loadError.value = null;
   try {
+    const recordingBefore = store.recording.value;
     const [version, settings, status, current, recovery] = await Promise.all([
       bridge.call('app.version'),
       bridge.call('settings.get'),
@@ -82,7 +84,7 @@ export async function loadInitialData(bridge: BridgeClient, store: AppStore): Pr
     store.settings.value = settings;
     // A footer event may already have arrived; status.get is the same payload, so either is current.
     store.footer.value ??= status;
-    store.recording.value = current.session;
+    adoptCurrentSession(store.recording, recordingBefore, current.session);
     store.recoveryQueue.value = recovery.items;
   } catch (error) {
     store.loadError.value = messageOf(error);

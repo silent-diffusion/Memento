@@ -26,6 +26,7 @@ import type {
   SettingsSnapshot,
   StageStatus,
   Track,
+  UpdateStatus,
 } from './types';
 
 /**
@@ -92,6 +93,9 @@ export const M3_METHODS = [
   'ai.setKey',
   'ai.clearKey',
   'app.setStartup',
+  'updates.status',
+  'updates.check',
+  'updates.apply',
 ] as const satisfies readonly MethodName[];
 
 export type M3Method = (typeof M3_METHODS)[number];
@@ -109,7 +113,7 @@ export const DEFAULT_EXPORT_SELECTION: ExportSelection = {
 /** The M3 blocks of the preview's settings (defaults from the README: local first, AI off, nothing written outside). */
 export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export' | 'ai' | 'storage'> {
   return {
-    general: { startWithWindows: false, keepRunningInTray: true, language: 'en' },
+    general: { startWithWindows: false, keepRunningInTray: true, language: 'en', autoUpdate: true },
     export: {
       saveCopiesOutside: false,
       defaultFolder: 'D:\\Exports',
@@ -215,6 +219,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
   let interruptedOnce = false;
   let moving = false;
   let jobCounter = 0;
+  let updates: UpdateStatus = { currentVersion: '0.5.0', state: 'idle', availableVersion: null, percent: null, lastCheckedAt: null, message: null, deferred: false };
 
   const at = (): string => isoWithOffset(new Date(env.now()));
   const newAttachment = (name: string, sizeBytes: number, kind: Attachment['kind'], contentType: string | null): Attachment => ({
@@ -638,6 +643,22 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       const settings = env.settings();
       env.setSettings({ ...settings, general: { ...settings.general, startWithWindows: params.startWithWindows } });
       return { startWithWindows: params.startWithWindows };
+    },
+    // The preview is the newest version; Check now says so.
+    'updates.status': () => ({ ...updates }),
+    'updates.check': () => {
+      if (updates.state === 'ready' || updates.state === 'downloading') {
+        return { ...updates };
+      }
+      updates = { ...updates, state: 'idle', lastCheckedAt: isoWithOffset(new Date()), message: `Memento ${updates.currentVersion} is the newest version.` };
+      env.emit('updates.progress', { ...updates });
+      return { ...updates };
+    },
+    'updates.apply': () => {
+      if (updates.state !== 'ready') {
+        throw new MockHostError('updates.notReady', 'No update has been downloaded yet, so there is nothing to install. Use Check now in Settings › General; Memento keeps working as it is.');
+      }
+      return {};
     },
   };
 

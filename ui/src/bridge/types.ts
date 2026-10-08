@@ -115,6 +115,11 @@ export const ERROR_CODES = [
   'documents.unsupportedEdit',
   'documents.versionNotFound',
   'documents.exportFailed',
+  // H1
+  'library.unavailable',
+  'updates.unavailable',
+  'updates.notReady',
+  'updates.busy',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -397,7 +402,7 @@ export interface CoverageGap {
 export type TranscriptStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'paused';
 
 export interface StageRemedy {
-  /** Passed back as processing.retry's remedyId: "retry", "cpu" or "model:<catalog id>". */
+  /** Passed back as processing.retry's remedyId: "retry", "cpu", "model:<catalog id>" or "install:<catalog id>" (download a damaged model again). */
   id: string;
   label: string;
 }
@@ -567,7 +572,7 @@ export interface TranscriptRestoreVersionResult {
 export interface ProcessingRetryParams {
   recordingId: string;
   stage: StageName;
-  /** From StageFailure.remedies: "retry", "cpu" or "model:<catalog id>" ("model:whisper-small"). */
+  /** From StageFailure.remedies: "retry", "cpu", "model:<catalog id>" ("model:whisper-small") or "install:<catalog id>". */
   remedyId?: string;
 }
 
@@ -977,6 +982,28 @@ export interface FooterStatusPayload {
   processingPaused: ProcessingPausedReason | null;
   /** M3: the running export, if any. Hosts before M3 leave it out. */
   export?: FooterExportStatus;
+  /** H1: the update downloading in the background, if any. Hosts before 0.5.0 leave it out. */
+  update?: FooterUpdateStatus;
+}
+
+export interface FooterUpdateStatus {
+  downloading: boolean;
+  percent: number | null;
+  version: string | null;
+}
+
+/** updates.status / updates.check result and the updates.progress payload (BRIDGE.md "Updates"). */
+export interface UpdateStatus {
+  currentVersion: string;
+  /** failed: only after updates.check ("Check now"); automatic checks that fail stay idle. */
+  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';
+  availableVersion: string | null;
+  percent: number | null;
+  lastCheckedAt: string | null;
+  /** After updates.check: the newest-version line, why it failed, or that the download waits. */
+  message: string | null;
+  /** A newer version waits to download until no recording or processing runs. */
+  deferred: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1379,6 +1406,8 @@ export interface GeneralSettings {
   /** Stored now; applied in M5. */
   keepRunningInTray: boolean;
   language: 'en';
+  /** H1: check at start and daily and download in the background; off = only "Check now". Default true. */
+  autoUpdate: boolean;
 }
 
 export interface ExportSettings {
@@ -2026,6 +2055,10 @@ export interface BridgeMethods {
   'documents.versions': { params: DocumentIdParams; result: DocumentVersionsResult };
   'documents.restoreVersion': { params: DocumentRestoreVersionParams; result: DocumentRestoreVersionResult };
   'documents.export': { params: DocumentExportParams; result: DocumentExportResult };
+  // H1
+  'updates.status': { params: EmptyParams; result: UpdateStatus };
+  'updates.check': { params: EmptyParams; result: UpdateStatus };
+  'updates.apply': { params: EmptyParams; result: EmptyResult };
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -2051,6 +2084,8 @@ export interface BridgeEvents {
   'documents.changed': DocumentsChangedPayload;
   'templates.changed': EmptyResult;
   'styles.changed': EmptyResult;
+  // H1
+  'updates.progress': UpdateStatus;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -2166,6 +2201,9 @@ export const METHOD_NAMES = [
   'documents.versions',
   'documents.restoreVersion',
   'documents.export',
+  'updates.status',
+  'updates.check',
+  'updates.apply',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -2188,4 +2226,5 @@ export const EVENT_NAMES = [
   'documents.changed',
   'templates.changed',
   'styles.changed',
+  'updates.progress',
 ] as const satisfies readonly EventName[];

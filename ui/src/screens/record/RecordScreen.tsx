@@ -5,6 +5,7 @@ import { effect } from '@preact/signals';
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { AgendaItem, AudioSource, Highlight, RecordingStatePayload, RecordingType } from '../../bridge/types';
+import { BannerSlot } from '../../components/Banners';
 import { DetailsSheet, typeOptions } from '../../components/DetailsSheet';
 import { NotesIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
@@ -15,11 +16,12 @@ import { sourceFormat, type TrackFormat } from '../../format/estimate';
 import type { RecordPhase } from '../../format/recordFooter';
 import { isBuiltInType, typeName } from '../../format/recording';
 import { formatClock, parseIso } from '../../format/when';
-import { goToLibrary, updateSettings } from '../../state/actions';
+import { goToLibrary } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { createDetailsSaver, emptyDetails } from '../../state/detailsSaver';
 import { recordShortcut } from '../../state/recordShortcuts';
 import { AgendaCard, HighlightsCard, LiveTranscriptCard, RecordFooter, SourcesCard, StageCard, type SourceRow } from './RecordParts';
+import { adoptCurrentSession } from '../../state/currentSession';
 import { TracksCard } from './TracksCard';
 
 /** "Untitled meeting"; custom types keep their own capitalisation. */
@@ -88,11 +90,12 @@ export function RecordScreen(): JSX.Element {
   // Rejoin: after a reload (or coming back from the Library) the host still has the session.
   useEffect(() => {
     let live = true;
+    const before = store.recording.value;
     bridge
       .call('recording.current')
       .then(({ session: current }) => {
         if (live && current !== null) {
-          store.recording.value = current;
+          adoptCurrentSession(store.recording, before, current);
         }
       })
       .catch((error: unknown) => {
@@ -254,10 +257,17 @@ export function RecordScreen(): JSX.Element {
       router.navigate({ name: 'record', sessionId: result.sessionId });
       void saver.attach(result.recordingId);
       setHighlights([]);
-      // Remember the selection for next time (Settings › Recording shows it too).
-      if (settings !== null && settings.recording.defaultSourceIds.join('|') !== sourceIds.join('|')) {
-        void updateSettings(services, { recording: { ...settings.recording, defaultSourceIds: sourceIds } });
-      }
+      // The host remembers the sources and type for next time; read them back so Settings › Recording shows them.
+      // (Writing this screen's copy of the recording settings back would undo the remembered type and any change
+      // the host made since the copy was read.)
+      void bridge
+        .call('settings.get')
+        .then((current) => {
+          store.settings.value = current;
+        })
+        .catch((error: unknown) => {
+          console.warn('[record] settings.get failed', error);
+        });
     } catch (error) {
       setStageError(messageOf(error, 'The recording could not start. Nothing was recorded.'));
     } finally {
@@ -450,6 +460,7 @@ export function RecordScreen(): JSX.Element {
         }
       />
       <main class="rec-main">
+        <BannerSlot />
         <div class="rec-columns">
           <SourcesCard rows={rows} error={sourcesError} onToggle={toggleSource} onRescan={loadSources} />
 

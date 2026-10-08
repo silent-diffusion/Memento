@@ -62,6 +62,12 @@ public sealed class TrackWriter : IDisposable
 
     public TimeSpan Duration => StorageFormat.DurationOf(FramesWritten);
 
+    /// <summary>A jump in capture time longer than this between two packets is written as silence (100 ms).</summary>
+    public static readonly long MaxContinuityGapTicks = 100 * QpcClock.TicksPerMillisecond;
+
+    /// <summary>Frames of silence written because the device delivered nothing for a while (sleep, a frozen app).</summary>
+    public long FilledGapFrames { get; private set; }
+
     /// <summary>Capture time of the first frame written, or null before any.</summary>
     public long? FirstFrameQpc
     {
@@ -289,6 +295,26 @@ public sealed class TrackWriter : IDisposable
                 Offer(pad + QpcClock.FramesToTicks(done, rate), n, []);
                 done += n;
             }
+        }
+
+        // A packet that starts well after the previous one ended means the device delivered nothing in between: the
+        // PC slept (Modern Standby suspends desktop apps), Memento was frozen, or the driver dropped its buffer. That
+        // time is written as silence, so this track stays in step with the others instead of sliding earlier.
+        var gapTicks = _lastFrameEndQpc == long.MinValue ? 0 : qpc - _lastFrameEndQpc;
+        if (gapTicks > MaxContinuityGapTicks)
+        {
+            var gapStart = _lastFrameEndQpc;
+            var gapFrames = QpcClock.TicksToFramesRounded(gapTicks, rate);
+            var before = _writer.Frames;
+            for (long done = 0; done < gapFrames;)
+            {
+                var n = (int)Math.Min(rate, gapFrames - done);
+                Offer(gapStart + QpcClock.FramesToTicks(done, rate), n, []);
+                done += n;
+            }
+
+            // Only what was written counts: time inside a pause or outside the recording stays out.
+            FilledGapFrames += _writer.Frames - before;
         }
 
         _lastFrameEndQpc = Math.Max(_lastFrameEndQpc, qpc + QpcClock.FramesToTicks(frames, rate));

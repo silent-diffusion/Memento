@@ -18,6 +18,13 @@ public sealed record GeneralSettings
 
     public string Language { get; set; } = English;
 
+    /// <summary>
+    /// Check for updates at start and every 24 hours, and download them in the background (H1). Off: no automatic
+    /// check reaches the network; Settings › General's Check now still does. Installing always waits for a click or
+    /// the next start.
+    /// </summary>
+    public bool AutoUpdate { get; init; } = true;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 

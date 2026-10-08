@@ -32,6 +32,16 @@ internal sealed partial class WebViewBridge(
         events.Attach(webView, dispatcher);
     }
 
+    /// <summary>
+    /// Stops answering and delivering events: the window has closed and its WebView2 control is disposed with it.
+    /// Requests still being handled are dropped when they finish. Call on the UI thread.
+    /// </summary>
+    public void Detach()
+    {
+        _webView = null;
+        events.Detach();
+    }
+
     private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         if (!e.Source.StartsWith(Origin, StringComparison.Ordinal))
@@ -44,7 +54,7 @@ internal sealed partial class WebViewBridge(
         var response = await router.HandleAsync(e.WebMessageAsJson, lifetime.ApplicationStopping);
         if (!lifetime.ApplicationStopping.IsCancellationRequested)
         {
-            _webView?.PostWebMessageAsJson(response);
+            WebViewEventSink.TryPost(_webView, response);
         }
     }
 

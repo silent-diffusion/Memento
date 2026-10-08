@@ -35,7 +35,7 @@ public sealed partial class ModelManager : IModelManager, IDisposable
 
     // One background check per model file state (id, size, last write): a file that could not be verified is not hashed
     // again on every IsInstalled call, but a file that changed is.
-    private readonly ConcurrentDictionary<string, Task> _verifications = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Task<Integrity>> _verifications = new(StringComparer.Ordinal);
 
     public ModelManager(
         ModelCatalog catalog,
@@ -181,14 +181,53 @@ public sealed partial class ModelManager : IModelManager, IDisposable
     }
 
     /// <summary>
-    /// Hashes the installed file now (on a pool thread) unless it is already verified: a match is recorded beside it, a
-    /// mismatch is set aside as <c>&lt;file&gt;.corrupt-&lt;time&gt;</c> so it is never loaded.
+    /// Hashes the installed file now (on a pool thread) unless its stamp already vouches for it: a match is stamped, a
+    /// mismatch is set aside as <c>&lt;file&gt;.corrupt-&lt;time&gt;</c> so it is never loaded, and <c>models.progress</c>
+    /// reports it failed. Shares the background check <see cref="IsInstalled(string)"/> starts, so a file is hashed once.
     /// </summary>
-    /// <returns>Whether the model is installed and matches its catalog SHA-256.</returns>
-    public Task<bool> VerifyAsync(string modelId, CancellationToken cancellationToken)
+    public async Task<ModelCheck> VerifyAsync(string modelId, CancellationToken cancellationToken)
     {
-        var entry = Find(modelId);
-        return Task.Run(async () => await VerifyFileAsync(entry, cancellationToken) == Integrity.Verified, cancellationToken);
+        if (Catalog.Find(modelId) is not { } entry)
+        {
+            return ModelCheck.NotInstalled;
+        }
+
+        var (integrity, info) = Check(entry);
+        if (integrity == Integrity.Verified)
+        {
+            return ModelCheck.Verified;
+        }
+
+        if (_downloads.ContainsKey(entry.Id))
+        {
+            return ModelCheck.NotInstalled; // A download replaces the file and stamps it.
+        }
+
+        if (integrity == Integrity.Missing)
+        {
+            // Set aside by an earlier check (perhaps the background one IsInstalled started a moment ago), and not
+            // downloaded again since: installing or removing the model clears what was set aside.
+            return HasSetAside(entry) ? ModelCheck.Damaged : ModelCheck.NotInstalled;
+        }
+
+        if (integrity != Integrity.Unverified)
+        {
+            return ModelCheck.NotInstalled; // A stamped other file: the catalog changed.
+        }
+
+        return await Verification(entry, info!).WaitAsync(cancellationToken) switch
+        {
+            Integrity.Verified => ModelCheck.Verified,
+            Integrity.Different => ModelCheck.Damaged,
+            _ => ModelCheck.NotInstalled,
+        };
+    }
+
+    /// <summary>The words for a model file that failed its checksum (Settings shows them from <c>models.progress</c>).</summary>
+    public static string DamagedMessage(ModelCatalogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return $"The installed {entry.Name} file is damaged: its SHA-256 checksum does not match the published one, so Memento set it aside and will not use it. Your recordings are not affected. Download it again to replace it.";
     }
 
     public IDisposable Use(string modelId)
@@ -296,30 +335,40 @@ public sealed partial class ModelManager : IModelManager, IDisposable
             return; // The download replaces the file and stamps it.
         }
 
-        var key = string.Create(CultureInfo.InvariantCulture, $"{entry.Id}|{info.Length}|{info.LastWriteTimeUtc.Ticks}");
-        _verifications.GetOrAdd(key, _ => Task.Run(() => VerifyInBackgroundAsync(entry), CancellationToken.None));
+        _ = Verification(entry, info);
     }
 
-    private async Task VerifyInBackgroundAsync(ModelCatalogEntry entry)
+    /// <summary>The one check of this file state (id, size, last write), started now or already running.</summary>
+    private Task<Integrity> Verification(ModelCatalogEntry entry, FileInfo info)
+    {
+        var key = string.Create(CultureInfo.InvariantCulture, $"{entry.Id}|{info.Length}|{info.LastWriteTimeUtc.Ticks}");
+        return _verifications.GetOrAdd(key, _ => Task.Run(() => VerifyInBackgroundAsync(entry), CancellationToken.None));
+    }
+
+    private async Task<Integrity> VerifyInBackgroundAsync(ModelCatalogEntry entry)
     {
         try
         {
-            switch (await VerifyFileAsync(entry, CancellationToken.None))
+            var integrity = await VerifyFileAsync(entry, CancellationToken.None);
+            switch (integrity)
             {
                 case Integrity.Verified:
                     Publish(entry, StateDone, entry.SizeBytes, null);
                     Installed?.Invoke(this, entry.Id);
                     break;
                 case Integrity.Different:
-                    Publish(entry, StateFailed, 0, $"The installed file of {entry.Name} did not match its published checksum, so Memento set it aside and will not use it. Your recordings are not affected. Install the model again in Settings.");
+                    Publish(entry, StateFailed, 0, DamagedMessage(entry));
                     break;
             }
+
+            return integrity;
         }
 #pragma warning disable CA1031 // A background check must never take the app down; it is logged and the model reads as not installed.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
             LogVerifyFailed(ex, entry.Id);
+            return Integrity.Unverified;
         }
     }
 
@@ -375,6 +424,20 @@ public sealed partial class ModelManager : IModelManager, IDisposable
         }
 
         DeleteStamp(path);
+    }
+
+    private bool HasSetAside(ModelCatalogEntry entry)
+    {
+        var folder = Path.GetDirectoryName(PathOf(entry))!;
+        try
+        {
+            return Directory.Exists(folder) && Directory.EnumerateFiles(folder, entry.FileName + ".corrupt-*").Any();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogStampUnreadable(ex, folder);
+            return false;
+        }
     }
 
     private void DeleteSetAside(ModelCatalogEntry entry)

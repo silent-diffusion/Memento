@@ -23,7 +23,8 @@ internal static class M3SettingsBlocks
             General = new GeneralSettingsSnapshot(
                 SafeStartup(extras) ?? general.StartWithWindows,
                 general.KeepRunningInTray,
-                general.Language),
+                general.Language,
+                general.AutoUpdate),
             Export = new ExportSettingsSnapshot(export.SaveCopiesOutside, export.DefaultFolder, export.AskWhereEachTime, export.CreateSubfolder, export.Defaults),
             Ai = new AiSettingsSnapshot(
                 ai.Enabled,
@@ -51,6 +52,7 @@ internal static class M3SettingsBlocks
                     StartWithWindows = general.StartWithWindows ?? next.General.StartWithWindows,
                     KeepRunningInTray = general.KeepRunningInTray ?? next.General.KeepRunningInTray,
                     Language = general.Language?.Trim() ?? next.General.Language,
+                    AutoUpdate = general.AutoUpdate ?? next.General.AutoUpdate,
                 },
             };
         }

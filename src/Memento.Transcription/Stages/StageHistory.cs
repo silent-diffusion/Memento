@@ -13,6 +13,15 @@ internal sealed partial class StageHistory(IProjectStore store, TimeProvider tim
     {
         try
         {
+            // A stage that starts again after a busy pause (or several) says so once: when the last line of this stage
+            // is the same "started" line, nothing happened in between that History shows, so another is left out.
+            if (@event == "started"
+                && (await store.ReadHistoryAsync(recordingId, CancellationToken.None)).LastOrDefault(e => e.Stage == stage) is { } last
+                && last.Event == @event && last.Summary == summary && last.Detail == detail)
+            {
+                return;
+            }
+
             await store.AppendHistoryAsync(recordingId, new HistoryEntry(time.GetLocalNow(), stage, @event, summary, detail), CancellationToken.None);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException)

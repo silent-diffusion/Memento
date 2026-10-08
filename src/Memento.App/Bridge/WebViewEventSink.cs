@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Memento.Core.Host;
 using Microsoft.Web.WebView2.Core;
@@ -20,6 +21,15 @@ internal sealed class WebViewEventSink : IBridgeEventSink
         _webView = webView;
     }
 
+    /// <summary>
+    /// Stops delivering: the window is closing and its WebView2 control is disposed with it, while host services keep
+    /// publishing until the host has stopped. Events after this are dropped.
+    /// </summary>
+    public void Detach()
+    {
+        _webView = null;
+    }
+
     public void Post(string eventJson)
     {
         var dispatcher = _dispatcher;
@@ -28,6 +38,28 @@ internal sealed class WebViewEventSink : IBridgeEventSink
             return;
         }
 
-        dispatcher.BeginInvoke(() => _webView?.PostWebMessageAsJson(eventJson));
+        dispatcher.BeginInvoke(() => TryPost(_webView, eventJson));
+    }
+
+    /// <summary>
+    /// Posts to the page unless it is gone. A queued event can still run after the control was disposed (the window
+    /// closed between the queueing and the delivery); WebView2 then throws, and that must never become a crash report.
+    /// </summary>
+    internal static bool TryPost(CoreWebView2? webView, string json)
+    {
+        if (webView is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            webView.PostWebMessageAsJson(json);
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or COMException or ObjectDisposedException)
+        {
+            return false;
+        }
     }
 }

@@ -20,8 +20,12 @@ internal sealed class RecordingEventSink : IBridgeEventSink
         }
     }
 
+    /// <summary>Runs on the publishing thread as each event is posted, before it is stored (to look at host state then).</summary>
+    public Action<string>? Posting { get; set; }
+
     public void Post(string eventJson)
     {
+        Posting?.Invoke(eventJson);
         lock (_gate)
         {
             _posted.Add(eventJson);

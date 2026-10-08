@@ -79,6 +79,13 @@
   box-sizing: border-box;
 }
 
+/* The low-space banner above the Record columns (DESIGN.md §17). */
+.rec-main > .banner {
+  max-width: 1344px;
+  margin: 0 auto 24px;
+  box-sizing: border-box;
+}
+
 .rec-columns {
   width: 100%;
   max-width: 1344px;
@@ -332,7 +339,7 @@
   padding: 0 28px 0 22px;
   border-radius: 999px;
   background: var(--accent-grad);
-  color: #ffffff;
+  color: var(--on-accent);
   font-weight: 700;
   font-size: 16px;
   display: inline-flex;

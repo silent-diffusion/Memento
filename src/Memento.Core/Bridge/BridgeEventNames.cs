@@ -27,4 +27,7 @@ public static class BridgeEventNames
     public const string DocumentsChanged = "documents.changed";
     public const string TemplatesChanged = "templates.changed";
     public const string StylesChanged = "styles.changed";
+
+    // H1.
+    public const string UpdatesProgress = "updates.progress";
 }

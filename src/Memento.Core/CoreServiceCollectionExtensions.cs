@@ -30,6 +30,8 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<ILibraryLocation, SettingsLibraryLocation>();
         services.TryAddSingleton<RecordingStatusBoard>();
+        services.TryAddSingleton<LibraryAvailability>();
+        services.TryAddSingleton<LibraryOpener>();
         services.TryAddSingleton(new RecordingCoordinatorOptions());
         services.AddSingleton<IProjectStore, ProjectStore>();
         services.AddSingleton<TranscriptStore>();

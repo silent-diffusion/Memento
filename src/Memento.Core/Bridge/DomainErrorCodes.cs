@@ -166,4 +166,21 @@ public static class DomainErrorCodes
 
     /// <summary>The document could not be written as Word, PDF or Markdown; it is unchanged.</summary>
     public const string DocumentsExportFailed = "documents.exportFailed";
+
+    // H1: library availability and updates.
+
+    /// <summary>
+    /// The library folder chosen in Settings is missing (its drive is not connected, or it was moved or renamed); nothing
+    /// was done. <c>detail</c> is the folder.
+    /// </summary>
+    public const string LibraryUnavailable = "library.unavailable";
+
+    /// <summary>This copy was not installed with Setup (a build folder, the portable zip), so it cannot update itself.</summary>
+    public const string UpdatesUnavailable = "updates.unavailable";
+
+    /// <summary><c>updates.apply</c> with no update downloaded.</summary>
+    public const string UpdatesNotReady = "updates.notReady";
+
+    /// <summary><c>updates.apply</c> while a recording runs; it is never interrupted for an update.</summary>
+    public const string UpdatesBusy = "updates.busy";
 }

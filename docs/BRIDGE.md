@@ -131,7 +131,7 @@ From M2:
 | `recording.pause` / `recording.resume` | `{ sessionId }` | `{}` | M1 |
 | `recording.markHighlight` | `{ sessionId, note?: string }` | `{ highlight: Highlight }` | M1 |
 | `recording.stop` | `{ sessionId }` | `{ recordingId }` | M1. Returns when finalize has started; `recording.state` events report `finalizing` then `ready`. |
-| `recording.current` | `{}` | `{ session: RecordingStatePayload \| null }` | M1. Lets the UI rejoin an active session after a reload. |
+| `recording.current` | `{}` | `{ session: RecordingStatePayload \| null }` | M1. Lets the UI rejoin an active session after a reload. A session counts while it records, is paused or finalizes; once its `ready` or `stopped` state has been sent the answer is `null`. An answer that arrives after a `recording.state` event for the session is older than that event and is ignored. |
 | `recovery.list` | `{}` | `{ items: { recordingId, title, startedAt, tracksIntact, tracksTotal, lastCheckpointAt, recoveredDurationMs, mayBeMissingMs }[] }` | M1. Projects repaired at launch. |
 | `recovery.acknowledge` | `{ recordingId }` | `{}` | M1. Dismisses the dialog for this project. |
 | `dialog.pickFolder` | `{ title, initialPath?: string }` | `{ path: string \| null }` | M1 |
@@ -262,7 +262,7 @@ interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: s
 | `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass, then `speakers` (when on) and `topics`; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording, `models.notFound` for a model the catalog does not have. |
 | `transcript.versions` | `{ recordingId }` | `{ versions: { id, at, reason: 'transcribed' \| 'edited' \| 'restored' \| 'retranscribed', engine: string \| null, segments: number }[] }` | Empty when history is off. Newest first. `engine` names the engine and model, e.g. `"whisper.cpp whisper-small"`. |
 | `transcript.restoreVersion` | `{ recordingId, versionId }` | `{ transcript }` | The replaced transcript becomes a version. |
-| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies`: `retry` (or none: run again as before), `cpu` (run on the processor) or `model:<catalog id>` (e.g. `model:whisper-small`). Retrying `transcript` also queues `speakers` (when on) and `topics`; a pass that stopped continues from its partial results. Retrying a finished `speakers` stage identifies the speakers again with the current Settings (Review's "Identify speakers again"). An unknown remedy answers `bridge.invalidParams`, an unknown model `models.notFound`. |
+| `processing.retry` | `{ recordingId, stage, remedyId?: string }` | `{}` | `remedyId` from `StageFailure.remedies`: `retry` (or none: run again as before), `cpu` (run on the processor), `model:<catalog id>` (e.g. `model:whisper-small`) or `install:<catalog id>` (download a model again whose installed file failed its SHA-256 check before use; the stage keeps waiting with cause `noModel` and runs once the model is installed). Retrying `transcript` also queues `speakers` (when on) and `topics`; a pass that stopped continues from its partial results. Retrying a finished `speakers` stage identifies the speakers again with the current Settings (Review's "Identify speakers again"). An unknown remedy answers `bridge.invalidParams`, an unknown model `models.notFound`. |
 | `processing.cancel` | `{ recordingId, stage }` | `{}` | Partial results are kept. The stage ends `failed` (label "Cancelled") with one remedy, `retry`, which continues from the partial results. |
 | `processing.pause` / `processing.resume` | `{}` | `{}` | Global; shown in the footer as "Transcription paused". |
 | `models.list` | `{}` | `{ models: ModelInfo[] }` | Catalog plus installed state; re-reads disk. |
@@ -322,7 +322,7 @@ Decided at the M2 integration (0.3.0), from the host's proposals:
 10. `RecordingSummary.matchSnippet` is `null` when only the title or people matched.
 11. `status.footer.engine` is `{ ready, device, detail }`; `processingPaused` is one of "Low disk space", "PC is busy", "Paused by you", or null.
 12. `settings.set` merges the M2 blocks field by field; only `recording` is replaced whole. `expectedSpeakers` is "auto" or 1–20.
-13. Remedy ids are `retry`, `cpu` and `model:<id>`. `processing.cancel` leaves the stage `failed` with the remedy `retry`. Retrying the transcript also queues `speakers` and `topics`.
+13. Remedy ids are `retry`, `cpu`, `model:<id>` and `install:<id>`. Every installed model is checked against its catalog SHA-256 before a stage uses it (hashed once, then trusted by its `<file>.verified.json` stamp while its size and last write time are unchanged); a file that does not match is moved aside to `<file>.corrupt-<time>`, reads as not installed, `models.progress` reports it `failed` with the reason, and the stage fails with cause `noModel` and the remedy `install:<id>` first. `processing.cancel` leaves the stage `failed` with the remedy `retry`. Retrying the transcript also queues `speakers` and `topics`.
 14. A stage whose model is not installed is `failed` with the label "Waiting for a model" and a failure naming the model; it is queued again by itself as soon as a model is installed.
 15. `transcript.get.failure` falls back to the `speakers` stage's failure.
 16. `speakerConfidence` is calibrated as described under Shared types (M2).
@@ -585,3 +585,36 @@ Builder: DESIGN §10 and `Builder.dc.html`. Viewer: §12 and `DocView.dc.html`. 
 16. `generation.preview`'s `inputsUsed` and the send confirmation's summary name only the inputs the payload holds: a ticked input with nothing in it (no participants, no agenda) is not "used". The record's `inputs` stay the ticks (a regeneration starts from them); its `sent` lines name what was read.
 17. A failed `generation.progress` carries `code` in the UI type too; the failure card leads with what happened from it ("Claude did not accept the key", "The local model ran out of video memory").
 18. End-to-end runs may point Claude or ChatGPT at a fake server through `MEMENTO_TEST_ANTHROPIC_URL` / `MEMENTO_TEST_OPENAI_URL`; only a loopback address is honoured.
+
+## Updates (H1)
+
+Memento updates itself from the project's GitHub releases (Velopack's `releases.win.json` feed). The host checks once the page has sent `ui.ready` and then every 24 hours while it runs, never while a recording or a processing stage is queued, waiting or running (it waits until both are idle), downloads in the background and then offers a restart. Nothing installs until the person chooses "Restart to update", or the next time Memento starts. A pre-release is offered only to a pre-release build (a SemVer suffix, or a version before 0.5.0); from 0.5.0 on only full releases count. With `general.autoUpdate` off nothing is checked automatically; `updates.check` still works. A copy not installed with Setup (a build folder) never checks.
+
+```ts
+interface UpdateStatus {
+  currentVersion: string;
+  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';   // failed: only after updates.check
+  availableVersion: string | null;   // while downloading or ready, and while a download is deferred
+  percent: number | null;            // while downloading
+  lastCheckedAt: string | null;      // ISO 8601, when the feed last answered
+  message: string | null;            // after updates.check: "Memento 0.5.0 is the newest version.", why it failed, or that the download waits
+  deferred: boolean;                 // a newer version waits to download until no recording or processing runs
+}
+```
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `updates.status` | `{}` | `UpdateStatus` | |
+| `updates.check` | `{}` | `UpdateStatus` | "Check now": answers once the feed did; a newer version then downloads in the background (once idle). A failed check is not an error: `state: 'failed'` with the reason in `message`. `updates.unavailable` for a copy that cannot update itself. |
+| `updates.apply` | `{}` | `{}` | "Restart to update": Memento closes normally, the update installs and Memento starts again. `updates.notReady` when nothing is downloaded, `updates.busy` while recording. |
+
+| Event | Payload |
+|---|---|
+| `updates.progress` | `UpdateStatus`, on every change (state, percent). The UI shows a toast "Restart to update to {version}" when `state` becomes `ready`. |
+| `status.footer` | adds `update?: { downloading: boolean, percent: number \| null, version: string \| null }` (the footer shows "Downloading Memento {version} · 42%"). |
+
+Settings snapshot: `general` adds `autoUpdate: boolean` (default `true`), merged like the other `general` fields.
+
+## Error codes (H1)
+
+`library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).

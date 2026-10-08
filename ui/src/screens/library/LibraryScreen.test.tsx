@@ -240,10 +240,24 @@ describe('Library, populated (against the browser-preview host)', () => {
   it('shows the low-space banner and the footer warning', async () => {
     await start({ lowSpace: true });
     await settle(450);
-    expect(container.querySelector('.banner')?.textContent).toContain(
-      'Low disk space · 4 GB free. Recording continues. Transcription is paused until there is room.',
-    );
+    // The preview host sends storage.lowSpace without a recording running, so the banner leaves out "Recording continues."
+    expect(container.querySelector('.banner')?.textContent).toContain('Low disk space · 4 GB free. Transcription is paused until there is room.');
     expect(container.querySelector('.footer-storage--low')?.textContent).toBe('Low disk space · 4 GB free');
+  });
+
+  it('shows the low-space banner without a recording too, from the footer (DESIGN.md §17)', async () => {
+    await start();
+    await settle(50);
+    expect(container.querySelector('.banner')).toBeNull();
+    const footer = store.footer.value;
+    if (footer === null) {
+      throw new Error('no footer');
+    }
+    await act(() => {
+      store.footer.value = { ...footer, storage: { freeBytes: 5 * 1024 ** 3, lowSpace: true }, recording: { ...footer.recording, active: false } };
+    });
+    expect(container.querySelector('.banner')?.textContent).toContain('Low disk space · 5 GB free. Transcription is paused until there is room.');
+    expect(container.querySelector('.banner')?.textContent).not.toContain('Recording continues.');
   });
 
   it('shows a transcript match snippet under the meta line with the matched words bold', async () => {
