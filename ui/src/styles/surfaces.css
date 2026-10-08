@@ -93,6 +93,20 @@
   gap: 2px;
 }
 
+/* A popover from a pane that scrolls on its own, floated on <body> beside its trigger
+   (components/Floating.tsx sets top and left). Above the header, below dialogs and toasts. */
+.popover-layer {
+  color: var(--text);
+}
+
+.popover-layer > .popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: auto;
+  z-index: 40;
+}
+
 .menu-item {
   display: flex;
   align-items: center;

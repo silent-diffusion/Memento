@@ -51,6 +51,41 @@ function stickyBottom(): number {
   return Math.max(0, header, player);
 }
 
+/** The transcript's own scrolling area (DESIGN.md §9), wrapped around the pane by ReviewScreen. */
+export const TRANSCRIPT_SCROLLER = 'review-scroll';
+
+/**
+ * Where the transcript scrolls: its own area while the three panes sit side by side, or null for
+ * the page when they stack (below 1024 px the area does not scroll and the page does).
+ */
+function scrollerOf(list: HTMLElement | null): HTMLElement | null {
+  const el = list?.closest<HTMLElement>(`.${TRANSCRIPT_SCROLLER}`) ?? null;
+  if (el === null) {
+    return null;
+  }
+  const overflow = getComputedStyle(el).overflowY;
+  return overflow === 'auto' || overflow === 'scroll' ? el : null;
+}
+
+/** The visible band of the transcript in viewport coordinates. */
+function visibleBand(list: HTMLElement | null): { top: number; bottom: number } {
+  const scroller = scrollerOf(list);
+  if (scroller === null) {
+    return { top: stickyBottom(), bottom: window.innerHeight };
+  }
+  const box = scroller.getBoundingClientRect();
+  return { top: Math.max(0, box.top), bottom: Math.min(window.innerHeight, box.bottom) };
+}
+
+function scrollTranscriptBy(list: HTMLElement | null, top: number, behavior: ScrollBehavior): void {
+  const scroller = scrollerOf(list);
+  if (scroller === null) {
+    window.scrollBy({ top, behavior });
+  } else {
+    scroller.scrollBy({ top, behavior });
+  }
+}
+
 function prefersReducedMotion(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
@@ -239,7 +274,7 @@ function TranscriptList({
   const speakerById = useMemo(() => new Map(speakers.map((s) => [s.id, s])), [speakers]);
   const editingIndex = editing === null ? -1 : segments.findIndex((s) => s.id === editing.segmentId);
 
-  /** The visible part of the list in list coordinates, from the page's scroll position. */
+  /** The visible part of the list in list coordinates, from the transcript's (or the page's) scroll position. */
   const measureView = (): void => {
     const list = listRef.current;
     if (list === null) {
@@ -249,8 +284,9 @@ function TranscriptList({
     if (rect.height === 0 && rect.top === 0) {
       return; // Not laid out (hidden, or a test without layout): keep the current view.
     }
-    const top = Math.max(0, stickyBottom() - rect.top);
-    const bottom = Math.max(top, window.innerHeight - rect.top);
+    const band = visibleBand(list);
+    const top = Math.max(0, band.top - rect.top);
+    const bottom = Math.max(top, band.bottom - rect.top);
     setView((v) => (Math.abs(v.top - top) < 1 && Math.abs(v.bottom - bottom) < 1 ? v : { top, bottom }));
   };
 
@@ -271,6 +307,9 @@ function TranscriptList({
         follow.noteUserScroll();
       }
     };
+    // Scroll events do not bubble: listen on the transcript's own area as well as on the page.
+    const area = listRef.current?.closest<HTMLElement>(`.${TRANSCRIPT_SCROLLER}`) ?? null;
+    area?.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     window.addEventListener('wheel', onUser, { passive: true });
@@ -279,6 +318,7 @@ function TranscriptList({
     measureView();
     return () => {
       cancelAnimationFrame(frame);
+      area?.removeEventListener('scroll', onScroll);
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
       window.removeEventListener('wheel', onUser);
@@ -309,14 +349,15 @@ function TranscriptList({
     const target = pending === null ? null : list.querySelector<HTMLElement>(`[data-index="${pending.index}"]`);
     if (pending !== null && target !== null) {
       const box = target.getBoundingClientRect();
-      const delta = followScrollDelta(box.top, box.bottom, stickyBottom(), window.innerHeight);
+      const band = visibleBand(list);
+      const delta = followScrollDelta(box.top, box.bottom, band.top, band.bottom);
       pending.tries -= 1;
       if (delta === null || pending.tries <= 0) {
         pendingReveal.current = null;
       }
       if (delta !== null) {
         follow.noteProgrammaticScroll();
-        window.scrollBy({ top: delta, behavior: 'auto' });
+        scrollTranscriptBy(list, delta, 'auto');
       }
     }
   });
@@ -337,11 +378,11 @@ function TranscriptList({
       setView({ top: Math.max(0, rowTop - 200), bottom: rowTop + 800 });
       return;
     }
-    const sticky = stickyBottom();
+    const band = visibleBand(list);
     // A rendered row has a real position; otherwise its place comes from the (partly estimated) offsets.
     const el = list.querySelector<HTMLElement>(`[data-index="${index}"]`);
     const box = el?.getBoundingClientRect() ?? null;
-    const delta = followScrollDelta(box?.top ?? rect.top + rowTop, box?.bottom ?? rect.top + rowBottom, sticky, window.innerHeight);
+    const delta = followScrollDelta(box?.top ?? rect.top + rowTop, box?.bottom ?? rect.top + rowBottom, band.top, band.bottom);
     if (delta === null) {
       if (!onlyIfNeeded) {
         measureView();
@@ -351,13 +392,13 @@ function TranscriptList({
     follow.noteProgrammaticScroll();
     if (box === null) {
       // Render the destination at once, jump there, and correct once the rows there are measured.
-      const destinationTop = Math.max(0, sticky - (rect.top - delta));
-      setView({ top: destinationTop, bottom: destinationTop + window.innerHeight });
+      const destinationTop = Math.max(0, band.top - (rect.top - delta));
+      setView({ top: destinationTop, bottom: destinationTop + (band.bottom - band.top) });
       pendingReveal.current = { index, tries: 4 };
-      window.scrollBy({ top: delta, behavior: 'auto' });
+      scrollTranscriptBy(list, delta, 'auto');
       return;
     }
-    window.scrollBy({ top: delta, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    scrollTranscriptBy(list, delta, prefersReducedMotion() ? 'auto' : 'smooth');
   };
 
   revealRef.current = (segmentId) => {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -5,6 +7,8 @@ import { App } from '../../App';
 import { createBridgeClient, type BridgeClient } from '../../bridge/client';
 import { loadInitialData, refreshLibrary } from '../../state/data';
 import { connectEvents, createStore, type AppStore } from '../../state/store';
+
+const reviewCss = readFileSync(resolve(__dirname, '../../styles/review.css'), 'utf8').replace(/\r\n/g, '\n');
 
 const quiet = { info: () => undefined, warn: () => undefined };
 const NOW = new Date(2026, 9, 6, 15, 0);
@@ -126,6 +130,61 @@ describe('Review and transcript (against the browser-preview host)', () => {
     expect(people.slice(0, 4).every(([, share]) => /^\d+%$/.test(share ?? ''))).toBe(true);
     expect(people[4]?.[1]).toBe('—');
     expect(container.textContent).toContain('Also listed as participants');
+  });
+
+  it('fills the window with three panes that each scroll on their own, the player pinned above the transcript', async () => {
+    await open();
+    await until(() => container.querySelector('.segm') !== null);
+    // The shell is fixed to the window height for Review only; other screens scroll the page.
+    expect(container.querySelector('.shell')?.classList.contains('shell--panes')).toBe(true);
+    const panes = container.querySelector('.review-panes');
+    const outline = panes?.querySelector(':scope > .review-outline');
+    const centre = panes?.querySelector(':scope > .review-centre');
+    const details = panes?.querySelector(':scope > .review-details');
+    expect([outline, centre, details].every((pane) => pane !== null && pane !== undefined)).toBe(true);
+    // The centre column is the pinned player strip, then the transcript's own scrolling area.
+    expect([...(centre?.children ?? [])].map((c) => c.className)).toEqual(['player', 'review-scroll']);
+    const scroller = centre?.querySelector(':scope > .review-scroll');
+    expect(scroller?.querySelector('.segm-list')).not.toBeNull();
+    expect(scroller?.querySelector('.player')).toBeNull();
+    // Three separate scroll containers: none sits inside another.
+    const containers = [outline, scroller, details];
+    for (const a of containers) {
+      for (const b of containers) {
+        expect(a !== b && a?.contains(b ?? null) === true).toBe(false);
+      }
+    }
+    // Side by side they scroll independently; below 1024 px the panes stack and the page scrolls.
+    const wide = /@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/.exec(reviewCss)?.[1] ?? '';
+    expect(wide).toMatch(/\.shell--panes \{\s*height: 100vh;/);
+    expect(wide).toMatch(/\.review-outline,\s*\.review-details,\s*\.review-scroll \{\s*overflow-y: auto;/);
+    const narrow = /@media \(max-width: 1023px\) \{([\s\S]*?)\n\}/.exec(reviewCss)?.[1] ?? '';
+    expect(narrow).toContain('flex-direction: column;');
+    expect(narrow).not.toContain('overflow');
+
+    await act(async () => {
+      store.route.value = { name: 'library' };
+      await Promise.resolve();
+    });
+    await until(() => container.querySelector('.review-panes') === null);
+    expect(container.querySelector('.shell')?.classList.contains('shell--panes')).toBe(false);
+  });
+
+  it('floats the people menu above the scrolling outline instead of inside it', async () => {
+    await open();
+    await until(() => container.querySelector('.person .person-merge') !== null);
+    const trigger = container.querySelector<HTMLButtonElement>('.review-outline .person-merge');
+    if (trigger === null) {
+      throw new Error('no merge button');
+    }
+    await click(trigger);
+    const menu = document.querySelector('[role="menu"]');
+    expect(menu?.closest('.popover-layer')?.parentElement).toBe(document.body);
+    expect(container.querySelector('.review-outline [role="menu"]')).toBeNull();
+    // Esc closes it and gives focus back to the button in the pane.
+    await press(menu as HTMLElement, 'Escape');
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('says plainly when a recording has no transcript and starts one on request', async () => {

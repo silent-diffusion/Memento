@@ -1,13 +1,16 @@
 // Popover menus: a select-style ghost button with a listbox (sort, settings values) and an actions
 // menu (the row ⋯). Keyboard: Enter, Space or ArrowDown opens; arrows move; Enter picks; Esc closes
-// and returns focus to the button; Tab closes.
+// and returns focus to the button; Tab closes. Inside a pane that scrolls on its own the popover
+// floats on <body> (Floating.tsx) so the pane cannot clip it.
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { PopoverLayer, useFloatingPopovers } from './Floating';
 import { CheckIcon, ChevronDownIcon } from './icons';
 import { moveFocus } from './keyboard';
 
 function usePopover(): {
   open: boolean;
+  floating: boolean;
   show: (focus: 'selected' | 'first') => void;
   close: (returnFocus: boolean) => void;
   rootRef: { current: HTMLDivElement | null };
@@ -19,6 +22,7 @@ function usePopover(): {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLElement | null>(null);
+  const floating = useFloatingPopovers();
 
   useEffect(() => {
     if (!open) {
@@ -30,7 +34,8 @@ function usePopover(): {
       pop?.querySelector<HTMLElement>('[role="option"],[role="menuitem"]');
     target?.focus();
     const onPointerDown = (event: PointerEvent): void => {
-      if (event.target instanceof Node && rootRef.current?.contains(event.target) !== true) {
+      const inside = event.target instanceof Node && (rootRef.current?.contains(event.target) === true || popRef.current?.contains(event.target) === true);
+      if (event.target instanceof Node && !inside) {
         setOpen(false);
       }
     };
@@ -42,6 +47,7 @@ function usePopover(): {
 
   return {
     open,
+    floating,
     show: (focus) => {
       setFocusOn(focus);
       setOpen(true);
@@ -63,6 +69,7 @@ function popKeyDown(
   pop: HTMLElement | null,
   selector: string,
   close: (returnFocus: boolean) => void,
+  floating = false,
 ): void {
   if (event.key === 'Escape') {
     event.preventDefault();
@@ -71,7 +78,9 @@ function popKeyDown(
     return;
   }
   if (event.key === 'Tab') {
-    close(false);
+    // A floating popover sits at the end of <body>: hand focus back to the button first, so Tab
+    // moves on from the button as it would from a popover in place.
+    close(floating);
     return;
   }
   if (pop !== null) {
@@ -146,45 +155,47 @@ export function SelectMenu<T extends string>({
         <ChevronDownIcon size={14} class="select-chevron" />
       </button>
       {pop.open ? (
-        <ul
-          id={listId}
-          ref={(el) => {
-            pop.popRef.current = el;
-          }}
-          class="popover"
-          role="listbox"
-          aria-label={label}
-          onKeyDown={(event) => {
-            popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close);
-          }}
-        >
-          {options.map((option) => {
-            const selected = option.value === value;
-            return (
-              <li
-                key={option.value}
-                class="item menu-item"
-                role="option"
-                aria-selected={selected}
-                tabIndex={-1}
-                onClick={() => {
-                  pick(option.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
+        <PopoverLayer anchorRef={pop.rootRef} popRef={pop.popRef}>
+          <ul
+            id={listId}
+            ref={(el) => {
+              pop.popRef.current = el;
+            }}
+            class="popover"
+            role="listbox"
+            aria-label={label}
+            onKeyDown={(event) => {
+              popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close, pop.floating);
+            }}
+          >
+            {options.map((option) => {
+              const selected = option.value === value;
+              return (
+                <li
+                  key={option.value}
+                  class="item menu-item"
+                  role="option"
+                  aria-selected={selected}
+                  tabIndex={-1}
+                  onClick={() => {
                     pick(option.value);
-                  }
-                }}
-              >
-                <span class="menu-check" aria-hidden="true">
-                  {selected ? <CheckIcon size={12} /> : null}
-                </span>
-                {option.label}
-              </li>
-            );
-          })}
-        </ul>
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      pick(option.value);
+                    }
+                  }}
+                >
+                  <span class="menu-check" aria-hidden="true">
+                    {selected ? <CheckIcon size={12} /> : null}
+                  </span>
+                  {option.label}
+                </li>
+              );
+            })}
+          </ul>
+        </PopoverLayer>
       ) : null}
     </div>
   );
@@ -249,46 +260,48 @@ export function MultiSelectMenu<T extends string>({ label, values, options, onCh
         <ChevronDownIcon size={14} class="select-chevron" />
       </button>
       {pop.open ? (
-        <ul
-          id={listId}
-          ref={(el) => {
-            pop.popRef.current = el;
-          }}
-          class="popover"
-          role="listbox"
-          aria-label={label}
-          aria-multiselectable="true"
-          onKeyDown={(event) => {
-            popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close);
-          }}
-        >
-          {options.map((option) => {
-            const selected = values.includes(option.value);
-            return (
-              <li
-                key={option.value}
-                class="item menu-item"
-                role="option"
-                aria-selected={selected}
-                tabIndex={-1}
-                onClick={() => {
-                  toggle(option.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
+        <PopoverLayer anchorRef={pop.rootRef} popRef={pop.popRef}>
+          <ul
+            id={listId}
+            ref={(el) => {
+              pop.popRef.current = el;
+            }}
+            class="popover"
+            role="listbox"
+            aria-label={label}
+            aria-multiselectable="true"
+            onKeyDown={(event) => {
+              popKeyDown(event, pop.popRef.current, '[role="option"]', pop.close, pop.floating);
+            }}
+          >
+            {options.map((option) => {
+              const selected = values.includes(option.value);
+              return (
+                <li
+                  key={option.value}
+                  class="item menu-item"
+                  role="option"
+                  aria-selected={selected}
+                  tabIndex={-1}
+                  onClick={() => {
                     toggle(option.value);
-                  }
-                }}
-              >
-                <span class="menu-check" aria-hidden="true">
-                  {selected ? <CheckIcon size={12} /> : null}
-                </span>
-                {option.label}
-              </li>
-            );
-          })}
-        </ul>
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggle(option.value);
+                    }
+                  }}
+                >
+                  <span class="menu-check" aria-hidden="true">
+                    {selected ? <CheckIcon size={12} /> : null}
+                  </span>
+                  {option.label}
+                </li>
+              );
+            })}
+          </ul>
+        </PopoverLayer>
       ) : null}
     </div>
   );
@@ -368,46 +381,48 @@ export function ActionMenu({ label, triggerClass, children, actions }: ActionMen
         {children}
       </button>
       {pop.open ? (
-        <div
-          ref={(el) => {
-            pop.popRef.current = el;
-          }}
-          class="popover popover--menu"
-          role="menu"
-          aria-label={label}
-          onKeyDown={(event) => {
-            popKeyDown(event, pop.popRef.current, '[role="menuitem"]', pop.close);
-          }}
-        >
-          {actions.map((action) =>
-            action.children === undefined ? (
-              <MenuItemButton
-                key={action.label}
-                action={action}
-                sub={false}
-                close={() => {
-                  pop.close(true);
-                }}
-              />
-            ) : (
-              <div key={action.label} class="menu-group" role="group" aria-label={action.label}>
-                <span class="menu-group-label" aria-hidden="true">
-                  {action.label}
-                </span>
-                {action.children.map((child) => (
-                  <MenuItemButton
-                    key={child.label}
-                    action={child}
-                    sub
-                    close={() => {
-                      pop.close(true);
-                    }}
-                  />
-                ))}
-              </div>
-            ),
-          )}
-        </div>
+        <PopoverLayer anchorRef={pop.rootRef} popRef={pop.popRef}>
+          <div
+            ref={(el) => {
+              pop.popRef.current = el;
+            }}
+            class="popover popover--menu"
+            role="menu"
+            aria-label={label}
+            onKeyDown={(event) => {
+              popKeyDown(event, pop.popRef.current, '[role="menuitem"]', pop.close, pop.floating);
+            }}
+          >
+            {actions.map((action) =>
+              action.children === undefined ? (
+                <MenuItemButton
+                  key={action.label}
+                  action={action}
+                  sub={false}
+                  close={() => {
+                    pop.close(true);
+                  }}
+                />
+              ) : (
+                <div key={action.label} class="menu-group" role="group" aria-label={action.label}>
+                  <span class="menu-group-label" aria-hidden="true">
+                    {action.label}
+                  </span>
+                  {action.children.map((child) => (
+                    <MenuItemButton
+                      key={child.label}
+                      action={child}
+                      sub
+                      close={() => {
+                        pop.close(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              ),
+            )}
+          </div>
+        </PopoverLayer>
       ) : null}
     </div>
   );
