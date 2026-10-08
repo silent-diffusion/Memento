@@ -436,6 +436,16 @@ Canvas artboards: *Document builder · light / dark*. Opened from Review's **Cre
      - **Output**: "Saved inside this recording · always" with an `ok` check, then toggles "Also export as Word (.docx)" and "Also export as Markdown".
    - Below either tab, a small notice card: *Nothing leaves this PC until you press Generate.* with the bold text button **Preview exactly what will be sent** (opens the composed payload read-only).
 
+4. **Generating** (the progress card in the preview's place): label "Generating" with the pulsing 8 px dot, the percent, what is being written, the progress bar, then the actions: ghost **Cancel** and, beside it, ghost **Show live output**; the "Running on this PC" note wraps to its own line under them. The §17 failure card also offers **Show live output** (ghost, after Try again and Switch to …) while the failed exchange is still in memory.
+
+5. **Live output sheet** (opened by **Show live output**). A full-height sheet anchored right below the header like the side sheet (§5.19, same scrim, `neo-card`, left `line` divider) but `min(1120px, 100vw)` wide. It is modal and closes with ×, **Done** or Esc; it can be closed and opened again while generation continues, and it survives the Builder opening the viewer, so it can be read to the end.
+   - **Header**: "Live output" (18/800) over a 13 px `text-2` line: the provider ("Qwen3.5 4B on this PC", "Claude") · the state ("Writing" with the pulsing dot, "Sending and receiving", then "Finished · read only", "Cancelled · read only", "Stopped by a failure · read only").
+   - **Left, the passes** (≈ 300 px, scrolling, a `line` groove to the right): uppercase group labels in pipeline order, **Segment**, **Map** (with the count), **Reduce**, **Verify**, **Grounding**. Each pass is a 13/600 title ("Decisions and action items · segment 1 of 2", "Check Decisions and action items · 6 questions") over a 12 px `text-2` line ("Writing · 120 tokens", "Waiting for Claude", "312 tokens · 4.1 s", "In code · 3 ms", "Stopped"), with an 8 px dot: `accent` pulsing while running, `ok` when done, a dashed `line-strong` ring when stopped. Rows are flat on the ground, sink (`neo-in-xs`) on hover and stay sunk (`neo-in`) when selected; arrow keys, Home and End move between them.
+   - **Right, the selected pass**: its title (15/700) and counters in mono 12 `text-2` (tokens, tokens/s for the local model, time, the request's tokens); then **Request · read by the local model** / **Request · sent to Claude** over a sunk well (`neo-in`, radius 16, mono 12.5, scrolling, about a third of the height) holding exactly the text sent; then **Reply** over a second sunk well taking the rest, mono for the model's text, the body face for a step done in code. A streaming reply ends in a 7 px `accent` caret (still under reduced motion). Cloud replies say "Replies from {provider} arrive whole" beside the label.
+   - **Following**: the sheet shows the newest pass and keeps its reply scrolled to the end, with "Following the newest output" in `text-3` at the top right. Scrolling the reply up, or choosing a pass, pauses it and shows a ghost **Follow live output**; scrolling back to the end of the newest pass also resumes. Scrolling is instant, never animated.
+   - **Footer**: the privacy line: *Read by the local model on this PC; nothing leaves it. Shown only here and not saved.* or *Only what was sent to Claude and what it answered. Nothing more is sent; shown only here and not saved.*, and primary **Done**.
+   - Below 760 px the passes sit above the pass in one column.
+
 ---
 
 ## 11. Screen: Settings
@@ -482,6 +492,7 @@ Canvas artboards: *Document viewer · light / dark*. Shown after Generate, and w
   - **How this was made** card: Template, Style, Provider, Generated (time and duration); "Sent to the provider" pills (the payload actually used) and the line *Audio and video were not sent.*; ghost **Change structure and regenerate**.
   - **Versions**: label with "History on · 90 days"; the current version card (`text` ring) with "Edited by you · when · n changes", earlier versions with a **Restore** ghost button. Hidden when version history is off, replaced by a line saying so.
   - Footnote: *Timestamps link back to the transcript. Edits save as you type and stay inside this recording.*
+  - **Regenerating**: while this document is being regenerated, the Builder's progress card (§10.4, with **Cancel** and **Show live output**) sits at the top of the side column. **After a generation**: below How this was made, a ghost **Show live output** with the 12 px `text-3` note *The exchange with the local model that wrote this version. It is not saved and goes when you leave this document.* It opens the Live output sheet (§10.5), read-only, and is gone once the viewer is left.
 
 ---
 

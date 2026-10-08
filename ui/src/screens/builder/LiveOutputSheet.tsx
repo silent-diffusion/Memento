@@ -32,9 +32,9 @@ function seconds(ms: number): string {
   return ms < 1000 ? `${Math.max(0, Math.round(ms))} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-/** "Claude" or "Qwen3.5 4B on this PC". */
+/** "Claude", or the local model as the Builder names it: "Qwen3.5 4B · graphics card · on this PC". */
 export function providerWords(live: LiveOutput): string {
-  return live.provider.kind === 'local' ? `${live.provider.modelLabel ?? 'The local model'} on this PC` : live.provider.name;
+  return live.provider.kind === 'local' ? `${live.provider.modelLabel ?? 'The local model'} · on this PC` : live.provider.name;
 }
 
 /** The list's second line for a pass. */
