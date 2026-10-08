@@ -79,6 +79,76 @@ public sealed class TrackMixerTests : IDisposable
     }
 
     [Fact]
+    public async Task TracksAt44And48KilohertzStayOnOneTimelineForMinutes()
+    {
+        // A 44.1 kHz microphone and a 48 kHz system track, 3.5 minutes each, with a short burst every 30 s (the
+        // system's 15 s later): the mix plays for 3.5 minutes at 48 kHz and every burst is where it was recorded.
+        const double seconds = 210;
+        var mic = Track("mic", 44_100, 1, Bursts(44_100, 1, seconds, first: 10, every: 30));
+        var system = Track("system", 48_000, 2, Bursts(48_000, 2, seconds, first: 25, every: 30));
+
+        var result = await TrackMixer.MixAsync([MixInput.FromTrack(mic, TimeSpan.Zero), MixInput.FromTrack(system, TimeSpan.Zero)], _dir.Path, "mix", CancellationToken.None);
+
+        Assert.Equal(48_000, result.Format.SampleRate);
+        Assert.InRange(result.Duration.TotalSeconds, seconds - 0.002, seconds + 0.002);
+        var mix = ReadMix();
+        Assert.InRange(mix.Length, (seconds * 48_000 * 2) - 200, (seconds * 48_000 * 2) + 200);
+        var onsets = BurstOnsets(mix, 48_000, 2);
+        var expected = Enumerable.Range(0, 7).SelectMany(i => new[] { 10.0 + (30 * i), 25.0 + (30 * i) }).Where(t => t < seconds).Order().ToList();
+        Assert.Equal(expected.Count, onsets.Count);
+        for (var i = 0; i < expected.Count; i++)
+        {
+            Assert.InRange(onsets[i], expected[i] - 0.002, expected[i] + 0.002);
+        }
+    }
+
+    /// <summary>Silence with a 50 ms, 1 kHz burst at <paramref name="first"/> s and every <paramref name="every"/> s after.</summary>
+    private static float[] Bursts(int rate, int channels, double seconds, double first, double every)
+    {
+        var frames = (int)(seconds * rate);
+        var samples = new float[frames * channels];
+        for (var t = first; t < seconds; t += every)
+        {
+            var at = (int)Math.Round(t * rate);
+            for (var f = 0; f < rate / 20 && at + f < frames; f++)
+            {
+                var v = (float)(0.5 * Math.Sin(2 * Math.PI * 1_000 * f / rate));
+                for (var c = 0; c < channels; c++)
+                {
+                    samples[((at + f) * channels) + c] = v;
+                }
+            }
+        }
+
+        return samples;
+    }
+
+    /// <summary>Seconds where a burst starts: the first sample above 0.05 after at least 1 s of near silence.</summary>
+    private static List<double> BurstOnsets(float[] interleaved, int rate, int channels)
+    {
+        var onsets = new List<double>();
+        var quiet = rate;
+        for (var f = 0; f < interleaved.Length / channels; f++)
+        {
+            if (Math.Abs(interleaved[f * channels]) > 0.05f)
+            {
+                if (quiet >= rate)
+                {
+                    onsets.Add(f / (double)rate);
+                }
+
+                quiet = 0;
+            }
+            else
+            {
+                quiet++;
+            }
+        }
+
+        return onsets;
+    }
+
+    [Fact]
     public async Task ATrackThatEndedEarlyStopsAtItsEndTime()
     {
         var a = Track("a", 48_000, 2, new float[96_000 * 2]);
