@@ -81,7 +81,8 @@ public sealed partial class AgendaImporter
         var effective = options ?? AgendaParseOptions.Default;
         var started = Stopwatch.GetTimestamp();
         var bytes = await AgendaContent.ReadAsync(content, effective, cancellationToken).ConfigureAwait(false);
-        var sniffed = FormatSniffer.Sniff(bytes.Span, effective);
+        // Sniffing opens ZIP directories and decodes text; it runs off the caller's (possibly the UI) thread.
+        var sniffed = await Task.Run(() => FormatSniffer.Sniff(bytes.Span, effective), cancellationToken).ConfigureAwait(false);
         var parser = ParserFor(sniffed.Kind) ?? throw AgendaErrors.Unsupported(
             effective,
             sniffed.Description,
@@ -122,14 +123,16 @@ public sealed partial class AgendaImporter
             throw AgendaErrors.NoItems(effective);
         }
 
-        return Task.Run(
-            () =>
+        return ParseGuard.RunAsync(
+            effective,
+            "pasted text",
+            token =>
             {
                 var started = Stopwatch.GetTimestamp();
                 AgendaParseResult result;
                 if (TextShapes.LooksLikeTabTable(text))
                 {
-                    result = DelimitedAgendaParser.Parse(text, effective with { SourceKind = AgendaSourceKind.Tsv }, [], cancellationToken) with
+                    result = DelimitedAgendaParser.Parse(text, effective with { SourceKind = AgendaSourceKind.Tsv }, [], token) with
                     {
                         Source = AgendaSourceKind.PastedText,
                         SourceName = null,
@@ -137,11 +140,11 @@ public sealed partial class AgendaImporter
                 }
                 else if (MarkdownAgendaParser.LooksLikeMarkdown(text))
                 {
-                    result = MarkdownAgendaParser.Parse(text, effective, [], cancellationToken);
+                    result = MarkdownAgendaParser.Parse(text, effective, [], token);
                 }
                 else
                 {
-                    result = PlainTextAgendaParser.Parse(text, effective, [], cancellationToken);
+                    result = PlainTextAgendaParser.Parse(text, effective, [], token);
                 }
 
                 Log(result, text.Length, started);

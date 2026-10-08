@@ -17,6 +17,8 @@ ui/.vite/
 
 # Velopack / packaging output
 build/out/
+# CycloneDX SBOMs (build/sbom.ps1; release.yml attaches fresh ones to each release)
+build/sbom/
 Releases/
 
 # Models, logs, local data (never commit)

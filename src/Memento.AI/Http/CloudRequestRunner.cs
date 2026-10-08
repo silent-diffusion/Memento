@@ -52,6 +52,13 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
 
                 using (response)
                 {
+                    // The shared client follows no redirects (AiHttpClient): one would carry the key header and, for a
+                    // 307/308, the whole request body to wherever the Location points.
+                    if ((int)response.StatusCode is >= 300 and < 400)
+                    {
+                        throw Fail(call, AiErrors.Redirected(call.ProviderName, (int)response.StatusCode, response.Headers.Location is { IsAbsoluteUri: true } to ? to.Host : null));
+                    }
+
                     if (!response.IsSuccessStatusCode)
                     {
                         var failure = await ReadFailureAsync(response, total.Token);
@@ -85,6 +92,10 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
                     catch (TimeoutException)
                     {
                         throw Fail(call, AiErrors.TimedOut(call.ProviderName, options.StreamIdleTimeout));
+                    }
+                    catch (CloudAnswerTooLongException)
+                    {
+                        throw Fail(call, AiErrors.Unreadable(call.ProviderName, "the answer is too long"));
                     }
                     catch (JsonException ex)
                     {

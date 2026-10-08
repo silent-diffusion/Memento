@@ -30,16 +30,18 @@ import type {
 
 /**
  * URL flags for the failure cases: `?export=fail|unwritable`, `?agenda=ocrmissing|nodrop`,
- * `?import=unsupported|interrupted` (the first import stops at 40% as if Memento had closed), `?move=busy`.
+ * `?import=unsupported|interrupted` (the first import stops at 40% as if Memento had closed), `?move=busy`,
+ * `?attachment=toolarge` (the picked attachment is over 100 MB).
  */
 export interface M3Flags {
   export: ExportFlag;
   agenda: AgendaFlag;
   import: 'ok' | 'unsupported' | 'interrupted';
   move: 'ok' | 'busy';
+  attachment: 'ok' | 'tooLarge';
 }
 
-export const DEFAULT_M3_FLAGS: M3Flags = { export: 'ok', agenda: 'ok', import: 'ok', move: 'ok' };
+export const DEFAULT_M3_FLAGS: M3Flags = { export: 'ok', agenda: 'ok', import: 'ok', move: 'ok', attachment: 'ok' };
 
 export function m3FlagsFromQuery(query: URLSearchParams): Partial<M3Flags> {
   const flags: Partial<M3Flags> = {};
@@ -59,6 +61,9 @@ export function m3FlagsFromQuery(query: URLSearchParams): Partial<M3Flags> {
   }
   if (query.get('move') === 'busy') {
     flags.move = 'busy';
+  }
+  if (query.get('attachment') === 'toolarge') {
+    flags.attachment = 'tooLarge';
   }
   return flags;
 }
@@ -176,8 +181,16 @@ const PICKED_MEDIA = ['Customer interview.m4a', 'Lecture recording.mp3', 'Team c
 const VIDEO_EXTENSIONS = /\.(mp4|mkv|mov|avi|webm|wmv)$/i;
 const AUDIO_EXTENSIONS = /\.(wav|flac|mp3|m4a|aac|wma|ogg|opus)$/i;
 
-function baseName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
+const PICKED_TOO_LARGE = { name: 'site-walkthrough.mov', sizeBytes: 240 * MB, contentType: 'video/quicktime' };
+
+/**
+ * The page never names a file (security audit SA-08): the picker methods refuse a path as the host does, so script in
+ * the page cannot make the host read, copy or connect to a file of its choosing.
+ */
+function refusePath(method: string, path: string | undefined): void {
+  if (path !== undefined) {
+    throw new MockHostError('bridge.invalidParams', `'${method}' does not take a path from the interface; the host shows its file picker. Nothing was read.`);
+  }
 }
 
 function contentTypeOf(name: string): string | null {
@@ -433,7 +446,10 @@ export function createMockM3(env: MockM3Environment): MockM3 {
   };
 
   const handlers: M3Handlers = {
-    'agenda.importFile': (params) => agenda.importFile(params.path),
+    'agenda.importFile': (params) => {
+      refusePath('agenda.importFile', params.path);
+      return agenda.importFile();
+    },
     'agenda.importDropped': (params) => agenda.importDropped(params.paths),
     'agenda.parseText': (params) => ({ preview: agenda.parseText(params.text) }),
     'agenda.apply': (params) => agenda.apply(params),
@@ -448,9 +464,9 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     },
     'attachments.add': (params) => {
       env.find(params.recordingId);
-      const picked = params.path === undefined ? PICKED_ATTACHMENTS[pickIndex++ % PICKED_ATTACHMENTS.length] : undefined;
-      const name = picked?.name ?? baseName(params.path ?? 'file');
-      const sizeBytes = picked?.sizeBytes ?? (/huge|large/i.test(name) ? 240 * MB : 512_000);
+      refusePath('attachments.add', params.path);
+      const picked = env.flags.attachment === 'tooLarge' ? PICKED_TOO_LARGE : (PICKED_ATTACHMENTS[pickIndex++ % PICKED_ATTACHMENTS.length] ?? PICKED_TOO_LARGE);
+      const { name, sizeBytes } = picked;
       if (sizeBytes > ATTACHMENT_LIMIT) {
         throw new MockHostError(
           'attachments.tooLarge',
@@ -458,7 +474,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
           name,
         );
       }
-      const attachment = newAttachment(name, sizeBytes, 'file', picked?.contentType ?? contentTypeOf(name));
+      const attachment = newAttachment(name, sizeBytes, 'file', picked.contentType);
       attachments.set(params.recordingId, [...listOf(params.recordingId), attachment]);
       env.changed(params.recordingId);
       return { attachment, cancelled: false };
@@ -478,7 +494,8 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       return {};
     },
     'library.importMedia': (params) => {
-      const name = params.path === undefined ? (PICKED_MEDIA[mediaIndex++ % PICKED_MEDIA.length] ?? 'Recording.m4a') : baseName(params.path);
+      refusePath('library.importMedia', params.path);
+      const name = PICKED_MEDIA[mediaIndex++ % PICKED_MEDIA.length] ?? 'Recording.m4a';
       if (env.flags.import === 'unsupported' || !(AUDIO_EXTENSIONS.test(name) || VIDEO_EXTENSIONS.test(name))) {
         throw new MockHostError(
           'library.importUnsupported',

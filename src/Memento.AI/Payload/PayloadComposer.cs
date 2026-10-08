@@ -13,7 +13,8 @@ namespace Memento.AI.Payload;
 /// </summary>
 public static partial class PayloadComposer
 {
-    private const string UnknownSpeaker = "Unknown speaker";
+    /// <summary>The label of a segment without a speaker; never a person.</summary>
+    public const string UnknownSpeaker = "Unknown speaker";
 
     public static ComposedPayload Compose(PayloadInputs inputs, PayloadSelection selection)
     {
@@ -27,7 +28,7 @@ public static partial class PayloadComposer
 
         string Clean(string? text)
         {
-            var (value, count) = Neutralise((text ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim());
+            var (value, count) = NeutraliseCounting((text ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim());
             neutralised += count;
             return value;
         }
@@ -133,10 +134,20 @@ public static partial class PayloadComposer
                 s.Start,
                 s.End,
                 s.SpeakerId,
-                s.SpeakerId is { } id && names.TryGetValue(id, out var name) && !string.IsNullOrWhiteSpace(name) ? name.Trim() : UnknownSpeaker,
-                s.Text.Replace("\r\n", " ", StringComparison.Ordinal).Replace('\n', ' ').Trim()))
+                s.SpeakerId is { } id && names.TryGetValue(id, out var name) && OneLine(name) is { Length: > 0 } speaker ? speaker : UnknownSpeaker,
+                OneLine(s.Text)))
             .ToList();
     }
+
+    /// <summary>
+    /// <paramref name="text"/> on one line: every line break a model may read as one (CR LF, LF, CR, vertical tab, form feed, NEL, the Unicode
+    /// line and paragraph separators) becomes a space, so a segment or a speaker name cannot start a forged
+    /// <c>[12] Speaker:</c> line.
+    /// </summary>
+    public static string OneLine(string? text) =>
+        string.IsNullOrEmpty(text)
+            ? string.Empty
+            : LineBreak().Replace(text, " ").Trim();
 
     /// <summary>"1:02:03" or "12:34".</summary>
     public static string Clock(double seconds)
@@ -217,7 +228,14 @@ public static partial class PayloadComposer
         ".wav", ".flac", ".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wma", ".aiff", ".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".wmv",
     };
 
-    private static (string Text, int Count) Neutralise(string text)
+    /// <summary>
+    /// <paramref name="text"/> with every opening or closing tag the prompts use as a delimiter (the payload sections,
+    /// a verify batch's <c>&lt;item&gt;</c>, a module's <c>&lt;section_instructions&gt;</c>) made visibly inert:
+    /// <c>&lt;/transcript&gt;</c> becomes <c>‹/transcript&gt;</c>. Apply it to any recording or model text placed in a prompt.
+    /// </summary>
+    public static string Neutralise(string? text) => NeutraliseCounting(text ?? string.Empty).Text;
+
+    private static (string Text, int Count) NeutraliseCounting(string text)
     {
         var count = 0;
         var result = SectionTag().Replace(text, match =>
@@ -228,6 +246,10 @@ public static partial class PayloadComposer
         return (result, count);
     }
 
-    [GeneratedRegex(@"<\/?(?:instructions|recording_details|participants|agenda|outline|highlights|notes|attachments|attachment|previous_documents|document|transcript)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<\/?(?:instructions|recording_details|participants|agenda|outline|highlights|notes|attachments|attachment|previous_documents|document|transcript|item|section_instructions)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SectionTag();
+
+    // NEL is \x85; \p{Zl} and \p{Zp} are the Unicode line and paragraph separators (U+2028, U+2029).
+    [GeneratedRegex(@"\r\n|[\n\r\v\f\x85\p{Zl}\p{Zp}]", RegexOptions.CultureInvariant)]
+    private static partial Regex LineBreak();
 }

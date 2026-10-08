@@ -37,15 +37,43 @@ internal static class DelimitedReader
         return best;
     }
 
-    public static List<List<string>> Read(string text, char delimiter, CancellationToken cancellationToken)
+    /// <summary>
+    /// The rows of <paramref name="text"/>, at most <see cref="AgendaTableReader.MaxRows"/> of them with at most
+    /// <see cref="AgendaTableReader.MaxColumns"/> fields each; <paramref name="truncated"/> says whether anything was left out.
+    /// </summary>
+    public static List<List<string>> Read(string text, char delimiter, CancellationToken cancellationToken, out bool truncated)
     {
         var rows = new List<List<string>>();
         var row = new List<string>();
         var field = new StringBuilder();
         var quoted = false;
         var fieldStarted = false;
+        var cut = false;
+
+        void EndField()
+        {
+            if (row.Count < AgendaTableReader.MaxColumns)
+            {
+                row.Add(field.ToString());
+            }
+            else
+            {
+                cut = true;
+            }
+
+            field.Clear();
+            fieldStarted = false;
+        }
+
         for (var i = 0; i < text.Length; i++)
         {
+            if (rows.Count >= AgendaTableReader.MaxRows)
+            {
+                cut = true;
+                truncated = cut;
+                return rows;
+            }
+
             if ((i & 4095) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -81,9 +109,7 @@ internal static class DelimitedReader
             }
             else if (c == delimiter)
             {
-                row.Add(field.ToString());
-                field.Clear();
-                fieldStarted = false;
+                EndField();
             }
             else if (c is '\r' or '\n')
             {
@@ -92,9 +118,7 @@ internal static class DelimitedReader
                     i++;
                 }
 
-                row.Add(field.ToString());
-                field.Clear();
-                fieldStarted = false;
+                EndField();
                 rows.Add(row);
                 row = [];
             }
@@ -107,10 +131,18 @@ internal static class DelimitedReader
 
         if (fieldStarted || field.Length > 0 || row.Count > 0)
         {
-            row.Add(field.ToString());
+            if (rows.Count >= AgendaTableReader.MaxRows)
+            {
+                cut = true;
+                truncated = cut;
+                return rows;
+            }
+
+            EndField();
             rows.Add(row);
         }
 
+        truncated = cut;
         return rows;
     }
 

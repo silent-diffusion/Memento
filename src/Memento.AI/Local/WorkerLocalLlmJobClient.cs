@@ -75,11 +75,23 @@ public sealed class WorkerLocalLlmJobClient(WorkerClient workers) : ILocalLlmJob
             throw new LocalLlmException(AiErrors.WorkerCrashed(LocalAiProvider.ProviderName, modelName, "the worker's result has no answers"));
         }
 
-        return result.Deserialize(LocalLlmJsonContext.Default.LocalLlmResult)
-            ?? throw new LocalLlmException(AiErrors.WorkerCrashed(LocalAiProvider.ProviderName, modelName, "the worker's result is empty"));
+        LocalLlmResult? answers;
+        try
+        {
+            answers = result.Deserialize(LocalLlmJsonContext.Default.LocalLlmResult);
+        }
+        catch (JsonException ex)
+        {
+            throw new LocalLlmException(AiErrors.WorkerCrashed(LocalAiProvider.ProviderName, modelName, "the worker's result could not be read"), ex);
+        }
+
+        return answers ?? throw new LocalLlmException(AiErrors.WorkerCrashed(LocalAiProvider.ProviderName, modelName, "the worker's result is empty"));
     }
 
-    /// <summary>A Core worker line as the local protocol's reply, or <c>null</c> for lines that carry nothing for it.</summary>
+    /// <summary>
+    /// A Core worker line as the local protocol's reply, or <c>null</c> for lines that carry nothing for it. A device or
+    /// progress object that does not have the expected shape is left out rather than failing the job.
+    /// </summary>
     internal static LocalLlmWorkerReply? ToLocal(WorkerReply line)
     {
         ArgumentNullException.ThrowIfNull(line);
@@ -92,8 +104,21 @@ public sealed class WorkerLocalLlmJobClient(WorkerClient workers) : ILocalLlmJob
         {
             Type = line.Type,
             Percent = line.Percent,
-            LlmDevice = line.LlmDevice is { ValueKind: JsonValueKind.Object } device ? device.Deserialize(LocalLlmJsonContext.Default.LocalLlmDeviceInfo) : null,
-            LlmProgress = line.LlmProgress is { ValueKind: JsonValueKind.Object } p ? p.Deserialize(LocalLlmJsonContext.Default.LocalLlmProgress) : null,
+            LlmDevice = line.LlmDevice is { ValueKind: JsonValueKind.Object } device ? TryRead(device, LocalLlmJsonContext.Default.LocalLlmDeviceInfo) : null,
+            LlmProgress = line.LlmProgress is { ValueKind: JsonValueKind.Object } p ? TryRead(p, LocalLlmJsonContext.Default.LocalLlmProgress) : null,
         };
+    }
+
+    private static T? TryRead<T>(JsonElement element, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
+        where T : class
+    {
+        try
+        {
+            return element.Deserialize(typeInfo);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }

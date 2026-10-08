@@ -11,6 +11,7 @@ namespace Memento.Worker;
 internal sealed class GpuLock : IDisposable
 {
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan Reminder = TimeSpan.FromMinutes(5);
 
     private readonly ManualResetEventSlim _release;
     private readonly Thread _thread;
@@ -21,7 +22,7 @@ internal sealed class GpuLock : IDisposable
         _thread = thread;
     }
 
-    /// <summary>Waits for the lock (telling the host once that it waits).</summary>
+    /// <summary>Waits for the lock (telling the host that it waits, and again every few minutes).</summary>
     /// <exception cref="OperationCanceledException">Cancelled while waiting.</exception>
     public static GpuLock Acquire(ProtocolWriter output, CancellationToken cancellationToken)
     {
@@ -31,7 +32,7 @@ internal sealed class GpuLock : IDisposable
         var thread = new Thread(() =>
         {
             using var mutex = new Mutex(false, name);
-            var told = false;
+            System.Diagnostics.Stopwatch? told = null;
             while (true)
             {
                 bool owned;
@@ -56,10 +57,11 @@ internal sealed class GpuLock : IDisposable
                     return;
                 }
 
-                if (!told)
+                // Said again every few minutes: the host stops a worker that is silent for its quiet limit as hung.
+                if (told is null || told.Elapsed >= Reminder)
                 {
-                    output.Log("Waiting for another worker to finish with the graphics card.");
-                    told = true;
+                    output.Log(told is null ? "Waiting for another worker to finish with the graphics card." : "Still waiting for another worker to finish with the graphics card.");
+                    told = System.Diagnostics.Stopwatch.StartNew();
                 }
             }
 

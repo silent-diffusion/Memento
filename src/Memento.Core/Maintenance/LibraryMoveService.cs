@@ -124,41 +124,7 @@ public sealed partial class LibraryMoveService(
         return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
-    private static void DeleteTree(string folder, bool keepFolder)
-    {
-        if (!Directory.Exists(folder))
-        {
-            return;
-        }
-
-        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
-        {
-            var attributes = File.GetAttributes(file);
-            if ((attributes & FileAttributes.ReadOnly) != 0)
-            {
-                File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
-            }
-        }
-
-        if (keepFolder)
-        {
-            foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
-            {
-                if (Directory.Exists(entry))
-                {
-                    Directory.Delete(entry, recursive: true);
-                }
-                else
-                {
-                    File.Delete(entry);
-                }
-            }
-        }
-        else
-        {
-            Directory.Delete(folder, recursive: true);
-        }
-    }
+    private static void DeleteTree(string folder, bool keepFolder) => LinkSafeFiles.DeleteTree(folder, keepFolder);
 
     private string ValidateTarget(string newPath, out string source)
     {
@@ -174,7 +140,12 @@ public sealed partial class LibraryMoveService(
             throw Refused($"The library is already in {target}. Nothing was changed.", target);
         }
 
-        if (IsInside(target, source) || IsInside(source, target))
+        // Compared by what the paths really are: a junction to a folder inside the library would otherwise make the copy
+        // read its own output and the final delete remove the new library too.
+        var realSource = Normalize(LinkSafeFiles.RealPath(source));
+        var realTarget = Normalize(LinkSafeFiles.RealPath(target));
+        if (IsInside(target, source) || IsInside(source, target)
+            || string.Equals(realSource, realTarget, StringComparison.OrdinalIgnoreCase) || IsInside(realTarget, realSource) || IsInside(realSource, realTarget))
         {
             throw Refused($"{target} is inside the library or contains it, so the library can't move there. Nothing was changed. Choose a folder elsewhere.", target);
         }
@@ -222,7 +193,7 @@ public sealed partial class LibraryMoveService(
             var files = 0;
             try
             {
-                foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+                foreach (var file in Directory.EnumerateFiles(source, "*", LinkSafeFiles.Recursive))
                 {
                     var relative = Path.GetRelativePath(source, file);
                     if (IsIndexFile(Path.GetFileName(relative)) && !relative.Contains(Path.DirectorySeparatorChar, StringComparison.Ordinal))

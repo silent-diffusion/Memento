@@ -17,8 +17,15 @@ public sealed class DelimitedAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        var text = TextDecoder.Decode(bytes.Span, out var fallback);
-        return Parse(text, options, fallback ? [TextDecoder.FallbackWarning(options)] : [], cancellationToken);
+        return await ParseGuard.RunAsync(
+            options,
+            "a CSV or TSV file",
+            token =>
+            {
+                var text = TextDecoder.Decode(bytes.Span, out var fallback);
+                return Parse(text, options, fallback ? [TextDecoder.FallbackWarning(options)] : [], token);
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     internal static AgendaParseResult Parse(string text, AgendaParseOptions options, IReadOnlyList<AgendaParseWarning> warnings, CancellationToken cancellationToken)
@@ -28,12 +35,13 @@ public sealed class DelimitedAgendaParser : IAgendaParser
             (options.SourceKind is null && (AgendaResults.HasExtension(options.FileName ?? string.Empty, ".tsv", ".tab") ||
                                             AgendaResults.HasContentType(options.ContentType, "text/tab-separated-values")));
         var delimiter = DelimitedReader.DetectDelimiter(text, tsv);
-        var rows = DelimitedReader.Read(text, delimiter, cancellationToken)
+        var rows = DelimitedReader.Read(text, delimiter, cancellationToken, out var truncated)
             .Select((cells, index) => new TableRow(cells, new AgendaSourceLocation { Row = index + 1 }))
             .ToList();
         var table = AgendaTableReader.Read(rows, cancellationToken);
         var structured = AgendaStructurer.Structure(table.Lines, cancellationToken);
         var kind = delimiter == '\t' ? AgendaSourceKind.Tsv : AgendaSourceKind.Csv;
-        return AgendaResults.Create(kind, options, structured, [.. warnings, .. table.Warnings]);
+        IEnumerable<AgendaParseWarning> cut = truncated ? [AgendaTableReader.TruncatedWarning()] : [];
+        return AgendaResults.Create(kind, options, structured, [.. warnings, .. cut, .. table.Warnings]);
     }
 }

@@ -10,6 +10,9 @@ namespace Memento.Documents.Render.Html;
 /// </summary>
 internal static class HtmlParser
 {
+    /// <summary>The deepest element nesting kept; the renderer's own markup is under twenty levels.</summary>
+    public const int MaxDepth = 256;
+
     private static readonly HashSet<string> Void = new(StringComparer.Ordinal)
     {
         "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
@@ -177,7 +180,10 @@ internal static class HtmlParser
 
         ImplyEndTags(stack, name);
         stack[^1].Add(element);
-        if (!selfClosing && !Void.Contains(name))
+
+        // Past MaxDepth an element is added as a sibling, not opened: the tree is read recursively, and a megabyte of
+        // nested <div> from the viewer would otherwise overflow the host's stack. It also bounds the scans for end tags.
+        if (!selfClosing && !Void.Contains(name) && stack.Count <= MaxDepth)
         {
             stack.Add(element);
         }

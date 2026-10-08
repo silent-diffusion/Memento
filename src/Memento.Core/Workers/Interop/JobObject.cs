@@ -8,12 +8,16 @@ namespace Memento.Core.Workers.Interop;
 /// <summary>
 /// A Windows job object with "kill on close": every process assigned to it is ended by Windows when the job's last
 /// handle closes, which happens when Memento exits for any reason (closed, crashed or killed). Worker processes are
-/// assigned to it, so none outlives the app.
+/// assigned to it, so none outlives the app. "Die on unhandled exception" makes a worker that crashes in native code end
+/// at once instead of waiting on a Windows Error Reporting dialog that nobody sees (and holding the graphics card).
+/// No memory limit is set: a model's needs vary, and the engines report their own allocation failures.
 /// </summary>
 internal sealed class JobObject : IDisposable
 {
+    internal const uint JobObjectLimitDieOnUnhandledException = 0x400;
+    internal const uint JobObjectLimitKillOnJobClose = 0x2000;
+
     private const int JobObjectExtendedLimitInformation = 9;
-    private const uint JobObjectLimitKillOnJobClose = 0x2000;
 
     private readonly SafeFileHandle _handle;
 
@@ -25,7 +29,7 @@ internal sealed class JobObject : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not create a job object for the workers.");
         }
 
-        var info = new ExtendedLimitInformation { BasicLimitInformation = new BasicLimitInformation { LimitFlags = JobObjectLimitKillOnJobClose } };
+        var info = new ExtendedLimitInformation { BasicLimitInformation = new BasicLimitInformation { LimitFlags = JobObjectLimitKillOnJobClose | JobObjectLimitDieOnUnhandledException } };
         var size = Marshal.SizeOf<ExtendedLimitInformation>();
         if (!SetInformationJobObject(_handle, JobObjectExtendedLimitInformation, ref info, (uint)size))
         {
@@ -53,6 +57,19 @@ internal sealed class JobObject : IDisposable
         return IsProcessInJob(process.Handle, _handle, out var result) && result;
     }
 
+    /// <summary>The job's limit flags as Windows reports them.</summary>
+    /// <exception cref="Win32Exception">Windows did not answer.</exception>
+    internal uint QueryLimitFlags()
+    {
+        var size = (uint)Marshal.SizeOf<ExtendedLimitInformation>();
+        if (!QueryInformationJobObject(_handle, JobObjectExtendedLimitInformation, out var info, size, out _))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not report the job object's limits.");
+        }
+
+        return info.BasicLimitInformation.LimitFlags;
+    }
+
     /// <summary>Closes the job: Windows ends every process still in it.</summary>
     public void Dispose() => _handle.Dispose();
 
@@ -63,6 +80,10 @@ internal sealed class JobObject : IDisposable
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetInformationJobObject(SafeFileHandle job, int infoClass, ref ExtendedLimitInformation info, uint length);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryInformationJobObject(SafeFileHandle job, int infoClass, out ExtendedLimitInformation info, uint length, out uint returnLength);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

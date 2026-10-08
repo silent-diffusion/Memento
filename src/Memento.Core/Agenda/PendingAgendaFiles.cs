@@ -11,6 +11,7 @@ namespace Memento.Core.Agendas;
 public sealed class PendingAgendaFiles(PendingAgendaOptions options, TimeProvider time) : IDisposable
 {
     private readonly ConcurrentDictionary<string, PendingAgendaFile> _held = new(StringComparer.Ordinal);
+    private int _sweptAbandoned;
 
     public int Count => _held.Count;
 
@@ -18,15 +19,24 @@ public sealed class PendingAgendaFiles(PendingAgendaOptions options, TimeProvide
     public async Task<string> HoldAsync(string sourcePath, string? recordingId, CancellationToken cancellationToken)
     {
         Sweep();
+        SweepAbandonedOnce();
         Directory.CreateDirectory(options.Folder);
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
         var copy = Path.Combine(options.Folder, token + ".bin");
-        await using (var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true))
-        await using (var output = new FileStream(copy, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
+        try
         {
+            await using var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true);
+            await using var output = new FileStream(copy, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true);
             await input.CopyToAsync(output, cancellationToken);
         }
+        catch
+        {
+            // A copy cut short never stays behind in %TEMP%.
+            TryDelete(copy);
+            throw;
+        }
 
+        await Attachments.MarkOfTheWeb.CopyAsync(sourcePath, copy, cancellationToken);
         _held[token] = new PendingAgendaFile(token, recordingId, copy, Path.GetFileName(sourcePath), time.GetUtcNow());
         return token;
     }
@@ -67,6 +77,55 @@ public sealed class PendingAgendaFiles(PendingAgendaOptions options, TimeProvide
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // A temp folder; Windows cleans it up eventually.
+        }
+    }
+
+    /// <summary>
+    /// Copies held by a Memento that crashed stay in their own <c>&lt;pid&gt;</c> folder next to this one; they are agenda
+    /// files (possibly confidential) in %TEMP%, so the first hold of a session removes the folders of processes that
+    /// are no longer running.
+    /// </summary>
+    private void SweepAbandonedOnce()
+    {
+        // Only ever inside Memento's own agenda-pending folder, never next to a folder chosen some other way.
+        if (Interlocked.Exchange(ref _sweptAbandoned, 1) == 1
+            || Path.GetDirectoryName(Path.GetFullPath(options.Folder)) is not { } parent
+            || !string.Equals(Path.GetFileName(parent), PendingAgendaOptions.PendingFolderName, StringComparison.OrdinalIgnoreCase)
+            || !Directory.Exists(parent))
+        {
+            return;
+        }
+
+        var own = Path.GetFileName(Path.GetFullPath(options.Folder));
+        foreach (var folder in Directory.EnumerateDirectories(parent))
+        {
+            var name = Path.GetFileName(folder);
+            if (string.Equals(name, own, StringComparison.OrdinalIgnoreCase) || !int.TryParse(name, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var pid) || IsRunning(pid))
+            {
+                continue;
+            }
+
+            try
+            {
+                Projects.LinkSafeFiles.DeleteTree(folder);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Still in use or protected; the next session tries again.
+            }
+        }
+    }
+
+    private static bool IsRunning(int pid)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return false;
         }
     }
 

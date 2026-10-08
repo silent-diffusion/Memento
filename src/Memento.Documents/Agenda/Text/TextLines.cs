@@ -50,23 +50,46 @@ internal static class TextLines
         return result;
     }
 
-    private static string StripQuote(string line)
+    /// <summary>The line without its leading quote marks ("> > text" → "text"), found by one scan rather than by slicing per mark.</summary>
+    internal static string StripQuote(string line)
     {
-        var trimmed = line.TrimStart();
-        if (!trimmed.StartsWith('>'))
+        var start = 0;
+        while (start < line.Length && char.IsWhiteSpace(line[start]))
+        {
+            start++;
+        }
+
+        if (start == line.Length || line[start] != '>')
         {
             return line;
         }
 
-        while (trimmed.StartsWith('>'))
+        var i = start;
+        while (i < line.Length && line[i] == '>')
         {
-            trimmed = trimmed[1..];
-            if (trimmed.StartsWith(' '))
+            i++;
+            if (i < line.Length && line[i] == ' ')
             {
-                trimmed = trimmed[1..];
+                i++;
             }
         }
 
-        return trimmed;
+        return line[i..];
+    }
+
+    /// <summary>The text after any number of leading "&gt;" marks, each followed by optional whitespace (Markdown block quotes).</summary>
+    internal static string StripQuoteMarks(string text)
+    {
+        var i = 0;
+        while (i < text.Length && text[i] == '>')
+        {
+            i++;
+            while (i < text.Length && char.IsWhiteSpace(text[i]))
+            {
+                i++;
+            }
+        }
+
+        return i == 0 ? text : text[i..];
     }
 }

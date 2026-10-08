@@ -19,6 +19,12 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 {
     private const int MaxRows = 10_000;
 
+    /// <summary>Columns read from a sheet; an agenda never needs more, and the table is built densely.</summary>
+    private const int MaxColumns = 64;
+
+    /// <summary>Excel's last column, XFD.</summary>
+    private const int ExcelColumns = 16_384;
+
     public IReadOnlyList<AgendaSourceKind> Kinds { get; } = [AgendaSourceKind.Xlsx];
 
     public bool CanParse(string fileName, string? contentType) =>
@@ -29,16 +35,17 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        return await Task.Run(() => Parse(bytes, options, cancellationToken), cancellationToken).ConfigureAwait(false);
+        return await ParseGuard.RunAsync(options, "an Excel workbook", token => Parse(bytes, options, token), cancellationToken).ConfigureAwait(false);
     }
 
     private static AgendaParseResult Parse(ReadOnlyMemory<byte> bytes, AgendaParseOptions options, CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+        PackageGuard.Check(stream, options, "an Excel workbook", cancellationToken);
         SpreadsheetDocument document;
         try
         {
-            document = SpreadsheetDocument.Open(stream, false, new OpenSettings { AutoSave = false });
+            document = SpreadsheetDocument.Open(stream, false, PackageGuard.OpenSettings());
         }
         catch (Exception e) when (e is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException)
         {
@@ -50,7 +57,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             var workbookPart = document.WorkbookPart ?? throw AgendaErrors.Unreadable(options, "an Excel workbook");
             var context = new SheetContext(workbookPart);
             var sheets = (workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
-                .Where(s => s.State is null || s.State.Value == SheetStateValues.Visible)
+                .Where(s => OpenXmlValues.Enum(s.State) is not { } state || state == SheetStateValues.Visible)
                 .Select(s => (Sheet: s, Rows: ReadSheet(workbookPart, s, context, cancellationToken)))
                 .ToList();
             var withData = sheets.Where(s => s.Rows.Any(r => r.Cells.Any(c => c.Length > 0))).ToList();
@@ -59,7 +66,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 throw AgendaErrors.NoItems(options);
             }
 
-            var chosen = withData.FirstOrDefault(s => AgendaNamePattern().IsMatch(s.Sheet.Name?.Value ?? string.Empty));
+            var chosen = withData.FirstOrDefault(s => RegexGuard.IsMatch(AgendaNamePattern(), s.Sheet.Name?.Value ?? string.Empty));
             if (chosen.Sheet is null)
             {
                 chosen = withData[0];
@@ -86,7 +93,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
     private static List<AgendaTableRow> ReadSheet(WorkbookPart workbookPart, Sheet sheet, SheetContext context, CancellationToken cancellationToken)
     {
         var name = sheet.Name?.Value ?? string.Empty;
-        if (sheet.Id?.Value is not { } id || workbookPart.GetPartById(id) is not WorksheetPart part)
+        if (sheet.Id?.Value is not { } id || !workbookPart.TryGetPartById(id, out var sheetPart) || sheetPart is not WorksheetPart part)
         {
             return [];
         }
@@ -98,16 +105,18 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             return [];
         }
 
+        // Rows and columns past the limits are skipped, not stored: a damaged sheet can name row 4294967295 or column
+        // ZZZZZZ, and the table below is built densely from the first to the last row.
         var cellsByRow = new SortedDictionary<int, Dictionary<int, string>>();
-        var nextRow = 1;
+        long nextRow = 1;
         foreach (var row in data.Elements<Row>())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var rowIndex = (int)(row.RowIndex?.Value ?? (uint)nextRow);
+            long rowIndex = OpenXmlValues.UInt(row.RowIndex) ?? nextRow;
             nextRow = rowIndex + 1;
-            if (rowIndex > MaxRows)
+            if (rowIndex is 0 or > MaxRows)
             {
-                break;
+                continue;
             }
 
             var cells = new Dictionary<int, string>();
@@ -115,6 +124,12 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             foreach (var cell in row.Elements<Cell>())
             {
                 var column = cell.CellReference?.Value is { } reference ? ColumnIndex(reference) : nextColumn;
+                if (column is < 0 or >= MaxColumns)
+                {
+                    nextColumn = MaxColumns;
+                    continue;
+                }
+
                 nextColumn = column + 1;
                 var value = context.ValueOf(cell);
                 if (value.Length > 0)
@@ -125,7 +140,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 
             if (cells.Count > 0)
             {
-                cellsByRow[rowIndex] = cells;
+                cellsByRow[(int)rowIndex] = cells;
             }
         }
 
@@ -167,7 +182,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 
             var (firstColumn, firstRow) = (ColumnIndex(parts[0]), RowIndex(parts[0]));
             var (lastColumn, lastRow) = (ColumnIndex(parts[1]), RowIndex(parts[1]));
-            if (firstRow != lastRow || lastColumn <= firstColumn || !cellsByRow.TryGetValue(firstRow, out var cells))
+            if (firstColumn < 0 || firstRow != lastRow || lastColumn <= firstColumn || !cellsByRow.TryGetValue(firstRow, out var cells))
             {
                 continue;
             }
@@ -181,9 +196,11 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
         return rows;
     }
 
-    private static int ColumnIndex(string reference)
+    /// <summary>The 0-based column of a reference such as "B7"; -1 past Excel's last column (XFD) or for more than three letters.</summary>
+    internal static int ColumnIndex(string reference)
     {
         var index = 0;
+        var letters = 0;
         foreach (var c in reference)
         {
             if (!char.IsAsciiLetter(c))
@@ -191,10 +208,15 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 break;
             }
 
+            if (++letters > 3)
+            {
+                return -1;
+            }
+
             index = (index * 26) + (char.ToUpperInvariant(c) - 'A' + 1);
         }
 
-        return Math.Max(0, index - 1);
+        return index > ExcelColumns ? -1 : Math.Max(0, index - 1);
     }
 
     private static int RowIndex(string reference)
@@ -203,7 +225,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
         return int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var row) ? row : 0;
     }
 
-    [GeneratedRegex(@"agenda|programme|program|schedule|run of show|order of business", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"agenda|programme|program|schedule|run of show|order of business", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex AgendaNamePattern();
 
     /// <summary>Shared strings and number formats, read once per workbook.</summary>
@@ -220,18 +242,18 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 .ToList();
             var stylesheet = workbookPart.WorkbookStylesPart?.Stylesheet;
             _cellFormats = (stylesheet?.CellFormats?.Elements<CellFormat>() ?? [])
-                .Select(f => f.NumberFormatId?.Value ?? 0)
+                .Select(f => OpenXmlValues.UInt(f.NumberFormatId) ?? 0)
                 .ToList();
             _customFormats = (stylesheet?.NumberingFormats?.Elements<NumberingFormat>() ?? [])
-                .Where(f => f.NumberFormatId?.Value is not null)
-                .GroupBy(f => f.NumberFormatId!.Value)
+                .Where(f => OpenXmlValues.UInt(f.NumberFormatId) is not null)
+                .GroupBy(f => OpenXmlValues.UInt(f.NumberFormatId)!.Value)
                 .ToDictionary(g => g.Key, g => g.First().FormatCode?.Value ?? string.Empty);
         }
 
         public string ValueOf(Cell cell)
         {
             var raw = cell.CellValue?.Text ?? string.Empty;
-            var type = cell.DataType?.Value;
+            var type = OpenXmlValues.Enum(cell.DataType);
             if (type == CellValues.SharedString)
             {
                 return int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index) && index < _sharedStrings.Count
@@ -239,7 +261,8 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                     : string.Empty;
             }
 
-            if (type == CellValues.InlineString)
+            // An inline string is read whatever the cell's type says (a type Excel does not know reads as absent).
+            if (type == CellValues.InlineString || (cell.InlineString is not null && cell.CellValue is null))
             {
                 return cell.InlineString is { } inline ? ItemText(inline) : raw;
             }
@@ -251,7 +274,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
 
             if (type is null || type == CellValues.Number)
             {
-                return FormatNumber(raw, cell.StyleIndex?.Value);
+                return FormatNumber(raw, OpenXmlValues.UInt(cell.StyleIndex));
             }
 
             return raw;
@@ -330,7 +353,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
             return hasDate ? NumberKind.Date : hasTime ? NumberKind.Time : NumberKind.Number;
         }
 
-        [GeneratedRegex(@"""[^""]*""|\[[^\]]*\]|\\.")]
+        [GeneratedRegex(@"""[^""]*""|\[[^\]]*\]|\\.", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
         private static partial Regex QuotedPattern();
     }
 

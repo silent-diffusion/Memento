@@ -6,8 +6,13 @@ namespace Memento.Documents.Agenda.Text;
 /// <summary>Finds list markers (numbers, letters, Roman numerals, bullets, checkboxes) and time prefixes at the start of a line.</summary>
 internal static partial class MarkerParser
 {
+    private const int MarkerWindow = 256;
+
+    /// <summary>"10:00 a.m. until 11:30 p.m." is about 30 characters; a cell much longer is not a time.</summary>
+    private const int MaxTimeLength = 64;
+
     private const string TimeExpression =
-        @"(?:\d{1,2}[:.h]\d{2}|\d{1,2})(?:\s*[ap]\.?\s?m\.?)?(?:\s*(?:-|–|—|to|until)\s*(?:\d{1,2}[:.h]\d{2}|\d{1,2})(?:\s*[ap]\.?\s?m\.?)?)?";
+        @"(?:[0-9]{1,2}[:.h][0-9]{2}|[0-9]{1,2})(?:\s*[ap]\.?\s?m\.?)?(?:\s*(?:-|–|—|to|until)\s*(?:[0-9]{1,2}[:.h][0-9]{2}|[0-9]{1,2})(?:\s*[ap]\.?\s?m\.?)?)?";
 
     public static bool TryParseMarker(string text, out ListMarker marker, out string rest)
     {
@@ -18,7 +23,8 @@ internal static partial class MarkerParser
             return false;
         }
 
-        var match = CheckboxPattern().Match(text);
+        var head = Head(text);
+        var match = RegexGuard.Match(CheckboxPattern(), head);
         if (match.Success)
         {
             marker = new ListMarker(MarkerStyle.Checkbox, null, null);
@@ -31,7 +37,7 @@ internal static partial class MarkerParser
             return false;
         }
 
-        match = BulletPattern().Match(text);
+        match = RegexGuard.Match(BulletPattern(), head);
         if (match.Success)
         {
             marker = new ListMarker(MarkerStyle.Bullet, null, null, BulletFamily: BulletFamily(match.Groups["g"].Value));
@@ -39,7 +45,7 @@ internal static partial class MarkerParser
             return true;
         }
 
-        match = OutlinePattern().Match(text);
+        match = RegexGuard.Match(OutlinePattern(), head);
         if (match.Success)
         {
             var label = match.Groups["v"].Value;
@@ -49,7 +55,7 @@ internal static partial class MarkerParser
             return true;
         }
 
-        match = DecimalPattern().Match(text);
+        match = RegexGuard.Match(DecimalPattern(), head);
         if (match.Success)
         {
             var label = match.Groups["v"].Value;
@@ -58,7 +64,7 @@ internal static partial class MarkerParser
             return true;
         }
 
-        match = RomanPattern().Match(text);
+        match = RegexGuard.Match(RomanPattern(), head);
         if (match.Success && RomanValue(match.Groups["v"].Value) is { } roman && IsSingleCase(match.Groups["v"].Value))
         {
             var label = match.Groups["v"].Value;
@@ -67,7 +73,7 @@ internal static partial class MarkerParser
             return true;
         }
 
-        match = LetterPattern().Match(text);
+        match = RegexGuard.Match(LetterPattern(), head);
         if (match.Success)
         {
             var letter = match.Groups["v"].Value[0];
@@ -89,7 +95,7 @@ internal static partial class MarkerParser
     {
         time = string.Empty;
         rest = text;
-        var match = TimePrefixPattern().Match(text);
+        var match = RegexGuard.Match(TimePrefixPattern(), Head(text));
         if (!match.Success || !IsValidTime(match.Groups["t"].Value))
         {
             return false;
@@ -105,7 +111,13 @@ internal static partial class MarkerParser
     {
         time = string.Empty;
         rest = text;
-        var match = TrailingTimePattern().Match(text);
+        // A time ends in a digit, or in "m" or "." of a meridiem; anything else cannot end in one.
+        if (text.Length is < 5 or > RegexGuard.MaxLineLength || !(char.IsAsciiDigit(text[^1]) || text[^1] is 'm' or 'M' or '.'))
+        {
+            return false;
+        }
+
+        var match = RegexGuard.Match(TrailingTimePattern(), text);
         if (!match.Success || !IsValidTime(match.Groups["t"].Value))
         {
             return false;
@@ -120,8 +132,14 @@ internal static partial class MarkerParser
     public static bool IsTime(string text)
     {
         var trimmed = text.Trim();
-        return WholeTimePattern().IsMatch(trimmed) && IsValidTime(trimmed);
+        return trimmed.Length <= MaxTimeLength && RegexGuard.IsMatch(WholeTimePattern(), trimmed) && IsValidTime(trimmed);
     }
+
+    /// <summary>
+    /// The start of a line, where markers and time prefixes are looked for: they are a few characters long, and a
+    /// pattern never needs to see a megabyte of whitespace after them.
+    /// </summary>
+    private static string Head(string text) => text.Length > MarkerWindow ? text[..MarkerWindow] : text;
 
     public static int? RomanValue(string text)
     {
@@ -154,7 +172,7 @@ internal static partial class MarkerParser
 
     private static bool IsValidTime(string text)
     {
-        var match = TimePartPattern().Match(text);
+        var match = RegexGuard.Match(TimePartPattern(), text);
         if (!match.Success)
         {
             return false;
@@ -199,36 +217,39 @@ internal static partial class MarkerParser
 
     private static string NormalizeTime(string time) => WhitespacePattern().Replace(time.Trim(), " ");
 
-    [GeneratedRegex(@"^(?:[-*+]\s+)?(?:\[[ xX✓✔]\]|[☐☑☒])\s*(?=\S)")]
+    [GeneratedRegex(@"^(?:[-*+]\s+)?(?:\[[ xX✓✔]\]|[☐☑☒])\s*(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex CheckboxPattern();
 
-    [GeneratedRegex(@"^(?:(?<g>[-*+])\s+|(?<g>[–—])\s+|(?<g>o)(?:\t|\s{2,})|(?<g>[•●○◦▪▫■□►▸‣⁃·»→✓✔])\s*)(?=\S)")]
+    [GeneratedRegex(@"^(?:(?<g>[-*+])\s+|(?<g>[–—])\s+|(?<g>o)(?:\t|\s{2,})|(?<g>[•●○◦▪▫■□►▸‣⁃·»→✓✔])\s*)(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex BulletPattern();
 
-    [GeneratedRegex(@"^(?<v>\d{1,3}(?:\.\d{1,3})+)\.?(?:\)\s*|\s+|(?=\p{L}))(?=\S)")]
+    [GeneratedRegex(@"^(?<v>[0-9]{1,3}(?:\.[0-9]{1,3})+)\.?(?:\)\s*|\s+|(?=\p{L}))(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex OutlinePattern();
 
-    [GeneratedRegex(@"^(?:\((?<v>\d{1,3})\)|\#(?<v>\d{1,3})[.):]?|(?<v>\d{1,3})(?:[.)\]:]|\s+[-–—](?=\s)))\s*(?=\S)")]
+    [GeneratedRegex(@"^(?:\((?<v>[0-9]{1,3})\)|\#(?<v>[0-9]{1,3})[.):]?|(?<v>[0-9]{1,3})(?:[.)\]:]|\s+[-–—](?=\s)))\s*(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex DecimalPattern();
 
-    [GeneratedRegex(@"^\(?(?<v>[ivxIVX]{2,5})[.)]\s+(?=\S)")]
+    [GeneratedRegex(@"^\(?(?<v>[ivxIVX]{2,5})[.)]\s+(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex RomanPattern();
 
-    [GeneratedRegex(@"^\(?(?<v>[A-Za-z])[.)]\s+(?=\S)")]
+    [GeneratedRegex(@"^\(?(?<v>[A-Za-z])[.)]\s+(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex LetterPattern();
 
-    [GeneratedRegex(@"^(?<t>" + TimeExpression + @")(?:\s*[-–—:|•·]\s*|\s+)(?=\S)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?<t>" + TimeExpression + @")(?:\s*[-–—:|•·]\s*|\s+)(?=\S)", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex TimePrefixPattern();
 
-    [GeneratedRegex(@"^(?<text>.*?\S)\s*(?:\.{3,}|…+|\t+|\s{3,})\s*(?<t>" + TimeExpression + @")$", RegexOptions.IgnoreCase)]
+    // The leader is atomic (a time never starts with whitespace or a dot, so its greedy match is the only one that can
+    // work) and a dot leader must start its run of dots: the old "\s*(?:\.{3,}|…+|\t+|\s{3,})\s*" let three
+    // quantifiers share one run of spaces or dots, which is cubic on a long run with no time after it.
+    [GeneratedRegex(@"^(?<text>.*?\S)(?>\s*(?<![.…])(?:\.{3,}|…+)\s*|\s*\t\s*|\s{3,})(?<t>" + TimeExpression + @")$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex TrailingTimePattern();
 
-    [GeneratedRegex(@"^" + TimeExpression + @"$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^" + TimeExpression + @"$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex WholeTimePattern();
 
-    [GeneratedRegex(@"^(?<h>\d{1,2})(?:(?<s>[:.h])(?<m>\d{2}))?(?:\s*(?<ap>[ap]\.?\s?m\.?))?", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?<h>[0-9]{1,2})(?:(?<s>[:.h])(?<m>[0-9]{2}))?(?:\s*(?<ap>[ap]\.?\s?m\.?))?", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex TimePartPattern();
 
-    [GeneratedRegex(@"\s+")]
+    [GeneratedRegex(@"\s+", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex WhitespacePattern();
 }

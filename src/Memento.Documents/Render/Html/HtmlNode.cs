@@ -48,17 +48,20 @@ internal sealed class HtmlNode
     /// <summary>Depth-first search for the first element matching <paramref name="predicate"/> (this node included).</summary>
     public HtmlNode? Find(Func<HtmlNode, bool> predicate)
     {
-        if (!IsText && predicate(this))
+        // Iterative (an explicit stack, children pushed in reverse) so the search order is the recursive one without its depth.
+        var pending = new Stack<HtmlNode>();
+        pending.Push(this);
+        while (pending.Count > 0)
         {
-            return this;
-        }
-
-        foreach (var child in Children)
-        {
-            var found = child.Find(predicate);
-            if (found is not null)
+            var node = pending.Pop();
+            if (!node.IsText && predicate(node))
             {
-                return found;
+                return node;
+            }
+
+            for (var i = node.Children.Count - 1; i >= 0; i--)
+            {
+                pending.Push(node.Children[i]);
             }
         }
 
@@ -68,22 +71,29 @@ internal sealed class HtmlNode
     /// <summary>Every element below this node matching <paramref name="predicate"/>, not descending into matches.</summary>
     public IEnumerable<HtmlNode> FindAll(Func<HtmlNode, bool> predicate)
     {
-        foreach (var child in Children)
+        var pending = new Stack<HtmlNode>();
+        for (var i = Children.Count - 1; i >= 0; i--)
         {
-            if (child.IsText)
+            pending.Push(Children[i]);
+        }
+
+        while (pending.Count > 0)
+        {
+            var node = pending.Pop();
+            if (node.IsText)
             {
                 continue;
             }
 
-            if (predicate(child))
+            if (predicate(node))
             {
-                yield return child;
+                yield return node;
                 continue;
             }
 
-            foreach (var nested in child.FindAll(predicate))
+            for (var i = node.Children.Count - 1; i >= 0; i--)
             {
-                yield return nested;
+                pending.Push(node.Children[i]);
             }
         }
     }

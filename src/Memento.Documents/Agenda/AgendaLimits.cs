@@ -20,4 +20,7 @@ public static class AgendaLimits
 
     /// <summary>Text recognition upscales images until the median word is at least this tall.</summary>
     public const int MinOcrWordHeight = 24;
+
+    /// <summary>One parse (text recognition included) is stopped after this long; parsers run in the host process.</summary>
+    public static readonly TimeSpan ParseTimeout = TimeSpan.FromSeconds(60);
 }

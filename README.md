@@ -65,10 +65,11 @@ cd ui && npm test
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones and acceptance criteria |
 | [design/DESIGN.md](design/DESIGN.md) | Design handoff: tokens, components, every screen |
 | [docs/THIRD-PARTY.md](docs/THIRD-PARTY.md) | Bundled components and their licenses |
+| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, what Memento promises, how to report a vulnerability; audits in [docs/audits/](docs/audits/) |
 
 ## Privacy
 
-Recordings, transcripts and documents are stored in a library folder on your PC (by default under your local application data, never in a cloud-synced folder). Memento makes no network connections except: downloading transcription or recognition models you choose to install, checking this repository for updates, and sending the inputs you tick to an AI provider you have enabled. Audio and video are never sent anywhere.
+Recordings, transcripts and documents are stored in a library folder on your PC (by default under your local application data, never in a cloud-synced folder). Memento makes no network connections except: downloading transcription or recognition models you choose to install, checking this repository for updates, and sending the inputs you tick to an AI provider you have enabled. Audio and video are never sent anywhere. The Microsoft Edge WebView2 runtime that draws the window has its own background connections to Microsoft (runtime updates and configuration); they carry nothing from your recordings. Report security problems privately through GitHub Security Advisories ([docs/SECURITY.md](docs/SECURITY.md)).
 
 ## License
 

@@ -9,7 +9,7 @@ public sealed class TableTests
     [Fact]
     public void ReadsQuotedFieldsDoubledQuotesAndLineBreaksInsideQuotes()
     {
-        var rows = DelimitedReader.Read("a,\"b, c\",\"say \"\"hi\"\"\"\r\n\"two\nlines\",x,\r\n", ',', CancellationToken.None);
+        var rows = DelimitedReader.Read("a,\"b, c\",\"say \"\"hi\"\"\"\r\n\"two\nlines\",x,\r\n", ',', CancellationToken.None, out _);
 
         Assert.Equal(2, rows.Count);
         Assert.Equal(["a", "b, c", "say \"hi\""], rows[0]);

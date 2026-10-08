@@ -32,12 +32,15 @@ public sealed class JsonLinesLocalLlmJobClient(Func<CancellationToken, Task<Loca
 
         await SendAsync(new LocalLlmWorkerCommand(WorkerMessageTypes.Start, new LocalLlmWorkerJob(LocalLlmWorkerJob.LlmKind, job)));
         await using var registration = cancellationToken.Register(() => _ = SafeCancelAsync());
+
+        // Lines longer than the protocol allows are dropped (they come back empty and are skipped below).
+        var reader = new ProtocolLineReader(channel.FromWorker);
         while (true)
         {
             string? line;
             try
             {
-                line = await channel.FromWorker.ReadLineAsync(CancellationToken.None);
+                line = await reader.ReadLineAsync(CancellationToken.None);
             }
             catch (IOException)
             {
@@ -48,6 +51,11 @@ public sealed class JsonLinesLocalLlmJobClient(Func<CancellationToken, Task<Loca
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 throw new LocalLlmException(AiErrors.WorkerCrashed(LocalAiProvider.ProviderName, job.ModelName, "the worker ended without an answer"));
+            }
+
+            if (line.Length == 0)
+            {
+                continue; // An empty line, or one dropped for its length.
             }
 
             LocalLlmWorkerReply? reply;

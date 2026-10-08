@@ -108,7 +108,11 @@ describe('browser-preview host: agenda import (M3)', () => {
     // The earlier agenda.docx is replaced by the new original, not doubled.
     expect((await bridge.call('attachments.list', { recordingId: Q3 })).attachments.length).toBe(before);
 
-    const pdf = await bridge.call('agenda.importFile', { recordingId: null, path: 'C:\\Agendas\\board.pdf' });
+    // The page never names a file: the host's picker offers its samples in turn (agenda.docx, then the PDF).
+    expect((await failure(bridge.call('agenda.importFile', { recordingId: null, path: 'C:\\Agendas\\board.pdf' }))).code).toBe('bridge.invalidParams');
+    expect((await bridge.call('agenda.importFile', { recordingId: null })).preview?.source).toBe('agenda.docx');
+    const pdf = await bridge.call('agenda.importFile', { recordingId: null });
+    expect(pdf.preview?.source).toBe('board-agenda.pdf');
     expect(pdf.preview?.warnings[0]?.message).toContain('two columns');
     expect(pdf.preview?.items[1]?.location).toBe('page 1, line 9');
     const photo = await bridge.call('agenda.importDropped', { recordingId: null, paths: ['offsite.jpg', 'notes.txt'] });
@@ -254,7 +258,11 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
   it('imports media as a new project that is stored and then queued for transcription', async () => {
     const bridge = client();
     const stored = waitFor(bridge, 'processing.progress', (p) => p.stages.some((s) => s.stage === 'transcript'));
-    const { recordingId } = await bridge.call('library.importMedia', { path: 'C:\\Audio\\Team call.mp4' });
+    expect((await failure(bridge.call('library.importMedia', { path: 'C:\\Audio\\Team call.mp4' }))).code).toBe('bridge.invalidParams');
+    // The picker offers an interview, a lecture, then a video call.
+    await bridge.call('library.importMedia', {});
+    await bridge.call('library.importMedia', {});
+    const { recordingId } = await bridge.call('library.importMedia', {});
     expect(recordingId).not.toBeNull();
     const project = await bridge.call('project.get', { recordingId: recordingId ?? '' });
     expect(project.tracks.map((t) => t.sourceId)).toEqual(['imported']);
@@ -324,7 +332,8 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
     await bridge.call('attachments.open', { recordingId: Q3, attachmentId: attachment?.id ?? '' });
     await bridge.call('attachments.remove', { recordingId: Q3, attachmentId: attachment?.id ?? '' });
     expect((await bridge.call('attachments.list', { recordingId: Q3 })).attachments.map((a) => a.name)).toEqual(['agenda.docx']);
-    expect((await failure(bridge.call('attachments.add', { recordingId: Q3, path: 'D:\\huge-video.mov' }))).code).toBe('attachments.tooLarge');
+    expect((await failure(bridge.call('attachments.add', { recordingId: Q3, path: 'D:\\notes.pdf' }))).code).toBe('bridge.invalidParams');
+    expect((await failure(client({ m3: { attachment: 'tooLarge' } }).call('attachments.add', { recordingId: Q3 }))).code).toBe('attachments.tooLarge');
     expect((await failure(bridge.call('attachments.remove', { recordingId: Q3, attachmentId: 'gone' }))).code).toBe('attachments.notFound');
     const changed = await bridge.call('project.changeType', { recordingId: Q3, type: 'Board meeting' });
     expect(changed.summary.type).toBe('Board meeting');

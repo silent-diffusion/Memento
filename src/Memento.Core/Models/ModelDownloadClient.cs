@@ -2,11 +2,21 @@ using System.Net;
 
 namespace Memento.Core.Models;
 
-/// <summary>The HTTP client the model manager downloads with (one per app; tests point it at a local server).</summary>
+/// <summary>
+/// The HTTP client the model manager downloads with (one per app; tests point it at a local server). Together with
+/// <c>AiHttpClient</c> it is the only place Memento creates an HTTP client. Redirects are followed by the handler; the
+/// model manager checks the host that finally answered (<see cref="ModelDownloadHosts"/>).
+/// </summary>
 public sealed class ModelDownloadClient : IDisposable
 {
     public ModelDownloadClient()
-        : this(new HttpClient(new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.None, AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }))
+        : this(CreateHandler())
+    {
+    }
+
+    /// <summary>A client over <paramref name="handler"/> (a test seam: a recording or refusing handler).</summary>
+    public ModelDownloadClient(HttpMessageHandler handler)
+        : this(new HttpClient(handler ?? throw new ArgumentNullException(nameof(handler)), disposeHandler: true))
     {
     }
 
@@ -24,4 +34,7 @@ public sealed class ModelDownloadClient : IDisposable
     public HttpClient Http { get; }
 
     public void Dispose() => Http.Dispose();
+
+    private static SocketsHttpHandler CreateHandler() =>
+        new() { AutomaticDecompression = DecompressionMethods.None, AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
 }

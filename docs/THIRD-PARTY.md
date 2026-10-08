@@ -46,6 +46,8 @@ Build, test and packaging tools (not shipped in the installer):
 | Component | License | Used for |
 |---|---|---|
 | vpk (Velopack CLI, `dotnet-tools.json`) | MIT | Packing `Setup.exe` and the update feed |
+| CycloneDX (.NET tool 6.2.0, `dotnet-tools.json`) | Apache-2.0 | The NuGet SBOM attached to each release (`build/sbom.ps1`) |
+| @cyclonedx/cyclonedx-npm (6.0.1, run through `npx` by `build/sbom.ps1`) | Apache-2.0 | The UI's npm SBOM attached to each release |
 | Microsoft.CodeAnalysis.NetAnalyzers (10.0, pinned in `Directory.Packages.props`) | MIT | The same code-analysis rules on every SDK, local and CI |
 | xunit, xunit.runner.visualstudio | Apache-2.0 | .NET unit tests |
 | Microsoft.NET.Test.Sdk, Microsoft.Extensions.DependencyInjection | MIT | .NET test host; DI container in tests |

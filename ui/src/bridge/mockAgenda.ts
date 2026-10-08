@@ -242,7 +242,8 @@ export interface MockAgendaEnvironment {
 }
 
 export interface MockAgenda {
-  importFile(path: string | undefined): AgendaImportResult;
+  /** The host's picker: the preview offers a different sample each time. */
+  importFile(): AgendaImportResult;
   importDropped(paths: readonly string[]): AgendaImportResult;
   parseText(text: string): AgendaParsePreview;
   apply(params: AgendaApplyParams): Project;
@@ -316,14 +317,10 @@ export function createMockAgenda(env: MockAgendaEnvironment): MockAgenda {
   };
 
   return {
-    importFile(path) {
-      if (path === undefined) {
-        // The host's picker; the preview offers a different sample each time.
-        const name = PICKER_FILES[pickerIndex % PICKER_FILES.length] ?? 'agenda.docx';
-        pickerIndex += 1;
-        return { preview: previewOf(name), cancelled: false };
-      }
-      return { preview: previewOf(baseName(path)), cancelled: false };
+    importFile() {
+      const name = PICKER_FILES[pickerIndex % PICKER_FILES.length] ?? 'agenda.docx';
+      pickerIndex += 1;
+      return { preview: previewOf(name), cancelled: false };
     },
     importDropped(paths) {
       if (env.flag === 'noDrop') {

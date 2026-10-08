@@ -14,12 +14,29 @@ internal static partial class AgendaTableReader
     /// <summary>The heading level of a section row: below a document's own headings, above headings found in the text.</summary>
     public const int SectionHeadingLevel = 50;
 
+    /// <summary>The most table rows read as an agenda.</summary>
+    public const int MaxRows = 10_000;
+
+    /// <summary>The most table columns read as an agenda.</summary>
+    public const int MaxColumns = 64;
+
     public static TableReadResult Read(IReadOnlyList<TableRow> rawRows, CancellationToken cancellationToken)
     {
-        var rows = rawRows.Select(r => r with { Cells = r.Cells.Select(c => (c ?? string.Empty).Trim()).ToList() }).ToList();
+        // Every column is scored over every row, so the table is cut to what an agenda can be: a CSV row of a million
+        // commas or a sheet of a million rows would otherwise cost width × rows.
+        var truncated = rawRows.Count > MaxRows || rawRows.Any(r => r.Cells.Count > MaxColumns);
+        var rows = rawRows
+            .Take(MaxRows)
+            .Select(r => r with { Cells = r.Cells.Take(MaxColumns).Select(c => (c ?? string.Empty).Trim()).ToList() })
+            .ToList();
         var width = rows.Count == 0 ? 0 : rows.Max(r => r.Cells.Count);
         var lines = new List<SourceLine>();
         var warnings = new List<AgendaParseWarning>();
+        if (truncated)
+        {
+            warnings.Add(TruncatedWarning());
+        }
+
         if (width == 0)
         {
             return new TableReadResult(lines, warnings, false);
@@ -148,6 +165,11 @@ internal static partial class AgendaTableReader
         return new TableReadResult(lines, warnings, hasAgendaHeader);
     }
 
+    /// <summary>The warning for a table cut to <see cref="MaxRows"/> rows and <see cref="MaxColumns"/> columns.</summary>
+    public static AgendaParseWarning TruncatedWarning() => new(
+        AgendaWarningCodes.Unparsed,
+        string.Create(CultureInfo.InvariantCulture, $"The table is larger than an agenda, so only its first {MaxRows:N0} rows and {MaxColumns} columns were read. Save the agenda part on its own and import it if items are missing."));
+
     /// <summary>Spreadsheet-style column letters: 0 → A, 26 → AA.</summary>
     public static string ColumnLetter(int index)
     {
@@ -168,13 +190,13 @@ internal static partial class AgendaTableReader
         // A cell with several lines: the first is the item, marked lines below it are sub-items, plain ones wrap.
         var parts = TextLines.Split(cell).Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
         var reasons = reason is null ? (IReadOnlyList<string>)[] : [reason];
-        var head = parts[0];
         var index = 1;
         while (index < parts.Count && !MarkerParser.TryParseMarker(parts[index], out _, out _))
         {
-            head += " " + parts[index];
             index++;
         }
+
+        var head = string.Join(' ', parts.Take(index));
 
         lines.Add(new SourceLine(head, location) { Time = time, Marker = marker, MayContinue = false, Reasons = reasons });
         for (; index < parts.Count; index++)
@@ -201,7 +223,7 @@ internal static partial class AgendaTableReader
             }
 
             var headerish = cells.Count(c => c.Length <= 30 && !MarkerParser.IsTime(c) && !double.TryParse(c, NumberStyles.Any, CultureInfo.InvariantCulture, out _));
-            if (cells.Any(c => HeaderWordPattern().IsMatch(c)) && headerish * 2 >= cells.Count)
+            if (cells.Any(c => RegexGuard.IsMatch(HeaderWordPattern(), c)) && headerish * 2 >= cells.Count)
             {
                 return i;
             }
@@ -239,7 +261,7 @@ internal static partial class AgendaTableReader
         {
             for (var c = 0; c < header.Count; c++)
             {
-                if (TimeHeaderPattern().IsMatch(header[c]))
+                if (RegexGuard.IsMatch(TimeHeaderPattern(), header[c]))
                 {
                     return c;
                 }
@@ -256,7 +278,7 @@ internal static partial class AgendaTableReader
         {
             for (var c = 0; c < header.Count; c++)
             {
-                if (c != timeColumn && NumberHeaderPattern().IsMatch(header[c]))
+                if (c != timeColumn && RegexGuard.IsMatch(NumberHeaderPattern(), header[c]))
                 {
                     return c;
                 }
@@ -314,8 +336,8 @@ internal static partial class AgendaTableReader
             "agenda item" or "agenda items" or "item" or "items" or "topic" or "topics" or "agenda" or "agenda topic" or "agenda topics" => 10,
             "subject" or "session" or "title" or "activity" or "discussion" or "discussion item" or "discussion topic" or "what" => 8,
             "description" or "details" => 5,
-            _ when ItemWordPattern().IsMatch(text) => 7,
-            _ when SessionWordPattern().IsMatch(text) => 6,
+            _ when RegexGuard.IsMatch(ItemWordPattern(), text) => 7,
+            _ when RegexGuard.IsMatch(SessionWordPattern(), text) => 6,
             _ when text.Contains("description", StringComparison.Ordinal) => 4,
             _ => 0,
         };
@@ -337,19 +359,19 @@ internal static partial class AgendaTableReader
         _ => string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1],
     };
 
-    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda|subject|session|title|activity|discussion|description|details|time|start|end|duration|minutes|mins|owner|lead|led by|presenter|speaker|who|notes|no\.?|number|slot|when|outcome)\b|^#$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda|subject|session|title|activity|discussion|description|details|time|start|end|duration|minutes|mins|owner|lead|led by|presenter|speaker|who|notes|no\.?|number|slot|when|outcome)\b|^#$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex HeaderWordPattern();
 
-    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda)\b")]
+    [GeneratedRegex(@"\b(?:item|items|topic|topics|agenda)\b", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex ItemWordPattern();
 
-    [GeneratedRegex(@"\b(?:subject|session|title|activity|discussion)\b")]
+    [GeneratedRegex(@"\b(?:subject|session|title|activity|discussion)\b", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex SessionWordPattern();
 
-    [GeneratedRegex(@"^\s*(?:time|times|start|start time|starts|when|slot|time slot|from|begins?)\s*:?\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(?:time|times|start|start time|starts|when|slot|time slot|from|begins?)\s*:?\s*$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex TimeHeaderPattern();
 
-    [GeneratedRegex(@"^\s*(?:#|no\.?|nr\.?|num|number|item\s*#|item no\.?|ref)\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(?:#|no\.?|nr\.?|num|number|item\s*#|item no\.?|ref)\s*$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex NumberHeaderPattern();
 
     private sealed record ColumnStats(int Column, int NonEmpty, int TextLike, int Times, int SmallIntegers, bool Increasing)

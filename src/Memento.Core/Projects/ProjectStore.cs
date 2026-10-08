@@ -140,6 +140,15 @@ public sealed partial class ProjectStore : IProjectStore
                 manifest = manifest with { Id = recordingId };
             }
 
+            // A copied-in folder's manifest is untrusted: every file it names must stay inside the folder.
+            if (ProjectPaths.FirstUnsafe(manifest) is { } field)
+            {
+                LogUnsafePath(recordingId, field);
+                throw new ProjectNotFoundException(
+                    $"The details file of recording {recordingId} names a file outside its folder ({field}). Memento will not open it; nothing was changed.",
+                    new InvalidDataException($"project.json {field} is not a file inside the project folder."));
+            }
+
             return manifest;
         }
         catch (JsonException ex)
@@ -200,17 +209,8 @@ public sealed partial class ProjectStore : IProjectStore
                 throw new ProjectBusyException(recordingId);
             }
 
-            // Finalized tracks are read-only; clear that first or Windows refuses the delete.
-            foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
-            {
-                var attributes = File.GetAttributes(file);
-                if ((attributes & FileAttributes.ReadOnly) != 0)
-                {
-                    File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
-                }
-            }
-
-            Directory.Delete(folder, recursive: true);
+            // Finalized tracks are read-only (cleared first or Windows refuses the delete); a junction is removed as a link.
+            LinkSafeFiles.DeleteTree(folder);
             LogDeleted(recordingId);
         }
         finally
@@ -228,7 +228,7 @@ public sealed partial class ProjectStore : IProjectStore
         }
 
         long total = 0;
-        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories))
+        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", LinkSafeFiles.Recursive))
         {
             total += file.Length;
         }
@@ -357,7 +357,15 @@ public sealed partial class ProjectStore : IProjectStore
         var path = Path.Combine(GetProjectFolder(recordingId), ProjectLayout.RecordingStateFile);
         try
         {
-            return await AtomicJsonFile.ReadAsync(path, ProjectJsonContext.Default.RecordingStateDocument, cancellationToken);
+            var state = await AtomicJsonFile.ReadAsync(path, ProjectJsonContext.Default.RecordingStateDocument, cancellationToken);
+            if (state is not null && ProjectPaths.FirstUnsafe(state) is { } field)
+            {
+                // Recovery rewrites the headers of these files: never one outside the project folder.
+                LogUnsafePath(recordingId, "recording.state.json " + field);
+                return null;
+            }
+
+            return state;
         }
         catch (JsonException ex)
         {
@@ -416,6 +424,9 @@ public sealed partial class ProjectStore : IProjectStore
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Project {RecordingId} has an unreadable annotations.json")]
     private partial void LogAnnotationsUnreadable(string recordingId, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Project {RecordingId} was refused: {Field} names a file outside the project folder")]
+    private partial void LogUnsafePath(string recordingId, string field);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Project {RecordingId} has an unreadable recording.state.json")]
     private partial void LogStateUnreadable(string recordingId, Exception exception);

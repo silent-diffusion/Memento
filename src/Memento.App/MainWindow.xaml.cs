@@ -148,8 +148,7 @@ internal sealed partial class MainWindow : Window
 
         try
         {
-            var environment = await CoreWebView2Environment.CreateAsync(
-                browserExecutableFolder: null, userDataFolder: AppPaths.WebView2UserData);
+            var environment = await WebViewEnvironmentFactory.CreateAsync();
             await WebView.EnsureCoreWebView2Async(environment);
         }
         catch (WebView2RuntimeNotFoundException ex)
@@ -172,6 +171,8 @@ internal sealed partial class MainWindow : Window
         core.NavigationStarting += OnNavigationStarting;
         core.FrameNavigationStarting += OnNavigationStarting;
         core.NewWindowRequested += OnNewWindowRequested;
+        core.DownloadStarting += OnDownloadStarting;
+        core.PermissionRequested += OnPermissionRequested;
         core.NavigationCompleted += OnNavigationCompleted;
         core.ProcessFailed += OnProcessFailed;
         core.WebMessageReceived += OnDroppedFiles; // before the bridge, so a drop's paths are known when its request runs
@@ -186,7 +187,10 @@ internal sealed partial class MainWindow : Window
     /// reachable: <c>library.db</c> sits in the library root, above the mapped folder, and the browser resolves
     /// <c>..</c> segments before the path reaches the folder. Media and fetches from there are sub-resources of the
     /// app page, not navigations, so <see cref="OnNavigationStarting"/> still allows only <c>app.memento</c>.
-    /// Remapped when the library moves.
+    /// Remapped when the library moves. WebView2 does not raise <c>WebResourceRequested</c> for a mapped host (verified
+    /// in the 2026-10-07 security audit), so the mapping cannot be narrowed to the mix and peaks: every file under
+    /// <c>projects</c>, and anything a junction there points at, is readable by the page (SA-02, accepted; the page
+    /// can already read the same project data through the bridge).
     /// </summary>
     private void MapLibrary(CoreWebView2? core)
     {
@@ -226,6 +230,30 @@ internal sealed partial class MainWindow : Window
         settings.IsPasswordAutosaveEnabled = false;
         settings.AreHostObjectsAllowed = false;
         settings.IsWebMessageEnabled = true;
+
+        // The page only ever loads app.memento and library.memento, so SmartScreen has nothing to check and would only
+        // send page addresses to Microsoft (nothing leaves the PC without an explicit action). It applies to every
+        // WebView2 on this user data folder, so the PDF printer turns it off too.
+        settings.IsReputationCheckingRequired = false;
+    }
+
+    /// <summary>The page never downloads anything; exports are written by the host.</summary>
+    private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e)
+    {
+        e.Cancel = true;
+        e.Handled = true;
+        LogNavigationBlocked(e.DownloadOperation.Uri);
+    }
+
+    /// <summary>
+    /// The page needs no browser permission (microphone, camera, location, notifications, clipboard reading): audio is
+    /// captured by the host. Refused without asking, so no WebView2 prompt can appear.
+    /// </summary>
+    private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
+    {
+        e.State = CoreWebView2PermissionState.Deny;
+        e.Handled = true;
+        LogPermissionRefused(e.PermissionKind.ToString());
     }
 
     private void ApplyTheme(bool isDark)
@@ -349,8 +377,17 @@ internal sealed partial class MainWindow : Window
     [LoggerMessage(Level = LogLevel.Error, Message = "The WebView2 Runtime is not installed")]
     private partial void LogRuntimeMissing(Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Blocked navigation to {Uri}")]
-    private partial void LogNavigationBlocked(string uri);
+    /// <summary>Logs where a blocked navigation pointed, by scheme and host only: its path or query could carry content.</summary>
+    private void LogNavigationBlocked(string uri) =>
+        LogNavigationBlockedTo(Uri.TryCreate(uri, UriKind.Absolute, out var parsed)
+            ? parsed.IsUnc || parsed.HostNameType == UriHostNameType.Basic || string.IsNullOrEmpty(parsed.Host) ? parsed.Scheme + ":" : parsed.Scheme + "://" + parsed.Host
+            : "an unparsable address");
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Blocked navigation to {Target}")]
+    private partial void LogNavigationBlockedTo(string target);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a browser permission request: {Kind}")]
+    private partial void LogPermissionRefused(string kind);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The interface failed to load: {Status}")]
     private partial void LogNavigationFailed(string status);

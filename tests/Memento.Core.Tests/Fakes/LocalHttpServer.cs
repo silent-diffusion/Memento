@@ -38,6 +38,15 @@ internal sealed class LocalHttpServer : IDisposable
     /// <summary>Answer every request with this status and no body.</summary>
     public int? FailWithStatus { get; set; }
 
+    /// <summary>Send no <c>Content-Length</c>: the body ends when the connection closes.</summary>
+    public bool OmitContentLength { get; set; }
+
+    /// <summary>Claim this start in the <c>Content-Range</c> of a 206 (a server answering another piece than asked).</summary>
+    public long? ContentRangeStart { get; set; }
+
+    /// <summary>Paths answered with <c>302 Found</c> and this <c>Location</c>.</summary>
+    public Dictionary<string, string> Redirects { get; } = new(StringComparer.Ordinal);
+
     public List<string> Requests
     {
         get
@@ -117,6 +126,12 @@ internal sealed class LocalHttpServer : IDisposable
                 }
 
                 var path = requestLine.Split(' ')[1].TrimStart('/');
+                if (Redirects.TryGetValue(path, out var location))
+                {
+                    await WriteHeadAsync(stream, 302, 0, null, location);
+                    return;
+                }
+
                 if (FailWithStatus is { } status || !_files.TryGetValue(path, out var content))
                 {
                     await WriteHeadAsync(stream, FailWithStatus ?? 404, 0, null);
@@ -130,7 +145,7 @@ internal sealed class LocalHttpServer : IDisposable
                     return;
                 }
 
-                await WriteHeadAsync(stream, start > 0 ? 206 : 200, content.Length - start, start > 0 ? string.Create(CultureInfo.InvariantCulture, $"bytes {start}-{content.Length - 1}/{content.Length}") : null);
+                await WriteHeadAsync(stream, start > 0 ? 206 : 200, OmitContentLength ? -1 : content.Length - start,start > 0 ? string.Create(CultureInfo.InvariantCulture, $"bytes {ContentRangeStart ?? start}-{content.Length - 1}/{content.Length}") : null);
                 long sent = 0;
                 for (var offset = start; offset < content.Length; offset += ChunkSize)
                 {
@@ -157,15 +172,20 @@ internal sealed class LocalHttpServer : IDisposable
         }
     }
 
-    private static async Task WriteHeadAsync(NetworkStream stream, int status, long length, string? contentRange)
+    private static async Task WriteHeadAsync(NetworkStream stream, int status, long length, string? contentRange, string? location = null)
     {
         var head = new StringBuilder()
-            .Append(CultureInfo.InvariantCulture, $"HTTP/1.1 {status} {(status is 200 or 206 ? "OK" : "Error")}\r\n")
-            .Append(CultureInfo.InvariantCulture, $"Content-Length: {length}\r\n")
+            .Append(CultureInfo.InvariantCulture, $"HTTP/1.1 {status} {(status is 200 or 206 ? "OK" : status == 302 ? "Found" : "Error")}\r\n")
+            .Append(length >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Content-Length: {length}\r\n") : string.Empty)
             .Append("Content-Type: application/octet-stream\r\nConnection: close\r\n");
         if (contentRange is not null)
         {
             head.Append("Content-Range: ").Append(contentRange).Append("\r\n");
+        }
+
+        if (location is not null)
+        {
+            head.Append("Location: ").Append(location).Append("\r\n");
         }
 
         head.Append("\r\n");

@@ -131,9 +131,17 @@ internal static class FormatSniffer
         try
         {
             using var zip = new ZipArchive(new MemoryStream(bytes.ToArray(), writable: false), ZipArchiveMode.Read);
+            if (zip.Entries.Count > OpenXml.PackageGuard.MaxEntries)
+            {
+                throw AgendaErrors.PackageTooLarge(
+                    options,
+                    "a ZIP package",
+                    string.Create(System.Globalization.CultureInfo.InvariantCulture, $"holds {zip.Entries.Count:N0} parts (at most {OpenXml.PackageGuard.MaxEntries:N0})"));
+            }
+
             names = zip.Entries.Select(e => e.FullName.Replace('\\', '/')).ToList();
         }
-        catch (InvalidDataException e)
+        catch (Exception e) when (ParseGuard.IsDamage(e, CancellationToken.None))
         {
             throw AgendaErrors.Unreadable(options, "a Word or Excel file", e);
         }

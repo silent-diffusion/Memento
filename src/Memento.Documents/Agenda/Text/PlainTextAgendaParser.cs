@@ -15,8 +15,15 @@ public sealed class PlainTextAgendaParser : IAgendaParser
     {
         ArgumentNullException.ThrowIfNull(options);
         var bytes = await AgendaContent.ReadAsync(content, options, cancellationToken).ConfigureAwait(false);
-        var text = TextDecoder.Decode(bytes.Span, out var fallback);
-        return Parse(text, options, fallback ? [TextDecoder.FallbackWarning(options)] : [], cancellationToken);
+        return await ParseGuard.RunAsync(
+            options,
+            "a text file",
+            token =>
+            {
+                var text = TextDecoder.Decode(bytes.Span, out var fallback);
+                return Parse(text, options, fallback ? [TextDecoder.FallbackWarning(options)] : [], token);
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     internal static AgendaParseResult Parse(string text, AgendaParseOptions options, IReadOnlyList<AgendaParseWarning> warnings, CancellationToken cancellationToken)

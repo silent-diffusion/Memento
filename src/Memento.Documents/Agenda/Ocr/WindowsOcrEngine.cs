@@ -18,6 +18,12 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
 {
     private const double MaxUpscale = 4.0;
 
+    /// <summary>
+    /// The most pixels an image is decoded or upscaled to (40 megapixels: 160 MB as BGRA). A photo within the side
+    /// limit can still be 10,000 × 10,000; it is scaled down while decoding instead of being decoded in full.
+    /// </summary>
+    internal const double MaxImagePixels = 40_000_000;
+
     private readonly ILogger<WindowsOcrEngine> _logger;
 
     public WindowsOcrEngine(ILogger<WindowsOcrEngine>? logger = null)
@@ -83,7 +89,7 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
         var factor = words.Count == 0
             ? 2.0
             : medianHeight < request.MinWordHeight ? Math.Min(MaxUpscale, (request.MinWordHeight + 2) / medianHeight) : 1.0;
-        factor = Math.Min(factor, maxDimension / (double)Math.Max(current.Width, current.Height));
+        factor = Math.Min(factor, MaxScale(current.Width, current.Height, maxDimension));
         if (factor > 1.15)
         {
             var upscaled = current.Scale(factor, cancellationToken);
@@ -102,9 +108,11 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
         var deskewed = false;
         if (angle is { } degrees && Math.Abs(degrees) > request.DeskewThresholdDegrees && words.Count > 0)
         {
-            var straight = current.Rotate(-degrees, cancellationToken);
-            if (Math.Max(straight.Width, straight.Height) <= maxDimension)
+            // Measured before rotating: the rotated canvas is larger than the image and is only made when it fits.
+            var (rotatedWidth, rotatedHeight) = GrayImage.RotatedSize(current.Width, current.Height, -degrees);
+            if (Math.Max(rotatedWidth, rotatedHeight) <= maxDimension && (long)rotatedWidth * rotatedHeight <= MaxImagePixels)
             {
+                var straight = current.Rotate(-degrees, cancellationToken);
                 var third = await RunAsync(engine, straight, cancellationToken).ConfigureAwait(false);
                 var thirdWords = Words(third);
                 if (thirdWords.Count * 10 >= words.Count * 8)
@@ -139,58 +147,91 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
         }
     }
 
-    private static async Task<(GrayImage Image, double Scale)> DecodeAsync(ReadOnlyMemory<byte> image, int maxSide, int maxDimension, CancellationToken cancellationToken)
+    /// <summary>
+    /// The largest factor an image of <paramref name="width"/> × <paramref name="height"/> may be scaled by: no side over
+    /// <paramref name="maxDimension"/> and no more than <see cref="MaxImagePixels"/> in all.
+    /// </summary>
+    internal static double MaxScale(long width, long height, int maxDimension)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return 1.0;
+        }
+
+        return Math.Min(maxDimension / (double)Math.Max(width, height), Math.Sqrt(MaxImagePixels / ((double)width * height)));
+    }
+
+    internal static async Task<(GrayImage Image, double Scale)> DecodeAsync(ReadOnlyMemory<byte> image, int maxSide, int maxDimension, CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream(image.ToArray(), writable: false);
         using var randomAccess = stream.AsRandomAccessStream();
-        BitmapDecoder decoder;
         try
         {
-            decoder = await BitmapDecoder.CreateAsync(randomAccess).AsTask(cancellationToken).ConfigureAwait(false);
+            var decoder = await BitmapDecoder.CreateAsync(randomAccess).AsTask(cancellationToken).ConfigureAwait(false);
+            var width = decoder.OrientedPixelWidth;
+            var height = decoder.OrientedPixelHeight;
+            if (width > maxSide || height > maxSide)
+            {
+                throw new AgendaImportException(
+                    AgendaErrorCodes.ImageTooLarge,
+                    $"The image is {width:N0} × {height:N0} pixels; images can be at most {maxSide:N0} pixels on each side. Nothing was imported. Resize the photo or crop it to the agenda, then import it again.");
+            }
+
+            // Large photos are scaled down, while decoding, to what the recognizer accepts and to at most
+            // MaxImagePixels; the pixel size is applied before EXIF rotation, so the uniform factor keeps the aspect
+            // ratio either way.
+            var scale = Math.Min(1.0, MaxScale(width, height, maxDimension));
+            var transform = new BitmapTransform { InterpolationMode = BitmapInterpolationMode.Fant };
+            if (scale < 1.0)
+            {
+                transform.ScaledWidth = (uint)Math.Max(1, Math.Floor(decoder.PixelWidth * scale));
+                transform.ScaledHeight = (uint)Math.Max(1, Math.Floor(decoder.PixelHeight * scale));
+            }
+
+            using var bitmap = await decoder.GetSoftwareBitmapAsync(
+                BitmapPixelFormat.Bgra8,
+                BitmapAlphaMode.Premultiplied,
+                transform,
+                ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.DoNotColorManage).AsTask(cancellationToken).ConfigureAwait(false);
+            if ((long)bitmap.PixelWidth * bitmap.PixelHeight > MaxImagePixels * 1.01)
+            {
+                throw Unreadable(null);
+            }
+
+            var buffer = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+            bitmap.CopyToBuffer(buffer.AsBuffer());
+            return (GrayImage.FromPremultipliedBgra(buffer, bitmap.PixelWidth, bitmap.PixelHeight), scale);
         }
         catch (Exception e) when (e is COMException or ArgumentException or InvalidCastException)
         {
-            throw new AgendaImportException(
-                AgendaErrorCodes.Unreadable,
-                "The image could not be opened; it may be damaged, or it is a HEIC photo and the HEIF Image Extensions are not installed. Nothing was imported. Save it as PNG or JPEG, or install the extensions from the Microsoft Store, then import it again.",
-                e);
+            // Windows' decoders report a damaged or truncated image (or one they have no codec for) as a COM error,
+            // at any step: creating the decoder, reading its size or decoding the pixels.
+            throw Unreadable(e);
         }
-
-        var width = decoder.OrientedPixelWidth;
-        var height = decoder.OrientedPixelHeight;
-        if (width > maxSide || height > maxSide)
-        {
-            throw new AgendaImportException(
-                AgendaErrorCodes.ImageTooLarge,
-                $"The image is {width:N0} × {height:N0} pixels; images can be at most {maxSide:N0} pixels on each side. Nothing was imported. Resize the photo or crop it to the agenda, then import it again.");
-        }
-
-        // Large photos are scaled down to what the recognizer accepts; the pixel size is applied before EXIF rotation,
-        // so the uniform factor keeps the aspect ratio either way.
-        var scale = Math.Min(1.0, maxDimension / (double)Math.Max(width, height));
-        var transform = new BitmapTransform { InterpolationMode = BitmapInterpolationMode.Fant };
-        if (scale < 1.0)
-        {
-            transform.ScaledWidth = (uint)Math.Max(1, Math.Floor(decoder.PixelWidth * scale));
-            transform.ScaledHeight = (uint)Math.Max(1, Math.Floor(decoder.PixelHeight * scale));
-        }
-
-        using var bitmap = await decoder.GetSoftwareBitmapAsync(
-            BitmapPixelFormat.Bgra8,
-            BitmapAlphaMode.Premultiplied,
-            transform,
-            ExifOrientationMode.RespectExifOrientation,
-            ColorManagementMode.DoNotColorManage).AsTask(cancellationToken).ConfigureAwait(false);
-        var buffer = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
-        bitmap.CopyToBuffer(buffer.AsBuffer());
-        return (GrayImage.FromPremultipliedBgra(buffer, bitmap.PixelWidth, bitmap.PixelHeight), scale);
     }
+
+    private static AgendaImportException Unreadable(Exception? inner) =>
+        new(
+            AgendaErrorCodes.Unreadable,
+            "The image could not be opened; it may be damaged, or it is a HEIC photo and the HEIF Image Extensions are not installed. Nothing was imported. Save it as PNG or JPEG, or install the extensions from the Microsoft Store, then import it again.",
+            inner);
 
     private static async Task<OcrResult> RunAsync(OcrEngine engine, GrayImage image, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var bitmap = SoftwareBitmap.CreateCopyFromBuffer(image.ToBgra().AsBuffer(), BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
-        return await engine.RecognizeAsync(bitmap).AsTask(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var bitmap = SoftwareBitmap.CreateCopyFromBuffer(image.ToBgra().AsBuffer(), BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
+            return await engine.RecognizeAsync(bitmap).AsTask(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is COMException or ArgumentException)
+        {
+            throw new AgendaImportException(
+                AgendaErrorCodes.Unreadable,
+                "Windows text recognition could not read the image. Nothing was imported. Save it as PNG or JPEG at a smaller size and import it again, or paste the items as text.",
+                e);
+        }
     }
 
     private static List<OcrWordBox> Words(OcrResult result) =>

@@ -33,9 +33,22 @@ public sealed partial class MediaImportService(
     ISettingsStore settings,
     LibraryActivity activity,
     TimeProvider time,
+    IFreeSpaceProbe freeSpace,
     ILogger<MediaImportService> logger) : IAsyncDisposable, IDisposable
 {
     public const string TrackId = "imported";
+
+    /// <summary>Limits on what a file may declare before it is decoded (security audit 2026-10-07, SA-27).</summary>
+    public const int MaxChannels = 8;
+
+    public const int MaxSampleRate = 192_000;
+
+    public const long MaxDurationMs = 24L * 3_600_000;
+
+    /// <summary>Free space kept for recordings after an import's files: 2 GB.</summary>
+    public const long ImportReserveBytes = 2L * 1024 * 1024 * 1024;
+
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>Source id and kind of an imported track (M3 clarification 6).</summary>
     public const string SourceId = "imported";
@@ -183,15 +196,46 @@ public sealed partial class MediaImportService(
         MediaProbe probe;
         try
         {
-            probe = await decoder.ProbeAsync(path, cancellationToken);
+            probe = await decoder.ProbeAsync(path, cancellationToken).WaitAsync(ProbeTimeout, cancellationToken);
         }
         catch (InvalidDataException ex)
         {
             throw Unsupported(name, ex.Message);
         }
+        catch (TimeoutException)
+        {
+            throw Unsupported(name, string.Create(CultureInfo.InvariantCulture, $"Windows did not finish reading it within {ProbeTimeout.TotalSeconds:0} s"));
+        }
 
-        return probe.SampleRate <= 0 || probe.Channels <= 0 ? throw Unsupported(name, "it has no audio stream") : probe;
+        if (probe.SampleRate <= 0 || probe.Channels <= 0)
+        {
+            throw Unsupported(name, "it has no audio stream");
+        }
+
+        // A small hostile file can declare a format that decodes to hundreds of gigabytes of 24-bit PCM and fills the
+        // drive recordings are written to; refuse what no meeting needs, and what the drive cannot hold.
+        if (probe.Channels > MaxChannels || probe.SampleRate > MaxSampleRate || probe.DurationMs <= 0 || probe.DurationMs > MaxDurationMs)
+        {
+            throw Unsupported(
+                name,
+                string.Create(CultureInfo.InvariantCulture, $"it declares {probe.Channels} channels at {probe.SampleRate} Hz for {HumanFormat.Clock(Math.Max(0, probe.DurationMs))}; Memento imports up to {MaxChannels} channels at {MaxSampleRate / 1000} kHz and {MaxDurationMs / 3_600_000} hours"));
+        }
+
+        var needed = DecodedBytes(probe);
+        if (freeSpace.GetFreeBytes(store.ProjectsRoot) is { } free && free - needed < ImportReserveBytes)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.LibraryImportUnsupported,
+                $"\"{name}\" needs about {HumanFormat.Bytes(needed)} while it is imported, and the library drive has {HumanFormat.Bytes(free)} free; Memento keeps {HumanFormat.Bytes(ImportReserveBytes)} free for recordings. Nothing was added to the library. Free some space and import it again.",
+                name);
+        }
+
+        return probe;
     }
+
+    /// <summary>The decoded WAV (24-bit) plus the lossless track and mix written at finalize, with a margin.</summary>
+    internal static long DecodedBytes(MediaProbe probe) =>
+        (long)Math.Ceiling(probe.DurationMs / 1000.0 * probe.SampleRate * probe.Channels * 3 * 2.2);
 
     private async Task StartAsync(string id, string path, string name, MediaProbe probe, DateTimeOffset modified, CancellationToken cancellationToken)
     {
@@ -353,7 +397,9 @@ public sealed partial class MediaImportService(
 
             LogImported(recordingId, decoded.DurationMs);
         }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or OperationCanceledException)
+#pragma warning disable CA1031 // A decoder failing in any way (a hostile file can make Media Foundation throw anything) must not leave a half-imported project.
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+#pragma warning restore CA1031
         {
             // The project only holds what this import made from a file outside the library: remove it whole, so no
             // half-imported recording is left behind. The original file is untouched.

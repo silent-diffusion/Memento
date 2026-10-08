@@ -22,6 +22,49 @@ public sealed class CloudPlumbingTests
     }
 
     [Fact]
+    public async Task SseReaderEndsLinesAtLfCrOrCrLf()
+    {
+        var text = "event: a\r\ndata: one\r\rdata: two\n\r\ndata: three\r";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+        var events = new List<SseEvent>();
+
+        await foreach (var item in SseReader.ReadAsync(stream, TimeSpan.FromSeconds(5), CancellationToken.None))
+        {
+            events.Add(item);
+        }
+
+        Assert.Equal([new SseEvent("a", "one"), new SseEvent(string.Empty, "two"), new SseEvent(string.Empty, "three")], events);
+    }
+
+    [Fact]
+    public async Task SseReaderRefusesALineOrAnEventPastTheLimit()
+    {
+        static async Task ReadAllAsync(string text)
+        {
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(text));
+            await foreach (var unused in SseReader.ReadAsync(stream, TimeSpan.FromSeconds(30), CancellationToken.None))
+            {
+            }
+        }
+
+        // One endless line, and an event built from many short data lines.
+        await Assert.ThrowsAsync<CloudAnswerTooLongException>(() => ReadAllAsync("data: " + new string('x', SseReader.MaxEventChars + 1)));
+        var line = "data: " + new string('y', 1024 * 1024) + "\n";
+        await Assert.ThrowsAsync<CloudAnswerTooLongException>(() => ReadAllAsync(string.Concat(Enumerable.Repeat(line, (SseReader.MaxEventChars / (1024 * 1024)) + 1))));
+    }
+
+    [Fact]
+    public void TheStreamContextKeepsAtMostTheAnswerLimit()
+    {
+        var context = new CloudStreamContext(null, 1, TimeProvider.System, TimeProvider.System.GetTimestamp(), EstimatingTokenCounter.Generic);
+        context.Append(new string('a', CloudStreamContext.MaxAnswerChars - 1));
+        context.Append("b");
+
+        Assert.Throws<CloudAnswerTooLongException>(() => context.Append("c"));
+        Assert.Equal(CloudStreamContext.MaxAnswerChars, context.Text.Length);
+    }
+
+    [Fact]
     public void RetryAfterReadsMillisecondsSecondsAndDates()
     {
         var now = new DateTimeOffset(2026, 10, 7, 12, 0, 0, TimeSpan.Zero);

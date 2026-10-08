@@ -15,6 +15,12 @@ internal static class AgendaErrors
                 ? $"{DisplayName(options)} is {Megabytes(size)}, larger than the {Megabytes(options.MaxFileBytes)} limit for an agenda. Nothing was imported. Save just the agenda pages in a smaller file, or paste the items as text."
                 : $"{DisplayName(options)} is larger than the {Megabytes(options.MaxFileBytes)} limit for an agenda. Nothing was imported. Save just the agenda pages in a smaller file, or paste the items as text.");
 
+    /// <summary>A Word or Excel package that would unpack to more than the agenda limits (a ZIP bomb, or simply far too big).</summary>
+    public static AgendaImportException PackageTooLarge(AgendaParseOptions options, string what, string detail) =>
+        new(
+            AgendaErrorCodes.FileTooLarge,
+            $"{DisplayName(options)} is {what} that {detail}, more than Memento unpacks for an agenda. Nothing was imported. Copy the agenda into a new document and import that, or paste the items as text.");
+
     public static AgendaImportException ImageTooLarge(AgendaParseOptions options, long width, long height) =>
         new(
             AgendaErrorCodes.ImageTooLarge,
@@ -30,6 +36,21 @@ internal static class AgendaErrors
             AgendaErrorCodes.Unreadable,
             $"{DisplayName(options)} looks like {what} but could not be read; it may be damaged or incomplete. Nothing was imported. Open it in the app that made it and save it again, or paste the items as text.",
             inner);
+
+    /// <summary>A file whose structure no real document has (a DTD in a Word part, nesting thousands deep).</summary>
+    public static AgendaImportException Malformed(AgendaParseOptions options, string what, string why, Exception? inner = null) =>
+        new(
+            AgendaErrorCodes.Unreadable,
+            $"{DisplayName(options)} looks like {what} but {why}, which Word and Excel never write, so it was not read. Nothing was imported. Open it in the app that made it and save it again, or paste the items as text.",
+            inner);
+
+    /// <summary>Parsing ran past <see cref="AgendaParseOptions.ParseTimeout"/>; a real agenda reads in well under a second.</summary>
+    public static AgendaImportException TooSlow(AgendaParseOptions options, string what) =>
+        new(
+            AgendaErrorCodes.Unreadable,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{DisplayName(options)} took longer than {options.ParseTimeout.TotalSeconds:0.#} seconds to read as {what}, so reading it was stopped. Nothing was imported. Copy just the agenda into a new file and import that, or paste the items as text."));
 
     public static AgendaImportException Protected(AgendaParseOptions options, Exception? inner = null) =>
         new(

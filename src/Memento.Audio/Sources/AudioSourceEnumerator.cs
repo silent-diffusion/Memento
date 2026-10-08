@@ -166,7 +166,8 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
             }
             catch (COMException ex)
             {
-                LogSessionsFailed(_logger, SafeName(device), ex.HResult);
+                // The endpoint id, not the friendly name: names often carry a person's name ("Alex's AirPods").
+                LogSessionsFailed(_logger, SafeId(device), ex.HResult);
             }
         }
 
@@ -264,6 +265,18 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
         }
     }
 
+    private static string SafeId(MMDevice device)
+    {
+        try
+        {
+            return device.ID;
+        }
+        catch (COMException)
+        {
+            return "an audio endpoint";
+        }
+    }
+
     private static string? Bus(MMDevice device)
     {
         try
@@ -277,6 +290,6 @@ public sealed partial class AudioSourceEnumerator(ILogger<AudioSourceEnumerator>
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not list audio sessions on {Device} (0x{HResult:X8})")]
-    private static partial void LogSessionsFailed(ILogger logger, string device, int hResult);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not list audio sessions on endpoint {EndpointId} (0x{HResult:X8})")]
+    private static partial void LogSessionsFailed(ILogger logger, string endpointId, int hResult);
 }

@@ -24,7 +24,7 @@ This document fixes the technical decisions for the Memento Windows application.
 | CI | GitHub Actions on `windows-latest`: build, test, lint on every PR; tag `v*` publishes a release with `Setup.exe` and the Velopack update feed. | Every release is reproducible from a tag. |
 | Versioning | SemVer. `0.y.z` until the first public release `1.0.0`. | |
 
-**Engine philosophy.** Every engine (transcription, diarization, OCR, and later anything else) is selected in Settings from a catalog of built-in and downloadable open-source options. A single **Model manager** in Core handles download, SHA-256 verification, storage under `%LOCALAPPDATA%\Memento\models\<engine>\`, removal, and reporting installed state and size. New engines register with the catalog; they do not add UI outside Settings.
+**Engine philosophy.** Every engine (transcription, diarization, OCR, and later anything else) is selected in Settings from a catalog of built-in and downloadable open-source options. A single **Model manager** in Core handles download, SHA-256 verification, storage under `%LOCALAPPDATA%\Memento\models\<engine>\`, removal, and reporting installed state and size. Downloads come only from the publishing hosts (huggingface.co, github.com and their CDN hosts, checked again after redirects); a resumed download is appended only when its `Content-Range` matches; each installed file gets a `<file>.verified.json` hash stamp that must match the catalog, the size and the file time before the file is used, and a file without one is hashed once in the background (security audit 2026-10-07). New engines register with the catalog; they do not add UI outside Settings.
 
 **Not in 1.0:** video capture (screen, window, camera). The project schema reserves fields for it so adding it later does not change how recordings are stored.
 
@@ -63,6 +63,7 @@ One channel: WebView2 `postMessage` in both directions, JSON only.
 - **Events** (host → UI): `{ "event": "recording.levels", "payload": { ... } }`. High-rate events (levels, playhead, progress) are throttled on the host to ≤ 30 per second.
 - Method names are `area.verb` (`library.list`, `recording.start`, `transcript.editSegment`, `settings.get`, `export.run`). Every method and event has a C# record in `Memento.Core/Bridge/Contracts/` and a matching TypeScript type in `ui/src/bridge/types.ts`. Keep the two in sync by hand and cover each with a serialization test.
 - The host validates every incoming message; the UI never receives file-system paths it did not ask for and never receives API keys in any form (only "a key is saved" booleans).
+- The page never names a file for the host to read: files come from the host's own picker or a drop the host recorded, and a `path` in a request is refused. File names inside `project.json` are untrusted (a project folder can be copied in) and are resolved only inside the project folder; junctions and symbolic links are never followed when walking, deleting or moving the library. The worker is stopped as hung after 30 minutes without a protocol line. See `docs/SECURITY.md`.
 - Dialogs that need the OS (file pickers, folder pickers, "open Windows settings") are host methods.
 
 The UI is a single page. Navigation is in-page (hub and spoke per the design) and the Library's scroll position, filters and search are kept in UI state when a spoke opens.

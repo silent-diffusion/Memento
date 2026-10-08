@@ -8,6 +8,7 @@ using Memento.Worker;
 // lines to stdout and exits.
 // A "cancel" line (or stdin closing because the app went away) stops the job. Native libraries may print to the
 // process's stdout, so the protocol keeps the original stdout handle and everything else is sent to stderr.
+ErrorDialogs.Suppress();
 var protocolStream = Console.OpenStandardOutput();
 NativeConsole.RedirectStdoutToStderr();
 Console.SetOut(Console.Error);

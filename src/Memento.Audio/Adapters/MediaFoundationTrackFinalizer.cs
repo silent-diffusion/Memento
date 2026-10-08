@@ -136,8 +136,8 @@ public sealed partial class MediaFoundationTrackFinalizer(
         };
     }
 
-    private static string Full(string folder, string relative) =>
-        Path.GetFullPath(Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar)));
+    /// <summary>A file named by the manifest, never outside the project folder (<see cref="ProjectPaths"/>).</summary>
+    private static string Full(string folder, string relative) => ProjectPaths.Resolve(folder, relative);
 
     private static void MarkReadOnly(string path) =>
         File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);

@@ -29,7 +29,7 @@ internal sealed class WebViewPdfPrinter : IPdfPrinter
         {
             var page = Path.Combine(work, "document.html");
             var pdf = Path.Combine(work, "document.pdf");
-            await File.WriteAllTextAsync(page, html, cancellationToken);
+            await File.WriteAllTextAsync(page, PrintPagePolicy.Apply(html), cancellationToken);
             var printed = await application.Dispatcher.InvokeAsync(() => PrintOnUiThreadAsync(application, page, pdf, options, cancellationToken)).Task.Unwrap();
             if (!printed || !File.Exists(pdf))
             {
@@ -55,7 +55,7 @@ internal sealed class WebViewPdfPrinter : IPdfPrinter
     {
         var window = application.MainWindow ?? throw new InvalidOperationException("PDF export needs the Memento window.");
         var handle = new WindowInteropHelper(window).EnsureHandle();
-        var environment = await CoreWebView2Environment.CreateAsync(browserExecutableFolder: null, userDataFolder: AppPaths.WebView2UserData);
+        var environment = await WebViewEnvironmentFactory.CreateAsync();
         var controller = await environment.CreateCoreWebView2ControllerAsync(handle);
         try
         {
@@ -64,9 +64,23 @@ internal sealed class WebViewPdfPrinter : IPdfPrinter
             core.Settings.IsScriptEnabled = false;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.IsWebMessageEnabled = false;
+            core.Settings.AreHostObjectsAllowed = false;
+            core.Settings.AreDevToolsEnabled = false;
+            core.Settings.IsReputationCheckingRequired = false; // shared with the main WebView's user data folder
+            var pageUri = new Uri(page).AbsoluteUri;
+
+            // Only the page itself: no link, refresh or frame may take the printer anywhere else, nor open a window.
+            core.NavigationStarting += (_, e) => e.Cancel = !string.Equals(e.Uri, pageUri, StringComparison.OrdinalIgnoreCase);
+            core.FrameNavigationStarting += (_, e) => e.Cancel = true;
+            core.NewWindowRequested += (_, e) => e.Handled = true;
+            core.DownloadStarting += (_, e) =>
+            {
+                e.Cancel = true;
+                e.Handled = true;
+            };
             var loaded = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             core.NavigationCompleted += (_, e) => loaded.TrySetResult(e.IsSuccess);
-            core.Navigate(new Uri(page).AbsoluteUri);
+            core.Navigate(pageUri);
             using (cancellationToken.Register(() => loaded.TrySetCanceled(cancellationToken)))
             {
                 if (!await loaded.Task.WaitAsync(LoadTimeout, cancellationToken))

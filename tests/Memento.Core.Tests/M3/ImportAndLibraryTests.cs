@@ -27,7 +27,7 @@ public sealed class ImportAndLibraryTests : IDisposable
         File.SetLastWriteTime(source, modified);
         var originalHash = await FileHashes.Sha256Async(source, CancellationToken.None);
 
-        var result = await _m3.ResultAsync("library.importMedia", new { path = source });
+        var result = await _m3.ResultPickingAsync("library.importMedia", source, new { });
         var id = result.GetProperty("recordingId").GetString()!;
         await _m3.Get<MediaImportService>().WhenIdleAsync();
 
@@ -69,7 +69,7 @@ public sealed class ImportAndLibraryTests : IDisposable
     {
         var source = Tone("clip.mp4", seconds: 1);
 
-        var id = (await _m3.ResultAsync("library.importMedia", new { path = source, title = "Product demo", type = "presentation" })).GetProperty("recordingId").GetString()!;
+        var id = (await _m3.ResultPickingAsync("library.importMedia", source, new { title = "Product demo", type = "presentation" })).GetProperty("recordingId").GetString()!;
         await _m3.Get<MediaImportService>().WhenIdleAsync();
 
         var manifest = await _m3.Host.Store.LoadAsync(id, CancellationToken.None);
@@ -84,7 +84,7 @@ public sealed class ImportAndLibraryTests : IDisposable
     public async Task AnImportCutShortByACrashIsMarkedFailedAtLaunchAndCanBeImportedAgain()
     {
         var source = Tone("standup.wav", seconds: 2);
-        var id = (await _m3.ResultAsync("library.importMedia", new { path = source })).GetProperty("recordingId").GetString()!;
+        var id = (await _m3.ResultPickingAsync("library.importMedia", source, new { })).GetProperty("recordingId").GetString()!;
         await _m3.Get<MediaImportService>().WhenIdleAsync();
         var originalHash = await FileHashes.Sha256Async(source, CancellationToken.None);
 
@@ -143,7 +143,7 @@ public sealed class ImportAndLibraryTests : IDisposable
         var notAnImport = await _m3.ErrorAsync("processing.retry", new { recordingId = recording, stage = "stored" });
 
         var source = Tone("gone.wav", seconds: 1);
-        var id = (await _m3.ResultAsync("library.importMedia", new { path = source })).GetProperty("recordingId").GetString()!;
+        var id = (await _m3.ResultPickingAsync("library.importMedia", source, new { })).GetProperty("recordingId").GetString()!;
         await _m3.Get<MediaImportService>().WhenIdleAsync();
         await _m3.Get<ProjectCatalog>().UpdateAsync(id, m => m with { State = ProjectStates.Finalizing }, CancellationToken.None);
         await _m3.Get<Core.Recovery.RecoveryService>().RunAsync(CancellationToken.None);
@@ -161,10 +161,10 @@ public sealed class ImportAndLibraryTests : IDisposable
     {
         var source = _m3.WriteFile("noise.mp3", "ID3 not really audio");
 
-        var error = await _m3.ErrorAsync("library.importMedia", new { path = source });
+        var error = await _m3.ErrorPickingAsync("library.importMedia", source, new { });
         _m3.Picker.Answer = null;
         var cancelled = await _m3.ResultAsync("library.importMedia", new { });
-        var badType = await _m3.ErrorAsync("library.importMedia", new { path = source, type = new string('t', 41) });
+        var badType = await _m3.ErrorPickingAsync("library.importMedia", source, new { type = new string('t', 41) });
 
         Assert.Equal(DomainErrorCodes.LibraryImportUnsupported, error.GetProperty("code").GetString());
         Assert.Contains("\"noise.mp3\" can't be imported", error.GetProperty("message").GetString(), StringComparison.Ordinal);
@@ -221,7 +221,7 @@ public sealed class ImportAndLibraryTests : IDisposable
     public async Task TheLibraryMovesWithEveryFileVerifiedAndBack()
     {
         var id = await _m3.RecordAsync();
-        await _m3.ResultAsync("attachments.add", new { recordingId = id, path = _m3.WriteFile("notes.txt", "notes") });
+        await _m3.ResultPickingAsync("attachments.add", _m3.WriteFile("notes.txt", "notes"), new { recordingId = id });
         var original = _m3.Host.Settings.Current.EffectiveLibraryPath;
         var hashes = await HashesAsync(original);
         var target = _m3.Directory.File("Moved library");

@@ -28,11 +28,24 @@ public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKey
             throw M3Errors.Invalid($"That does not look like an API key: a key is {MinKeyLength} to {MaxKeyLength} characters with no spaces. Nothing was saved. Copy the whole key from the provider's console and paste it again.");
         }
 
+        // Provider keys are printable ASCII. Anything else (a smart quote, a look-alike letter, a zero-width character)
+        // came from a document or chat, and would make the key header invalid when it is sent.
+        if (key.Any(c => c is < '!' or > '~'))
+        {
+            throw M3Errors.Invalid("That does not look like an API key: it contains a character that is not a plain letter, digit or symbol, such as a curly quote or an accented letter. Nothing was saved. Copy the key again from the provider's console rather than from a document or chat, and paste it.");
+        }
+
         try
         {
             await secrets.SetKeyAsync(provider, key, cancellationToken);
         }
-        catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.AiKeyWriteFailed,
+                $"The {AiProviders.DisplayName(provider)} key could not be saved: Windows did not let Memento open its key file ({ex.GetType().Name}); another program may be using it. Nothing was saved and any other saved key is unchanged. Try again in a moment.");
+        }
+        catch (Exception ex) when (ex is CryptographicException or PlatformNotSupportedException)
         {
             throw new BridgeException(
                 DomainErrorCodes.AiKeyWriteFailed,

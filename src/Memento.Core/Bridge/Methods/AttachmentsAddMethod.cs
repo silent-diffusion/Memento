@@ -13,6 +13,9 @@ public sealed class AttachmentsAddMethod(AttachmentService attachments) : Bridge
 
     public override JsonTypeInfo<AttachmentAddResult> ResultTypeInfo => M3BridgeJsonContext.Default.AttachmentAddResult;
 
-    public override Task<AttachmentAddResult> InvokeAsync(AttachmentsAddParams parameters, CancellationToken cancellationToken) =>
-        attachments.AddAsync(parameters.RecordingId, parameters.Path, cancellationToken);
+    public override Task<AttachmentAddResult> InvokeAsync(AttachmentsAddParams parameters, CancellationToken cancellationToken)
+    {
+        PickedFilesOnly.Require(Name, parameters.Path);
+        return attachments.AddAsync(parameters.RecordingId, null, cancellationToken);
+    }
 }

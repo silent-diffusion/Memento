@@ -19,9 +19,14 @@ public sealed class TranscriptIndex
             var first = group.OrderBy(l => l.Part).First();
             _lines[group.Key] = new Entry(group.Key, first.SegmentId, first.Start, first.End, first.Speaker, string.Join(' ', group.OrderBy(l => l.Part).Select(l => l.Text)));
         }
+
+        Speakers = _lines.Values.Select(e => e.Speaker).Where(s => s != PayloadComposer.UnknownSpeaker).Distinct(StringComparer.Ordinal).ToList();
     }
 
     public IReadOnlyCollection<int> Ids => _lines.Keys;
+
+    /// <summary>The speaker labels as the transcript writes them ("Unknown speaker" left out), each once.</summary>
+    public IReadOnlyList<string> Speakers { get; }
 
     public Entry? Find(int? shortId) => shortId is { } id && _lines.TryGetValue(id, out var entry) ? entry : null;
 

@@ -13,6 +13,9 @@ internal static partial class AgendaStructurer
 {
     private const int ImplicitHeadingLevel = 100;
 
+    /// <summary>Ten times the length at which an item is marked too long.</summary>
+    private const int MaxJoinedLength = AgendaLimits.LongItemLength * 10;
+
     public static StructuredAgenda Structure(IReadOnlyList<SourceLine> lines, CancellationToken cancellationToken)
     {
         var entries = Classify(lines, cancellationToken);
@@ -166,14 +169,14 @@ internal static partial class AgendaStructurer
             }
 
             var candidate = entry.Kind == EntryKind.Heading || (entry.Kind == EntryKind.Item && (i == 0 || entry.Text.EndsWith(':')));
-            if (!candidate || entry.Text.Length > 80 || !AgendaWordPattern().IsMatch(entry.Text))
+            if (!candidate || entry.Text.Length > 80 || !RegexGuard.IsMatch(AgendaWordPattern(), entry.Text))
             {
                 continue;
             }
 
-            var bare = BareAgendaPattern().IsMatch(entry.Text);
+            var bare = RegexGuard.IsMatch(BareAgendaPattern(), entry.Text);
             var named = title is null && bare && i > 0 && content[0].Kind is EntryKind.Item or EntryKind.Heading &&
-                content[0].Marker is null && content[0].Time is null && !DetailsLinePattern().IsMatch(content[0].Original);
+                content[0].Marker is null && content[0].Time is null && !RegexGuard.IsMatch(DetailsLinePattern(), content[0].Original);
             if (named)
             {
                 // "Weekly design sync" then "Agenda:": the first line names the meeting.
@@ -255,7 +258,7 @@ internal static partial class AgendaStructurer
                 continue;
             }
 
-            if (PageFurniturePattern().IsMatch(entry.Original))
+            if (RegexGuard.IsMatch(PageFurniturePattern(), entry.Original))
             {
                 entry.Kind = EntryKind.Details;
                 details.Add(entry);
@@ -276,7 +279,7 @@ internal static partial class AgendaStructurer
                 continue;
             }
 
-            if (entry.Kind == EntryKind.Heading && PeopleHeadingPattern().IsMatch(entry.Text))
+            if (entry.Kind == EntryKind.Heading && RegexGuard.IsMatch(PeopleHeadingPattern(), entry.Text))
             {
                 entry.Kind = EntryKind.Details;
                 details.Add(entry);
@@ -291,14 +294,14 @@ internal static partial class AgendaStructurer
                 continue;
             }
 
-            if (entry.Kind == EntryKind.Item && entry.Marker is null && (DetailsLinePattern().IsMatch(entry.Original) || DateLinePattern().IsMatch(entry.Original)))
+            if (entry.Kind == EntryKind.Item && entry.Marker is null && (RegexGuard.IsMatch(DetailsLinePattern(), entry.Original) || RegexGuard.IsMatch(DateLinePattern(), entry.Original)))
             {
                 entry.Kind = EntryKind.Details;
                 details.Add(entry);
                 continue;
             }
 
-            if (entry.Kind == EntryKind.Item && entry.Marker is null && entry.Time is not null && TimeOnlyPattern().IsMatch(entry.Original))
+            if (entry.Kind == EntryKind.Item && entry.Marker is null && entry.Time is not null && RegexGuard.IsMatch(TimeOnlyPattern(), entry.Original))
             {
                 entry.Kind = EntryKind.Details;
                 details.Add(entry);
@@ -325,7 +328,9 @@ internal static partial class AgendaStructurer
                 continue;
             }
 
-            if (previous is not null && entry.Marker is null && entry.Time is null && entry.Line.MayContinue && !entry.PrecededByBlank &&
+            // An item that has grown past MaxJoinedLength takes no more wrapped lines: each join copies the text, so an
+            // unbounded run of continuation lines would be quadratic. The rest become items of their own.
+            if (previous is not null && previous.Text.Length < MaxJoinedLength && entry.Marker is null && entry.Time is null && entry.Line.MayContinue && !entry.PrecededByBlank &&
                 (previous.Marker is not null || previous.Time is not null) &&
                 (entry.Indent > previous.Indent || (StartsLowercase(entry.Text) && !EndsSentence(previous.Text) && entry.Indent >= previous.Indent)))
             {
@@ -390,7 +395,7 @@ internal static partial class AgendaStructurer
             return;
         }
 
-        if (!SignOffPattern().IsMatch(tail[0].Text))
+        if (!RegexGuard.IsMatch(SignOffPattern(), tail[0].Text))
         {
             return;
         }
@@ -785,28 +790,28 @@ internal static partial class AgendaStructurer
         return first + " " + second;
     }
 
-    [GeneratedRegex(@"\bagenda\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\bagenda\b", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex AgendaWordPattern();
 
-    [GeneratedRegex(@"^(?:the\s+|meeting\s+|today's\s+)?agenda\s*[:：]?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:the\s+|meeting\s+|today's\s+)?agenda\s*[:：]?$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex BareAgendaPattern();
 
-    [GeneratedRegex(@"^(?:date|day|time|when|where|location|venue|place|room|address|chair|chaired by|chairperson|facilitator|facilitated by|organi[sz]er|host|hosted by|note[- ]?taker|minutes|scribe|dial[- ]in|meeting link|link|call|zoom|teams|meet|conference|meeting id|passcode|objective|purpose|subject|re|from|to|cc|sent|attendees|participants|present|invitees|apologies|absent|guests|duration)\s*[:：]\s*\S", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:date|day|time|when|where|location|venue|place|room|address|chair|chaired by|chairperson|facilitator|facilitated by|organi[sz]er|host|hosted by|note[- ]?taker|minutes|scribe|dial[- ]in|meeting link|link|call|zoom|teams|meet|conference|meeting id|passcode|objective|purpose|subject|re|from|to|cc|sent|attendees|participants|present|invitees|apologies|absent|guests|duration)\s*[:：]\s*\S", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex DetailsLinePattern();
 
-    [GeneratedRegex(@"^(?:attendees|participants|present|invitees|apologies|absent|attendance|distribution|guests|people|who)\s*[:：]?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:attendees|participants|present|invitees|apologies|absent|attendance|distribution|guests|people|who)\s*[:：]?$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex PeopleHeadingPattern();
 
-    [GeneratedRegex(@"^(?:(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\.?,?\s+)?(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4})(?:\s*[,·|–—-]\s*.*)?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\.?,?\s+)?(?:[0-9]{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+[0-9]{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+[0-9]{1,2}(?:st|nd|rd|th)?,?\s+[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[/.][0-9]{1,2}[/.][0-9]{2,4})(?:\s*[,·|–—-]\s*.*)?$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex DateLinePattern();
 
-    [GeneratedRegex(@"^\s*\d{1,2}[:.h]\d{2}(?:\s*[ap]\.?m\.?)?\s*(?:-|–|—|to)\s*\d{1,2}[:.h]\d{2}(?:\s*[ap]\.?m\.?)?\s*$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*[0-9]{1,2}[:.h][0-9]{2}(?:\s*[ap]\.?m\.?)?\s*(?:-|–|—|to)\s*[0-9]{1,2}[:.h][0-9]{2}(?:\s*[ap]\.?m\.?)?\s*$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex TimeOnlyPattern();
 
-    [GeneratedRegex(@"^(?:page\s+\d+(?:\s+of\s+\d+)?|\d+\s*/\s*\d+|-\s*\d+\s*-)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:page\s+[0-9]+(?:\s+of\s+[0-9]+)?|[0-9]+\s*/\s*[0-9]+|-\s*[0-9]+\s*-)$", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex PageFurniturePattern();
 
-    [GeneratedRegex(@"^(?:thanks|thank you|many thanks|best|best regards|regards|kind regards|cheers|see you|talk soon)\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:thanks|thank you|many thanks|best|best regards|regards|kind regards|cheers|see you|talk soon)\b", RegexOptions.IgnoreCase, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex SignOffPattern();
 
     private enum EntryKind

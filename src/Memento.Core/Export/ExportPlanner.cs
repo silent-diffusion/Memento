@@ -106,7 +106,9 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             foreach (var attachment in files)
             {
                 var path = Full(folder, attachment.File);
-                items.Add(new ExportItem(ExportComponents.Attachments, attachment.Name, ExportNaming.AttachmentsFolder, new FileInfo(path).Length, (destination, ct) => CopyAsync(path, destination, ct)));
+                // The name comes from project.json: a plain file name only (no folders, drive or traversal).
+                var name = FileNames.SanitizeKeepingExtension(attachment.Name, "Attachment");
+                items.Add(new ExportItem(ExportComponents.Attachments, name, ExportNaming.AttachmentsFolder, new FileInfo(path).Length, (destination, ct) => CopyAsync(path, destination, ct)));
             }
         }
 
@@ -168,8 +170,8 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         return ExportJson.Write(root);
     }
 
-    private static string Full(string folder, string relative) =>
-        Path.GetFullPath(Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar)));
+    /// <summary>A file named by the manifest, never outside the project folder (<see cref="ProjectPaths"/>).</summary>
+    private static string Full(string folder, string relative) => ProjectPaths.Resolve(folder, relative);
 
     private static ExportItem TextItem(string component, string name, string? subfolder, string content)
     {
