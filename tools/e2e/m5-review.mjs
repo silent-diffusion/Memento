@@ -1,7 +1,10 @@
 // Review editing end to end, through the real UI of the published app over the DevTools protocol (mouse clicks, typing
 // and key presses; the bridge is only read): the speaker menu's search adds a new speaker, a line is corrected in place
 // by clicking its words, a highlight is named in the outline, and Undo (the header button, Ctrl+Z and Ctrl+Y) takes
-// each back and does it again. Every step is checked against the project's files on disk and saves a screenshot.
+// each back and does it again; then (after 1.2.0) the transcript is filtered by a speaker from the People list, the lines
+// shown are copied to the Windows clipboard (read back with PowerShell; the run overwrites the clipboard), and the
+// transcript is exported as Markdown and text without timestamps and speakers. Every step is checked against the
+// project's files on disk (or the clipboard, or the exported files) and saves a screenshot.
 //
 //   node tools/e2e/m5-review.mjs --audio <wav> --models <dir> [--data <dir>] [--out <dir>] [--port 9783]
 //
@@ -10,8 +13,8 @@
 // --models is a models folder (whisper and sherpa-onnx are copied; the run downloads nothing). The app runs with
 // LOCALAPPDATA pointed at --data (default artifacts/e2e-data-m5), so the real library is never touched.
 
-import { spawn } from 'node:child_process';
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Run, option, repoRoot, sleep } from './h1-lib.mjs';
 
@@ -135,6 +138,70 @@ try {
     await run.shot('merge-menu');
     await page().key('Escape');
   }
+
+  // 6. (after 1.2.0) Filter by a speaker from the People list: only their lines show, with the count line.
+  await page().eval(`document.activeElement?.blur()`);
+  const now = transcriptOf(id);
+  const named = now.speakers.find((s) => now.segments.some((seg) => seg.speaker === s.id));
+  const theirs = now.segments.filter((seg) => seg.speaker === named.id && seg.text.trim() !== '');
+  await page().click({ selector: `.person[data-speaker-id="${named.id}"] .person-filter` });
+  await page().waitFor(`!!document.querySelector('.tx-filter-line-text')`, 'the filter line');
+  const filterLine = await page().text('.tx-filter-line-text');
+  run.check('the filter line counts the speaker’s lines', filterLine === `Showing ${theirs.length} of ${now.segments.length} ${now.segments.length === 1 ? 'line' : 'lines'} · ${named.name}`, filterLine);
+  const shownSpeakers = await page().eval(`[...document.querySelectorAll('.segm .segm-speaker-name')].map((n) => n.textContent)`);
+  run.check('only that speaker’s lines are shown', shownSpeakers.length === theirs.length && shownSpeakers.every((n) => n === named.name), shownSpeakers.join(', '));
+  run.check('the People row is pressed with the count', (await page().eval(`document.querySelector('.person[data-speaker-id="${named.id}"] .person-count')?.textContent ?? ''`)) === `${theirs.length} ${theirs.length === 1 ? 'line' : 'lines'}`);
+  await run.shot('filtered-by-speaker');
+
+  // 7. Copy the lines shown: the host writes the Windows clipboard; read it back with PowerShell.
+  await page().click({ selector: '.tx-filter-line .btn', name: 'Copy' });
+  await page().waitFor(`(document.querySelector('.undo-status')?.textContent ?? '').startsWith('Copied')`, 'the Copied status', 10_000);
+  const copiedStatus = await status();
+  run.check('the copy is confirmed quietly', copiedStatus === `Copied ${theirs.length} of ${now.segments.length} lines as text`, copiedStatus);
+  const clipboard = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-Clipboard -Raw'], { encoding: 'utf8' });
+  const others = now.segments.filter((seg) => seg.speaker !== named.id && seg.text.trim() !== '');
+  run.check('the clipboard holds that speaker’s lines', theirs.every((seg) => clipboard.includes(`${named.name}: ${seg.text.trim().replace(/\s+/g, ' ')}`)), clipboard.slice(0, 300));
+  run.check('and no one else’s', others.every((seg) => !clipboard.includes(seg.text.trim().replace(/\s+/g, ' '))));
+  await run.shot('copied');
+  await page().key('Escape');
+  await page().waitFor(`!document.querySelector('.tx-filter-line')`, 'Esc to show every line');
+  run.check('Esc shows every line again', true);
+
+  // 8. Export the transcript as Markdown and text without timestamps and speakers; the files and the manifest say so.
+  const exportRoot = join(out, 'export');
+  rmSync(exportRoot, { recursive: true, force: true });
+  mkdirSync(exportRoot, { recursive: true });
+  await page().click({ name: 'Export' });
+  await page().waitFor(`!!document.querySelector('.export-dialog') && !document.querySelector('.export-summary')?.innerText.includes('Estimating')`, 'the Export dialog', 30_000);
+  for (const row of ['exp-audio', 'exp-tracks', 'exp-documents', 'exp-details', 'exp-attachments']) {
+    if (await page().eval(`document.querySelector('#${row}')?.checked === true`)) await page().click({ selector: `#${row}` });
+  }
+  if (!(await page().eval(`document.querySelector('#exp-transcript')?.checked === true`))) await page().click({ selector: '#exp-transcript' });
+  await page().click({ selector: '[aria-label^="Format for Transcript:"]' });
+  for (const name of ['Markdown', 'Text', 'JSON']) {
+    const on = await page().eval(`[...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === ${JSON.stringify(name)})?.getAttribute('aria-selected') === 'true'`);
+    if ((name === 'JSON') === on) await page().eval(`[...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === ${JSON.stringify(name)}).click()`);
+  }
+  await page().key('Escape');
+  await page().click({ selector: '[role="switch"][aria-label="Timestamps"]' });
+  await page().click({ selector: '[role="switch"][aria-label="Speakers"]' });
+  const picked = answerDialog('Choose where to save the copies', exportRoot);
+  await page().click({ name: 'Change export folder' });
+  await picked;
+  await page().waitFor(`(document.querySelector('.export-path')?.innerText ?? '').startsWith(${JSON.stringify(exportRoot)})`, 'the export path', 20_000);
+  await run.shot('export-text-options');
+  await page().click({ selector: '.export-foot .btn.p' });
+  await page().waitFor(`[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === 'Open folder')`, 'the export to finish', 120_000);
+  const [folder] = readdirSync(exportRoot);
+  const exported = join(exportRoot, folder);
+  const md = readFileSync(join(exported, `${folder} - transcript.md`), 'utf8');
+  const txt = readFileSync(join(exported, `${folder} - transcript.txt`), 'utf8');
+  const names = now.speakers.map((s) => s.name);
+  run.check('the Markdown has no timestamps or speakers', !/\[\d+:\d\d:\d\d\]/.test(md) && names.every((n) => !md.includes(n)), md.slice(0, 300));
+  run.check('the text has no timestamps or speakers and every line', !/\[\d+:\d\d:\d\d\]/.test(txt) && names.every((n) => !txt.includes(n)) && now.segments.every((seg) => seg.text.trim() === '' || txt.includes(seg.text.trim().replace(/\s+/g, ' '))), txt.slice(0, 300));
+  const exportManifest = JSON.parse(readFileSync(join(exported, 'manifest.json'), 'utf8'));
+  run.check('the manifest records the options', JSON.stringify(exportManifest.transcriptOptions) === JSON.stringify({ timestamps: false, speakers: false, layout: 'auto' }), JSON.stringify(exportManifest.transcriptOptions));
+  await run.shot('export-done');
   await run.shot('done');
   await run.app.close();
 } catch (error) {
