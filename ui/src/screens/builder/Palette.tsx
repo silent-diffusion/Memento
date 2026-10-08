@@ -43,12 +43,19 @@ export function startDrag(event: DragEvent, text: string, effect: 'copy' | 'move
 
 interface PaletteProps {
   modules: readonly ModuleInfo[];
+  /** Modules already on the template: shown greyed with "in use", still addable (a second copy). */
+  inUse: ReadonlySet<ModuleInfo['id']>;
   onAdd: (module: ModuleInfo) => void;
   onDragStart: (payload: DragPayload) => void;
   onDragEnd: () => void;
 }
 
-export function Palette({ modules, onAdd, onDragStart, onDragEnd }: PaletteProps): JSX.Element {
+/** The palette item's accessible name: "Add Decisions", or "Add Decisions, in use" once it is placed. */
+export function paletteItemLabel(module: Pick<ModuleInfo, 'name'>, inUse: boolean): string {
+  return inUse ? `Add ${module.name}, in use` : `Add ${module.name}`;
+}
+
+export function Palette({ modules, inUse, onAdd, onDragStart, onDragEnd }: PaletteProps): JSX.Element {
   const [query, setQuery] = useState('');
   const groups = paletteGroups(modules, query);
   return (
@@ -98,11 +105,11 @@ export function Palette({ modules, onAdd, onDragStart, onDragEnd }: PaletteProps
               {group.items.map((m) => (
                 <button
                   key={m.id}
-                  class="pal"
+                  class={inUse.has(m.id) ? 'pal pal--in-use' : 'pal'}
                   type="button"
                   draggable
-                  aria-label={`Add ${m.name}`}
-                  title={m.description}
+                  aria-label={paletteItemLabel(m, inUse.has(m.id))}
+                  title={inUse.has(m.id) ? `${m.description} Already in this template; adding it again places a second copy.` : m.description}
                   data-module={m.id}
                   onClick={() => {
                     onAdd(m);
@@ -115,6 +122,11 @@ export function Palette({ modules, onAdd, onDragStart, onDragEnd }: PaletteProps
                 >
                   <DragHandleIcon size={14} class="pal-handle" />
                   <span class="pal-name">{m.name}</span>
+                  {inUse.has(m.id) ? (
+                    <span class="pal-in-use" aria-hidden="true">
+                      in use
+                    </span>
+                  ) : null}
                   <PlusIcon size={14} class="pal-plus" />
                 </button>
               ))}

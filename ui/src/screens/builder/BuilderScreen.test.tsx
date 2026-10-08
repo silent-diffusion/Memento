@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { MockOptions } from '../../bridge/mock';
 import type { GenerationConfirmParams, GenerationPreviewParams, GenerationStartParams } from '../../bridge/types';
 import { button, click, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
+import { expectNeverSentRows } from '../../testing/neverSent';
 import { PREVIEW_DEBOUNCE_MS, PROVIDER_RECHECK_MS } from './BuilderScreen';
 
 const DESIGN = '20261005-160000-dsrev';
@@ -98,6 +99,35 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
     expect(document.querySelector('.palette-empty')?.textContent).toBe('No module matches “zzz”.');
   });
 
+  it('greys the palette modules already on the template, live, and still adds a second copy', async () => {
+    await open();
+    const pal = (id: string): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>(`.pal[data-module="${id}"]`);
+    const inUse = (): string[] => [...document.querySelectorAll<HTMLElement>('.pal.pal--in-use')].map((p) => p.dataset.module ?? '');
+    // The design template's nine modules are in use; the rest of the catalog is not.
+    expect(inUse().sort()).toEqual(['actionItems', 'agenda', 'decisions', 'discussion', 'executiveSummary', 'meetingPurpose', 'nextMeeting', 'openQuestions', 'participants']);
+    expect(pal('decisions')?.getAttribute('aria-label')).toBe('Add Decisions, in use');
+    expect(pal('decisions')?.querySelector('.pal-in-use')?.textContent).toBe('in use');
+    expect(pal('decisions')?.draggable).toBe(true);
+    expect(pal('quote')?.getAttribute('aria-label')).toBe('Add Quote');
+    expect(pal('quote')?.querySelector('.pal-in-use')).toBeNull();
+
+    // Adding one greys it at once; removing the card brings it back.
+    await click(pal('quote'));
+    expect(pal('quote')?.getAttribute('aria-label')).toBe('Add Quote, in use');
+    await click(button('Remove Quote'));
+    expect(pal('quote')?.classList.contains('pal--in-use')).toBe(false);
+    expect(pal('quote')?.getAttribute('aria-label')).toBe('Add Quote');
+
+    // A module in use can be added again: two Decisions sections; removing one keeps it in use.
+    await click(pal('decisions'));
+    expect(order().filter((r) => r === 'Decisions' || r.split(' | ').includes('Decisions'))).toHaveLength(2);
+    expect(order().at(-1)).toBe('Decisions');
+    await click(button('Remove Decisions'));
+    expect(pal('decisions')?.classList.contains('pal--in-use')).toBe(true);
+    await click(button('Remove Decisions'));
+    expect(pal('decisions')?.classList.contains('pal--in-use')).toBe(false);
+  });
+
   it('moves cards with the keyboard and the buttons, removes with Delete and puts it back with Ctrl+Z', async () => {
     await open();
     const summary = head('Executive summary');
@@ -143,7 +173,7 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
   it('sends exactly the ticked inputs to generation.preview and shows the payload read-only', async () => {
     await open();
     await click(document.querySelector('#builder-tab-inputs'));
-    const checks = [...document.querySelectorAll<HTMLLabelElement>('.input-check')];
+    const checks = [...document.querySelectorAll<HTMLElement>('.input-check')];
     expect(checks.map((c) => c.querySelector('.input-name')?.textContent)).toEqual([
       'Transcript',
       'Recording details',
@@ -155,9 +185,9 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
       'Audio',
       'Video',
     ]);
-    const audio = checks[7]?.querySelector('input');
-    expect(audio?.disabled).toBe(true);
-    expect(checks[7]?.textContent).toContain('never sent');
+    // Audio and video are never sent: greyed rows with a lock and a note, not checkboxes.
+    expect(document.querySelectorAll('#builder-panel-inputs input[type="checkbox"]')).toHaveLength(7);
+    expectNeverSentRows(checks.slice(7));
     // Attachments are not allowed in Settings › AI and privacy by default.
     expect(checks[5]?.querySelector('input')?.disabled).toBe(true);
     expect(checks[5]?.textContent).toContain('off in Settings');

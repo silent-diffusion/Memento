@@ -28,7 +28,7 @@ import { Palette } from './Palette';
 import { PreviewPanel, type InputRow } from './PreviewPanel';
 import { layoutOfDocument } from './regenerate';
 import { ConfirmSendDialog, PayloadSheet } from './SendDialogs';
-import { initialStructure, moduleCount, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
+import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
 
 /** The preview paper is asked for once changes pause this long. */
@@ -282,6 +282,8 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   }, [bridge, waitingForProvider]);
   const word = documentWord(template?.name ?? 'document');
   const count = moduleCount(structure.rows);
+  // The palette greys the modules already placed; it updates as modules are added or removed.
+  const inUse = useMemo(() => modulesInUse(structure.rows), [structure.rows]);
   const style = styles.find((s) => s.id === template?.styleId) ?? null;
   const backRoute: Route = recordingId === null ? { name: 'settings', section: 'documents' } : { name: 'review', recordingId };
   const backLabel = recordingId === null ? 'Settings' : (project?.summary.title ?? store.library.value?.recordings.find((r) => r.id === recordingId)?.title ?? 'Recording');
@@ -477,6 +479,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
             </section>
           ) : (
             <Palette
+              inUse={inUse}
               modules={modules}
               onAdd={(m) => {
                 dispatch({ type: 'append', module: m });

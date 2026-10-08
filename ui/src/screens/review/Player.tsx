@@ -1,13 +1,14 @@
 // The Review player strip (DESIGN.md §9, §5.11), transcribed from renders/Review.dc.html: waveform
-// from peaks.json, the scrubber under it, transport, the mono position, speed, transcript search and
-// Highlight. The real <audio> element plays the host's mixUrl.
+// from peaks.json, the scrubber under it, transport, the mono position, speed, Skip silences,
+// transcript search and Highlight. The real <audio> element plays the host's mixUrl.
 import type { JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { TranscriptSearchMatch } from '../../bridge/types';
 import { BackTenIcon, ChevronDownIcon, ChevronUpIcon, FlagIcon, ForwardTenIcon, PauseIcon, PlayIcon, SearchIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
 import { formatDuration } from '../../format/duration';
 import { parsePeaks, PLAYBACK_RATES, rateLabel, resamplePeaks, scrubKeyTarget, waveBarHeight } from '../../format/player';
+import { createSilenceSkipper, skippedBars, skippedCaption, SKIPPED_CAPTION_MS, type Silence, type SilenceSkipper } from '../../format/silences';
 import { matchCountText } from '../../format/transcript';
 import type { SearchApi } from './useTranscript';
 
@@ -56,20 +57,46 @@ export interface PlayerApi {
   durationMs: number;
   playing: boolean;
   rate: number;
+  /** A manual seek (buttons, scrubber, chapters, lines, search): Skip silences waits 1 s after it. */
   seek: (ms: number) => void;
   toggle: () => void;
   setRate: (rate: number) => void;
+  /** The scrubber is held: Skip silences never jumps meanwhile. */
+  setScrubbing: (scrubbing: boolean) => void;
+  /** The last jump over a silence (how long, where it landed) while its caption shows; `id` restarts the fade. */
+  skipped: { seconds: number; atMs: number; id: number } | null;
 }
 
-/** The <audio> element's state. Without media the position still moves, so chapters can be placed. */
-export function usePlayer(mixUrl: string | null, fallbackDurationMs: number): PlayerApi & { audioRef: { current: HTMLAudioElement | null } } {
+/**
+ * The <audio> element's state. Without media the position still moves, so chapters can be placed.
+ * `silences` (Skip silences on) are jumped over while playing, from the time-update loop.
+ */
+export function usePlayer(
+  mixUrl: string | null,
+  fallbackDurationMs: number,
+  silences: readonly Silence[] | null = null,
+): PlayerApi & { audioRef: { current: HTMLAudioElement | null } } {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [positionMs, setPositionMs] = useState(0);
   const [mediaDurationMs, setMediaDurationMs] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [rate, setRateState] = useState(1);
+  const [skipped, setSkipped] = useState<{ seconds: number; atMs: number; id: number } | null>(null);
   const pendingSeek = useRef<number | null>(null);
   const rateRef = useRef(1);
+  const silencesRef = useRef(silences);
+  silencesRef.current = silences;
+  const skipperRef = useRef<SilenceSkipper | null>(null);
+  skipperRef.current ??= createSilenceSkipper();
+  const skipper = skipperRef.current;
+  const captionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      clearTimeout(captionTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -77,8 +104,30 @@ export function usePlayer(mixUrl: string | null, fallbackDurationMs: number): Pl
       return undefined;
     }
     let frame = 0;
+    /** While playing with Skip silences on: jumps over the gap the playhead is in. True if it jumped. */
+    const skipSilence = (): boolean => {
+      const gaps = silencesRef.current;
+      if (gaps === null || audio.paused) {
+        return false;
+      }
+      const from = audio.currentTime;
+      const target = skipper.check(from, gaps);
+      if (target === null) {
+        return false;
+      }
+      audio.currentTime = target;
+      setPositionMs(target * 1000);
+      setSkipped((last) => ({ seconds: target - from, atMs: target * 1000, id: (last?.id ?? 0) + 1 }));
+      clearTimeout(captionTimer.current);
+      captionTimer.current = setTimeout(() => {
+        setSkipped(null);
+      }, SKIPPED_CAPTION_MS);
+      return true;
+    };
     const tick = (): void => {
-      setPositionMs(audio.currentTime * 1000);
+      if (!skipSilence()) {
+        setPositionMs(audio.currentTime * 1000);
+      }
       if (!audio.paused) {
         frame = requestAnimationFrame(tick);
       }
@@ -103,6 +152,9 @@ export function usePlayer(mixUrl: string | null, fallbackDurationMs: number): Pl
     const onTime = (): void => {
       if (audio.paused) {
         setPositionMs(audio.currentTime * 1000);
+      } else {
+        // Animation frames stop while the window is hidden; time updates keep the skipping going.
+        skipSilence();
       }
     };
     audio.addEventListener('loadedmetadata', onMeta);
@@ -124,6 +176,7 @@ export function usePlayer(mixUrl: string | null, fallbackDurationMs: number): Pl
 
   const seek = (ms: number): void => {
     const target = Math.max(0, Math.min(durationMs, ms));
+    skipper.noteManualSeek();
     setPositionMs(target);
     const audio = audioRef.current;
     if (audio !== null && mixUrl !== null && audio.readyState >= 1) {
@@ -160,6 +213,8 @@ export function usePlayer(mixUrl: string | null, fallbackDurationMs: number): Pl
         audioRef.current.playbackRate = next;
       }
     },
+    setScrubbing: skipper.setScrubbing,
+    skipped,
   };
 }
 
@@ -171,10 +226,23 @@ interface PlayerStripProps {
   /** Null until there is a transcript to search. */
   search: SearchApi | null;
   onJump: (match: TranscriptSearchMatch) => void;
+  skip: SkipSilencesState;
 }
 
-function Waveform({ player, peaks }: { player: PlayerApi; peaks: PeaksState }): JSX.Element {
+/** The Skip silences chip: on or off, and whether there is a transcript to find the silences in. */
+export interface SkipSilencesState {
+  available: boolean;
+  on: boolean;
+  onToggle: (on: boolean) => void;
+  /** The silences that are skipped while it is on. */
+  gaps: readonly Silence[];
+}
+
+function Waveform({ player, peaks, skipped }: { player: PlayerApi; peaks: PeaksState; skipped: readonly Silence[] | null }): JSX.Element {
   const played = player.durationMs > 0 ? player.positionMs / player.durationMs : 0;
+  const barCount = peaks.kind === 'ready' ? peaks.bars.length : 0;
+  // Skip silences on: the bars standing for skipped time are dimmed.
+  const dimmed = useMemo(() => (skipped === null ? null : skippedBars(barCount, player.durationMs, skipped)), [skipped, barCount, player.durationMs]);
   if (peaks.kind !== 'ready') {
     const text =
       peaks.kind === 'failed'
@@ -198,7 +266,11 @@ function Waveform({ player, peaks }: { player: PlayerApi; peaks: PeaksState }): 
       }}
     >
       {peaks.bars.map((value, i) => (
-        <div key={i} class={i / peaks.bars.length < played ? 'wave-bar played' : 'wave-bar'} style={{ height: `${waveBarHeight(value)}px` }} />
+        <div
+          key={i}
+          class={`wave-bar${i / peaks.bars.length < played ? ' played' : ''}${dimmed?.[i] === true ? ' skipped' : ''}`}
+          style={{ height: `${waveBarHeight(value)}px` }}
+        />
       ))}
     </div>
   );
@@ -231,6 +303,7 @@ function Scrubber({ player }: { player: PlayerApi }): JSX.Element {
       }}
       onPointerDown={(event) => {
         dragging.current = true;
+        player.setScrubbing(true);
         event.currentTarget.setPointerCapture(event.pointerId);
         seekAt(event, event.currentTarget);
       }}
@@ -241,6 +314,11 @@ function Scrubber({ player }: { player: PlayerApi }): JSX.Element {
       }}
       onPointerUp={() => {
         dragging.current = false;
+        player.setScrubbing(false);
+      }}
+      onPointerCancel={() => {
+        dragging.current = false;
+        player.setScrubbing(false);
       }}
     >
       <div class="scrubber-track">
@@ -325,10 +403,18 @@ function TranscriptSearchField({ search, onJump }: { search: SearchApi | null; o
   );
 }
 
-export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump }: PlayerStripProps): JSX.Element {
+export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump, skip }: PlayerStripProps): JSX.Element {
+  const skipping = skip.available && skip.on;
+  const landedAt = player.durationMs > 0 && player.skipped !== null ? Math.min(1, player.skipped.atMs / player.durationMs) : 0;
   return (
     <div class="player">
-      <Waveform player={player} peaks={peaks} />
+      {/* Where playback landed after a jump; visual only (the chip's pressed state says it is on). */}
+      {skipping && player.skipped !== null ? (
+        <span key={player.skipped.id} class="mono player-skipped" aria-hidden="true" style={{ left: `clamp(72px, calc(32px + ${landedAt} * (100% - 64px)), calc(100% - 72px))` }}>
+          {skippedCaption(player.skipped.seconds)}
+        </span>
+      ) : null}
+      <Waveform player={player} peaks={peaks} skipped={skipping ? skip.gaps : null} />
       <Scrubber player={player} />
       <div class="player-controls">
         <button
@@ -376,6 +462,18 @@ export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJu
             }}
           />
         </div>
+        <button
+          class={skipping ? 'chip on player-silences' : 'chip player-silences'}
+          type="button"
+          aria-pressed={skipping}
+          disabled={!skip.available}
+          title={skip.available ? 'Jump over pauses longer than 1.5 s between transcript lines' : 'Available once transcribed'}
+          onClick={() => {
+            skip.onToggle(!skip.on);
+          }}
+        >
+          Skip silences
+        </button>
         <span class="player-spacer" />
         <TranscriptSearchField search={search} onJump={onJump} />
         <button class="btn ghost spoke-ghost" type="button" onClick={onHighlight}>

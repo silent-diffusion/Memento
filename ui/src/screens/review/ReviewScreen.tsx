@@ -12,6 +12,8 @@ import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
 import { formatDuration } from '../../format/duration';
 import { activeChapterIndex } from '../../format/player';
+import { silenceGaps } from '../../format/silences';
+import { useUiFlag } from '../../state/uiPrefs';
 import { peopleWording, typeName } from '../../format/recording';
 import { calendarDaysBetween, formatClock, formatWhen, parseIso } from '../../format/when';
 import { goToLibrary, openRecord, requestDelete } from '../../state/actions';
@@ -19,7 +21,8 @@ import { useServices } from '../../state/context';
 import { createDetailsSaver, type DetailsSaver } from '../../state/detailsSaver';
 import { PlayerStrip, usePeaks, usePlayer } from './Player';
 import { DetailsPane, OutlinePane, type DetailsTab } from './ReviewPanes';
-import { TranscriptPane } from './TranscriptPane';
+import { TRANSCRIPT_SCROLLER, TranscriptPane } from './TranscriptPane';
+import { FloatingPopovers } from '../../components/Floating';
 import { useTranscript, useTranscriptSearch } from './useTranscript';
 import { rememberPlayhead } from '../docview/playhead';
 
@@ -133,7 +136,11 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     [bridge, recordingId],
   );
 
-  const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0);
+  // Skip silences (remembered on this PC): the gaps between the transcript's segments.
+  const [skipSilences, setSkipSilences] = useUiFlag('review.skipSilences', false);
+  const silences = useMemo(() => silenceGaps(transcript?.segments ?? []), [transcript]);
+  const canSkip = transcript !== null && transcript.segments.length > 0;
+  const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0, canSkip && skipSilences ? silences : null);
   const peaks = usePeaks(project?.peaksUrl ?? null);
   // M4: the viewer's Insert timestamp starts where the player is.
   useEffect(() => {
@@ -326,106 +333,115 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
           </div>
         </main>
       ) : (
-        <div class="review-panes">
-          <OutlinePane
-            project={project}
-            positionMs={player.positionMs}
-            onSeek={player.seek}
-            speakers={speakersIdentified ? transcript.speakers : null}
-            onAddChapter={(atMs, chapterTitle) => {
-              bridge
-                .call('annotations.addChapter', { recordingId, chapter: { atMs, title: chapterTitle } })
-                .then(({ chapters }) => {
-                  patch({ chapters });
-                })
-                .catch(fail('The chapter was not added'));
-            }}
-            onAddTopic={(label) => {
-              bridge
-                .call('annotations.addTopic', { recordingId, topic: { label } })
-                .then(({ topics }) => {
-                  patch({ topics });
-                })
-                .catch(fail('The topic was not added'));
-            }}
-            onRemoveTopic={(topic) => {
-              bridge
-                .call('annotations.removeTopic', { recordingId, topicId: topic.id })
-                .then(({ topics }) => {
-                  patch({ topics });
-                })
-                .catch(fail('The topic was not removed'));
-            }}
-            onRenamePerson={(index, name) => {
-              const participants = project.details.participants.map((p, i) => (i === index ? name : p));
-              updateDetails({ participants }, 'The name was not changed');
-            }}
-            onRenameSpeaker={(speaker, name) => {
-              void transcriptApi.renameSpeaker(speaker.id, name).then(report(`${speaker.name} was not renamed`));
-            }}
-            onMergeSpeakers={(from, into) => {
-              void transcriptApi.mergeSpeakers(from.id, into.id).then(report(`${from.name} was not merged into ${into.name}`));
-            }}
-          />
-
-          <section class="review-centre" aria-label="Player and transcript">
-            <PlayerStrip
-              player={player}
-              peaks={peaks}
-              hasMedia={project.mixUrl !== null}
-              onHighlight={addHighlight}
-              search={transcript !== null && transcript.segments.length > 0 ? search : null}
-              onJump={jump}
-            />
-            <TranscriptPane
+        // Each pane scrolls on its own (DESIGN.md §9), so their menus float above them instead of being clipped.
+        <FloatingPopovers.Provider value>
+          <div class="review-panes">
+            <OutlinePane
               project={project}
-              api={transcriptApi}
-              search={search}
-              player={player}
-              chapterName={chapterName}
-              inProgress={inProgress}
-              revealRef={revealRef}
-              onBackToRecording={() => {
-                openRecord(services);
+              positionMs={player.positionMs}
+              onSeek={player.seek}
+              speakers={speakersIdentified ? transcript.speakers : null}
+              onAddChapter={(atMs, chapterTitle) => {
+                bridge
+                  .call('annotations.addChapter', { recordingId, chapter: { atMs, title: chapterTitle } })
+                  .then(({ chapters }) => {
+                    patch({ chapters });
+                  })
+                  .catch(fail('The chapter was not added'));
               }}
-              onShowHistory={() => {
-                setTab('history');
-                document.getElementById('review-tab-history')?.focus();
+              onAddTopic={(label) => {
+                bridge
+                  .call('annotations.addTopic', { recordingId, topic: { label } })
+                  .then(({ topics }) => {
+                    patch({ topics });
+                  })
+                  .catch(fail('The topic was not added'));
               }}
-              onError={warn}
+              onRemoveTopic={(topic) => {
+                bridge
+                  .call('annotations.removeTopic', { recordingId, topicId: topic.id })
+                  .then(({ topics }) => {
+                    patch({ topics });
+                  })
+                  .catch(fail('The topic was not removed'));
+              }}
+              onRenamePerson={(index, name) => {
+                const participants = project.details.participants.map((p, i) => (i === index ? name : p));
+                updateDetails({ participants }, 'The name was not changed');
+              }}
+              onRenameSpeaker={(speaker, name) => {
+                void transcriptApi.renameSpeaker(speaker.id, name).then(report(`${speaker.name} was not renamed`));
+              }}
+              onMergeSpeakers={(from, into) => {
+                void transcriptApi.mergeSpeakers(from.id, into.id).then(report(`${from.name} was not merged into ${into.name}`));
+              }}
             />
-          </section>
 
-          <DetailsPane
-            project={project}
-            tab={tab}
-            onTab={setTab}
-            now={now}
-            history={historySettings}
-            versions={versions}
-            currentVersion={currentVersion}
-            onRestore={(version, when) => {
-              store.dialog.value = { kind: 'restoreVersion', recordingId, version, when };
-            }}
-            onRetry={(stage) => {
-              void transcriptApi.retry(stage).then(report('The stage was not retried'));
-            }}
-            onEditDetails={() => {
-              saver?.adopt(recordingId, project.details);
-              setSheetAgendaMode(null);
-              setSheetOpen(true);
-            }}
-            onReplaceAgenda={() => {
-              saver?.adopt(recordingId, project.details);
-              setSheetAgendaMode('drop');
-              setSheetOpen(true);
-            }}
-            onTags={(tags) => {
-              updateDetails({ tags }, 'The tags were not saved');
-            }}
-            onCreateDocument={createDocument}
-          />
-        </div>
+            <section class="review-centre" aria-label="Player and transcript">
+              {/* The player strip does not scroll: its speed menu opens in place. */}
+              <FloatingPopovers.Provider value={false}>
+                <PlayerStrip
+                  player={player}
+                  peaks={peaks}
+                  hasMedia={project.mixUrl !== null}
+                  onHighlight={addHighlight}
+                  search={transcript !== null && transcript.segments.length > 0 ? search : null}
+                  onJump={jump}
+                  skip={{ available: canSkip, on: skipSilences, onToggle: setSkipSilences, gaps: silences }}
+                />
+              </FloatingPopovers.Provider>
+              <div class={TRANSCRIPT_SCROLLER}>
+                <TranscriptPane
+                  project={project}
+                  api={transcriptApi}
+                  search={search}
+                  player={player}
+                  chapterName={chapterName}
+                  inProgress={inProgress}
+                  revealRef={revealRef}
+                  onBackToRecording={() => {
+                    openRecord(services);
+                  }}
+                  onShowHistory={() => {
+                    setTab('history');
+                    document.getElementById('review-tab-history')?.focus();
+                  }}
+                  onError={warn}
+                />
+              </div>
+            </section>
+
+            <DetailsPane
+              project={project}
+              tab={tab}
+              onTab={setTab}
+              now={now}
+              history={historySettings}
+              versions={versions}
+              currentVersion={currentVersion}
+              onRestore={(version, when) => {
+                store.dialog.value = { kind: 'restoreVersion', recordingId, version, when };
+              }}
+              onRetry={(stage) => {
+                void transcriptApi.retry(stage).then(report('The stage was not retried'));
+              }}
+              onEditDetails={() => {
+                saver?.adopt(recordingId, project.details);
+                setSheetAgendaMode(null);
+                setSheetOpen(true);
+              }}
+              onReplaceAgenda={() => {
+                saver?.adopt(recordingId, project.details);
+                setSheetAgendaMode('drop');
+                setSheetOpen(true);
+              }}
+              onTags={(tags) => {
+                updateDetails({ tags }, 'The tags were not saved');
+              }}
+              onCreateDocument={createDocument}
+            />
+          </div>
+        </FloatingPopovers.Provider>
       )}
       {/* M3: Review has no footer (DESIGN.md §3) except while an export it started is running. */}
       {store.footer.value?.export?.active === true ? <StatusFooter status={store.footer.value} /> : null}

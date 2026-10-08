@@ -61,6 +61,49 @@
   min-height: 0;
 }
 
+/* Side by side (1024 px and wider) the three panes fill the window below the header and each one
+   scrolls on its own: the outline and the details in their own grooved columns, the transcript under
+   the pinned player strip. The page itself does not scroll. Menus inside float on <body>
+   (components/Floating.tsx), so these containers cannot clip them. */
+@media (min-width: 1024px) {
+  .shell--panes {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .shell--panes .review-panes {
+    flex: 1 1 0;
+  }
+
+  .review-outline,
+  .review-details,
+  .review-scroll {
+    overflow-y: auto;
+    /* The containing block of anything absolute inside (screen-reader text, notes), so it scrolls
+       and clips with the pane instead of stretching the page. */
+    position: relative;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  .review-outline,
+  .review-details {
+    min-height: 0;
+    scrollbar-gutter: stable;
+  }
+
+  .review-centre {
+    min-height: 0;
+  }
+
+  .review-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+}
+
 /* Left pane: Outline (260 px, 24 x 16 padding, right groove). */
 .review-outline {
   flex: 0 0 260px;
@@ -236,8 +279,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  position: sticky;
-  top: 60px;
+  /* Pinned: it sits above the transcript's own scrolling area rather than in it. */
+  flex: none;
+  position: relative;
   z-index: 5;
   background: var(--surface);
 }
@@ -399,9 +443,65 @@
   flex: 1;
 }
 
+/* Skip silences: a toggle chip beside the speed control, sunk while on (DESIGN.md §2.5). */
+.player-silences {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.player-silences:disabled {
+  color: var(--text-3);
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+/* "Skipped 4 s": a brief mono caption above the waveform where playback landed, fading in and out.
+   It sits in the strip's top padding, so it takes no room from the controls. */
+.player-skipped {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: player-skipped-fade 1600ms ease-out forwards;
+}
+
+@keyframes player-skipped-fade {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-skipped {
+    animation: none;
+  }
+}
+
+/* Waveform bars standing for time that Skip silences jumps over. */
+.wave-bar.skipped {
+  opacity: 0.3;
+}
+
 .player-search {
   position: relative;
-  width: 260px;
+  /* 260 px when there is room; gives up to 60 px before the controls wrap, so Skip silences fits on
+     one row in common window sizes. */
+  flex: 1 1 200px;
+  max-width: 260px;
 }
 
 .player-search-icon {

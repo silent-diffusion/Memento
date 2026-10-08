@@ -5,6 +5,7 @@ import type { JSX } from 'preact';
 import { memo } from 'preact/compat';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Highlight, Speaker, TranscriptSegment } from '../../bridge/types';
+import { PopoverLayer, useFloatingPopovers } from '../../components/Floating';
 import { CheckIcon, NotesIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
 import { formatDuration } from '../../format/duration';
@@ -143,6 +144,7 @@ function SpeakerMenu({
   const root = useRef<HTMLSpanElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
   const pop = useRef<HTMLDivElement | null>(null);
+  const floating = useFloatingPopovers();
 
   useEffect(() => {
     if (!open) {
@@ -154,7 +156,7 @@ function SpeakerMenu({
       pop.current?.querySelector<HTMLInputElement>('input')?.select();
     }
     const away = (event: PointerEvent): void => {
-      if (event.target instanceof Node && root.current?.contains(event.target) !== true) {
+      if (event.target instanceof Node && root.current?.contains(event.target) !== true && pop.current?.contains(event.target) !== true) {
         setOpen(false);
       }
     };
@@ -222,131 +224,134 @@ function SpeakerMenu({
         {uncertain ? <span class="sr"> (speaker uncertain)</span> : null}
       </button>
       {open ? (
-        <div
-          ref={pop}
-          class="popover popover--menu segm-menu"
-          role="menu"
-          aria-label={`Speaker for the line at ${formatDuration(segment.start * 1000)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-          onDblClick={(event) => {
-            event.stopPropagation();
-          }}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              if (mode.kind === 'list') {
-                close(true);
-              } else {
-                setMode({ kind: 'list' });
+        <PopoverLayer anchorRef={button} popRef={pop} align="start" gap={6}>
+          <div
+            ref={pop}
+            class="popover popover--menu segm-menu"
+            role="menu"
+            aria-label={`Speaker for the line at ${formatDuration(segment.start * 1000)}`}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            onDblClick={(event) => {
+              event.stopPropagation();
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                if (mode.kind === 'list') {
+                  close(true);
+                } else {
+                  setMode({ kind: 'list' });
+                }
+                return;
               }
-              return;
-            }
-            if (event.key === 'Tab') {
-              close(false);
-              return;
-            }
-            if (mode.kind === 'list' && pop.current !== null) {
-              moveFocus(event, pop.current, '[role^="menuitem"]', 'vertical');
-            }
-          }}
-        >
-          {mode.kind === 'list' ? (
-            <>
-              <span class="menu-label">This line is said by</span>
-              {speakers.map((s) => (
-                <button
-                  key={s.id}
-                  class="item menu-item"
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={s.id === segment.speaker}
-                  tabIndex={-1}
-                  onClick={() => {
-                    close(true);
-                    if (s.id !== segment.speaker) {
-                      onAssign(s.id);
-                    }
-                  }}
-                >
-                  <span class="menu-check" aria-hidden="true">
-                    {s.id === segment.speaker ? <CheckIcon size={12} /> : null}
-                  </span>
-                  <span class="segm-dot" aria-hidden="true" style={{ background: speakerColourVar(s.color) }} />
-                  {s.name}
-                </button>
-              ))}
-              <span class="menu-sep" role="separator" />
-              <button
-                class="item menu-item"
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                onClick={() => {
-                  setName('');
-                  setMode({ kind: 'new' });
-                }}
-              >
-                <span class="menu-check" aria-hidden="true" />
-                New speaker…
-              </button>
-              {speaker === null ? null : (
+              if (event.key === 'Tab') {
+                // Floating on <body>: back to the speaker first, so Tab moves on from there.
+                close(floating);
+                return;
+              }
+              if (mode.kind === 'list' && pop.current !== null) {
+                moveFocus(event, pop.current, '[role^="menuitem"]', 'vertical');
+              }
+            }}
+          >
+            {mode.kind === 'list' ? (
+              <>
+                <span class="menu-label">This line is said by</span>
+                {speakers.map((s) => (
+                  <button
+                    key={s.id}
+                    class="item menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={s.id === segment.speaker}
+                    tabIndex={-1}
+                    onClick={() => {
+                      close(true);
+                      if (s.id !== segment.speaker) {
+                        onAssign(s.id);
+                      }
+                    }}
+                  >
+                    <span class="menu-check" aria-hidden="true">
+                      {s.id === segment.speaker ? <CheckIcon size={12} /> : null}
+                    </span>
+                    <span class="segm-dot" aria-hidden="true" style={{ background: speakerColourVar(s.color) }} />
+                    {s.name}
+                  </button>
+                ))}
+                <span class="menu-sep" role="separator" />
                 <button
                   class="item menu-item"
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {
-                    setName(speaker.name);
-                    setMode({ kind: 'rename' });
+                    setName('');
+                    setMode({ kind: 'new' });
                   }}
                 >
                   <span class="menu-check" aria-hidden="true" />
-                  Rename {speaker.name}…
+                  New speaker…
                 </button>
-              )}
-            </>
-          ) : (
-            <form
-              class="segm-menu-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                commitName();
-              }}
-            >
-              <label class="menu-label" for={`speaker-name-${segment.id}`}>
-                {mode.kind === 'new' ? 'New speaker for this line' : `Rename ${speaker?.name ?? 'speaker'} everywhere`}
-              </label>
-              <input
-                id={`speaker-name-${segment.id}`}
-                class="field segm-menu-input"
-                type="text"
-                autocomplete="off"
-                placeholder="Name"
-                value={name}
-                onInput={(event) => {
-                  setName(event.currentTarget.value);
+                {speaker === null ? null : (
+                  <button
+                    class="item menu-item"
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    onClick={() => {
+                      setName(speaker.name);
+                      setMode({ kind: 'rename' });
+                    }}
+                  >
+                    <span class="menu-check" aria-hidden="true" />
+                    Rename {speaker.name}…
+                  </button>
+                )}
+              </>
+            ) : (
+              <form
+                class="segm-menu-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  commitName();
                 }}
-              />
-              <div class="segm-menu-actions">
-                <button
-                  class="btn g segm-menu-btn"
-                  type="button"
-                  onClick={() => {
-                    setMode({ kind: 'list' });
+              >
+                <label class="menu-label" for={`speaker-name-${segment.id}`}>
+                  {mode.kind === 'new' ? 'New speaker for this line' : `Rename ${speaker?.name ?? 'speaker'} everywhere`}
+                </label>
+                <input
+                  id={`speaker-name-${segment.id}`}
+                  class="field segm-menu-input"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Name"
+                  value={name}
+                  onInput={(event) => {
+                    setName(event.currentTarget.value);
                   }}
-                >
-                  Back
-                </button>
-                <button class="btn p segm-menu-btn" type="submit" disabled={name.trim() === ''}>
-                  {mode.kind === 'new' ? 'Add' : 'Rename'}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+                />
+                <div class="segm-menu-actions">
+                  <button
+                    class="btn g segm-menu-btn"
+                    type="button"
+                    onClick={() => {
+                      setMode({ kind: 'list' });
+                    }}
+                  >
+                    Back
+                  </button>
+                  <button class="btn p segm-menu-btn" type="submit" disabled={name.trim() === ''}>
+                    {mode.kind === 'new' ? 'Add' : 'Rename'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </PopoverLayer>
       ) : null}
     </span>
   );

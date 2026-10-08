@@ -19,6 +19,7 @@ import type {
 import { Segmented, Toggle } from '../../components/Controls';
 import { InfoIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
+import { NEVER_SENT, NeverSentRow } from '../../components/NeverSentRow';
 import { AUDIO_FORMAT_LABELS, TRANSCRIPT_FORMAT_LABELS } from '../../format/export';
 import { formatFreeSpace, formatSize } from '../../format/storage';
 import { goToLibrary, openRecording, updateSettings } from '../../state/actions';
@@ -58,11 +59,12 @@ interface CheckItem {
   name: string;
   on: boolean;
   note?: string;
-  /** Locked items stay unticked and say why ("never", "not in this version"). */
+  /** Locked items stay unticked and say why ("not in this version"). */
   locked?: boolean;
 }
 
-function Checklist({ label, items, onToggle }: { label: string; items: CheckItem[]; onToggle: (key: string) => void }): JSX.Element {
+/** `neverSent`: the names shown after the items as greyed "never sent" rows, with no checkbox. */
+function Checklist({ label, items, onToggle, neverSent = [] }: { label: string; items: CheckItem[]; onToggle: (key: string) => void; neverSent?: readonly string[] }): JSX.Element {
   return (
     <div class="settings-checks" role="group" aria-label={label}>
       {items.map((item) => (
@@ -81,6 +83,9 @@ function Checklist({ label, items, onToggle }: { label: string; items: CheckItem
             {item.note === undefined ? null : <span class="settings-check-note">{item.note}</span>}
           </span>
         </label>
+      ))}
+      {neverSent.map((name) => (
+        <NeverSentRow key={name} name={name} rowClass="settings-check settings-check--locked" noteClass="settings-check-note" textClass="settings-check-text" />
       ))}
     </div>
   );
@@ -401,11 +406,8 @@ export function AiPrivacySection(): JSX.Element {
           below={
             <Checklist
               label="Allowed data"
-              items={[
-                ...SHARE_ITEMS.map((item) => ({ ...item, on: ai.share[item.key] })),
-                { key: 'audio', name: 'Audio', on: false, locked: true, note: 'never' },
-                { key: 'video', name: 'Video', on: false, locked: true, note: 'never' },
-              ]}
+              items={SHARE_ITEMS.map((item) => ({ ...item, on: ai.share[item.key] }))}
+              neverSent={NEVER_SENT}
               onToggle={(key) => {
                 const shareKey = key as keyof AiShareSettings;
                 save({ share: { ...ai.share, [shareKey]: !ai.share[shareKey] } });

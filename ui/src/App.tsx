@@ -62,7 +62,8 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
   return (
     <AppContext.Provider value={services}>
       {/* Keyed by screen so a spoke change remounts and plays the cross-fade (styles/shell.css). */}
-      <div class="shell screen" key={screenKey(route)} inert={modalOpen}>
+      {/* Review fills the window and scrolls inside its panes (DESIGN.md §9); the rest scroll the page. */}
+      <div class={route.name === 'review' ? 'shell screen shell--panes' : 'shell screen'} key={screenKey(route)} inert={modalOpen}>
         <Screen route={route} />
       </div>
       <ToastStack queue={store.toasts} />

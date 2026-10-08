@@ -185,7 +185,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await openWithTranscript();
     const line = segment('Okay, I think everyone');
     await click(line.querySelector('.segm-speaker') ?? line);
-    const menu = container.querySelector('.segm-menu');
+    const menu = document.querySelector('.segm-menu');
     expect([...(menu?.querySelectorAll('[role="menuitemradio"]') ?? [])].map((m) => [m.textContent, m.getAttribute('aria-checked')])).toEqual([
       ['Sam Okafor', 'true'],
       ['Aiko Tanaka', 'false'],
@@ -198,7 +198,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     // New speaker…
     await click(segment('Okay, I think everyone').querySelector('.segm-speaker') ?? line);
     await click(button('New speaker…'));
-    const input = container.querySelector<HTMLInputElement>('.segm-menu-input');
+    const input = document.querySelector<HTMLInputElement>('.segm-menu-input');
     if (input === null) {
       throw new Error('no name field');
     }
@@ -211,7 +211,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     // Rename… renames everywhere.
     await click(segment('Mm-hm.').querySelector('.segm-speaker') ?? line);
     await click(button('Rename Speaker 4…'));
-    const rename = container.querySelector<HTMLInputElement>('.segm-menu-input');
+    const rename = document.querySelector<HTMLInputElement>('.segm-menu-input');
     if (rename === null) {
       throw new Error('no rename field');
     }
@@ -386,7 +386,10 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await until(() => segment('No objection.').querySelector('.segm-speaker-name')?.textContent === 'Dana Whitfield');
 
     await click(button('Merge Dana Whitfield into someone else'));
-    await click(button('Lena Fischer'));
+    // The menu floats on <body> above the scrolling outline (components/Floating.tsx).
+    const mergeMenu = document.querySelector<HTMLElement>('.popover-layer [role="menu"]');
+    expect(mergeMenu).not.toBeNull();
+    await click(button('Lena Fischer', mergeMenu ?? document));
     await until(() => ![...container.querySelectorAll('.person-name')].some((p) => p.textContent === 'Dana Whitfield'));
     expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Lena Fischer');
   });

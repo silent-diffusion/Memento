@@ -60,3 +60,20 @@ button:disabled {
 .chk:disabled {
   cursor: default;
 }
+
+/* Audio and video in the AI checklists (components/NeverSentRow.tsx): never sent, so a greyed row
+   with a lock in the checkbox's 16 px column instead of a control (DESIGN.md §5.9). */
+.never-sent {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.never-sent-lock {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}

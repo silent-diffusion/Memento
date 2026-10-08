@@ -304,6 +304,16 @@ export function ForwardTenIcon(props: IconProps): JSX.Element {
   );
 }
 
+/** A closed padlock: something that is fixed off ("never sent"). */
+export function LockIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke {...props}>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </Stroke>
+  );
+}
+
 export function PlusIcon(props: IconProps): JSX.Element {
   return (
     <Stroke strokeWidth={2.5} {...props}>
