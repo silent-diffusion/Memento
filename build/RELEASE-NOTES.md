@@ -10,6 +10,7 @@ A small release of fixes and refinements asked for after 1.0.0. Memento updates 
 ### Fixed
 
 - **The local model you installed is the one that writes documents.** With Qwen3.5 4B installed and Ministral 3 3B not, Settings and the Builder could still name Ministral as the model, say it was not installed, and refuse to use Qwen. The model in effect is now always an installed one: the one you chose, else the recommended one, else whichever local model is installed. A graphics-card model without room on the card gives way to an installed processor model, or else runs on the processor, and Settings › AI and privacy now says which model is in use, where it runs and why.
+- **The same for transcription.** With only Large v3 Turbo installed and another program holding the graphics card's memory, transcription waited for the Small model and said it was not installed. When no model is chosen in Settings, the installed model is now used, on the processor when it does not fit on the card. A model you chose yourself is still waited for.
 - **Templates can be chosen, saved and found again in the Builder.** Create document opens the Builder with a **Template** list in its header: the built-in templates first, then your own. Choosing one opens it (with unsaved changes, Memento asks first). **Save template** keeps the template you are on (a built-in is saved as a copy) and **Save as new template** always makes another one. A new template is given a name no other template has, so saving twice no longer makes two with the same name.
 
 ### Review

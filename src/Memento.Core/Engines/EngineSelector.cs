@@ -48,13 +48,12 @@ public sealed class EngineSelector(IModelManager models, IResourceProbe probe)
     public string? EffectiveLocalModelId(string? chosen, ResourceSnapshot? snapshot = null) =>
         Ai.LocalModelChoice.EffectiveId(chosen, models.Catalog, snapshot ?? probe.Sample(), models.IsInstalled);
 
-    /// <summary>The transcription model in effect: the saved choice, or the recommended one.</summary>
+    /// <summary>The transcription model in effect: an installed one whenever any is installed (<see cref="TranscriptionModelChoice"/>).</summary>
     public string EffectiveModelId(TranscriptionSettings settings, ResourceSnapshot? snapshot = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return settings.ModelId is { } chosen && models.Catalog.Find(chosen) is { Kind: ModelKinds.Transcription }
-            ? chosen
-            : RecommendedTranscriptionModelId(snapshot);
+        var sample = snapshot ?? probe.Sample();
+        return TranscriptionModelChoice.EffectiveId(settings.ModelId, RecommendedTranscriptionModelId(sample), models.Catalog, sample, models.IsInstalled);
     }
 
     /// <summary>Where <paramref name="modelId"/> would run now.</summary>

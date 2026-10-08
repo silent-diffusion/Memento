@@ -315,9 +315,21 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
-    public async Task WithoutTheModelTheStageWaitsWithASpecificMessage()
+    public async Task WithOnlyTheSmallModelInstalledAndNoChoiceTheStageUsesItInsteadOfWaiting()
+    {
+        Install("whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small");
+
+        var id = await RecordAndProcessAsync();
+
+        Assert.Empty((await ManifestAsync(id)).Failures);
+        Assert.Equal("whisper-small", (await TranscriptAsync(id)).Engine.Model);
+    }
+
+    [Fact]
+    public async Task WithoutTheChosenModelTheStageWaitsWithASpecificMessage()
     {
         Install("whisper-small");
+        await _host.Settings.UpdateAsync(s => s with { Transcription = s.Transcription with { ModelId = "whisper-large-v3-turbo" } }, CancellationToken.None);
 
         var id = await RecordAndProcessAsync();
 
@@ -430,9 +442,28 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task ADamagedRecommendedModelIsSetAsideAndTheInstalledModelTranscribesWhenNothingIsChosen()
+    {
+        InstallAll();
+        var path = _host.Models.PathOf(TinyCatalog.Find("whisper-large-v3-turbo")!);
+        File.WriteAllBytes(path, [0, 0xFF, 0, 0]); // the right size, flipped bytes
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1)); // a later write, even within one clock tick
+
+        var id = await RecordAndProcessAsync();
+        var progress = await _host.Sink.WaitForAsync("models.progress", p => p.GetProperty("state").GetString() == "failed");
+
+        Assert.Empty((await ManifestAsync(id)).Failures);
+        Assert.Equal("whisper-small", (await TranscriptAsync(id)).Engine.Model);
+        Assert.Equal("whisper-large-v3-turbo", progress.GetProperty("modelId").GetString());
+        Assert.False(_host.Models.IsInstalled("whisper-large-v3-turbo"));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + ".corrupt-*"));
+    }
+
+    [Fact]
     public async Task ADamagedModelFileIsReportedSpecificallyAndDownloadingItAgainIsOffered()
     {
         InstallAll();
+        await _host.Settings.UpdateAsync(s => s with { Transcription = s.Transcription with { ModelId = "whisper-large-v3-turbo" } }, CancellationToken.None);
         var path = _host.Models.PathOf(TinyCatalog.Find("whisper-large-v3-turbo")!);
         File.WriteAllBytes(path, [0, 0xFF, 0, 0]); // the right size, flipped bytes
         File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1)); // a later write, even within one clock tick

@@ -121,7 +121,7 @@ A single **orchestrator** in Core runs stages per project: `Stored → Transcrib
 
 - One GPU stage runs at a time. Transcription pauses when a recording is active and "pause when busy" is on, or when free space is low.
 - "PC is busy" (`ProcessingGate`): other programs above 85 % of the processor for 10 s pause a stage on the processor (one on the graphics card is exempt); it resumes after 15 s at 70 % or less. A busy pause that starts within 2 minutes of the previous one needs twice that pause's calm time (up to 5 minutes), so a load that comes back each time the stage starts gets room to finish. A stage that starts again writes its History start line only once.
-- Resource probe: GPU presence and VRAM (via Vulkan or DXGI), CPU load, RAM. The default model is the most accurate one that fits; a smaller model is offered, never applied silently.
+- Resource probe: GPU presence and VRAM (via Vulkan or DXGI), CPU load, RAM. The default model is the most accurate one that fits; a smaller model is offered, never applied silently. A model chosen in Settings is always the one in effect (the stage waits for it and says so); without a choice the model in effect is an installed one whenever any is installed (`TranscriptionModelChoice.EffectiveId`: the recommendation when installed, else the most accurate installed model, on the card when it fits and on the processor otherwise), so a PC with only Large v3 Turbo installed never waits for Small because another program holds the card's memory, and a damaged recommended model is set aside while an installed one transcribes (1.1.0).
 - Failure keeps everything produced so far and offers the most specific remedy first (`Retry on CPU`, `Use the Medium model`).
 
 ## 7. Transcript model
