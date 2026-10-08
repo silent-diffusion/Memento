@@ -115,8 +115,20 @@
   background: var(--line);
 }
 
+/* The Add row may wrap: the typed name is never cut off. */
 .speaker-option--add {
   color: var(--text);
+  height: auto;
+  min-height: 34px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  white-space: normal;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.speaker-option--add .speaker-option-name {
+  overflow-wrap: anywhere;
 }
 
 .speaker-menu-empty {
@@ -207,11 +219,12 @@
   text-underline-offset: 3px;
 }
 
+/* Inside the row the focus ring is drawn inward, so it never covers the time beside it. */
 .chap-time:focus-visible,
 .chap-name:focus-visible,
 .chap-remove:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .chap-row .inline-input {
