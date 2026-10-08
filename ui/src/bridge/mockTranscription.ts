@@ -23,6 +23,8 @@ import type {
   TranscriptEditSegmentParams,
   TranscriptGetResult,
   TranscriptMergeSpeakersParams,
+  TranscriptRemoveSpeakerParams,
+  TranscriptRestoreSpeakerParams,
   TranscriptRenameSpeakerParams,
   TranscriptRetranscribeParams,
   TranscriptSearchMatch,
@@ -100,6 +102,8 @@ export interface MockTranscription {
   setSegmentSpeaker(params: TranscriptSetSegmentSpeakerParams): { segment: TranscriptSegment; speakers: Speaker[] };
   renameSpeaker(params: TranscriptRenameSpeakerParams): { speakers: Speaker[] };
   mergeSpeakers(params: TranscriptMergeSpeakersParams): { speakers: Speaker[]; segmentsChanged: number };
+  restoreSpeaker(params: TranscriptRestoreSpeakerParams): { speakers: Speaker[]; segmentsChanged: number };
+  removeSpeaker(params: TranscriptRemoveSpeakerParams): { speakers: Speaker[] };
   markReviewed(recordingId: string, reviewed: boolean): { reviewed: boolean };
   search(recordingId: string, query: string): TranscriptSearchMatch[];
   retranscribe(params: TranscriptRetranscribeParams): void;
@@ -741,7 +745,8 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
         text: next,
         words: transcript.segments.length > 0 && segment.words.length === 0 ? [] : words,
         confidence: words.length === 0 ? 1 : Math.min(...words.map((w) => w.c)),
-        edited: { at: segment.edited?.at ?? at(), original: segment.edited?.original ?? segment.text },
+        // An edit back to the original wording (Undo) leaves the line unedited again.
+        edited: next === (segment.edited?.original ?? segment.text) ? null : { at: segment.edited?.at ?? at(), original: segment.edited?.original ?? segment.text },
       };
       transcript.segments = transcript.segments.map((s) => (s.id === segmentId ? changed : s));
       const version = bump(transcript);
@@ -820,6 +825,57 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       env.changed(recordingId);
       notify(recordingId, transcript, 'speakers');
       return { speakers: clone(transcript.speakers), segmentsChanged };
+    },
+
+    restoreSpeaker: ({ recordingId, speaker, segmentIds }) => {
+      const p = project(recordingId);
+      const { transcript } = transcriptOf(recordingId);
+      const name = speaker.name.trim();
+      if (name === '' || name.length > 100 || !/^[A-Za-z0-9_-]{1,40}$/.test(speaker.id) || ![1, 2, 3, 4].includes(speaker.color)) {
+        throw invalid('A speaker needs an id, a name of 1 to 100 characters and a colour from 1 to 4. Nothing was changed.');
+      }
+      for (const id of segmentIds) {
+        segmentOf(transcript, id);
+      }
+      const restored: Speaker = { id: speaker.id, name, renamed: speaker.renamed, color: speaker.color, talkTimeMs: 0 };
+      transcript.speakers = transcript.speakers.some((s) => s.id === speaker.id)
+        ? transcript.speakers.map((s) => (s.id === speaker.id ? { ...restored, talkTimeMs: s.talkTimeMs } : s))
+        : [...transcript.speakers, restored];
+      const wanted = new Set(segmentIds);
+      let segmentsChanged = 0;
+      transcript.segments = transcript.segments.map((s) => {
+        if (!wanted.has(s.id) || s.speaker === speaker.id) {
+          return s;
+        }
+        segmentsChanged += 1;
+        return { ...s, speaker: speaker.id, speakerConfidence: 1 };
+      });
+      recountTalk(transcript);
+      bump(transcript);
+      refreshPeople(p, transcript);
+      env.changed(recordingId);
+      notify(recordingId, transcript, 'speakers');
+      return { speakers: clone(transcript.speakers), segmentsChanged };
+    },
+
+    removeSpeaker: ({ recordingId, speakerId }) => {
+      const p = project(recordingId);
+      const { transcript } = transcriptOf(recordingId);
+      const speaker = speakerOf(transcript, speakerId);
+      const lines = transcript.segments.filter((s) => s.speaker === speakerId).length;
+      if (lines > 0) {
+        throw new MockHostError(
+          'transcript.speakerInUse',
+          `${speaker.name} still says ${lines} ${lines === 1 ? 'line' : 'lines'}, so the speaker was kept. Nothing was changed. Move those lines to another speaker first, or merge the speakers.`,
+          speakerId,
+        );
+      }
+      transcript.speakers = transcript.speakers.filter((s) => s.id !== speakerId);
+      bump(transcript);
+      refreshPeople(p, transcript);
+      env.changed(recordingId);
+      notify(recordingId, transcript, 'speakers');
+      return { speakers: clone(transcript.speakers) };
     },
 
     markReviewed: (recordingId, reviewed) => {

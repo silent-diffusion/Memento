@@ -51,6 +51,8 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, TranscriptSetSegmentSpeakerMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptRenameSpeakerMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptMergeSpeakersMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptRestoreSpeakerMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptRemoveSpeakerMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptMarkReviewedMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptSearchMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptRetranscribeMethod>();

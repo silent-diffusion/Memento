@@ -61,6 +61,7 @@ export const ERROR_CODES = [
   'transcript.segmentNotFound',
   'transcript.speakerNotFound',
   'transcript.versionNotFound',
+  'transcript.speakerInUse',
   'models.notFound',
   'models.inUse',
   'models.downloadFailed',
@@ -543,6 +544,27 @@ export interface TranscriptMergeSpeakersParams {
 export interface TranscriptMergeSpeakersResult {
   speakers: Speaker[];
   segmentsChanged: number;
+}
+
+/** A speaker as transcript.restoreSpeaker puts it back (Undo): the id, name, colour and renamed flag it had. */
+export interface SpeakerRestore {
+  id: string;
+  name: string;
+  color: SpeakerColour;
+  renamed: boolean;
+}
+
+/** transcript.restoreSpeaker (Undo of a merge, rename or removal): the speaker back as it was, with these lines. */
+export interface TranscriptRestoreSpeakerParams {
+  recordingId: string;
+  speaker: SpeakerRestore;
+  segmentIds: string[];
+}
+
+/** transcript.removeSpeaker (Undo of adding one): refused with transcript.speakerInUse while lines are assigned to it. */
+export interface TranscriptRemoveSpeakerParams {
+  recordingId: string;
+  speakerId: string;
 }
 
 export interface TranscriptMarkReviewedParams {
@@ -2025,6 +2047,8 @@ export interface BridgeMethods {
   'transcript.setSegmentSpeaker': { params: TranscriptSetSegmentSpeakerParams; result: TranscriptSetSegmentSpeakerResult };
   'transcript.renameSpeaker': { params: TranscriptRenameSpeakerParams; result: SpeakersResult };
   'transcript.mergeSpeakers': { params: TranscriptMergeSpeakersParams; result: TranscriptMergeSpeakersResult };
+  'transcript.restoreSpeaker': { params: TranscriptRestoreSpeakerParams; result: TranscriptMergeSpeakersResult };
+  'transcript.removeSpeaker': { params: TranscriptRemoveSpeakerParams; result: SpeakersResult };
   'transcript.markReviewed': { params: TranscriptMarkReviewedParams; result: TranscriptMarkReviewedResult };
   'transcript.search': { params: TranscriptSearchParams; result: TranscriptSearchResult };
   'transcript.retranscribe': { params: TranscriptRetranscribeParams; result: EmptyResult };
@@ -2175,6 +2199,8 @@ export const METHOD_NAMES = [
   'transcript.setSegmentSpeaker',
   'transcript.renameSpeaker',
   'transcript.mergeSpeakers',
+  'transcript.restoreSpeaker',
+  'transcript.removeSpeaker',
   'transcript.markReviewed',
   'transcript.search',
   'transcript.retranscribe',

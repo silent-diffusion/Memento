@@ -99,7 +99,7 @@ From M2:
 | `transcript` | `started`, `completed`, `failed`, `info` | a pass starts (engine, model, device, tracks), ends (engine version, model, device, audio length and time, segments, words, low-confidence words, language) or fails; `info` for "Skipped <track>" (a silent track), "Speech without a transcript at 0:03–0:18" (a coverage gap, see `Transcript.coverageGaps`) and "Dropped N repeated lines" (the repeat filter, see Shared types (M2)) |
 | `speakers` | `started`, `completed`, `failed`, `info` | identification starts, ends ("Found 2 speakers", talk-time shares) or fails; `info` for "No speakers to identify" |
 | `topics` | `completed`, `failed` | local keyword topics were found, or could not be saved |
-| `edited` | `info` | also "Transcript edited", "Speaker changed", "Speaker renamed", "Speakers merged", "Transcript version restored" |
+| `edited` | `info` | also "Transcript edited", "Speaker changed", "Speaker renamed", "Speakers merged", "Speaker restored", "Speaker removed" (Undo), "Transcript version restored" |
 
 ## Methods
 
@@ -254,10 +254,12 @@ interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: s
 | Method | Params | Result | Notes |
 |---|---|---|---|
 | `transcript.get` | `{ recordingId }` | `{ transcript: Transcript \| null, status: TranscriptStatus, failure: StageFailure \| null }` | `transcript` is null until the first pass completes; a failed pass may still return a partial transcript with `status: 'failed'`. `status` follows the `transcript` stage; `failure` is the transcript stage's failure, or else the `speakers` stage's (so a failed speaker pass shows its remedies while `status` is `done`). |
-| `transcript.editSegment` | `{ recordingId, segmentId, text }` | `{ segment: TranscriptSegment, version }` | Keeps `edited.original` from the first edit. Words are re-aligned proportionally (confidence set to 1 for edited words). |
+| `transcript.editSegment` | `{ recordingId, segmentId, text }` | `{ segment: TranscriptSegment, version }` | Keeps `edited.original` from the first edit. Words are re-aligned proportionally (confidence set to 1 for edited words). An edit back to the original wording (Undo) sets `edited` to `null` again. |
 | `transcript.setSegmentSpeaker` | `{ recordingId, segmentId, speakerId: string \| null, newSpeakerName?: string }` | `{ segment, speakers }` | `newSpeakerName` creates a speaker and assigns it. |
 | `transcript.renameSpeaker` | `{ recordingId, speakerId, name }` | `{ speakers }` | Updates every segment by reference; `renamed: true`. |
 | `transcript.mergeSpeakers` | `{ recordingId, fromSpeakerId, intoSpeakerId }` | `{ speakers, segmentsChanged }` | |
+| `transcript.restoreSpeaker` | `{ recordingId, speaker: { id, name, color, renamed }, segmentIds: string[] }` | `{ speakers, segmentsChanged }` | Added for Undo (after 1.1.0). Puts a speaker back as it was: added after the others when the transcript has no speaker with that `id`, otherwise its name, colour and renamed flag are set; then every listed line is assigned to it (`speakerConfidence` 1). The inverse of a merge (the merged speaker with its lines), a rename (`segmentIds: []`) and `transcript.removeSpeaker`. `id` is 1–40 letters, digits, `-` or `_`; `color` 1–4; `name` 1–100 characters, else `bridge.invalidParams`. A line the transcript does not have answers `transcript.segmentNotFound` and nothing changes. History: "Speaker restored". |
+| `transcript.removeSpeaker` | `{ recordingId, speakerId }` | `{ speakers }` | Added for Undo (after 1.1.0): the inverse of a speaker added with `newSpeakerName`. Removes a speaker no line is assigned to; while lines still are, `transcript.speakerInUse` (`detail`: the id) and nothing changes. History: "Speaker removed". |
 | `transcript.markReviewed` | `{ recordingId, reviewed }` | `{ reviewed }` | |
 | `transcript.search` | `{ recordingId, query }` | `{ matches: { segmentId, start, snippet }[] }` | Case-insensitive, word-boundary aware. |
 | `transcript.retranscribe` | `{ recordingId, modelId?: string, language?: string }` | `{}` | Queues a new pass, then `speakers` (when on) and `topics`; when version history is on the current transcript is kept as a version. Refused with `project.recording` while recording, `models.notFound` for a model the catalog does not have. |
@@ -305,7 +307,7 @@ history: { keepVersions: boolean; keepDays: number }     // true, 90
 
 ## Error codes (M2)
 
-`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.busy` (detail: the model downloading now), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
+`transcript.none` (no transcript yet), `transcript.segmentNotFound`, `transcript.speakerNotFound`, `transcript.versionNotFound`, `transcript.speakerInUse` (removing a speaker while lines are assigned to it; detail: its id), `models.notFound`, `models.inUse`, `models.downloadFailed` (detail: cause), `models.busy` (detail: the model downloading now), `models.noSpace`, `engine.unavailable` (detail: what to install or where to turn it on).
 
 ## Clarifications (M2, decided after the UI landed)
 
