@@ -218,7 +218,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
     if (clean.current === null && currentKey !== null) {
       clean.current = currentKey;
     }
-  }, [currentKey]);
+  });
   const dirty = currentKey !== null && clean.current !== null && clean.current !== currentKey;
   const previewKey = current === null ? null : JSON.stringify([current.name, current.styleId, current.rows]);
   const previewSequence = useRef(0);
