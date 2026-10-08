@@ -15,6 +15,7 @@ import { AppContext, createMemoryRouter, type AppServices } from './state/contex
 import { connectJobEvents } from './state/jobs';
 import { screenKey, type Route, type Router } from './state/router';
 import type { AppStore } from './state/store';
+import { connectUndoKeys, undoOf } from './state/undo';
 
 interface AppProps {
   bridge: BridgeClient;
@@ -57,6 +58,8 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
   useEffect(() => connectJobEvents(bridge, store), [bridge, store]);
   // M4: generation.progress for the Builder and for jobs that end while it is closed.
   useEffect(() => connectGeneration(services), [services]);
+  // Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z for the screen that holds the undo stack (state/undo.ts); not while a dialog is open.
+  useEffect(() => connectUndoKeys(undoOf(store), () => store.overlays.value > 0), [store]);
   const route = store.route.value;
   const modalOpen = store.overlays.value > 0;
   return (

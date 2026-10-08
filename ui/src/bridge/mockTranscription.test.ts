@@ -238,7 +238,7 @@ describe('preview host transcripts (M2)', () => {
     const host = previewHost();
     const before = host.call('transcript.get', { recordingId: LONG }).transcript;
     const sp4 = before?.speakers.find((s) => s.id === 'sp4');
-    if (before === null || before === undefined || sp4 === undefined) {
+    if (before === null || sp4 === undefined) {
       throw new Error('no transcript');
     }
     const lines = before.segments.filter((s) => s.speaker === 'sp4').map((s) => s.id);
