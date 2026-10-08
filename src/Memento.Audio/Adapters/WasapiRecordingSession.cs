@@ -18,6 +18,8 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
 {
     private readonly A.AudioRecordingSession _session;
     private readonly SessionEventDispatcher _dispatcher;
+    private readonly A.ReplayEvent<SourceLostEventArgs> _sourceLost = new();
+    private readonly A.ReplayEvent<HostStoppedEventArgs> _hostStopped = new();
     private readonly TimeProvider _time;
     private readonly ILogger<WasapiRecordingSession> _logger;
     private readonly object _sync = new();
@@ -54,9 +56,22 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
 
     public event EventHandler<CheckpointEventArgs>? CheckpointWritten;
 
-    public event EventHandler<SourceLostEventArgs>? SourceLost;
+    /// <summary>
+    /// Never missed: the engine's caller subscribes after recording has started, so a handler added later
+    /// receives every earlier loss (on the event thread, like a live one).
+    /// </summary>
+    public event EventHandler<SourceLostEventArgs>? SourceLost
+    {
+        add => Replay(value, _sourceLost.Add(value));
+        remove => _sourceLost.Remove(value);
+    }
 
-    public event EventHandler<HostStoppedEventArgs>? HostStopped;
+    /// <summary>Never missed: like <see cref="SourceLost"/>, a handler added after the stop still receives it.</summary>
+    public event EventHandler<HostStoppedEventArgs>? HostStopped
+    {
+        add => Replay(value, _hostStopped.Add(value));
+        remove => _hostStopped.Remove(value);
+    }
 
     public string SessionId { get; }
 
@@ -384,6 +399,16 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
         _dispatcher.Post(() => CheckpointWritten?.Invoke(this, new CheckpointEventArgs(checkpoint.At, elapsed, tracks)));
     }
 
+    /// <summary>Delivers occurrences a new handler missed through the dispatcher, in order with live events.</summary>
+    private void Replay<T>(EventHandler<T>? handler, IReadOnlyList<T> missed)
+        where T : EventArgs
+    {
+        foreach (var args in missed)
+        {
+            _dispatcher.Post(() => handler!.Invoke(this, args));
+        }
+    }
+
     private void OnSourceLost(object? sender, A.SourceLostEventArgs e)
     {
         LogSourceLost(e.SourceId, e.Reason, (long)e.At.TotalMilliseconds, e.Message);
@@ -396,7 +421,8 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
 
         var remaining = tracks.Where(t => t.IsOpen).ToList();
         var at = (long)e.At.TotalMilliseconds;
-        _dispatcher.Post(() => SourceLost?.Invoke(this, new SourceLostEventArgs(lost, at, remaining)));
+        var args = new SourceLostEventArgs(lost, at, remaining);
+        _dispatcher.Post(() => _sourceLost.Record(args)?.Invoke(this, args));
     }
 
     private void OnStopped(object? sender, A.SessionStoppedEventArgs e)
@@ -414,7 +440,8 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
         if (reason is { } hostReason)
         {
             LogHostStopped(hostReason, mapped.ElapsedMs, result.StopMessage ?? string.Empty);
-            _dispatcher.Post(() => HostStopped?.Invoke(this, new HostStoppedEventArgs(hostReason, mapped.ElapsedMs, result.StopMessage ?? result.StopReason.ToString(), mapped)));
+            var args = new HostStoppedEventArgs(hostReason, mapped.ElapsedMs, result.StopMessage ?? result.StopReason.ToString(), mapped);
+            _dispatcher.Post(() => _hostStopped.Record(args)?.Invoke(this, args));
         }
     }
 

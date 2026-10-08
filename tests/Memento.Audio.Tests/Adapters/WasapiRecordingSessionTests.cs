@@ -172,6 +172,39 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         Assert.Contains("every source was lost", host.Detail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ALossBeforeTheCallerSubscribedIsStillReportedExactlyOnce()
+    {
+        // The coordinator subscribes only after the engine's StartAsync returns; on a starved runner every source
+        // can already be lost by then. Force that order: subscribe only once the session has stopped by itself.
+        _factory.LoseAfter[MicId] = TimeSpan.FromMilliseconds(100);
+        var session = await StartAsync(TimeSpan.FromSeconds(30), Mic);
+        var waited = Stopwatch.StartNew();
+        while (session.State != RecordingSessionState.Stopped && waited.Elapsed < Patience.Ceiling)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(RecordingSessionState.Stopped, session.State);
+        var lost = new List<SourceLostEventArgs>();
+        var stopped = new List<HostStoppedEventArgs>();
+        session.SourceLost += (_, e) => Add(lost, e);
+        session.HostStopped += (_, e) => Add(stopped, e);
+
+        // Disposing drains every queued event, so a duplicate would be in the lists by now.
+        await session.DisposeAsync();
+
+        lock (lost)
+        {
+            Assert.Equal("mic", Assert.Single(lost).Track.TrackId);
+        }
+
+        lock (stopped)
+        {
+            Assert.Equal(HostStopReason.DeviceLost, Assert.Single(stopped).Reason);
+        }
+    }
+
     [Theory]
     [InlineData(A.SessionStopReason.Requested, null)]
     [InlineData(A.SessionStopReason.DiskFull, HostStopReason.DiskFull)]
