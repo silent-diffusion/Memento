@@ -238,7 +238,56 @@ public sealed class ProjectStoreTests : IDisposable
         var migrated = ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = 1, ["attachments"] = "agenda.docx" });
 
         Assert.False(migrated.Manifest.ContainsKey("attachments"));
-        Assert.Equal(2, migrated.Manifest["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, migrated.Manifest["schemaVersion"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task AV2ManifestGetsAnEmptyWhoSpokeAndIsWrittenAsV3()
+    {
+        var created = await CreateAsync();
+        var path = Path.Combine(Store.GetProjectFolder(created.Id), "project.json");
+        var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        node["schemaVersion"] = 2;
+        node["details"]!.AsObject().Remove("whoSpoke");
+        await File.WriteAllTextAsync(path, node.ToJsonString());
+
+        var loaded = await Store.LoadAsync(created.Id, CancellationToken.None);
+        await Store.SaveAsync(loaded, CancellationToken.None);
+
+        Assert.Null(loaded.Details.WhoSpoke.Count);
+        Assert.Empty(loaded.Details.WhoSpoke.Names);
+        var written = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        Assert.Equal(3, written["schemaVersion"]!.GetValue<int>());
+        Assert.Equal("""{"count":null,"names":[]}""", written["details"]!["whoSpoke"]!.ToJsonString());
+    }
+
+    [Theory]
+    [InlineData("""{"count":3,"names":["Ana"," Ben ","ana",""]}""", """{"count":3,"names":["Ana","Ben"]}""")]
+    [InlineData("""{"count":0,"names":"Ana"}""", """{"count":null,"names":[]}""")]
+    [InlineData("""{"count":21,"names":[1,true,"Chris"]}""", """{"count":null,"names":["Chris"]}""")]
+    [InlineData("""{"count":"two"}""", """{"count":null,"names":[]}""")]
+    [InlineData("\"4 people\"", """{"count":null,"names":[]}""")]
+    public void AWhoSpokeTheV3StepCannotReadKeepsWhatIsReadable(string value, string expected)
+    {
+        var manifest = new JsonObject { ["schemaVersion"] = 2, ["details"] = new JsonObject { ["title"] = "Sync", ["whoSpoke"] = JsonNode.Parse(value) } };
+
+        var migrated = ProjectManifestMigrator.Default.Migrate(manifest);
+
+        Assert.True(migrated.Migrated);
+        Assert.Equal(expected, migrated.Manifest["details"]!["whoSpoke"]!.ToJsonString());
+        Assert.Equal("Sync", migrated.Manifest["details"]!["title"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void TwentyNamesAtMostSurviveTheV3Step()
+    {
+        var names = new JsonArray(Enumerable.Range(1, 25).Select(n => (JsonNode)JsonValue.Create($"Person {n}")!).ToArray());
+        var manifest = new JsonObject { ["schemaVersion"] = 2, ["details"] = new JsonObject { ["whoSpoke"] = new JsonObject { ["count"] = 2, ["names"] = names } } };
+
+        var whoSpoke = ProjectManifestMigrator.Default.Migrate(manifest).Manifest["details"]!["whoSpoke"]!;
+
+        Assert.Equal(20, whoSpoke["names"]!.AsArray().Count);
+        Assert.Equal(2, whoSpoke["count"]!.GetValue<int>());
     }
 
     [Theory]

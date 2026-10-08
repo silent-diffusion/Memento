@@ -1,6 +1,6 @@
 namespace Memento.Core.Bridge.Contracts;
 
-/// <summary>The Details sheet (DESIGN.md §14).</summary>
+/// <summary>The Details sheet (DESIGN.md §14). <see cref="WhoSpoke"/> is the recording's own speaker count and names.</summary>
 public sealed record RecordingDetails(
     string Title,
     string Type,
@@ -11,4 +11,5 @@ public sealed record RecordingDetails(
     string Location,
     string Notes,
     IReadOnlyList<string> Tags,
-    Agenda Agenda);
+    Agenda Agenda,
+    WhoSpoke WhoSpoke);

@@ -93,6 +93,7 @@ public static class ProjectMapper
             details.Location,
             details.Notes,
             details.Tags,
-            details.Agenda);
+            details.Agenda,
+            details.WhoSpoke);
     }
 }

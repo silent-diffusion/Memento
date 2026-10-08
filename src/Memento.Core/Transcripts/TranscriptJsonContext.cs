@@ -13,6 +13,7 @@ namespace Memento.Core.Transcripts;
 [JsonSerializable(typeof(TranscriptVersionFile))]
 [JsonSerializable(typeof(TranscriptPartial))]
 [JsonSerializable(typeof(SpeakersPartial))]
+[JsonSerializable(typeof(VoicesDocument))]
 internal sealed partial class TranscriptJsonContext : JsonSerializerContext
 {
 }

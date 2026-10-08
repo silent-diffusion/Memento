@@ -1,3 +1,4 @@
+using System.Globalization;
 using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
@@ -43,6 +44,7 @@ public sealed partial class ProjectService(
         var participants = patch.Participants is null ? null : ValidateList(patch.Participants, "participants");
         var tags = patch.Tags is null ? null : ValidateList(patch.Tags, "tags");
         var agenda = patch.Agenda is null ? null : ValidateAgenda(patch.Agenda);
+        var whoSpoke = patch.WhoSpoke is null ? null : ValidateWhoSpoke(patch.WhoSpoke);
         foreach (var (name, value) in new[] { ("purpose", patch.Purpose), ("platform", patch.Platform), ("organization", patch.Organization), ("location", patch.Location), ("notes", patch.Notes) })
         {
             ValidateText(value, name);
@@ -64,6 +66,7 @@ public sealed partial class ProjectService(
                     Notes = patch.Notes ?? m.Details.Notes,
                     Tags = tags ?? m.Details.Tags,
                     Agenda = agenda ?? m.Details.Agenda,
+                    WhoSpoke = whoSpoke ?? m.Details.WhoSpoke,
                 },
             },
             cancellationToken);
@@ -316,6 +319,38 @@ public sealed partial class ProjectService(
             .Select(v => v.Length > MaxTitleLength ? throw Invalid($"Each of the {field} can be at most {MaxTitleLength} characters.") : v)
             .Distinct(StringComparer.Ordinal)
             .ToList();
+    }
+
+    /// <summary>A count from 1 to 20 or none; at most 20 names of 1–100 characters (trimmed, repeats ignoring case dropped).</summary>
+    public static WhoSpoke ValidateWhoSpoke(WhoSpoke whoSpoke)
+    {
+        ArgumentNullException.ThrowIfNull(whoSpoke);
+        if (whoSpoke.Count is < 1 or > WhoSpoke.MaxCount)
+        {
+            throw Invalid(string.Create(CultureInfo.InvariantCulture, $"The number of speakers is a whole number from 1 to {WhoSpoke.MaxCount}, or none to let Memento decide; {whoSpoke.Count} is not."));
+        }
+
+        var names = new List<string>();
+        foreach (var raw in whoSpoke.Names ?? [])
+        {
+            var name = (raw ?? string.Empty).Trim();
+            if (name.Length is 0 or > WhoSpoke.MaxNameLength)
+            {
+                throw Invalid($"Each speaker name needs 1 to {WhoSpoke.MaxNameLength} characters.");
+            }
+
+            if (!names.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                names.Add(name);
+            }
+        }
+
+        if (names.Count > WhoSpoke.MaxNames)
+        {
+            throw Invalid($"At most {WhoSpoke.MaxNames} speakers can be named; this list has {names.Count}.");
+        }
+
+        return new WhoSpoke(whoSpoke.Count, names);
     }
 
     private static Agenda ValidateAgenda(Agenda agenda)

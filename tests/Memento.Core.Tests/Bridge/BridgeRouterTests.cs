@@ -243,6 +243,7 @@ public sealed class BridgeRouterTests
             "transcript.editSegment", "transcript.get", "transcript.markReviewed", "transcript.mergeSpeakers", "transcript.renameSpeaker",
             "transcript.restoreVersion", "transcript.retranscribe", "transcript.search", "transcript.setSegmentSpeaker", "transcript.versions",
             "transcript.restoreSpeaker", "transcript.removeSpeaker", "transcript.copy", "transcript.getVersion", "history.links",
+            "transcript.restoreSpeakers", "transcript.reduceSpeakers",
             "agenda.apply", "agenda.discard", "agenda.importDropped", "agenda.importFile", "agenda.parseText", "agenda.setCovered",
             "ai.clearKey", "ai.setKey", "app.setStartup", "attachments.add", "attachments.list", "attachments.open", "attachments.remove",
             "export.cancel", "export.estimate", "export.openFolder", "export.run", "library.importMedia", "library.move",

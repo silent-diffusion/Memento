@@ -5,13 +5,14 @@ using Memento.Core.Bridge.Contracts;
 namespace Memento.Core.Projects;
 
 /// <summary>
-/// <c>project.json</c>, schema v2 (ARCHITECTURE.md §4). Fields this build does not know are kept in
+/// <c>project.json</c>, schema v3 (ARCHITECTURE.md §4). Fields this build does not know are kept in
 /// <see cref="ExtensionData"/> and written back unchanged. v2 (0.4.0) makes <see cref="Attachments"/> a typed field;
-/// v1 files carried the same array untyped, and <see cref="ProjectManifestMigrator"/> drops entries it cannot read.
+/// v1 files carried the same array untyped, and <see cref="ProjectManifestMigrator"/> drops entries it cannot read. v3 (after
+/// 1.2.0) adds <see cref="ProjectDetails.WhoSpoke"/> (<see cref="WhoSpokeMigration"/>).
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
