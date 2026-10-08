@@ -76,7 +76,8 @@ Transcription and other work never slow a recording down: while you record, they
 
 Review opens after you stop, or when you open a recording from the Library.
 
-- The **player** plays the mix of all tracks. Click the waveform to jump, or use the time slider (left/right arrows: 5 seconds; with Shift: 30 seconds).
+- The **player** plays the mix of all tracks. Click the waveform to jump, or use the time slider (left/right arrows: 5 seconds; with Shift: 30 seconds). **Skip silences** (next to the speed) jumps over every pause longer than a second and a half between transcript lines; the skipped stretches are dimmed on the waveform and "Skipped 4 s" appears briefly where playback landed. It needs a transcript, never skips while you scrub, and Memento remembers whether it is on.
+- On a window 1024 pixels or wider the player stays in place and the outline on the left, the transcript and the details on the right each scroll on their own. On a narrower window they stack and the page scrolls.
 - The **transcript** follows the playback. Click a line to play it; double-click to correct it (the original wording is kept). Words the engine was unsure of have a dotted underline.
 - **Search** finds words in the transcript; the Library search also finds words across all recordings.
 - **Mark as reviewed** when you have checked it.
@@ -107,7 +108,7 @@ Items Memento is unsure of are marked with the reason, for example a heading tha
 
 ## Documents
 
-In Review, choose **Create document**. The **document builder** opens with your default template (Meeting minutes, Interview notes, Lecture summary or Dictation clean-up, or one of your own).
+In Review, choose **Create document**. The **document builder** opens with your default template. The **Template** list in its header holds the built-in templates (Meeting minutes, Interview notes, Lecture summary, Dictation clean-up) and then your own; choosing one opens it, and with unsaved changes Memento asks first. **Save template** keeps the template you are on (a built-in is saved as a copy with its own name) and **Save as new template** always makes another one. Sections already on the template are greyed in the palette and marked "in use"; you can still add them again.
 
 - **Sections**: drag sections from the palette into rows of up to three side by side: summary, decisions, action items with owner and deadline, agenda, discussion, open questions, quotes, timeline, next meeting, your own text, a section written to your own instructions, the full transcript and more. Give each one instructions and a length, choose whether it links its statements to the transcript, and set its text size. The preview beside it updates as you go.
 - **Inputs**: tick what the document may use: the transcript, the details, participants, the agenda, highlights, attachments and earlier documents. Audio and video are never used or sent.
@@ -139,7 +140,7 @@ Open Settings with the gear at the top right. Every change is saved at once.
 - **Recording**: the default sources and recording type, how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), and the free-space warning level (10 GB by default).
 - **Transcription**: transcribe automatically or by hand, pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark.
 - **Speakers**: identify speakers, the expected number, and the speaker models.
-- **AI and privacy**: the local model; **Allow external AI services** (off by default) with what may be shared, **Ask before every send** and **Keep a record of what was sent**; the default provider; and your Claude and ChatGPT keys, which are encrypted for your Windows account and never shown again.
+- **AI and privacy**: the local models, with **Use this model** beside each installed one and a line that says which model writes documents, where it runs (graphics card or processor) and why (when only one is installed it is used, whatever the card has free); **Allow external AI services** (off by default) with what may be shared (Audio and Video are listed as never sent), **Ask before every send** and **Keep a record of what was sent**; the default provider; and your Claude and ChatGPT keys, which are encrypted for your Windows account and never shown again.
 - **Documents**: the default template and style, **Manage templates and styles**, and version history for transcripts and documents.
 - **Export**: the default folder and what to include.
 - **Storage and history**: how much space the library uses, its largest recordings, making older recordings smaller, and rebuilding the library list.

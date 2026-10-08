@@ -115,6 +115,10 @@ Delivered (2026-10-07, as 1.0.0; 0.5.0 and 0.9.0 were not tagged and are folded 
 
 - Open after 1.0.0 (seen only under extreme CPU starvation, 28 busy loops on one core; not reproduced on CI): a track that receives no audio before it is checkpointed, stopped or turned off reports `StartOffset` 0 (`TrackRun.Status` uses zero without a first frame; the adapter should use its add time), and a first checkpoint can show 0 bytes on fresh tracks. Tests: `SourcesCanBeAddedRemovedAndReAddedMidSession`, `AMidSessionSourceGetsItsOffsetBeforeItsFirstPacket`, `ASessionMapsTracksPausesAndEventsAndStopsOnce`.
 
+## 1.1.0 — Fixes and refinements asked for after 1.0.0 — Done
+
+Delivered 2026-10-08. Fixed: the local model in effect is always an installed one (`LocalModelChoice.EffectiveId`; with only Qwen3.5 4B installed, Settings no longer names Ministral 3 3B as missing, and a graphics-card model without room on the card gives way to an installed processor model or runs on the processor); the same rule for transcription when no model is chosen (`TranscriptionModelChoice.EffectiveId`); templates can be chosen in the Builder header, saved, saved as new and found again, with unique names. Refined: the Review outline, transcript and details scroll independently under a pinned player at 1024 px and wider; Skip silences in the player; Audio and Video shown as locked never-sent rows in the Builder and in Settings; in-use modules greyed in the palette. Checked: the automated suites, and `tools/e2e/m4-flow.mjs --simulate` on the published build with both local models copied in (a run that pushed the wait to cover every copied model being hashed before the Settings checks).
+
 ## Security audit (before 1.0.0, repeated before 2.0.0) — Done for 1.0.0
 
 Scope: the whole repository and the shipped installer, as a local-first desktop app that may hold privileged recordings. Deliverables: `docs/SECURITY.md` (threat model, what the app promises, how to report issues) and `docs/audits/SECURITY-AUDIT-<date>.md` (findings with severity, status, and the commit that fixed each).

@@ -72,12 +72,16 @@ const historyOf = (id) => readFileSync(join(projectFolder(id), 'history.jsonl'),
 const documentFiles = (id) => (existsSync(join(projectFolder(id), 'documents')) ? readdirSync(join(projectFolder(id), 'documents')).filter((f) => f.endsWith('.json')) : []);
 
 /** Hard-links (or copies) every model file into the data root's models folder. */
+/** The local models (by their Settings card name) whose files are in the data root after the copy. */
+const localModelsCopied = [];
+
 function installModels(from) {
   const to = join(app.memento, 'models');
   for (const kind of readdirSync(from)) {
     mkdirSync(join(to, kind), { recursive: true });
     for (const file of readdirSync(join(from, kind))) {
       const target = join(to, kind, file);
+      if (kind === 'llama' && file.endsWith('.gguf')) localModelsCopied.push(file.startsWith('Qwen') ? 'Qwen3.5 4B' : 'Ministral 3 3B');
       if (existsSync(target)) continue;
       try {
         linkSync(join(from, kind, file), target);
@@ -357,8 +361,15 @@ try {
   await openSettings('AI and privacy');
   await hasText('Allow external AI services');
   check((await page.eval(`document.querySelector('[aria-label="Allow external AI services"]')?.getAttribute('aria-checked')`)) !== 'true', 'external AI is off');
-  // At least one local model is installed (a copied model file is hashed in the background first).
-  await page.waitFor(`!!document.querySelector('[aria-label^="Remove Qwen3.5 4B"], [aria-label^="Remove Ministral 3 3B"]')`, 'a local model installed', 60_000);
+  // Every copied local model is installed (a copied model file is hashed in the background first, and the model in
+  // effect follows each one as it is verified, so the checks below must not run while one is still being hashed).
+  if (localModelsCopied.length > 0) {
+    for (const name of localModelsCopied) {
+      await page.waitFor(`!!document.querySelector('[aria-label^="Remove ${name}"]')`, `${name} installed`, 180_000);
+    }
+  } else {
+    await page.waitFor(`!!document.querySelector('[aria-label^="Remove Qwen3.5 4B"], [aria-label^="Remove Ministral 3 3B"]')`, 'a local model installed', 60_000);
+  }
   const cardOf = (name) => page.eval(`(() => { const card = [...document.querySelectorAll('.model-card')].find((c) => c.querySelector('.model-name')?.innerText.includes(${JSON.stringify(name)})); const radio = card?.querySelector('input[type=radio]'); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const b = radio.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, checked: radio.checked, disabled: radio.disabled, installed: !!card.querySelector('[aria-label^="Remove "]'), text: card.innerText.replace(/\\s+/g, ' ') }; })()`);
   const inUse = () => page.eval(`(document.querySelector('.model-in-use')?.innerText ?? '').replace(/\\s+/g, ' ').trim()`);
   summary.gpuAtStart = gpuMemory();
