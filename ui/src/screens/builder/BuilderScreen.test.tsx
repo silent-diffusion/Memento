@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { MockOptions } from '../../bridge/mock';
 import type { GenerationConfirmParams, GenerationPreviewParams, GenerationStartParams } from '../../bridge/types';
 import { button, click, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
+import { expectNeverSentRows } from '../../testing/neverSent';
 import { PREVIEW_DEBOUNCE_MS, PROVIDER_RECHECK_MS } from './BuilderScreen';
 
 const DESIGN = '20261005-160000-dsrev';
@@ -143,7 +144,7 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
   it('sends exactly the ticked inputs to generation.preview and shows the payload read-only', async () => {
     await open();
     await click(document.querySelector('#builder-tab-inputs'));
-    const checks = [...document.querySelectorAll<HTMLLabelElement>('.input-check')];
+    const checks = [...document.querySelectorAll<HTMLElement>('.input-check')];
     expect(checks.map((c) => c.querySelector('.input-name')?.textContent)).toEqual([
       'Transcript',
       'Recording details',
@@ -155,9 +156,9 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
       'Audio',
       'Video',
     ]);
-    const audio = checks[7]?.querySelector('input');
-    expect(audio?.disabled).toBe(true);
-    expect(checks[7]?.textContent).toContain('never sent');
+    // Audio and video are never sent: greyed rows with a lock and a note, not checkboxes.
+    expect(document.querySelectorAll('#builder-panel-inputs input[type="checkbox"]')).toHaveLength(7);
+    expectNeverSentRows(checks.slice(7));
     // Attachments are not allowed in Settings › AI and privacy by default.
     expect(checks[5]?.querySelector('input')?.disabled).toBe(true);
     expect(checks[5]?.textContent).toContain('off in Settings');

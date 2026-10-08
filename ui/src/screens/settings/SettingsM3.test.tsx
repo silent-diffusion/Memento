@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { AiSetKeyParams, SettingsSetParams, StorageReclaimParams } from '../../bridge/types';
 import type { SettingsSection } from '../../state/router';
 import { button, click, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
+import { expectNeverSentRows } from '../../testing/neverSent';
 import { MASKED_KEY } from './sections-m3';
 import { libraryMoveCopy } from './SettingsDialogs';
 
@@ -175,9 +176,10 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
       ['Agenda and imported documents', true, false],
       ['Highlights and notes', true, false],
       ['Attachments', false, false],
-      ['Audionever', false, true],
-      ['Videonever', false, true],
     ]);
+    // Audio and video are never sent: greyed rows with a lock and "never sent", no checkbox.
+    expectNeverSentRows([...rowOf('Allowed data').querySelectorAll('.never-sent')]);
+    expect(rowOf('Allowed data').querySelector('.never-sent')?.previousElementSibling?.textContent).toBe('Attachments');
     await click(checks[5]);
     await until(() => h.callsOf('settings.set').length === 1);
     expect((h.callsOf('settings.set')[0] as SettingsSetParams).ai?.share?.attachments).toBe(true);

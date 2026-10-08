@@ -5,6 +5,7 @@ import type { InputSelection, ProviderId, ProviderInfo, Style, TemplateOutput } 
 import { Segmented, Toggle } from '../../components/Controls';
 import { CheckIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
+import { NEVER_SENT, NeverSentRow } from '../../components/NeverSentRow';
 import { AlertIcon } from '../../components/paper/icons';
 import { Paper } from '../../components/paper/Paper';
 import { INPUT_NAMES } from '../../format/documents';
@@ -226,12 +227,8 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
                   <span class="input-note">{row.note}</span>
                 </label>
               ))}
-              {['Audio', 'Video'].map((name) => (
-                <label key={name} class="input-check input-check--locked">
-                  <input class="chk" type="checkbox" checked={false} disabled />
-                  <span class="input-name">{name}</span>
-                  <span class="input-note">never sent</span>
-                </label>
+              {NEVER_SENT.map((name) => (
+                <NeverSentRow key={name} name={name} rowClass="input-check input-check--locked" nameClass="input-name" noteClass="input-note" />
               ))}
             </div>
           </div>
