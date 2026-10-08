@@ -3,23 +3,37 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
-## 0.5.0
+## 1.0.0
 
-The first public release. Memento records, transcribes on your PC, tells speakers apart, imports agendas and exports what you choose; everything from 0.2.0 to 0.4.0 is in it, and this release spent its time on making that dependable. Documents written with AI (minutes, summaries) come in a later version.
+The first public release. Memento records meetings, interviews, lectures and dictation, transcribes them on your PC, tells the speakers apart, imports agendas, exports exactly what you choose, and now turns a recording into minutes, summaries and other documents in which every statement points back to the moment it was said. Everything from 0.2.0 to 0.4.0 is in it. Versions 0.5.0 and 0.9.0 were never released on their own: what they were going to bring is in this release, together with a full security review.
 
-**If you have 0.2, 0.3 or 0.4 installed**, download and run this Setup once: those versions never check for updates. From 0.5.0 on, Memento updates itself.
+**If you have 0.2, 0.3 or 0.4 installed**, download and run this Setup once: those versions never check for updates. From 1.0.0 on, Memento updates itself.
 
-New in this release:
+### Documents
 
-- **Updates.** Memento checks GitHub for a newer version when it starts and once a day, never while you record or while a recording is being processed, downloads it in the background (the status bar shows the progress) and offers **Restart to update**. Nothing is installed until you choose it, or until the next time Memento starts. Settings › General › Updates shows your version and the last check, has **Check now**, and lets you turn automatic checks off. A check sends nothing about you or your recordings.
+- **Create document** in Review opens the **document builder**. Start from a template (Meeting minutes, Interview notes, Lecture summary, Dictation clean-up) or build your own from 23 sections: summary, decisions, action items with owner and deadline, agenda, discussion, open questions, quotes, timeline, next meeting, your own text, a section written to your own instructions, and the **Full transcript**. Drag sections into rows of up to three side by side, give each one instructions and a length, choose whether it links its statements to the transcript, and set its **text size** (smaller, normal or larger). The preview beside it updates as you go, and a template can be saved for every recording.
+- **You choose who writes it.** Three providers:
+  - **Local model** (Qwen3.5 4B on a graphics card, or Ministral 3 3B on the processor), downloaded once in Settings › AI and privacy. It runs on this PC and sends nothing anywhere. It is good for a first draft with citations and review: every statement carries its timestamp and goes through the checks below, but read the document before you rely on it. A meeting takes a few minutes on a laptop graphics card (about two and a half minutes for twenty minutes of meeting on the reference laptop) and much longer on the processor.
+  - **Claude** (Anthropic) and **ChatGPT** (OpenAI), with your own key. They stay off until you turn on **Allow external AI services**. Before anything is sent, **Preview exactly what will be sent** shows the text word for word, and with **Ask before every send** on (the default) Memento asks again, naming the provider, what is included and how much. Audio and video are never sent.
+- **Checked against the transcript.** Each statement is checked against the part of the transcript it cites. What the transcript does not support is left out, a summary point that adds a detail nobody said is shortened to what was said, and an owner or deadline is kept only if someone named it. A section the meeting never got to says "Not discussed.", and agenda items nobody talked about say "Not reached". **How this was made** in the document lists exactly what was used, what was sent and where, what was checked and dropped, and that audio and video were not sent; History keeps the same record.
+- **The document viewer** shows the result on paper. Click a timestamp to hear that moment in Review, edit a paragraph in place ("Saved" appears when it is stored), regenerate with changed instructions, and go back to any earlier version.
+- **Styles** decide how documents look, never what they say: three presets (Corporate, Minimal, Academic) and your own copies, with typefaces, size, heading colour, numbered headings, table shading, spacing, Letter or A4 paper, page numbers and a running header.
+- **Export** a document as **Word**, **PDF** or **Markdown** from the viewer or the Export dialog, with timestamps as footnotes in Word and PDF. A template can also keep Word, PDF and Markdown copies inside the recording each time it generates.
+- Templates and styles are managed in **Settings › Documents**.
+
+### Updates and help
+
+- **Updates.** Memento checks this project's GitHub releases for a newer version when it starts and once a day, never while you record or while a recording is being processed, downloads it in the background (the status bar shows the progress) and offers **Restart to update**. Nothing is installed until you choose it, or until the next time Memento starts. **Settings › General › Updates** shows your version and the last check, has **Check now**, and lets you turn automatic checks off. A check sends nothing about you or your recordings.
 - **About** in Settings › General: the version, where your library is, and the licenses of every component inside Memento.
-- **A user guide** (docs/USER-GUIDE.md): installing, recording, review, speakers, agendas, export, settings, where your data lives and how to back it up, and what to do when something goes wrong.
+- **A user guide** (docs/USER-GUIDE.md): installing, recording, review, speakers, agendas, documents, export, settings, where your data lives and how to back it up, and what to do when something goes wrong.
 
-Hardening (each found by testing this release on a real PC, and fixed):
+### Made dependable
+
+Each of these was found by testing on a real PC, and fixed:
 
 - A library on a USB drive that is not plugged in no longer stops Memento from starting. Memento says which drive it is waiting for, does not create an empty library in its place, does not record until the drive is back, and opens the library by itself once it is. If the drive goes away while you record, Stop ends the recording, says so, and the next start with the drive connected saves everything.
 - The low-disk-space banner now shows on every screen, also on the Record screen, without a recording, and when Memento starts with a full drive.
-- Model files are checked against their published fingerprint before every use, not only after downloading. A damaged file is set aside, Review says so, and **Download … again** replaces it; transcription then continues by itself. An interrupted model download continues where it stopped.
+- Model files are checked against their published fingerprint before they are used, not only after downloading (a file is checked once, and again whenever it changes). A damaged file is set aside, Review says so, and **Download … again** replaces it; transcription then continues by itself. An interrupted model download continues where it stopped.
 - An export cut short by a crash or power cut is cleaned up at the next start like a failed one, and the recording's History says so.
 - A recording whose saving was interrupted is now described as that in History, not as an interrupted recording.
 - When the PC sleeps or Memento is frozen while recording, the microphone track now keeps the time it missed as silence, so it stays in step with the PC's sound and the apps instead of sliding earlier.
@@ -27,12 +41,41 @@ Hardening (each found by testing this release on a real PC, and fixed):
 - Starting a recording with other sources than last time no longer forgets the recording type you picked, and no longer puts back settings that were changed since the Record screen opened (such as the storage format).
 - Opening the Record screen again in the moment a recording finished saving no longer leaves it showing "Finalizing…" for good.
 - Closing Memento while it was still sending progress to its window no longer leaves a crash report behind.
+- Only one Memento runs for each data folder.
 - Text and labels meet a 4.5:1 contrast in both themes, button labels on the orange buttons in the dark theme included. With Windows' animations turned off, buttons no longer shrink when pressed and the processing dot stops pulsing. Every control can be reached with the keyboard and has a name; two outputs or two microphones now have switches with different names.
-- Security: an agenda file that would unpack to gigabytes is refused; a scanned PDF page is never rendered larger than 10,000 pixels; attachments open with their app only when they are documents, images or media (anything else opens its folder) and keep Windows' "downloaded from the internet" mark; an export can never write outside its folder, whatever a recording's files say; the page cannot ask for any permission or start a download; saving one AI key while the key file is locked no longer loses the other; an import that would fill the drive is refused first.
 
-Tested for this release: a 4-hour recording of a microphone, the PC's sound and an app with checkpoints every 30 seconds; an 8-hour simulated three-track recording; tracks rolling over to a second and third file; a microphone disabled and enabled mid-recording; the default output switched mid-recording; Memento frozen for two minutes while recording and while transcribing; low and full disks; a library drive that disappears; a 2-hour recording transcribed on the graphics card and on the processor; transcription paused, cancelled and its engine killed mid-way; Memento killed while recording, saving, transcribing, identifying speakers, finding topics, making files smaller, importing, exporting and moving the library. The numbers are in docs/ROADMAP.md (H1).
+### Security
 
-Still missing: documents and every AI feature (their settings are there and off), a live transcript while recording, video capture, keeping Memento in the tray, and a button to stop a running transcription (it pauses by itself while you record and continues where it stopped). The installer is not code-signed yet, so Windows SmartScreen may warn the first time.
+Before this release the whole app went through a security review (docs/audits/SECURITY-AUDIT-2026-10-07.md); every finding was fixed or is explained there. What changed for you:
+
+- **Files you import or attach** cannot harm Memento or your PC. Word, Excel, PDF and image agendas that would unpack or render to gigabytes, nest too deeply or take too long are refused with a clear message, and no agenda reader runs longer than a minute. An audio or video import that would fill the library drive, or that claims an impossible format, is refused before anything is written.
+- **Recording folders copied in from elsewhere** cannot make Memento read, change or delete files outside them, and an export never writes outside its folder or over an existing file.
+- **Attachments** open with their app only when they are documents, images or media; anything else opens its folder, so you decide. Copies keep Windows' "downloaded from the internet" mark, so Office still opens them in Protected View.
+- **The window** cannot ask for your microphone, camera or any other permission, cannot start a download and never loads anything from the internet. Its crash reports stay on this PC.
+- **Models** download only from the sites that publish them and are checked before use. **AI keys** are encrypted for your Windows account, never written to a log, and saving one never loses the other. Requests to Claude and ChatGPT never follow a redirect elsewhere.
+- **AI and your text.** The transcript, agenda and instructions are handed to the AI as material, never as orders, so a sentence in a meeting cannot change what the AI is told to do; an owner or deadline is kept only when a person who was there is named.
+- **The helper program** that runs transcription and the local model is stopped when it hangs or crashes, instead of holding everything up.
+- **Releases** are built with read-only access and published in a separate step. Each release lists the SHA-256 checksum of every file (`SHA256SUMS.txt`) and the components it contains (SBOM files).
+
+Good to know:
+
+- **The installer and updates are not code-signed.** Windows SmartScreen will warn the first time; choose **More info**, then **Run anyway**, only if you downloaded Setup from this project's Releases page. To check a download, compare `Get-FileHash MementoApp-win-Setup.exe` with `SHA256SUMS.txt` on the release page.
+- **The update check is the one connection Memento makes by itself**: a request to GitHub for the list of releases when Memento starts and once a day, never while you record or while a recording is processed. Turn it off in Settings › General › Updates. Model downloads and AI providers connect only when you start them.
+- **The Microsoft Edge WebView2 runtime**, which draws Memento's window, makes its own connections to Microsoft (runtime updates and configuration). Memento cannot turn them off; they carry nothing from your recordings, because the window never loads anything from the internet.
+- **The local model is good for a first draft with citations and review.** Every statement points to its moment in the recording and is checked, but meaning can still come out wrong; read a document before you rely on it.
+
+### Tested for this release
+
+A 4-hour recording of a microphone, the PC's sound and an app with checkpoints every 30 seconds; an 8-hour simulated three-track recording; tracks rolling over to a second and third file; a microphone disabled and enabled mid-recording; the default output switched mid-recording; Memento frozen for two minutes while recording and while transcribing; low and full disks; a library drive that disappears; a 2-hour recording transcribed on the graphics card and on the processor; transcription paused, cancelled and its engine killed mid-way; Memento killed while recording, saving, transcribing, identifying speakers, finding topics, making files smaller, importing, exporting and moving the library; an update from a local feed installed through the app; documents generated with the local model on the graphics card and on the processor, edited, regenerated, restored and exported as Word, PDF and Markdown; Claude refusing a wrong key from a test server; the agenda readers fed thousands of damaged files; and the network watched during a whole session (with AI off, Memento itself connected nowhere). The numbers are in docs/ROADMAP.md.
+
+### Known limitations
+
+- In a 4-hour recording made while another program kept the processor at 100% the whole time, the microphone track ended about 0.7 seconds out of step with the others. This was not seen without that outside load.
+- A live transcript while recording, remembering speakers by their voice, chapter suggestions and video capture come in 2.0.
+- Claude and ChatGPT have so far been tried only against a test server, not with a real key.
+- **Keep running in the tray** is stored but not applied yet; closing the window closes Memento.
+- There is no button to stop a transcription that is running; it pauses by itself while you record and continues where it stopped.
+- English is the only interface language.
 
 ## 0.4.0
 
