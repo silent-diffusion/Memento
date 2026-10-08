@@ -335,7 +335,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await open();
     await click(button('Export'));
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe('Export copies');
-    await click(document.querySelector<HTMLElement>('.export-foot .btn.g') ?? document.body);
+    await click(button('Cancel'));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await click(button('Create document'));
     expect(store.route.value).toEqual({ name: 'builder', recordingId: DESIGN_REVIEW, templateId: null, documentId: null });

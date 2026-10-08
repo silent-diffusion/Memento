@@ -121,6 +121,8 @@ export const ERROR_CODES = [
   'updates.unavailable',
   'updates.notReady',
   'updates.busy',
+  // After 1.2.0
+  'clipboard.unavailable',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -574,6 +576,40 @@ export interface TranscriptMarkReviewedParams {
 
 export interface TranscriptMarkReviewedResult {
   reviewed: boolean;
+}
+
+/**
+ * How the readable transcript (Markdown, text) is written in an export or a copy (BRIDGE.md, "Clipboard and transcript
+ * text options"). Any combination; the defaults write what earlier versions wrote. JSON and SRT ignore them.
+ */
+export interface TranscriptTextOptions {
+  /** An [h:mm:ss] marker before every segment. */
+  timestamps: boolean;
+  /** The speaker's name before each turn or line, and the speakers in the heading. */
+  speakers: boolean;
+  /** auto: Markdown in paragraphs per speaker turn, text one line per segment. */
+  layout: TranscriptLayout;
+}
+
+export type TranscriptLayout = 'auto' | 'turns' | 'lines';
+
+export type TranscriptCopyFormat = 'text' | 'markdown';
+
+export interface TranscriptCopyParams {
+  recordingId: string;
+  format: TranscriptCopyFormat;
+  /** Missing or null: the defaults. */
+  options?: TranscriptTextOptions | null;
+  /** Only these lines (a filtered view), in transcript order; missing or null copies every line. Never empty. */
+  segmentIds?: string[] | null;
+}
+
+export interface TranscriptCopyResult {
+  /** The lines copied. */
+  lines: number;
+  /** The transcript's lines with words in them. */
+  totalLines: number;
+  characters: number;
 }
 
 export interface TranscriptSearchParams {
@@ -1203,7 +1239,8 @@ export interface ExportAudioChoice {
 export interface ExportSelection {
   audioMixed: ExportAudioChoice;
   tracks: ExportAudioChoice;
-  transcript: { on: boolean; formats: TranscriptExportFormat[] };
+  /** options: after 1.2.0; missing or null means the defaults. */
+  transcript: { on: boolean; formats: TranscriptExportFormat[]; options?: TranscriptTextOptions | null };
   /** M4 fills this; M3 exports nothing here. */
   documents: { on: boolean; documentIds: string[]; format: DocumentExportFormat };
   details: { on: boolean };
@@ -2021,6 +2058,12 @@ export interface DocumentExportParams {
   path?: string;
 }
 
+/** documents.copy: the Markdown as text and the print page as HTML for Word and Outlook. */
+export interface DocumentCopyResult {
+  characters: number;
+  formatted: boolean;
+}
+
 export interface DocumentExportResult {
   path: string;
   bytes: number;
@@ -2083,6 +2126,7 @@ export interface BridgeMethods {
   'transcript.retranscribe': { params: TranscriptRetranscribeParams; result: EmptyResult };
   'transcript.versions': { params: RecordingIdParams; result: TranscriptVersionsResult };
   'transcript.restoreVersion': { params: TranscriptRestoreVersionParams; result: TranscriptRestoreVersionResult };
+  'transcript.copy': { params: TranscriptCopyParams; result: TranscriptCopyResult };
   'processing.retry': { params: ProcessingRetryParams; result: EmptyResult };
   'processing.cancel': { params: ProcessingStageParams; result: EmptyResult };
   'processing.pause': { params: EmptyParams; result: EmptyResult };
@@ -2151,6 +2195,7 @@ export interface BridgeMethods {
   'documents.versions': { params: DocumentIdParams; result: DocumentVersionsResult };
   'documents.restoreVersion': { params: DocumentRestoreVersionParams; result: DocumentRestoreVersionResult };
   'documents.export': { params: DocumentExportParams; result: DocumentExportResult };
+  'documents.copy': { params: DocumentIdParams; result: DocumentCopyResult };
   // H1
   'updates.status': { params: EmptyParams; result: UpdateStatus };
   'updates.check': { params: EmptyParams; result: UpdateStatus };
@@ -2304,6 +2349,9 @@ export const METHOD_NAMES = [
   'updates.status',
   'updates.check',
   'updates.apply',
+  // After 1.2.0
+  'transcript.copy',
+  'documents.copy',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [

@@ -360,7 +360,7 @@ type TranscriptExportFormat = 'json' | 'markdown' | 'text' | 'srt';
 interface ExportSelection {
   audioMixed: { on: boolean; format: AudioExportFormat; bitrateKbps: number | null };
   tracks:     { on: boolean; format: AudioExportFormat; bitrateKbps: number | null };
-  transcript: { on: boolean; formats: TranscriptExportFormat[] };
+  transcript: { on: boolean; formats: TranscriptExportFormat[]; options?: TranscriptTextOptions | null };   // options: after 1.2.0, see "Clipboard and transcript text options"
   documents:  { on: boolean; documentIds: string[]; format: 'docx' | 'pdf' | 'markdown' };   // M4 fills this; M3 exports nothing here and the row is disabled with "Documents arrive in a later version"
   details:    { on: boolean };
   attachments:{ on: boolean };
@@ -684,3 +684,32 @@ Settings snapshot: `general` adds `autoUpdate: boolean` (default `true`), merged
 ## Error codes (H1)
 
 `library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).
+
+## Clipboard and transcript text options (after 1.2.0)
+
+The product owner asked for the transcript without timestamps or speakers (in any combination), for copies straight to the clipboard, and for a filtered transcript in Review. Filtering is the UI's alone (DESIGN.md §9); a filtered copy names its lines in `transcript.copy`.
+
+```ts
+interface TranscriptTextOptions {
+  timestamps: boolean;                  // an [h:mm:ss] marker before every segment (true)
+  speakers: boolean;                    // the speaker's name before each turn or line, and "Speakers: …" in the heading (true)
+  layout: 'auto' | 'turns' | 'lines';   // auto: Markdown in paragraphs per speaker turn, text one line per segment (as before)
+}
+interface TranscriptCopyResult { lines: number; totalLines: number; characters: number }   // "Copied 42 of 318 lines"
+interface DocumentCopyResult { characters: number; formatted: boolean }
+```
+
+- **One formatter.** `Memento.Core.Export.TranscriptText` writes the Markdown and text files of `export.run` and the text of `transcript.copy`, so a copy reads exactly like the file. The defaults (a field missing, or `options` missing or `null`) write what earlier versions wrote. Any combination is allowed; a layout other than the three answers `bridge.invalidParams` naming it. `turns` joins consecutive lines of the same speaker into one paragraph (a line without a speaker stands alone), also when the names are left out; `lines` gives every segment its own line (Markdown: its own paragraph). Lines without words are skipped. JSON and SRT keep their own structure and ignore the options. The document's Full transcript module is a block the composer builds from `transcript.json`, not this text, so the options do not apply to it.
+- **In the export.** `ExportSelection.transcript.options` carries them; the UI remembers them per user (`ui/src/state/uiPrefs.ts`) and sends them with every estimate and run, and Settings › Export's defaults keep them when "Remember these choices" is on. `settings.get` answers the block with `options` filled. `manifest.json` (M3 clarification 17) gains `transcriptOptions: TranscriptTextOptions | null`: the options the Markdown and text files were written with, `null` when the export has neither. The field is additive; `schemaVersion` stays 1.
+- **The clipboard is the host's.** The page never uses the browser's clipboard API: the host writes the Windows clipboard on the window's thread (WPF `Clipboard.SetDataObject`, flushed so the copy outlives Memento) with Unicode text, plus the Windows `HTML Format` (CF_HTML, `Memento.Core.Host.ClipboardHtml`: UTF-8 byte offsets of the page and of the fragment between `<!--StartFragment-->` and `<!--EndFragment-->`) when there is formatted content, and `CanUploadToCloudClipboard` = 0 so Windows' "sync across your devices" never uploads it. Clipboard history on this PC still works. Nothing of the text is logged.
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `transcript.copy` | `{ recordingId, format: 'text' \| 'markdown', options?: TranscriptTextOptions \| null, segmentIds?: string[] \| null }` | `TranscriptCopyResult` | The transcript as its export file would read, on the clipboard as text. `segmentIds` limits it to those lines (Review's filtered view), in transcript order, and the heading names only their speakers; missing or `null` copies every line. `lines` counts the lines copied, `totalLines` the transcript's lines with words. An empty list or more than 100,000 ids is `bridge.invalidParams`; an id the transcript does not have answers `transcript.segmentNotFound` (`detail`: that id) and nothing is copied; no transcript yet is `transcript.none`; a format other than the two is `bridge.invalidParams`. Reads only. |
+| `documents.copy` | `{ recordingId, documentId }` | `DocumentCopyResult` | One document twice over: as the Markdown `documents.export` writes (the clipboard's text, for any program) and as the page its PDF is printed from (`documents.renderHtml` `print`: styles, headings, tables, footnoted timestamps), so Word and Outlook paste it formatted. `documents.notFound` for an unknown document. Reads only. |
+
+Both answer `clipboard.unavailable` when Windows does not let Memento open the clipboard (another program holds it; WPF retries for about a second first): "Windows did not let Memento use the clipboard, so the transcript was not copied. Nothing was changed. Try again in a moment; if another program keeps the clipboard open, close it first." (`detail`: Windows' code). The UI confirms a copy quietly ("Copied 42 of 318 lines as text" in the status beside Undo, or in the Export dialog's footer) and shows a refusal as a warning toast with the host's message.
+
+## Error codes (clipboard)
+
+`clipboard.unavailable` (Windows did not let Memento write the clipboard; nothing was copied; detail: Windows' code).

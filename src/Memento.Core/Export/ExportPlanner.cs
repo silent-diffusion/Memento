@@ -39,6 +39,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         var stored = manifest.State is ProjectStates.Ready or ProjectStates.Recovered;
         var items = new List<ExportItem>();
         var unavailable = new List<ExportUnavailable>();
+        TranscriptTextOptions? transcriptOptions = null;
 
         if (selection.AudioMixed.On)
         {
@@ -69,7 +70,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
         if (selection.Transcript.On)
         {
-            await AddTranscriptAsync(recordingId, folder, selection.Transcript, project, baseName, exportedAt, items, unavailable, cancellationToken);
+            transcriptOptions = await AddTranscriptAsync(recordingId, folder, selection.Transcript, project, baseName, exportedAt, items, unavailable, cancellationToken);
         }
 
         if (selection.Documents.On)
@@ -112,7 +113,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             }
         }
 
-        return new ExportPlan(recordingId, manifest.Details.Title, baseName, exportedAt, items, unavailable);
+        return new ExportPlan(recordingId, manifest.Details.Title, baseName, exportedAt, items, unavailable) { TranscriptOptions = transcriptOptions };
     }
 
     /// <summary><c>transcript.json</c> as stored, plus when it was exported and which recording it belongs to.</summary>
@@ -197,7 +198,8 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         return new ExportItem(component, name, null, bytes, (destination, ct) => audio.WriteAsync(source, codec, choice, destination, Path.GetDirectoryName(destination)!, ct));
     }
 
-    private async Task AddTranscriptAsync(
+    /// <returns>The text options when a Markdown or text file is written (the manifest records them), else <c>null</c>.</returns>
+    private async Task<TranscriptTextOptions?> AddTranscriptAsync(
         string recordingId,
         string folder,
         ExportTranscriptChoice choice,
@@ -212,7 +214,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         if (formats.Count == 0)
         {
             unavailable.Add(new(ExportComponents.Transcript, "No format chosen"));
-            return;
+            return null;
         }
 
         TranscriptDocument? transcript;
@@ -223,25 +225,26 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         catch (ProjectSchemaException)
         {
             unavailable.Add(new(ExportComponents.Transcript, "Its file could not be read"));
-            return;
+            return null;
         }
 
         if (transcript is null)
         {
             unavailable.Add(new(ExportComponents.Transcript, "Not transcribed yet"));
-            return;
+            return null;
         }
 
         foreach (var format in ExportRules.TranscriptFormats.Where(formats.Contains))
         {
             var content = format switch
             {
-                ExportRules.Markdown => TranscriptText.Markdown(transcript, project.Summary),
-                ExportRules.Text => TranscriptText.Plain(transcript, project.Summary),
+                ExportRules.Markdown or ExportRules.Text => TranscriptText.Format(format, transcript, project.Summary, choice.Options),
                 ExportRules.Srt => SrtWriter.Write(transcript),
                 _ => TranscriptJson(await File.ReadAllTextAsync(Path.Combine(folder, ProjectLayout.TranscriptFile), cancellationToken), project, exportedAt),
             };
             items.Add(TextItem(ExportComponents.Transcript, ExportNaming.TranscriptFile(baseName, format), null, content));
         }
+
+        return formats.Any(f => f is ExportRules.Markdown or ExportRules.Text) ? choice.Options ?? TranscriptTextOptions.Default : null;
     }
 }

@@ -1,3 +1,5 @@
+using Memento.Core.Bridge.Contracts;
+
 namespace Memento.Core.Export;
 
 /// <summary>
@@ -23,4 +25,10 @@ public sealed record ExportManifestDocument
     public string Algorithm { get; init; } = "sha256";
 
     public IReadOnlyList<ExportManifestFile> Files { get; init; } = [];
+
+    /// <summary>
+    /// How the Markdown and text transcript files were written (timestamps, speakers, layout; after 1.2.0), or <c>null</c>
+    /// when the export has neither. An additive field: schema 1 readers ignore it.
+    /// </summary>
+    public TranscriptTextOptions? TranscriptOptions { get; init; }
 }

@@ -140,6 +140,7 @@ internal static class Program
         builder.Services.AddSingleton<ThemeService>();
         builder.Services.AddSingleton<IThemeState>(services => services.GetRequiredService<ThemeService>());
         builder.Services.AddSingleton<IFolderPicker, WpfFolderPicker>();
+        builder.Services.AddSingleton<IClipboard, WpfClipboard>();
         builder.Services.AddSingleton<IResourceProbe, WindowsResourceProbe>();
         if (options.ModelMirror is { } mirror)
         {

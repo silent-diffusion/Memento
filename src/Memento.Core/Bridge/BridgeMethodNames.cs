@@ -49,6 +49,7 @@ public static class BridgeMethodNames
     public const string TranscriptRetranscribe = "transcript.retranscribe";
     public const string TranscriptVersions = "transcript.versions";
     public const string TranscriptRestoreVersion = "transcript.restoreVersion";
+    public const string TranscriptCopy = "transcript.copy";
     public const string ProcessingRetry = "processing.retry";
     public const string ProcessingCancel = "processing.cancel";
     public const string ProcessingPause = "processing.pause";
@@ -117,6 +118,7 @@ public static class BridgeMethodNames
     public const string DocumentsVersions = "documents.versions";
     public const string DocumentsRestoreVersion = "documents.restoreVersion";
     public const string DocumentsExport = "documents.export";
+    public const string DocumentsCopy = "documents.copy";
 
     // H1: updates.
     public const string UpdatesStatus = "updates.status";

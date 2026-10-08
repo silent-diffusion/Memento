@@ -136,7 +136,8 @@ public sealed class M4ContractSerializationTests
             .Where(n => n.Split('.')[0] is "modules" or "templates" or "styles" or "providers" or "generation" or "documents")
             .ToList();
 
-        Assert.Equal(32, names.Count);
+        // 32 at M4, documents.copy after 1.2.0.
+        Assert.Equal(33, names.Count);
         Assert.Equal(names.Count, names.Distinct(StringComparer.Ordinal).Count());
     }
 }

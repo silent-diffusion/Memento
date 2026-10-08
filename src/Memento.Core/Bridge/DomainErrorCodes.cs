@@ -186,4 +186,7 @@ public static class DomainErrorCodes
 
     /// <summary><c>updates.apply</c> while a recording runs; it is never interrupted for an update.</summary>
     public const string UpdatesBusy = "updates.busy";
+
+    /// <summary>Windows did not let Memento write the clipboard (another program holds it open); nothing was copied. After 1.2.0.</summary>
+    public const string ClipboardUnavailable = "clipboard.unavailable";
 }

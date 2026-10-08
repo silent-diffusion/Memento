@@ -1,0 +1,171 @@
+/* Review's transcript filters (DESIGN.md §9, after 1.2.0): the Filter chip and its popover, the
+   "Showing 42 of 318 lines" line, and the People list's speaker toggle. Shadows come from tokens.css
+   by role: raised controls neo-sm / neo-xs, the chosen state pressed in (neo-in-xs, §5.2). */
+
+.tx-filter-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tx-filter-badge {
+  color: var(--text-2);
+}
+
+.tx-filter-pop {
+  width: 300px;
+  padding: 12px;
+  gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.tx-filter-group {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tx-filter-legend {
+  padding: 0 6px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.tx-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.tx-filter-option:hover {
+  background: var(--surface-2);
+}
+
+.tx-filter-option:has(.chk:checked) {
+  color: var(--text);
+}
+
+.tx-filter-option-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-filter-option-at,
+.tx-filter-option-count {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.tx-filter-note {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tx-filter-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The count line above the lines while a filter is on: accent-soft like the other still-safe notices. */
+.tx-filter-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  padding: 8px 10px 8px 16px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.tx-filter-line-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.tx-filter-line-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.tx-filter-showall {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* People: the speaker's name is a toggle; while it filters the transcript the row is pressed in. */
+.person-filter {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  border-radius: 6px;
+}
+
+.person-filter-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-filter:hover .person-filter-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.person-filter:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.person--filtered {
+  background: var(--surface);
+  box-shadow: var(--neo-in-xs);
+}
+
+.person-count {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+}

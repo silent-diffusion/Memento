@@ -70,6 +70,6 @@ public static class ExportRules
             return $"Transcript format '{unknown}' is not available. Choose any of {string.Join(", ", TranscriptFormats)}.";
         }
 
-        return null;
+        return TranscriptText.Validate(choice.Options);
     }
 }

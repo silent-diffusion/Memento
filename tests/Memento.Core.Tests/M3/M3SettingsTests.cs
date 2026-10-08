@@ -25,7 +25,7 @@ public sealed class M3SettingsTests : IDisposable
 
         Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true}""", result.GetProperty("general").GetRawText());
         Assert.Equal(
-            """{"saveCopiesOutside":false,"defaultFolder":null,"askWhereEachTime":true,"createSubfolder":true,"defaults":{"audioMixed":{"on":true,"format":"flac","bitrateKbps":null},"tracks":{"on":false,"format":"flac","bitrateKbps":null},"transcript":{"on":true,"formats":["json","markdown"]},"documents":{"on":false,"documentIds":[],"format":"docx"},"details":{"on":false},"attachments":{"on":false}}}""",
+            """{"saveCopiesOutside":false,"defaultFolder":null,"askWhereEachTime":true,"createSubfolder":true,"defaults":{"audioMixed":{"on":true,"format":"flac","bitrateKbps":null},"tracks":{"on":false,"format":"flac","bitrateKbps":null},"transcript":{"on":true,"formats":["json","markdown"],"options":{"timestamps":true,"speakers":true,"layout":"auto"}},"documents":{"on":false,"documentIds":[],"format":"docx"},"details":{"on":false},"attachments":{"on":false}}}""",
             result.GetProperty("export").GetRawText());
         Assert.Equal(
             """{"enabled":false,"askBeforeSend":true,"keepRecord":true,"share":{"transcript":true,"details":true,"participants":true,"agenda":true,"highlights":true,"attachments":false},"providers":{"anthropic":{"hasKey":false,"model":"claude-opus-5-5","models":["claude-opus-5-5","claude-fable-5-1"]},"openai":{"hasKey":false,"model":"gpt-6-astra","models":["gpt-6-astra"]}},"defaultProviderId":null,"localModelId":"ministral-3-3b-q4","localModelChosen":false}""",

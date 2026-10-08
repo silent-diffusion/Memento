@@ -455,6 +455,7 @@ The Review screen is designed to make verification fast rather than to assume th
 * Jump by chapter or highlight.
 * Low-confidence words and uncertain speaker assignments are the first things to check and are marked as such.
 * Corrections are applied in place and propagate immediately.
+* The transcript can be filtered: clicking a speaker in the People list shows only their lines, and a Filter control combines speakers, highlighted lines, lines with uncertain words, edited lines, one chapter and the search text. Hidden lines are only hidden; playing, editing and undo work on the lines shown, and the filter lasts while the recording is open.
 
 A transcript that has been reviewed may be marked as reviewed. Documents generated from a transcript that has not been reviewed may carry a note saying so.
 
@@ -1083,6 +1084,10 @@ Potential formats include:
 * Attachments: original files
 
 Export runs in the background and reports progress in the status footer.
+
+The readable transcript (Markdown and plain text) can be written with or without timestamps and with or without speaker names, in paragraphs per speaker turn or line by line, in any combination; the choice is remembered per user and recorded in the export manifest. JSON and SRT keep their own structure.
+
+Anything readable can also go straight to the clipboard instead of a file: the transcript as text or Markdown (with the same choices, and only the lines shown when the transcript is filtered in Review), and a document as Markdown plus formatted text that Word and Outlook paste with its formatting. The application writes the clipboard itself and asks Windows not to sync it to other devices; nothing leaves the PC.
 
 ---
 

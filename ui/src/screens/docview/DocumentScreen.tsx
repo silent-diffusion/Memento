@@ -14,6 +14,7 @@ import { Paper } from '../../components/paper/Paper';
 import { serializePaper } from '../../components/paper/paperDom';
 import { PROVIDER_SHORT, whenWords } from '../../format/documents';
 import { useServices } from '../../state/context';
+import { copyDocument } from '../../state/copy';
 import { MERGE_WINDOW_MS, undoOf } from '../../state/undo';
 import { cancelGeneration, generationOf } from '../builder/generation';
 import { holdLiveOutput, liveOutputOf, openLiveOutput, releaseLiveOutput } from '../builder/liveOutput';
@@ -472,6 +473,19 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
                       .catch((e: unknown) => {
                         store.toasts.show({ tone: 'warning', title: 'The document was not duplicated', body: `${messageOf(e)} Nothing was changed.` });
                       });
+                  });
+                },
+              },
+              {
+                // After 1.2.0: Markdown for any program and the formatted page for Word and Outlook, written by the host.
+                label: 'Copy to clipboard',
+                run: () => {
+                  void saverRef.current?.flush().finally(() => {
+                    void copyDocument(bridge, store, recordingId, documentId, summary?.name ?? 'The document').then((done) => {
+                      if (done !== null) {
+                        undo.announce(done);
+                      }
+                    });
                   });
                 },
               },

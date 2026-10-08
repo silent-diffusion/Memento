@@ -122,6 +122,59 @@ public sealed class ExportTests : IDisposable
     }
 
     [Fact]
+    public async Task TheTranscriptTextOptionsShapeTheFilesAndTheManifestRecordsThem()
+    {
+        var id = await _m3.RecordAsync();
+        _m3.WriteTranscript(id);
+        var options = new TranscriptTextOptions { Timestamps = false, Speakers = false, Layout = "lines" };
+        var selection = new ExportSelection { Transcript = new ExportTranscriptChoice { On = true, Formats = ["text", "markdown", "srt"], Options = options } };
+
+        var payload = await RunAsync(id, selection, createSubfolder: false);
+
+        Assert.Equal("done", payload.GetProperty("state").GetString());
+        var baseName = await BaseNameAsync(id);
+        var text = File.ReadAllText(Path.Combine(Destination, baseName + " - transcript.txt"));
+        Assert.EndsWith("\r\nWelcome everyone to the planning meeting.\r\nThanks. Let's review the budget first.\r\nThe budget for the third quarter is approved.\r\n", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Speaker", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("[0:", text, StringComparison.Ordinal);
+        var markdown = File.ReadAllText(Path.Combine(Destination, baseName + " - transcript.md"));
+        Assert.EndsWith("\r\n\r\nWelcome everyone to the planning meeting.\r\n\r\nThanks. Let's review the budget first.\r\n\r\nThe budget for the third quarter is approved.\r\n", markdown, StringComparison.Ordinal);
+
+        // SRT keeps its own structure: cue times and speakers.
+        Assert.Contains("Speaker 1: Welcome everyone", File.ReadAllText(Path.Combine(Destination, baseName + ".srt")), StringComparison.Ordinal);
+
+        using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(Destination, "manifest.json")));
+        Assert.Equal("""{"timestamps":false,"speakers":false,"layout":"lines"}""", manifest.RootElement.GetProperty("transcriptOptions").GetRawText().Replace(" ", string.Empty, StringComparison.Ordinal).Replace("\r\n", string.Empty, StringComparison.Ordinal).Replace("\n", string.Empty, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AManifestWithoutAReadableTranscriptHasNoTranscriptOptions()
+    {
+        var id = await _m3.RecordAsync();
+        _m3.WriteTranscript(id);
+        var selection = new ExportSelection { Transcript = new ExportTranscriptChoice { On = true, Formats = ["json"] } };
+
+        await RunAsync(id, selection, createSubfolder: false);
+
+        using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(Destination, "manifest.json")));
+        Assert.Equal(JsonValueKind.Null, manifest.RootElement.GetProperty("transcriptOptions").ValueKind);
+    }
+
+    [Fact]
+    public async Task AnExportWithAnUnknownLayoutIsRefusedBeforeAnythingIsWritten()
+    {
+        var id = await _m3.RecordAsync();
+        _m3.WriteTranscript(id);
+        var selection = new { audioMixed = new { on = false, format = "flac", bitrateKbps = (int?)null }, tracks = new { on = false, format = "flac", bitrateKbps = (int?)null }, transcript = new { on = true, formats = new[] { "text" }, options = new { layout = "pages" } }, documents = new { on = false, documentIds = Array.Empty<string>(), format = "docx" }, details = new { on = false }, attachments = new { on = false } };
+
+        var error = await _m3.ErrorAsync("export.run", new { recordingId = id, selection, destination = new { folder = Destination, createSubfolder = false }, remember = false });
+
+        Assert.Equal("bridge.invalidParams", error.GetProperty("code").GetString());
+        Assert.Contains("Transcript layout 'pages'", error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Destination) && Directory.EnumerateFileSystemEntries(Destination).Any());
+    }
+
+    [Fact]
     public async Task ExportingAgainNeverOverwrites()
     {
         var id = await _m3.RecordAsync();

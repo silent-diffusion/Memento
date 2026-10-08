@@ -334,6 +334,7 @@ public sealed partial class ExportService(
                 Title = plan.Title,
                 ExportedAt = plan.ExportedAt,
                 Files = files,
+                TranscriptOptions = plan.TranscriptOptions,
             };
             var manifestName = FileNames.Unique(output, ExportNaming.ManifestFile, taken.GetValueOrDefault(output));
             job.CurrentFile = manifestName;
