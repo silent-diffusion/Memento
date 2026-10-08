@@ -1,6 +1,8 @@
+using Memento.Core.Storage;
+
 namespace Memento.Documents.Model.Storage;
 
-/// <summary>Atomic writes (CLAUDE.md): write <c>&lt;name&gt;.tmp</c>, flush it to disk, then move it over the real file.</summary>
+/// <summary>Atomic writes (CLAUDE.md): write <c>&lt;name&gt;.tmp</c>, flush it to disk, then replace the real file (<see cref="AtomicReplace"/>).</summary>
 public static class AtomicFile
 {
     public static async Task WriteAllBytesAsync(string path, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
@@ -22,29 +24,13 @@ public static class AtomicFile
                 stream.Flush(flushToDisk: true);
             }
 
-            await MoveWithRetryAsync(temporary, path, cancellationToken);
+            // Readers (the bridge, a scanner, the indexer) may have the target open; see AtomicReplace.
+            await AtomicReplace.ReplaceAsync(temporary, path, cancellationToken);
         }
         catch
         {
             TryDelete(temporary);
             throw;
-        }
-    }
-
-    /// <summary>Moves over the target, retrying briefly while a scanner or indexer holds it.</summary>
-    private static async Task MoveWithRetryAsync(string from, string to, CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                File.Move(from, to, overwrite: true);
-                return;
-            }
-            catch (Exception ex) when (attempt < 5 && ex is IOException or UnauthorizedAccessException)
-            {
-                await Task.Delay(25 * attempt, cancellationToken);
-            }
         }
     }
 

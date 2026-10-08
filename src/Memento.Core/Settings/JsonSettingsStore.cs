@@ -1,12 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
+using Memento.Core.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Settings;
 
 /// <summary>
 /// Stores <see cref="AppSettings"/> as JSON. Writes go to <c>settings.json.tmp</c>, are flushed to disk,
-/// then moved over the real file, so a crash mid-write never leaves a half-written settings file.
+/// then moved over the real file (<see cref="AtomicReplace"/>), so a crash mid-write never leaves a half-written settings file.
 /// </summary>
 public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
 {
@@ -310,7 +311,7 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             stream.Flush(flushToDisk: true);
         }
 
-        File.Move(temporaryPath, _filePath, overwrite: true);
+        await AtomicReplace.ReplaceAsync(temporaryPath, _filePath, cancellationToken);
     }
 
     private string SetAsideUnreadableFile()
