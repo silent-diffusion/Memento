@@ -16,8 +16,11 @@ public sealed class AdapterMemoryTests
     {
         var snapshot = new WindowsResourceProbe(NullLogger<WindowsResourceProbe>.Instance).Sample();
 
-        // On a PC without a graphics card there is nothing to check.
-        foreach (var gpu in snapshot.Gpus.Where(g => g.FreeVramBytes is not null))
+        // On a PC without a graphics card there is nothing to check. Software adapters (such as the Basic Render
+        // Driver on a hosted CI runner) report a budget drawn from shared system memory and almost no dedicated
+        // memory, so the relation below only holds for real cards.
+        const long realCard = 256L * 1024 * 1024;
+        foreach (var gpu in snapshot.Gpus.Where(g => g.FreeVramBytes is not null && g.DedicatedVideoMemoryBytes >= realCard))
         {
             Assert.InRange(gpu.FreeVramBytes!.Value, 0, gpu.DedicatedVideoMemoryBytes);
         }
