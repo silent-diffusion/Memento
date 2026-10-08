@@ -103,14 +103,15 @@ public sealed class LocalJobRunnerTests : IDisposable
         _engines.BlockUntilCancelled = true;
         using var cancel = new CancellationTokenSource();
         var generation = Provider(worker).GenerateAsync(AiRequest.Create("t", "s", "u"), null, cancel.Token);
-        await _engines.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await _engines.Started.Task.WaitAsync(Patience.Ceiling);
 
-        var started = DateTime.UtcNow;
+        // The engine blocks until its token is cancelled, so the generation can only end through the cancel line the
+        // host sends. No wall-clock bound: every hop here is a thread-pool continuation (two of them blocking reads on
+        // anonymous pipes), and on a starved pool each can wait a second or more for a thread.
         await cancel.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => generation);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => generation.WaitAsync(Patience.Ceiling));
 
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1));
-        Assert.Equal(LocalLlmJobRunner.ExitCancelled, await worker.Worker!.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(LocalLlmJobRunner.ExitCancelled, await worker.Worker!.WaitAsync(Patience.Ceiling));
         Assert.Equal(1, _engines.Disposed);
         Assert.Contains(worker.HostSent, line => line.Contains("\"type\":\"cancel\"", StringComparison.Ordinal));
     }

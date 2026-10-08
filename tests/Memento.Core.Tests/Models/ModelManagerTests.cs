@@ -47,7 +47,7 @@ public sealed class ModelManagerTests : IDisposable
         return _manager;
     }
 
-    private Task<System.Text.Json.JsonElement> FinishedAsync(int timeoutMs = 20_000) =>
+    private Task<System.Text.Json.JsonElement> FinishedAsync(int timeoutMs = Patience.CeilingMs) =>
         _sink.WaitForAsync("models.progress", p => p.GetProperty("state").GetString() is "done" or "failed", timeoutMs);
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class ModelManagerTests : IDisposable
         Assert.Equal("done", last.GetProperty("state").GetString());
         Assert.Equal(100, last.GetProperty("percent").GetInt32());
         Assert.Equal(_content.Length, last.GetProperty("bytesTotal").GetInt64());
-        Assert.Equal("test", await installed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal("test", await installed.Task.WaitAsync(Patience.Ceiling));
         Assert.True(manager.IsInstalled("test"));
         Assert.Equal(ModelPath, manager.Resolve("test"));
         Assert.Equal(_content, await File.ReadAllBytesAsync(ModelPath));

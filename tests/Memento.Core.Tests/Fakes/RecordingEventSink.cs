@@ -54,7 +54,7 @@ internal sealed class RecordingEventSink : IBridgeEventSink
     }
 
     /// <summary>Waits until an event named <paramref name="name"/> whose payload matches arrives.</summary>
-    public async Task<JsonElement> WaitForAsync(string name, Func<JsonElement, bool>? match = null, int timeoutMs = 10_000)
+    public async Task<JsonElement> WaitForAsync(string name, Func<JsonElement, bool>? match = null, int timeoutMs = Patience.CeilingMs)
     {
         var deadline = Environment.TickCount64 + timeoutMs;
         while (true)

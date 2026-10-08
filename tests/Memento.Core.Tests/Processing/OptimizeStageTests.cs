@@ -179,7 +179,7 @@ public sealed class OptimizeStageTests : IDisposable
 
         Assert.False(Directory.Exists(host.Store.GetProjectFolder(recordingId)));
         Assert.False(host.Processing.IsBusy(recordingId));
-        await host.Processing.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        await host.Processing.WhenIdleAsync().WaitAsync(Patience.Ceiling);
     }
 
     [Fact]

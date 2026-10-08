@@ -115,7 +115,7 @@ public sealed class StageOrchestrationTests : IDisposable
             await Task.Delay(Timeout.Infinite, token);
         };
         var id = await _host.RecordAsync("Cancel me", 1, Mic);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await started.Task.WaitAsync(Patience.Ceiling);
 
         await _host.ResultAsync("processing.cancel", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript" }));
         await WaitIdleAsync();
@@ -134,9 +134,7 @@ public sealed class StageOrchestrationTests : IDisposable
     {
         await _host.ResultAsync("processing.pause");
         var id = await _host.RecordAsync("Paused", 1, Mic);
-        await TestRecordings.WaitUntilAsync(
-            async () => (await ManifestAsync(id)).Stages.Any(s => s.Stage == StageNames.Transcript && s.Label == "Paused · Paused by you"),
-            "the transcript to wait");
+        await _host.WaitForStageLabelAsync(id, StageNames.Transcript, "Paused · Paused by you");
 
         Assert.Empty(_log);
         var got = await _host.ResultAsync("transcript.get", JsonSerializer.Serialize(new { recordingId = id }));
@@ -189,12 +187,13 @@ public sealed class StageOrchestrationTests : IDisposable
             await _host.Get<StageStatusWriter>().SetAsync(run.RecordingId, new StageStatus(StageNames.Transcript, StageStates.Done, null, "Done"), token);
         };
         var id = await _host.RecordAsync("Interrupted", 1, Mic);
-        await first.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await first.Task.WaitAsync(Patience.Ceiling);
 
         _host.Gate.SetManual(true);
-        await TestRecordings.WaitUntilAsync(
-            async () => (await ManifestAsync(id)).Stages.Any(s => s.Stage == StageNames.Transcript && s.State == StageStates.Active && s.Label == "Paused · Paused by you"),
-            "the stage to wait, still active");
+        await _host.WaitForStageAsync(
+            id,
+            StageNames.Transcript,
+            s => s.GetProperty("state").GetString() == StageStates.Active && s.GetProperty("label").GetString() == "Paused · Paused by you");
         _host.Gate.SetManual(false);
         await WaitIdleAsync();
 
@@ -212,7 +211,7 @@ public sealed class StageOrchestrationTests : IDisposable
             await Task.Delay(Timeout.Infinite, token);
         };
         var id = await _host.RecordAsync("Closing", 1, Mic);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await started.Task.WaitAsync(Patience.Ceiling);
 
         await _host.Processing.StopAsync();
 

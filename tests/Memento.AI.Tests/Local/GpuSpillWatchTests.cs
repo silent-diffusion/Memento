@@ -1,4 +1,5 @@
 using Memento.AI.Local;
+using Memento.AI.Tests.Fakes;
 
 namespace Memento.AI.Tests.Local;
 
@@ -47,12 +48,13 @@ public sealed class GpuSpillWatchTests
     public async Task TheTimerChecksInTheBackground()
     {
         var memory = new ScriptedMemory(new(0, 0), new(1, 2000 * MiB));
-        using var spilled = new ManualResetEventSlim();
-        using var watch = new GpuSpillWatch(memory, 384 * MiB, spilled.Set);
+        var spilled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var watch = new GpuSpillWatch(memory, 384 * MiB, () => spilled.TrySetResult());
 
         watch.Start(TimeSpan.FromMilliseconds(20));
 
-        Assert.True(await Task.Run(() => spilled.Wait(TimeSpan.FromSeconds(5))));
+        // Awaited, not waited on a pool thread: the timer callback needs a pool thread of its own.
+        await spilled.Task.WaitAsync(Patience.Ceiling);
     }
 
     private sealed class ScriptedMemory(params GpuProcessMemorySample[] samples) : IGpuProcessMemory

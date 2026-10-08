@@ -30,6 +30,12 @@ internal sealed class ScriptedWorkerLauncher : IWorkerLauncher
     /// <summary>Writing to a worker's stdin throws this (a worker that died as it started).</summary>
     public Exception? InputFailure { get; set; }
 
+    /// <summary>
+    /// A worker that never takes in a <c>cancel</c> line: writing one completes only once the process is gone. The
+    /// host's cancel-then-kill-after-a-grace path then can never end it, so only an outright kill can.
+    /// </summary>
+    public bool CancelLinesBlock { get; set; }
+
     public List<ScriptedWorkerProcess> Started
     {
         get
@@ -48,7 +54,7 @@ internal sealed class ScriptedWorkerLauncher : IWorkerLauncher
             throw failure;
         }
 
-        var process = new ScriptedWorkerProcess(Script) { IgnoreKill = IgnoreKill, InputFailure = InputFailure };
+        var process = new ScriptedWorkerProcess(Script, CancelLinesBlock) { IgnoreKill = IgnoreKill, InputFailure = InputFailure };
         lock (_gate)
         {
             _started.Add(process);
@@ -79,11 +85,11 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
     private readonly List<string> _received = [];
     private readonly Channel<WorkerCommand> _commands = Channel.CreateUnbounded<WorkerCommand>();
 
-    public ScriptedWorkerProcess(Func<WorkerJob, ScriptedWorkerContext, CancellationToken, Task<int>> script)
+    public ScriptedWorkerProcess(Func<WorkerJob, ScriptedWorkerContext, CancellationToken, Task<int>> script, bool cancelLinesBlock = false)
     {
         _script = script;
         Id = Interlocked.Increment(ref _nextId);
-        Input = new LineWriter(OnLine);
+        Input = new LineWriter(OnLine, line => cancelLinesBlock && line.Contains("\"type\":\"cancel\"", StringComparison.Ordinal) ? _exited.Task : Task.CompletedTask);
         Output = new ChannelReaderText(_output.Reader);
     }
 
@@ -181,7 +187,7 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
         }
     }
 
-    private sealed class LineWriter(Action<string> onLine) : TextWriter
+    private sealed class LineWriter(Action<string> onLine, Func<string, Task> taken) : TextWriter
     {
         private readonly System.Text.StringBuilder _pending = new();
 
@@ -203,7 +209,15 @@ internal sealed class ScriptedWorkerProcess : IWorkerProcess
 
         public override Task WriteLineAsync(string? value)
         {
-            onLine(value ?? string.Empty);
+            var line = value ?? string.Empty;
+            var wait = taken(line);
+            if (!wait.IsCompleted)
+            {
+                // Never taken in: the worker does not see it, and the writer waits until the process is gone.
+                return wait;
+            }
+
+            onLine(line);
             return Task.CompletedTask;
         }
 

@@ -20,7 +20,7 @@ public sealed class ProcessingGateTests
         Assert.Equal(ProcessingGate.ManualReason, gate.Reason);
         Assert.False(open.IsCompleted);
         gate.SetManual(false);
-        await open.WaitAsync(TimeSpan.FromSeconds(1));
+        await open.WaitAsync(Patience.Ceiling);
         Assert.Null(gate.Reason);
         Assert.Equal(2, changes);
     }

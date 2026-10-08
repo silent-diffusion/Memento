@@ -105,7 +105,7 @@ public sealed class AudioRecordingSessionTests : IDisposable
 
         // Drift needs a second of timestamps: wait for three checkpoints and at least 1.4 s of recording.
         var waited = Stopwatch.StartNew();
-        while ((Count() < 3 || session.Elapsed < TimeSpan.FromMilliseconds(1_400)) && waited.Elapsed < TimeSpan.FromSeconds(15))
+        while ((Count() < 3 || session.Elapsed < TimeSpan.FromMilliseconds(1_400)) && waited.Elapsed < Patience.Ceiling)
         {
             await Task.Delay(50);
         }
@@ -156,7 +156,7 @@ public sealed class AudioRecordingSessionTests : IDisposable
             };
         });
 
-        Assert.True(await raised.WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.True(await raised.WaitAsync(Patience.Ceiling));
         var afterLoss = session.Elapsed;
         await Task.Delay(400);
         var result = await session.StopAsync();
@@ -188,7 +188,7 @@ public sealed class AudioRecordingSessionTests : IDisposable
         _factory.LoseAfter[Mic] = TimeSpan.FromMilliseconds(250);
         await using var session = await Start(Mic);
 
-        var result = await session.Completion.WaitAsync(TimeSpan.FromSeconds(15));
+        var result = await session.Completion.WaitAsync(Patience.Ceiling);
 
         Assert.Equal(SessionStopReason.AllSourcesLost, result.StopReason);
         Assert.Contains("every source was lost", result.StopMessage, StringComparison.Ordinal);
@@ -282,7 +282,7 @@ public sealed class AudioRecordingSessionTests : IDisposable
         });
         await Task.Delay(1_000);
         var waited = Stopwatch.StartNew();
-        while (Count() < 10 && waited.Elapsed < TimeSpan.FromSeconds(15))
+        while (Count() < 10 && waited.Elapsed < Patience.Ceiling)
         {
             await Task.Delay(50);
         }

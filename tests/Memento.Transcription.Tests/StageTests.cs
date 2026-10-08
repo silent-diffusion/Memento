@@ -344,17 +344,20 @@ public sealed class StageTests : IDisposable
             if (sent == 1)
             {
                 firstWindow.TrySetResult();
-                Thread.Sleep(300);
+
+                // Stay inside window 1 until the pause has reached the worker, however long that takes, so the
+                // worker stops at the boundary after it and never runs on into window 2.
+                SpinWait.SpinUntil(() => _host.Workers.Started.Any(w => w.CancelReceived), Patience.Ceiling);
             }
 
             return true;
         };
 
         var id = await _host.RecordAsync("Paused pass", 2, Mic, SystemAudio);
-        await firstWindow.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await firstWindow.Task.WaitAsync(Patience.Ceiling);
         AfterWindow = _ => true;
         _host.Gate.SetManual(true);
-        await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Transcript).Label == "Paused · Paused by you", "the pass to pause");
+        await _host.WaitForStageLabelAsync(id, StageNames.Transcript, "Paused · Paused by you");
         _host.Gate.SetManual(false);
         await IdleAsync();
 
@@ -379,8 +382,10 @@ public sealed class StageTests : IDisposable
         };
 
         var id = await _host.RecordAsync("Cancelled pass", 2, Mic);
-        await firstWindow.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await Task.Delay(100);
+        await firstWindow.Task.WaitAsync(Patience.Ceiling);
+
+        // The 50% status is written once the host has kept window 1 (partial file first), so the cancel finds it.
+        await _host.WaitForStageAsync(id, StageNames.Transcript, s => s.TryGetProperty("percent", out var p) && p.ValueKind == JsonValueKind.Number && p.GetInt32() >= 50);
         await _host.ResultAsync("processing.cancel", JsonSerializer.Serialize(new { recordingId = id, stage = "transcript" }));
         await IdleAsync();
 
@@ -622,9 +627,9 @@ public sealed class StageTests : IDisposable
         });
 
         var id = await _host.RecordAsync("Busy speakers", 2, Mic, SystemAudio);
-        await paused.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await paused.Task.WaitAsync(Patience.Ceiling);
         _host.Gate.SetManual(true);
-        await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Speakers).Label == "Paused · Paused by you", "speakers to pause");
+        await _host.WaitForStageLabelAsync(id, StageNames.Speakers, "Paused · Paused by you");
         _host.Gate.SetManual(false);
         await IdleAsync();
 
@@ -677,7 +682,7 @@ public sealed class StageTests : IDisposable
         };
 
         var id = await _host.RecordAsync("Again", 2, Mic, SystemAudio);
-        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await firstStarted.Task.WaitAsync(Patience.Ceiling);
         await _host.ResultAsync("settings.set", """{"speakers":{"expectedSpeakers":3}}""");
         await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
         await IdleAsync();
@@ -701,14 +706,14 @@ public sealed class StageTests : IDisposable
             await Task.Delay(Timeout.Infinite, CancellationToken.None);
             return 0;
         };
+        // The cancel line never gets through either, so the 5-second cancel grace can never end this worker: only
+        // closing Memento killing it at once can. That is checked by cause, not by a stopwatch.
+        _host.Workers.CancelLinesBlock = true;
         var id = await _host.RecordAsync("Closing", 2, Mic);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await started.Task.WaitAsync(Patience.Ceiling);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        await _host.Processing.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        await _host.Processing.StopAsync().WaitAsync(Patience.Ceiling);
 
-        // Well within the host's 5-second stop timeout, not after the 5-second cancel grace.
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(3), $"stopping took {stopwatch.Elapsed}");
         Assert.True(Assert.Single(_host.Workers.Started).Killed);
         var manifest = await ManifestAsync(id);
         Assert.Equal(StageStates.Queued, Stage(manifest, StageNames.Transcript).State);
