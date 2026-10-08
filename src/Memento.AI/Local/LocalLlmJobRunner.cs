@@ -11,11 +11,14 @@ namespace Memento.AI.Local;
 /// the budget, runs every prompt in order with streamed progress, and always unloads. <see cref="RunJsonLinesAsync"/>
 /// speaks the worker protocol (Memento.Worker's <c>Program.cs</c>): <c>ready</c>, then a <c>start</c> line, then
 /// <c>device</c>/<c>progress</c> lines and exactly one of <c>result</c>, <c>error</c> or <c>cancelled</c>; a
-/// <c>cancel</c> line or the end of input stops the job.
+/// <c>cancel</c> line or the end of input stops the job. While a prompt is answered its text streams as coalesced
+/// <c>generating</c> progress lines (<see cref="LocalTokenCoalescer"/>), and an <c>answered</c> line closes each prompt.
 /// </summary>
-public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, ILogger<LocalLlmJobRunner> logger)
+/// <param name="time">The clock the token stream coalesces by (tests pass their own).</param>
+public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, ILogger<LocalLlmJobRunner> logger, TimeProvider? time = null)
 {
     private readonly ILogger<LocalLlmJobRunner> _logger = logger;
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     /// <summary>Exit codes, as Memento.Worker uses them.</summary>
     public const int ExitOk = 0;
@@ -55,10 +58,19 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             {
                 var prompt = prompts[i];
                 var index = i;
-                var produced = 0;
                 Progress(new LocalLlmProgress(LocalLlmProgress.ReadingPrompt, index, count));
-                var output = await engine.GenerateAsync(index, prompt, delta => Progress(new LocalLlmProgress(LocalLlmProgress.Generating, index, count, delta, ++produced)), cancellationToken);
+                var tokens = new LocalTokenCoalescer(_time, (delta, pieces, elapsed) =>
+                    Progress(new LocalLlmProgress(LocalLlmProgress.Generating, index, count, delta, pieces) { ElapsedMs = Math.Round(elapsed.TotalMilliseconds) }));
+                var output = await engine.GenerateAsync(index, prompt, tokens.Add, cancellationToken);
+                tokens.Flush();
                 var tokensPerSecond = Math.Round(output.TokensPerSecond, 1);
+                Progress(new LocalLlmProgress(LocalLlmProgress.Answered, index, count, OutputTokens: output.OutputTokens)
+                {
+                    ElapsedMs = Math.Round(output.GenerateMs),
+                    StopReason = output.StopReason,
+                    PromptTokens = output.PromptTokens,
+                    TokensPerSecond = tokensPerSecond,
+                });
                 LogGenerated(prompt.Purpose, index, output.StopReason, output.PromptTokens, output.OutputTokens, tokensPerSecond);
                 outputs.Add(output);
             }

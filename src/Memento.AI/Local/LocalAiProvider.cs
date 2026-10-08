@@ -241,9 +241,19 @@ public sealed class LocalAiProvider : IAiProvider
             {
                 LocalLlmProgress.Loading or LocalLlmProgress.WarmingUp => AiProgressStage.Loading,
                 LocalLlmProgress.Generating => AiProgressStage.Generating,
+                LocalLlmProgress.Answered => AiProgressStage.Answered,
                 _ => AiProgressStage.Sending,
             };
-            target.Report(new AiProgress(stage, progress.Delta, progress.OutputTokens, Index: progress.PromptIndex >= 0 ? progress.PromptIndex : null));
+            var answer = stage == AiProgressStage.Answered
+                ? new AiAnswerFacts(progress.StopReason ?? string.Empty, progress.PromptTokens ?? 0, progress.TokensPerSecond ?? 0)
+                : null;
+            target.Report(new AiProgress(
+                stage,
+                progress.Delta,
+                progress.OutputTokens,
+                Index: progress.PromptIndex >= 0 ? progress.PromptIndex : null,
+                Elapsed: progress.ElapsedMs is { } ms ? TimeSpan.FromMilliseconds(ms) : null,
+                Answer: answer));
         }
     }
 }
