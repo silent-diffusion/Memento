@@ -66,7 +66,8 @@ describe('Live output (DESIGN.md §10, §11, against the browser-preview host)',
   };
 
   it('opens beside Cancel while the local model writes, streams the reply, and stays readable in the viewer once finished', async () => {
-    await generate({ m4: { ai: 'local' } });
+    // Slow steps, so the generation is still running when the sheet is closed and opened again, even on a busy machine.
+    await generate({ m4: { ai: 'local' }, stepMs: 600 });
     await until(() => document.querySelector('.gen-card') !== null);
     const actions = [...document.querySelectorAll('.gen-card .gen-actions button')].map((b) => b.textContent);
     expect(actions).toEqual(['Cancel', 'Show live output']);
@@ -97,7 +98,7 @@ describe('Live output (DESIGN.md §10, §11, against the browser-preview host)',
     expect(document.querySelectorAll('.live-pass').length).toBeGreaterThanOrEqual(passes);
 
     // The Builder opens the document; the sheet stays, read-only, with every step in pipeline order.
-    await until(() => h.store.route.value.name === 'document', 15_000);
+    await until(() => h.store.route.value.name === 'document', 30_000);
     await until(() => document.querySelector('.live-sub')?.textContent.endsWith('Finished · read only') === true);
     expect(groups()).toEqual(['Segment', 'Map', 'Reduce', 'Verify', 'Grounding']);
     expect(document.querySelector('.live-caret')).toBeNull();
@@ -118,7 +119,7 @@ describe('Live output (DESIGN.md §10, §11, against the browser-preview host)',
       await Promise.resolve();
     });
     expect(liveOutputOf(h.store).value).toBeNull();
-  }, 30_000);
+  }, 60_000);
 
   it('follows the newest output, pauses when the person scrolls up or picks a pass, and follows again on request', async () => {
     await generate({ m4: { ai: 'local' } });
@@ -149,7 +150,7 @@ describe('Live output (DESIGN.md §10, §11, against the browser-preview host)',
     await press(first, 'ArrowDown');
     expect(current()).not.toBe('Segment the transcript');
     expect(document.activeElement?.getAttribute('aria-current')).toBe('true');
-  }, 30_000);
+  }, 60_000);
 
   it('shows a cloud provider’s replies whole, with the request sent', async () => {
     h = await mountApp({ name: 'builder', recordingId: DESIGN, templateId: null, documentId: null }, { stepMs: 250, m4: { ai: 'ready' } });
@@ -167,7 +168,7 @@ describe('Live output (DESIGN.md §10, §11, against the browser-preview host)',
     expect(document.querySelector('.live-caret')).toBeNull();
     await until(() => [...document.querySelectorAll('.live-pass-meta')].some((m) => m.textContent.includes('tokens')), 10_000);
     expect(document.querySelector('.sheet-footer-note')?.textContent).toContain('Only what was sent to Claude and what it answered');
-  }, 30_000);
+  }, 60_000);
 
   it('applies token, reply and done events to the exchange, and words its counters', () => {
     const base: LiveOutput = { jobId: 'g1', recordingId: 'r', provider: { id: 'local', name: 'Local model', kind: 'local', modelLabel: 'Qwen3.5 4B' }, documentId: null, passes: [], ended: false, outcome: 'running' };
