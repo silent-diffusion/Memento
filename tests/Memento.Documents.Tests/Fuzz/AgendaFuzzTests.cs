@@ -66,7 +66,13 @@ public sealed class AgendaFuzzTests(ITestOutputHelper output)
             slowest = watch.Elapsed > slowest ? watch.Elapsed : slowest;
             if (watch.Elapsed > MaxRun)
             {
-                failures.Add(string.Create(CultureInfo.InvariantCulture, $"#{i} {seed.Name} ({description}): took {watch.Elapsed.TotalSeconds:0.0} s"));
+                // The same input is timed once more: a pathological input is slow every time, a stalled CI runner
+                // (a 0.5 s parse measured at 24 s) is not. The mutation is deterministic, so the repeat sees the same bytes.
+                var again = await TimeAsync(() => target.Run(input, seed.Name, CancellationToken.None), name);
+                if (again > MaxRun)
+                {
+                    failures.Add(string.Create(CultureInfo.InvariantCulture, $"#{i} {seed.Name} ({description}): took {watch.Elapsed.TotalSeconds:0.0} s, and {again.TotalSeconds:0.0} s when run again"));
+                }
             }
         }
 
@@ -74,5 +80,22 @@ public sealed class AgendaFuzzTests(ITestOutputHelper output)
             CultureInfo.InvariantCulture,
             $"{name}: {Iterations} runs, {parsed} parsed, {refused} refused with an agenda error, slowest {slowest.TotalMilliseconds:0} ms, escaped: {(escaped.Count == 0 ? "none" : string.Join(", ", escaped.Select(e => $"{e.Key} x{e.Value}")))}"));
         Assert.True(failures.Count == 0, $"{failures.Count} of {Iterations} runs failed:\n" + string.Join('\n', failures.Take(25)));
+    }
+
+    /// <summary>How long one more run of the same input takes; an agenda error is as fine here as on the first run.</summary>
+    private static async Task<TimeSpan> TimeAsync(Func<Task> run, string name)
+    {
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            await run();
+        }
+        catch (Exception e) when (FuzzTargets.IsAllowed(name, e))
+        {
+            // Refused with an agenda error, which the first run already counted.
+        }
+
+        watch.Stop();
+        return watch.Elapsed;
     }
 }
