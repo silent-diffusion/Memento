@@ -3,6 +3,25 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 1.1.0
+
+A small release of fixes and refinements asked for after 1.0.0. Memento updates itself to it; nothing needs to be reinstalled.
+
+### Fixed
+
+- **The local model you installed is the one that writes documents.** With Qwen3.5 4B installed and Ministral 3 3B not, Settings and the Builder could still name Ministral as the model, say it was not installed, and refuse to use Qwen. The model in effect is now always an installed one: the one you chose, else the recommended one, else whichever local model is installed. A graphics-card model without room on the card gives way to an installed processor model, or else runs on the processor, and Settings › AI and privacy now says which model is in use, where it runs and why.
+- **Templates can be chosen, saved and found again in the Builder.** Create document opens the Builder with a **Template** list in its header: the built-in templates first, then your own. Choosing one opens it (with unsaved changes, Memento asks first). **Save template** keeps the template you are on (a built-in is saved as a copy) and **Save as new template** always makes another one. A new template is given a name no other template has, so saving twice no longer makes two with the same name.
+
+### Review
+
+- **The outline, the transcript and the details now scroll on their own.** On a window 1024 pixels or wider the player stays in place, the transcript scrolls under it, and the speakers and outline on the left and the details on the right each scroll separately. On a narrower window the panes stack and the page scrolls, as before. Menus inside the panes open above their trigger when there is no room below and are never cut off.
+- **Skip silences** in the player, after the speed control, jumps over every pause longer than a second and a half between transcript lines, landing just before the next line. The skipped stretches are shown dimmed on the waveform, and "Skipped 4 s" appears briefly where playback landed. It never skips while you scrub or just after you seek by hand, it needs a transcript, and Memento remembers whether it is on.
+
+### Documents and settings
+
+- **Audio and video are shown as never sent.** In the Builder's "What the AI receives" and in Settings › What may be shared, Audio and Video are greyed rows with a lock and "never sent" instead of boxes that could not be ticked.
+- **Sections already on the template are greyed in the Builder's palette**, marked "in use", and can still be dragged or added again for a second copy.
+
 ## 1.0.0
 
 The first public release. Memento records meetings, interviews, lectures and dictation, transcribes them on your PC, tells the speakers apart, imports agendas, exports exactly what you choose, and now turns a recording into minutes, summaries and other documents in which every statement points back to the moment it was said. Everything from 0.2.0 to 0.4.0 is in it. Versions 0.5.0 and 0.9.0 were never released on their own: what they were going to bring is in this release, together with a full security review.
