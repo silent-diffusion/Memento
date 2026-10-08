@@ -245,9 +245,13 @@ function SpeakerList({
               ) : (
                 <SpeakerFilterButton speaker={speaker} filter={filter} />
               )}
-              <span class="person-share" title="Share of talk time">
-                {talkShare(speaker, speakers)}
-              </span>
+              {filter?.selected.includes(speaker.id) === true ? (
+                <span class="person-count">{lineWords(filter.counts.get(speaker.id) ?? 0)}</span>
+              ) : (
+                <span class="person-share" title="Share of talk time">
+                  {talkShare(speaker, speakers)}
+                </span>
+              )}
               <button
                 class="icon-btn person-rename"
                 type="button"
@@ -267,15 +271,19 @@ function SpeakerList({
   );
 }
 
+function lineWords(lines: number): string {
+  return `${lines} ${lines === 1 ? 'line' : 'lines'}`;
+}
+
 /**
  * The speaker's name as a toggle (after 1.2.0): a click shows only their lines, a second click shows
  * everyone again; Ctrl or Shift adds them to the speakers shown. While on, the row is pressed in and
- * says how many lines are theirs.
+ * says how many lines are theirs in place of the talk-time share.
  */
 function SpeakerFilterButton({ speaker, filter }: { speaker: Speaker; filter: SpeakerFilterProps }): JSX.Element {
   const on = filter.selected.includes(speaker.id);
   const lines = filter.counts.get(speaker.id) ?? 0;
-  const words = `${lines} ${lines === 1 ? 'line' : 'lines'}`;
+  const words = lineWords(lines);
   return (
     <button
       class="person-name person-filter"
@@ -288,7 +296,6 @@ function SpeakerFilterButton({ speaker, filter }: { speaker: Speaker; filter: Sp
       }}
     >
       <span class="person-filter-name">{speaker.name}</span>
-      {on ? <span class="person-count">{words}</span> : null}
     </button>
   );
 }

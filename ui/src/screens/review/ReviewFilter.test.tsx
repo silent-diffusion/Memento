@@ -88,7 +88,7 @@ describe('transcript filters and Copy in Review (DESIGN.md §9, after 1.2.0)', (
     await click(personButton(sarah.name));
 
     expect(personButton(sarah.name).getAttribute('aria-pressed')).toBe('true');
-    expect(personButton(sarah.name).querySelector('.person-count')?.textContent).toBe(`${theirs} lines`);
+    expect(h.container.querySelector(`.person[data-speaker-id="${sarah.id}"] .person-count`)?.textContent).toBe(`${theirs} lines`);
     expect(h.container.querySelector(`.person[data-speaker-id="${sarah.id}"]`)?.classList.contains('person--filtered')).toBe(true);
     expect(line()).toBe(`Showing ${theirs} of ${t.segments.length} lines · ${sarah.name}`);
     expect(list()?.getAttribute('aria-label')).toBe(`Transcript, ${theirs} of ${t.segments.length} lines shown`);

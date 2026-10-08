@@ -19,6 +19,7 @@
   width: 300px;
   padding: 12px;
   gap: 10px;
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -123,6 +124,8 @@
 
 /* People: the speaker's name is a toggle; while it filters the transcript the row is pressed in. */
 .person-filter {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: none;
