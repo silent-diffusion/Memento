@@ -98,8 +98,12 @@ After the transcript, Memento tells the voices apart and labels them Speaker 1, 
 
 - Rename a speaker once and every line changes.
 - Click the speaker name on a line to move that line to another speaker. The menu opens with a **Find or add a speaker** field: type part of a name (capitals and accents do not matter) and the list narrows to the speakers who match, names that start with what you typed first; the arrow keys move through it, Enter picks, Esc closes. When nobody has the name you typed, the last row reads **Add "{name}" as a new speaker**: it adds the speaker and gives them the line. A long list scrolls inside the menu.
+- After you pick another speaker, the menu asks how: **Just this line** moves only that line; **Merge {old} into {new}** moves every line of the old speaker to the new one, and the old speaker goes away. Esc goes back to the list. Undo takes either back in one step.
+- People you named are always listed first (in the People list, the speaker menu and its search), then the unnamed "Speaker n" ones, each in the order they first speak.
 - **Merge** a speaker into another from the People list; its menu has the same search. Undo brings a merged speaker back with its name, colour and lines.
-- If you know how many people spoke, set **Expected speakers** in **Settings › Speakers**; Memento then groups the voices into that many speakers.
+- **Who spoke**: tell Memento how many people spoke, and their names if you know them, for this recording: in **Details and agenda** on the Record screen (before or during the recording), in **Edit details**, or under **People** in Review. **Use participants** takes the participants as the names. Memento then groups the voices it hears into that many speakers, on every track, and names them in the order they first speak. Without a number of its own, a recording uses **Expected speakers** from **Settings › Speakers**; with neither, Memento decides by how the voices sound.
+- Too many speakers? Under **People**, set **Who spoke** to the right number and choose **Reduce to {n} speakers**: the speakers whose voices sound most alike are merged, named speakers stay apart, and Undo puts them back in one step. Or choose **Identify speakers again**: the speakers are grouped again from what Memento heard (in seconds when nothing else changed), names you gave are kept where the same voice is found, and (with version history on) the lines you corrected are kept as a transcript version you can restore from **Details**.
+- **Add from speakers** in Edit details adds the named speakers to the participants (never "Speaker 2"); Undo takes them out again.
 - Speaker identification runs on the processor and needs the speaker models from **Settings › Speakers**.
 
 ## Agenda and attachments
