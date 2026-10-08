@@ -45,20 +45,40 @@ export function floatingPosition(
   return { top: Math.round(top), left: Math.round(left) };
 }
 
+/**
+ * The tallest a popover may be beside a trigger at `anchor`: the room below it or, when larger, above it,
+ * less the gap and the window edge, and never more than `cap`. Long lists (speakers) scroll inside that.
+ */
+export function availableHeight(anchor: Pick<Box, 'top' | 'bottom'>, viewportHeight: number, cap: number, gap = GAP): number {
+  const below = viewportHeight - EDGE - (anchor.bottom + gap);
+  const above = anchor.top - gap - EDGE;
+  return Math.max(120, Math.min(cap, Math.floor(Math.max(below, above))));
+}
+
 interface PopoverLayerProps {
   /** The element the popover belongs to (its trigger or the menu root). */
   anchorRef: { current: HTMLElement | null };
   popRef: { current: HTMLElement | null };
   align?: 'start' | 'end';
   gap?: number;
+  /** Caps the popover at this height and at the room beside the trigger; its content scrolls (`max-height` is set). */
+  capHeight?: number;
   children: ComponentChildren;
 }
 
 /** Renders the popover in place, or, inside `FloatingPopovers`, in a fixed layer on <body>. */
-export function PopoverLayer({ anchorRef, popRef, align = 'end', gap = GAP, children }: PopoverLayerProps): JSX.Element {
+export function PopoverLayer({ anchorRef, popRef, align = 'end', gap = GAP, capHeight, children }: PopoverLayerProps): JSX.Element {
   const floating = useFloatingPopovers();
   useLayoutEffect(() => {
+    const fit = (): void => {
+      const anchor = anchorRef.current;
+      const pop = popRef.current;
+      if (capHeight !== undefined && anchor !== null && pop !== null) {
+        pop.style.maxHeight = `${availableHeight(anchor.getBoundingClientRect(), window.innerHeight, capHeight, gap)}px`;
+      }
+    };
     if (!floating) {
+      fit();
       return undefined;
     }
     const place = (): void => {
@@ -67,6 +87,7 @@ export function PopoverLayer({ anchorRef, popRef, align = 'end', gap = GAP, chil
       if (anchor === null || pop === null) {
         return;
       }
+      fit();
       const { top, left } = floatingPosition(
         anchor.getBoundingClientRect(),
         { width: pop.offsetWidth, height: pop.offsetHeight },
