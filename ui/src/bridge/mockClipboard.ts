@@ -118,12 +118,13 @@ export function createMockClipboard(env: MockClipboardEnvironment): MockClipboar
     current: () => current,
     handlers: {
       'transcript.copy': (params) => {
-        if (params.format !== 'text' && params.format !== 'markdown') {
-          throw new MockHostError('bridge.invalidParams', `format: '${String(params.format)}' cannot be copied. Choose text or markdown.`);
+        const format: string = params.format;
+        if (format !== 'text' && format !== 'markdown') {
+          throw new MockHostError('bridge.invalidParams', `format: '${format}' cannot be copied. Choose text or markdown.`);
         }
         const options = { ...DEFAULT_TEXT_OPTIONS, ...(params.options ?? {}) };
         if (!LAYOUTS.includes(options.layout)) {
-          throw new MockHostError('bridge.invalidParams', `Transcript layout '${String(options.layout)}' is not available. Choose auto, turns, lines.`);
+          throw new MockHostError('bridge.invalidParams', `Transcript layout '${options.layout}' is not available. Choose auto, turns, lines.`);
         }
         const ids = params.segmentIds ?? null;
         if (ids !== null && ids.length === 0) {

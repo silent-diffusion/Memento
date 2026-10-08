@@ -13,11 +13,16 @@ import type {
   ExportEstimate,
   ExportSelection,
   Project,
+  TranscriptCopyFormat,
   TranscriptExportFormat,
+  TranscriptLayout,
+  TranscriptTextOptions,
 } from '../../bridge/types';
-import { Toggle } from '../../components/Controls';
+import { Segmented, Toggle } from '../../components/Controls';
+import { copyDocument, copyTranscript, FORMAT_WORDS } from '../../state/copy';
+import { readTranscriptText, writeTranscriptText } from '../../state/uiPrefs';
 import { CloseIcon, InfoIcon } from '../../components/icons';
-import { MultiSelectMenu, SelectMenu } from '../../components/Menus';
+import { ActionMenu, MultiSelectMenu, SelectMenu } from '../../components/Menus';
 import { useModal } from '../../components/Overlay';
 import { joinList } from '../../format/messages';
 import {
@@ -35,6 +40,7 @@ import { useServices } from '../../state/context';
 import type { DialogRequest } from '../../state/dialogs';
 import { trackExport } from '../../state/jobs';
 import './export-m4.css';
+import './export-copy.css';
 
 export const ESTIMATE_DEBOUNCE_MS = 250;
 
@@ -62,7 +68,8 @@ const TRANSCRIPT_OPTIONS = (Object.keys(TRANSCRIPT_FORMAT_LABELS) as TranscriptE
 function startingSelection(selection: ExportSelection, documentIds?: string[]): ExportSelection {
   return {
     ...selection,
-    transcript: { ...selection.transcript, formats: selection.transcript.formats.length === 0 ? ['json'] : selection.transcript.formats },
+    // After 1.2.0: the transcript's text options are remembered per user, whatever the defaults say.
+    transcript: { ...selection.transcript, formats: selection.transcript.formats.length === 0 ? ['json'] : selection.transcript.formats, options: readTranscriptText() },
     documents: documentIds === undefined ? { ...selection.documents, documentIds: [] } : { ...selection.documents, on: true, documentIds },
   };
 }
@@ -72,6 +79,60 @@ const DOCUMENT_OPTIONS: readonly { value: DocumentExportFormat; label: string }[
   { value: 'pdf', label: 'PDF' },
   { value: 'markdown', label: 'Markdown' },
 ];
+
+const LAYOUT_OPTIONS: readonly { value: TranscriptLayout; label: string }[] = [
+  { value: 'auto', label: 'As the format' },
+  { value: 'turns', label: 'Speaker turns' },
+  { value: 'lines', label: 'Line by line' },
+];
+
+/** How long the footer says "Copied …" before the size summary comes back. */
+export const COPIED_MS = 4000;
+
+/**
+ * The transcript's text options (after 1.2.0): timestamps, speakers and layout for the Markdown and
+ * text files and for Copy to clipboard, in any combination; remembered per user.
+ */
+function TranscriptTextRow({ options, onChange }: { options: TranscriptTextOptions; onChange: (options: TranscriptTextOptions) => void }): JSX.Element {
+  return (
+    <div class="export-text-options" role="group" aria-label="Markdown and text transcript options">
+      <span class="export-text-option">
+        <Toggle
+          label="Timestamps"
+          checked={options.timestamps}
+          onChange={(timestamps) => {
+            onChange({ ...options, timestamps });
+          }}
+        />
+        <span aria-hidden="true">Timestamps</span>
+      </span>
+      <span class="export-text-option">
+        <Toggle
+          label="Speakers"
+          checked={options.speakers}
+          onChange={(speakers) => {
+            onChange({ ...options, speakers });
+          }}
+        />
+        <span aria-hidden="true">Speakers</span>
+      </span>
+      <span class="export-text-option">
+        <span class="export-text-label" aria-hidden="true">
+          Paragraphs
+        </span>
+        <Segmented<TranscriptLayout>
+          label="Paragraphs"
+          value={options.layout}
+          options={LAYOUT_OPTIONS}
+          onChange={(layout) => {
+            onChange({ ...options, layout });
+          }}
+        />
+      </span>
+      <span class="export-text-note">Markdown and text only. JSON keeps everything, and SRT keeps its cue times and speakers.</span>
+    </div>
+  );
+}
 
 function withAudioFormat(choice: ExportSelection['audioMixed'], format: AudioExportFormat): ExportSelection['audioMixed'] {
   return { ...choice, format, bitrateKbps: format === 'mp3' ? (choice.bitrateKbps ?? MP3_EXPORT_KBPS) : null };
@@ -160,6 +221,24 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
   }, [failure]);
   const [busy, setBusy] = useState(false);
   const { ref, onKeyDown } = useModal(close);
+  // After 1.2.0: Copy to clipboard says what it copied in the footer for a few seconds.
+  const [copied, setCopied] = useState<{ text: string; serial: number } | null>(null);
+  useEffect(() => {
+    if (copied === null) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      setCopied((c) => (c?.serial === copied.serial ? null : c));
+    }, COPIED_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [copied?.serial]);
+  const confirmCopy = (text: string | null): void => {
+    if (text !== null) {
+      setCopied((c) => ({ text, serial: (c?.serial ?? 0) + 1 }));
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -326,6 +405,16 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
     setSelection((current) => (current === null ? current : { ...current, ...next }));
   };
 
+  /** The transcript's text options as the dialog shows them; changing them is remembered for next time. */
+  const textOptions = selection?.transcript.options ?? readTranscriptText();
+  const setTextOptions = (options: TranscriptTextOptions): void => {
+    writeTranscriptText(options);
+    setSelection((current) => (current === null ? current : { ...current, transcript: { ...current.transcript, options } }));
+  };
+  const copyTranscriptAs = (format: TranscriptCopyFormat): void => {
+    void copyTranscript(bridge, store, { recordingId: request.recordingId, format, options: textOptions, segmentIds: null }).then(confirmCopy);
+  };
+
   const tracks = project?.tracks ?? [];
   const trackWords = tracks.length === 0 ? 'Each source as its own file' : `${joinList(tracks.map((t) => t.name))} as separate files`;
   const attachmentWords = attachments.length === 0 ? 'No attachments' : joinList(attachments.map((a) => a.name));
@@ -477,6 +566,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                     />
                   }
                 />
+                {s.transcript.on && isAvailable('transcript') ? <TranscriptTextRow options={textOptions} onChange={setTextOptions} /> : null}
                 {/* M4: the recording's documents, each with its own checkbox while the row is ticked. */}
                 <ComponentRow
                   id="exp-documents"
@@ -604,7 +694,9 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
 
         <div class="export-foot">
           <span class="export-summary" aria-live="polite">
-            {summary === null ? (
+            {copied !== null ? (
+              <span class="export-copied">{copied.text}</span>
+            ) : summary === null ? (
               'Estimating sizes…'
             ) : (
               <>
@@ -613,6 +705,41 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
             )}
           </span>
           <div class="export-actions">
+            {/* After 1.2.0: the same content, on the clipboard instead of in files (written by the host); the menu opens upwards. */}
+            <ActionMenu
+              label="Copy to clipboard"
+              triggerClass="btn g export-copy"
+              actions={[
+                {
+                  label: 'Transcript',
+                  run: () => undefined,
+                  children: (['text', 'markdown'] as const).map((format) => ({
+                    label: `As ${FORMAT_WORDS[format]}`,
+                    disabled: !isAvailable('transcript'),
+                    ...(isAvailable('transcript') ? {} : { note: unavailable.get('transcript') ?? 'Not transcribed yet' }),
+                    run: () => {
+                      copyTranscriptAs(format);
+                    },
+                  })),
+                },
+                ...(documents.length === 0
+                  ? []
+                  : [
+                      {
+                        label: 'Documents, formatted for Word and Outlook',
+                        run: () => undefined,
+                        children: documents.map((doc) => ({
+                          label: doc.name,
+                          run: () => {
+                            void copyDocument(bridge, store, request.recordingId, doc.id, doc.name).then(confirmCopy);
+                          },
+                        })),
+                      },
+                    ]),
+              ]}
+            >
+              Copy to clipboard
+            </ActionMenu>
             <button class="btn g" type="button" onClick={close}>
               Cancel
             </button>

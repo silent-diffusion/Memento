@@ -150,6 +150,16 @@ describe('Document viewer (DESIGN.md §12, against the browser-preview host)', (
     expect(document.querySelector<HTMLInputElement>('#exp-documents')?.checked).toBe(true);
   });
 
+  it('copies the document to the clipboard through the host and says so beside Undo (after 1.2.0)', async () => {
+    await open();
+    await click(button('More actions'));
+    await click(button('Copy to clipboard'));
+    await until(() => h.callsOf('documents.copy').length === 1);
+    expect(h.callsOf('documents.copy')[0]).toEqual({ recordingId: DESIGN, documentId: MINUTES });
+    await until(() => document.querySelector('.undo-status')?.textContent === 'Copied “Meeting minutes”');
+    expect(document.querySelector('.toast')).toBeNull();
+  });
+
   it('deletes after confirming, back to the recording', async () => {
     await open('doc-20261005-notes');
     expect(document.querySelector('.how-made')?.textContent).toContain('No AI was involved.');

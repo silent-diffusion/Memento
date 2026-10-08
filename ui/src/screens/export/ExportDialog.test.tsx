@@ -109,7 +109,12 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     await settle(ESTIMATE_DEBOUNCE_MS + 60);
     await click(dialog().querySelector('.export-foot .btn.p'));
     await until(() => h.callsOf('export.run').length === 1);
-    expect((h.callsOf('export.run')[0] as ExportRunParams).selection.transcript).toEqual({ on: true, formats: ['json', 'srt'] });
+    // After 1.2.0 the remembered text options travel with the selection (defaults: as earlier versions wrote).
+    expect((h.callsOf('export.run')[0] as ExportRunParams).selection.transcript).toEqual({
+      on: true,
+      formats: ['json', 'srt'],
+      options: { timestamps: true, speakers: true, layout: 'auto' },
+    });
   });
 
   it('previews the path with and without the recording folder and remembers the choices', async () => {
@@ -203,6 +208,85 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
     expect(row('exp-transcript').textContent).toContain('Not transcribed yet');
     // The mix and manifest.json.
     expect(summary()).toMatch(/^2 files · about /);
+  });
+
+  describe('transcript text options and Copy to clipboard (after 1.2.0)', () => {
+    afterEach(() => {
+      globalThis.localStorage.clear();
+    });
+
+    const toggle = (name: string): HTMLButtonElement | null => dialog().querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${name}"]`);
+    const layout = (name: string): HTMLButtonElement | undefined =>
+      [...dialog().querySelectorAll<HTMLButtonElement>('[aria-label="Paragraphs"] .seg')].find((b) => b.textContent.trim() === name);
+
+    it('offers timestamps, speakers and paragraphs in any combination, sends them and remembers them', async () => {
+      await open();
+      const options = dialog().querySelector('[aria-label="Markdown and text transcript options"]');
+      expect(options?.textContent).toContain('JSON keeps everything, and SRT keeps its cue times and speakers.');
+      expect(toggle('Timestamps')?.getAttribute('aria-checked')).toBe('true');
+      expect(toggle('Speakers')?.getAttribute('aria-checked')).toBe('true');
+      expect(layout('As the format')?.getAttribute('aria-pressed')).toBe('true');
+
+      await click(toggle('Timestamps'));
+      await click(toggle('Speakers'));
+      await click(layout('Line by line'));
+      expect(toggle('Timestamps')?.getAttribute('aria-checked')).toBe('false');
+      await settle(ESTIMATE_DEBOUNCE_MS + 60);
+      // The estimate follows the options (the text files shrink).
+      const estimates = h.callsOf('export.estimate') as ExportEstimateParams[];
+      expect(estimates.at(-1)?.selection.transcript.options).toEqual({ timestamps: false, speakers: false, layout: 'lines' });
+      await click(dialog().querySelector('.export-foot .btn.p'));
+      await until(() => h.callsOf('export.run').length === 1);
+      expect((h.callsOf('export.run')[0] as ExportRunParams).selection.transcript.options).toEqual({ timestamps: false, speakers: false, layout: 'lines' });
+
+      // Remembered for this user: the next dialog starts with them.
+      await until(() => document.querySelector('.export-dialog') === null);
+      await click([...document.querySelectorAll<HTMLButtonElement>('.spoke-ghost')].find((b) => b.textContent.trim() === 'Export'));
+      await until(() => document.querySelector('.export-dialog') !== null);
+      expect(toggle('Timestamps')?.getAttribute('aria-checked')).toBe('false');
+      expect(toggle('Speakers')?.getAttribute('aria-checked')).toBe('false');
+      expect(layout('Line by line')?.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('hides the options while the transcript is not ticked', async () => {
+      await open();
+      await click(dialog().querySelector('#exp-transcript'));
+      expect(dialog().querySelector('[aria-label="Markdown and text transcript options"]')).toBeNull();
+    });
+
+    it('copies the transcript with the chosen options and a document formatted, and says so in the footer', async () => {
+      await open();
+      await click(toggle('Timestamps'));
+      await click(button('Copy to clipboard'));
+      expect(document.querySelector('[role="menu"][aria-label="Copy to clipboard"]')).not.toBeNull();
+      await click(button('As Markdown'));
+      await until(() => h.callsOf('transcript.copy').length === 1);
+      expect(h.callsOf('transcript.copy')[0]).toEqual({ recordingId: DESIGN, format: 'markdown', options: { timestamps: false, speakers: true, layout: 'auto' } });
+      await until(() => summary() === 'Copied the transcript as Markdown');
+      // The dialog stays open, and nothing was exported.
+      expect(document.querySelector('.export-dialog')).not.toBeNull();
+      expect(h.callsOf('export.run')).toEqual([]);
+
+      const { documents } = await h.bridge.call('documents.list', { recordingId: DESIGN });
+      const first = documents[0];
+      if (first !== undefined) {
+        await click(button('Copy to clipboard'));
+        await click(button(first.name));
+        await until(() => h.callsOf('documents.copy').length === 1);
+        expect(h.callsOf('documents.copy')[0]).toEqual({ recordingId: DESIGN, documentId: first.id });
+        await until(() => summary() === `Copied “${first.name}”`);
+      }
+    });
+
+    it('cannot copy a transcript that does not exist yet', async () => {
+      await open(Q3);
+      await click(button('Copy to clipboard'));
+      const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent.includes('As text'));
+      expect(item?.getAttribute('aria-disabled')).toBe('true');
+      expect(item?.textContent).toContain('Not transcribed yet');
+      await click(item);
+      expect(h.callsOf('transcript.copy')).toEqual([]);
+    });
   });
 
   it('moves through the dialog with the keyboard and Esc cancels', async () => {

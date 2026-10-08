@@ -1,0 +1,50 @@
+/* After 1.2.0: the transcript's text options under the Transcript row (DESIGN.md §15) and Copy to
+   clipboard in the footer. The options use the §5.7 toggle and §5.8 segmented control. */
+.export-text-options {
+  /* The look of the Documents sub-row (export-m4.css). */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 8px 16px 10px 46px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.export-text-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.export-text-label {
+  color: var(--text-2);
+}
+
+.export-text-option .seg {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.export-text-note {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* The footer sits at the dialog's bottom: the copy menu opens upwards, inside the dialog. */
+.export-actions .popover {
+  top: auto;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 260px;
+}
+
+.export-copied {
+  font-weight: 600;
+  color: var(--text);
+}
