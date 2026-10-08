@@ -3,6 +3,16 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 1.2.0
+
+Editing on the spot, undo everywhere, a window into the model's work, and a graphics card that explains itself. Memento updates itself to it.
+
+### Graphics card
+
+- **Memento now says who is using the graphics card.** The reading was right all along (within a few megabytes of the driver's own figure), but a card held by another program read as "0.1 GB free" with no explanation, so the local model ran on the processor for no visible reason. Settings › Transcription, Settings › AI and privacy and the Builder's Local card now say, for example: "The graphics card has 0.8 GB of 6 GB free. Ollama (llama-server.exe, started by LocalDictation) is using 5.0 GB. Qwen3.5 4B needs 3.6 GB on the card, so it runs on the processor until that memory is free." Memento's own processes count as one "Memento", and a program started by another names it. **Check again** re-reads the card without a restart, so you can close the other program and see the memory come back.
+- Settings re-reads its data every time it opens, so the model in effect is never stale.
+- Laptops with hybrid graphics: the card is told from the integrated chip by the driver's own flags, so a chip given 2 GB or more by the firmware is no longer taken for a second card.
+
 ## 1.1.0
 
 A small release of fixes and refinements asked for after 1.0.0. Memento updates itself to it; nothing needs to be reinstalled.
