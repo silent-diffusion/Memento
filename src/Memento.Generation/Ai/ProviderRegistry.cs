@@ -103,8 +103,12 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
         var path = models.Resolve(entry.Id);
         if (path is null)
         {
+            // The card is still described: what is free helps choose which model to download.
             return new ProviderStatus(ProviderIds.Local, false, AiErrorCodes.ModelNotInstalled, "Model not installed",
-                AiErrors.ModelNotInstalled(LocalAiProvider.ProviderName, entry.Name).Message, entry.Id, entry.Name, entry);
+                AiErrors.ModelNotInstalled(LocalAiProvider.ProviderName, entry.Name).Message, entry.Id, entry.Name, entry)
+            {
+                GpuMemory = snapshot.DiscreteGpu is { } card ? GpuMemoryInfo.From(card) : null,
+            };
         }
 
         // A model chosen in Settings that is not installed any more: say which one stands in. The hardware's recommendation

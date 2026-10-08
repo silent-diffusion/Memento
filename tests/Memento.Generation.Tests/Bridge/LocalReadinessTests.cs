@@ -166,6 +166,10 @@ public sealed class LocalReadinessTests : IDisposable
         Assert.False(local.GetProperty("ready").GetBoolean());
         Assert.Equal(AiErrorCodes.ModelNotInstalled, local.GetProperty("code").GetString());
         Assert.Contains($"The local model {name} is not installed.", local.GetProperty("detail").GetString(), StringComparison.Ordinal);
+
+        // The card is described even so: what is free helps choose which model to download.
+        Assert.Equal(free, local.GetProperty("gpuMemory").GetProperty("freeBytes").GetInt64());
+        Assert.Equal(JsonValueKind.Null, local.GetProperty("gpuNote").ValueKind);
     }
 
     [Fact]
