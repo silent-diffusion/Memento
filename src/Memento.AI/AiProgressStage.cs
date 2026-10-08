@@ -12,6 +12,9 @@ public enum AiProgressStage
     /// <summary>Output is arriving.</summary>
     Generating,
 
+    /// <summary>Local, in a batch: the answer to <see cref="AiProgress.Index"/> is complete (the batch goes on).</summary>
+    Answered,
+
     /// <summary>Waiting before a retry (rate limit or a temporary server error).</summary>
     WaitingToRetry,
 

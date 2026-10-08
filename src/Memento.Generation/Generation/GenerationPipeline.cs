@@ -42,7 +42,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(input);
         var warnings = new List<string>();
-        await using var runner = new RequestRunner(input.Provider, observer: input.OnResponse);
+        await using var runner = new RequestRunner(input.Provider, observer: input.OnResponse, output: input.Output);
         var transcript = new TranscriptIndex(input.Payload.TranscriptLines);
         var clock = Stopwatch.StartNew();
         Report(progress, "composing", null, 2, "Preparing the inputs");
@@ -56,6 +56,14 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
                 new ChunkOptions(Math.Max(64, input.ChunkTokens), new ProviderTokenCounter(input.Provider)),
                 input.Material.ToPayloadInputs(null).Chapters);
         var composeMs = clock.ElapsedMilliseconds;
+        if (chunks.Count > 0)
+        {
+            input.Output?.Step(
+                GenerationOutputFeed.SegmentStep,
+                "Segment the transcript",
+                string.Create(CultureInfo.InvariantCulture, $"{Plural(chunks.Count, "segment")} of up to {Math.Max(64, input.ChunkTokens):N0} tokens, cut at chapters and speaker turns: {string.Join(", ", chunks.Select(c => $"{Timecode.Format(c.Start)}–{Timecode.Format(c.End)}"))}"),
+                clock.Elapsed);
+        }
 
         // 2. Map.
         clock.Restart();
@@ -75,7 +83,16 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         var mapMs = clock.ElapsedMilliseconds;
 
         // 3. Reduce per family (citations were repaired as each answer was read).
+        var reduceClock = Stopwatch.StartNew();
         var byFamily = claims.GroupBy(c => c.Family, StringComparer.Ordinal).ToDictionary(g => g.Key, g => ClaimReducer.Reduce(g).ToList(), StringComparer.Ordinal);
+        if (claims.Count > 0)
+        {
+            input.Output?.Step(
+                GenerationOutputFeed.ReduceStep,
+                "Merge and repair in code",
+                string.Create(CultureInfo.InvariantCulture, $"{Plural(claims.Count, "candidate")} from the map merged into {Plural(byFamily.Values.Sum(f => f.Count), "claim")} by citation and wording, in time order; each citation points at the line that holds its quote. The model is not involved."),
+                reduceClock.Elapsed);
+        }
 
         // 4. Verify; then, for a claim the span does not support, the copies merged into it (a wrong first copy must not
         // hide a right later one).
@@ -110,6 +127,15 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             {
                 claim.DropReason = LeftOutForLength;
             }
+        }
+
+        if (unique.Count > 0)
+        {
+            input.Output?.Step(
+                GenerationOutputFeed.GroundingStep,
+                "Check every claim against the transcript",
+                string.Create(CultureInfo.InvariantCulture, $"{unique.Count(c => c.Kept)} of {Plural(unique.Count, "claim")} kept: each needs a citation to a real line and a supported verdict, and owners, dates and quotes must be in the transcript. The model is not involved."),
+                clock.Elapsed);
         }
 
         var rows = new List<DocumentRow>();
@@ -234,7 +260,8 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
                 var index = Math.Clamp(n, 0, batch.Count - 1);
                 Report(progress, "generating", batch[index].Task.Modules[0].Id, 5 + (55.0 * Math.Min(batchTotal, done + n) / Math.Max(1, batchTotal)), "Reading the transcript");
             });
-            var responses = await runner.RunAsync(requests, batchProgress, cancellationToken);
+            var passes = work.Select(w => new OutputPass(GenerationOutputFeed.MapStep, MapTitle(w.Task, w.Chunk, chunks.Count, w.Split > 0 ? " · half of it" : string.Empty, catalog))).ToList();
+            var responses = await runner.RunAsync(requests, batchProgress, cancellationToken, passes);
             var retry = new List<(ModuleTask Task, TranscriptChunk Chunk, int Split)>();
             for (var i = 0; i < responses.Count; i++)
             {
@@ -275,7 +302,8 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             var again = empty.SelectMany(t => chunks.Select(c => (Task: t, Chunk: c))).ToList();
             Report(progress, "generating", again[0].Task.Modules[0].Id, 60, "Reading the transcript again");
             var requests = again.Select(w => MapPrompts.Build(w.Task, input.Payload, w.Chunk, chunks.Count, catalog, input.MapOutputTokens, input.Bounded, plain: true)).ToList();
-            var responses = await runner.RunAsync(requests, null, cancellationToken);
+            var passes = again.Select(w => new OutputPass(GenerationOutputFeed.MapStep, MapTitle(w.Task, w.Chunk, chunks.Count, " · read again as a plain summary", catalog))).ToList();
+            var responses = await runner.RunAsync(requests, null, cancellationToken, passes);
             for (var i = 0; i < responses.Count; i++)
             {
                 if (responses[i].StopReason != AiStopReason.Completed || responses[i].Json is not { } json)
@@ -316,7 +344,8 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         var requests = groups.Select(g => input.VerifyBatch <= 1
             ? VerifyPrompts.ForQuestion(g[0], SpanOf(g[0], transcript))
             : VerifyPrompts.Batch(g.Select(q => (q, SpanOf(q, transcript))).ToList(), input.Bounded)).ToList();
-        var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken);
+        var passes = groups.Select(g => new OutputPass(GenerationOutputFeed.VerifyStep, VerifyTitle(g, input.Template))).ToList();
+        var responses = await runner.RunAsync(requests, new InlineProgress<int>(n => Report(progress, "verifying", null, 60 + (30.0 * n / requests.Count), "Checking each claim against the moment it cites")), cancellationToken, passes);
         var answers = new Dictionary<VerifyQuestion, VerifyAnswer>();
         for (var r = 0; r < groups.Count; r++)
         {
@@ -349,7 +378,8 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         var borderline = questions.Where(q => answers.GetValueOrDefault(q) is { Grade: VerifyAnswer.Partly } && !(q.Field == VerifyQuestion.ClaimField && q.Claim.Kind == ClaimKinds.Point)).ToList();
         if (borderline.Count > 0)
         {
-            var second = await runner.RunAsync(borderline.Select(q => VerifyPrompts.SecondVote(q.Statement, WideSpanOf(q, transcript))).ToList(), null, cancellationToken);
+            var votes = borderline.Select(_ => new OutputPass(GenerationOutputFeed.VerifyStep, "Second vote · one claim over a wider excerpt")).ToList();
+            var second = await runner.RunAsync(borderline.Select(q => VerifyPrompts.SecondVote(q.Statement, WideSpanOf(q, transcript))).ToList(), null, cancellationToken, votes);
             for (var i = 0; i < borderline.Count; i++)
             {
                 if (second[i].StopReason == AiStopReason.Completed && second[i].Json is { } json && VerifyPrompts.ParseSingle(json) is { IsSupported: true } vote)
@@ -560,6 +590,35 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
             string.Join('\n', lines.Select(l => l.Rendered)),
             ChunkBoundary.Segment);
     }
+
+    /// <summary>"Decisions and action items · segment 1 of 2" for the Live output list.</summary>
+    internal static string MapTitle(ModuleTask task, TranscriptChunk chunk, int chunkCount, string suffix, ModuleCatalog catalog) =>
+        string.Create(CultureInfo.InvariantCulture, $"{FamilyTitle(task.Family, task.Modules, catalog)} · segment {chunk.Index + 1} of {chunkCount}{suffix}");
+
+    /// <summary>"Check Decisions and action items · 6 claims", or "Check 25 claims" for a cloud batch of several kinds.</summary>
+    internal static string VerifyTitle(IReadOnlyList<VerifyQuestion> group, DocumentTemplate template)
+    {
+        ArgumentNullException.ThrowIfNull(group);
+        ArgumentNullException.ThrowIfNull(template);
+        var families = group.Select(q => q.Claim.Family).Distinct(StringComparer.Ordinal).ToList();
+        var count = group.Count == 1 ? "one question" : string.Create(CultureInfo.InvariantCulture, $"{group.Count} questions");
+        return families.Count == 1
+            ? $"Check {FamilyTitle(families[0], template.Modules().Where(m => ModuleTask.FamilyOf(m) == families[0]).ToList(), ModuleCatalog.Default)} · {count}"
+            : $"Check {count}";
+    }
+
+    /// <summary>What a map family reads, in the words of the modules it serves.</summary>
+    private static string FamilyTitle(string family, IReadOnlyList<TemplateModule> modules, ModuleCatalog catalog) => family switch
+    {
+        ModuleTask.Commitments => "Decisions and action items",
+        ModuleTask.AgendaCoverage => "Agenda",
+        ModuleTask.Quotes => "Quotes",
+        ModuleTask.NextMeeting => "Next meeting",
+        _ => modules.Count > 0 ? modules[0].ResolveTitle(catalog) : family,
+    };
+
+    private static string Plural(int count, string noun) =>
+        string.Create(CultureInfo.InvariantCulture, $"{count:N0} {noun}{(count == 1 ? string.Empty : "s")}");
 
     private static void Report(IProgress<PipelineProgress>? progress, string stage, string? moduleId, double percent, string? message) =>
         progress?.Report(new PipelineProgress(stage, moduleId, Math.Round(Math.Clamp(percent, 0, 100), 1), message));

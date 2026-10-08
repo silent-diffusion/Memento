@@ -9,6 +9,8 @@ import { ReviewScreen } from './screens/review/ReviewScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { BuilderScreen } from './screens/builder/BuilderScreen';
 import { connectGeneration } from './screens/builder/generation';
+import { connectLiveOutput } from './screens/builder/liveOutput';
+import { LiveOutputLayer } from './screens/builder/LiveOutputSheet';
 import { DocumentScreen } from './screens/docview/DocumentScreen';
 import { StyleEditorScreen } from './screens/styleeditor/StyleEditorScreen';
 import { AppContext, createMemoryRouter, type AppServices } from './state/context';
@@ -60,6 +62,8 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
   useEffect(() => connectGeneration(services), [services]);
   // Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z for the screen that holds the undo stack (state/undo.ts); not while a dialog is open.
   useEffect(() => connectUndoKeys(undoOf(store), () => store.overlays.value > 0), [store]);
+  // M4: generation.output for the Live output sheet (kept in memory only).
+  useEffect(() => connectLiveOutput(services), [services]);
   const route = store.route.value;
   const modalOpen = store.overlays.value > 0;
   return (
@@ -71,6 +75,7 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
       </div>
       <ToastStack queue={store.toasts} />
       <DialogHost />
+      <LiveOutputLayer />
     </AppContext.Provider>
   );
 }

@@ -150,7 +150,8 @@ public sealed partial class GenerationService(
                 throw M4Errors.Busy();
             }
 
-            job = new Job("g" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant(), recordingId, documentId, prepared, time.GetUtcNow(), new GenerationProgressFeed(events.PublishGenerationProgress, time)) { Pending = confirm };
+            var id = "g" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+            job = new Job(id, recordingId, documentId, prepared, time.GetUtcNow(), new GenerationProgressFeed(events.PublishGenerationProgress, time), new GenerationOutputFeed(id, events.PublishGenerationOutput, time)) { Pending = confirm };
             _job = job;
         }
 
@@ -270,7 +271,10 @@ public sealed partial class GenerationService(
                 status.ChunkTokens,
                 status.MapOutputTokens,
                 Bounded: !status.IsCloud,
-                VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize);
+                VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize)
+            {
+                Output = job.Output,
+            };
             var progress = new InlineProgress<PipelineProgress>(p => Publish(job, p.Stage, p.ModuleId, p.Percent, p.Message));
             var outcome = await pipeline.RunAsync(input, progress, token);
             token.ThrowIfCancellationRequested();
@@ -331,15 +335,19 @@ public sealed partial class GenerationService(
         }
     }
 
-    /// <summary>Ends the job with its final event, which follows every event raised before it; the returned task completes once it is sent.</summary>
-    private Task Finish(Job job, string stage, string? documentId, double percent, string message, string? code)
+    /// <summary>
+    /// Ends the job with its final event, which follows every event raised before it; the returned task completes once it
+    /// is sent. The Live output ends first (its <c>done</c>), so the sheet is read-only by the time the job is over.
+    /// </summary>
+    private async Task Finish(Job job, string stage, string? documentId, double percent, string message, string? code)
     {
         lock (_gate)
         {
             job.Finished = true;
         }
 
-        return job.Events.CompleteAsync(new GenerationProgress(job.Id, job.RecordingId, documentId, stage, null, percent, message) { Code = code });
+        await job.Output.CompleteAsync();
+        await job.Events.CompleteAsync(new GenerationProgress(job.Id, job.RecordingId, documentId, stage, null, percent, message) { Code = code });
     }
 
     /// <summary>Queues a progress event on the job's ordered stream (throttled there; nothing passes after the final event).</summary>
@@ -507,7 +515,7 @@ public sealed partial class GenerationService(
         int Chunks,
         bool NeedsTranscript);
 
-    private sealed class Job(string id, string recordingId, string? documentId, Prepared prepared, DateTimeOffset created, GenerationProgressFeed events)
+    private sealed class Job(string id, string recordingId, string? documentId, Prepared prepared, DateTimeOffset created, GenerationProgressFeed events, GenerationOutputFeed output)
     {
         public string Id { get; } = id;
 
@@ -529,5 +537,8 @@ public sealed partial class GenerationService(
 
         /// <summary>This job's progress events, in the order they were raised; nothing after the final one.</summary>
         public GenerationProgressFeed Events { get; } = events;
+
+        /// <summary>This job's Live output (<c>generation.output</c>), ended before the final progress event.</summary>
+        public GenerationOutputFeed Output { get; } = output;
     }
 }

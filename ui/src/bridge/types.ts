@@ -1817,6 +1817,35 @@ export interface GenerationProgress {
   code?: string | null;
 }
 
+/** generation.output (Live output): which part of the pipeline a pass belongs to. */
+export type GenerationOutputStep = 'segment' | 'map' | 'reduce' | 'verify' | 'grounding';
+
+/**
+ * generation.output: one step of a generation's exchange with its provider, for the Live output sheet. Kept in
+ * memory only. `step`: work done in code; `request`: a pass starts (the exact text sent); `token`: text that arrived
+ * since the previous token event of the pass; `reply`: the whole reply with its counts; `done`: nothing follows.
+ */
+export interface GenerationOutput {
+  jobId: string;
+  /** 'p1', 'p2'… in order; '' for done. */
+  passId: string;
+  kind: 'step' | 'request' | 'token' | 'reply' | 'done';
+  /** With step and request. */
+  step: GenerationOutputStep | null;
+  /** With step and request: "Decisions and action items · segment 1 of 2". */
+  title: string | null;
+  text: string;
+  /** With request: the reply streams in (the local model) or arrives whole (a cloud provider). */
+  streamed: boolean | null;
+  outputTokens: number | null;
+  promptTokens: number | null;
+  /** The local model's output tokens per second. */
+  tokensPerSecond: number | null;
+  /** Step: how long it took; token: writing so far; reply: from the request to the reply. */
+  elapsedMs: number | null;
+  stopReason: string | null;
+}
+
 export type DocumentVersionReason = 'generated' | 'edited' | 'restored' | 'regenerated';
 
 export interface DocumentVersion {
@@ -2148,6 +2177,7 @@ export interface BridgeEvents {
   'storage.reclaimProgress': StorageReclaimProgressPayload;
   // M4
   'generation.progress': GenerationProgress;
+  'generation.output': GenerationOutput;
   'documents.changed': DocumentsChangedPayload;
   'templates.changed': EmptyResult;
   'styles.changed': EmptyResult;
@@ -2293,6 +2323,7 @@ export const EVENT_NAMES = [
   'library.moveProgress',
   'storage.reclaimProgress',
   'generation.progress',
+  'generation.output',
   'documents.changed',
   'templates.changed',
   'styles.changed',

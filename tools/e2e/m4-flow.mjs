@@ -246,7 +246,7 @@ const builderStatus = () => page.eval(`(document.querySelector('.ai-failure')?.i
  * Presses Generate in the Builder (unless something else already started it, as "Switch to …" does) and waits for the
  * document viewer, the send confirmation or the failure card.
  */
-async function generate(label, { press = true } = {}) {
+async function generate(label, { press = true, live = false } = {}) {
   const started = Date.now();
   await page.waitFor(`!document.querySelector('[role=dialog]')`, 'no dialog over the Builder', 10_000);
   const begun = `!!document.querySelector('.ai-failure, #confirm-send-title, .doc-paper article') || /GENERATING|Preparing the|Reading the|Checking/.test(document.body.innerText)`;
@@ -263,12 +263,41 @@ async function generate(label, { press = true } = {}) {
   }
   await sleep(1500);
   await shot(`${label}-generating`);
+  if (live) await watchLiveOutput(label);
   const ended = await page.waitFor(
     `document.querySelector('.ai-failure') ? 'failed' : document.querySelector('#confirm-send-title') ? 'confirm' : document.querySelector('.doc-paper article') ? 'done' : ''`,
     `${label} to finish`,
     30 * 60_000,
   );
   return { ended, seconds: Math.round((Date.now() - started) / 1000) };
+}
+
+/**
+ * Live output (DESIGN.md §10): "Show live output" beside Cancel opens the sheet while the local model writes; the
+ * first request is the exact text the model reads, and its reply streams in as tokens (the counter grows while the
+ * pass runs). Closed again with Esc; the generation goes on.
+ */
+async function watchLiveOutput(label) {
+  await page.click({ name: 'Show live output', within: '.gen-card' });
+  await page.waitFor(`!!document.querySelector('.live-sheet')`, 'the Live output sheet', 10_000);
+  // The model loads first; then each pass's request appears and its tokens arrive.
+  const streaming = `(() => { const m = /Writing · ([\\d,]+) tokens?/.exec([...document.querySelectorAll('.live-pass-meta')].map((e) => e.innerText).join('\\n')); return m ? Number(m[1].replace(/,/g, '')) : 0; })()`;
+  const first = await page.waitFor(streaming, 'tokens streaming into the Live output', 10 * 60_000);
+  await sleep(1200);
+  const later = await page.eval(`${streaming} || (document.querySelectorAll('.live-dot--done').length > 1 ? Infinity : 0)`);
+  const request = await page.eval(`document.querySelector('.live-request')?.innerText ?? ''`);
+  const reply = await page.eval(`document.querySelector('.live-reply')?.innerText ?? ''`);
+  const stats = await page.eval(`document.querySelector('.live-stats')?.innerText ?? ''`);
+  await shot(`${label}-live-output`);
+  check(request.startsWith('System\n') && request.includes('User\n'), 'the Live output shows the exact request the local model reads');
+  check(reply.trim().length > 0, `the reply streams into the Live output (${reply.trim().slice(0, 40)}…)`);
+  check(later > first || later === Infinity, `the token count grows while the pass runs (${first} → ${later})`);
+  check(/tokens\/s/.test(stats) || stats === '', `the local model's tokens per second are shown (${stats})`);
+  check(/on this PC · Writing/.test(await page.text('.live-sub')), 'the sheet says the local model writes on this PC');
+  summary.liveOutput = { firstTokens: first, laterTokens: later === Infinity ? 'pass finished' : later, stats, passes: await page.eval(`document.querySelectorAll('.live-pass').length`) };
+  log('live output', `tokens ${first} → ${later === Infinity ? 'pass done' : later} · ${stats}`);
+  await page.key('Escape');
+  await page.waitFor(`!document.querySelector('.live-sheet')`, 'the sheet to close', 10_000);
 }
 
 /** The folder the Export dialog writes into (a subfolder named after the recording when that option is on). */
@@ -505,7 +534,7 @@ try {
   await shot('builder-local-provider');
 
   // 4. Generate with the local model: nothing is sent, so nothing is asked; progress, then the viewer.
-  const first = await generate('local');
+  const first = await generate('local', { live: true });
   check(first.ended !== 'confirm', 'the local model is not asked about (nothing is sent)');
   check(first.ended === 'done', `the local model wrote the minutes (${await builderStatus()})`);
   summary.timings.localGenerationSeconds = first.seconds;

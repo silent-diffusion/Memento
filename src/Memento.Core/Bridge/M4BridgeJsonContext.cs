@@ -50,6 +50,7 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(DocumentFileResult))]
 [JsonSerializable(typeof(GenerationRecord))]
 [JsonSerializable(typeof(BridgeEventEnvelope<GenerationProgress>))]
+[JsonSerializable(typeof(BridgeEventEnvelope<GenerationOutput>))]
 [JsonSerializable(typeof(BridgeEventEnvelope<DocumentsChangedPayload>))]
 [JsonSerializable(typeof(BridgeEventEnvelope<EmptyPayload>))]
 public sealed partial class M4BridgeJsonContext : JsonSerializerContext

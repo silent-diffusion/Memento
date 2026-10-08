@@ -12,8 +12,14 @@ internal static class WorkerBuild
     /// <summary><c>MEMENTO_MODELS_ROOT</c>, or the data root's models folder (<c>%LOCALAPPDATA%\Memento\models</c>).</summary>
     public static string ModelsRoot => Environment.GetEnvironmentVariable("MEMENTO_MODELS_ROOT") is { Length: > 0 } root ? root : Core.AppPaths.Models;
 
+    /// <summary><c>MEMENTO_WORKER_DIR</c> (another build of the worker, e.g. for a before/after timing), else the solution's build.</summary>
     private static string? Find()
     {
+        if (Environment.GetEnvironmentVariable("MEMENTO_WORKER_DIR") is { Length: > 0 } forced)
+        {
+            return File.Exists(Path.Combine(forced, WorkerLocation.ExecutableName)) ? forced : null;
+        }
+
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Memento.sln")))

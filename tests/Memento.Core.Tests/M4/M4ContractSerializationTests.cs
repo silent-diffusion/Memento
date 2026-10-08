@@ -24,6 +24,17 @@ public sealed class M4ContractSerializationTests
     }
 
     [Fact]
+    public void GenerationOutputEvent()
+    {
+        Assert.Equal(
+            """{"event":"generation.output","payload":{"jobId":"g1","passId":"p2","kind":"request","step":"map","title":"Decisions and action items · segment 1 of 2","text":"System\nExtract.\n\nUser\n[1] Ana: Hello.","streamed":true,"outputTokens":null,"promptTokens":null,"tokensPerSecond":null,"elapsedMs":null,"stopReason":null}}""",
+            Dot(BridgeEventPublisher.Serialize(BridgeEventNames.GenerationOutput, new GenerationOutput("g1", "p2", "request", "map", "Decisions and action items · segment 1 of 2", "System\nExtract.\n\nUser\n[1] Ana: Hello.") { Streamed = true }, M4BridgeJsonContext.Default.BridgeEventEnvelopeGenerationOutput)));
+        Assert.Equal(
+            """{"event":"generation.output","payload":{"jobId":"g1","passId":"p2","kind":"token","step":null,"title":null,"text":" [{decisions","streamed":null,"outputTokens":12,"promptTokens":null,"tokensPerSecond":51.5,"elapsedMs":220,"stopReason":null}}""",
+            BridgeEventPublisher.Serialize(BridgeEventNames.GenerationOutput, new GenerationOutput("g1", "p2", "token", null, null, " [{decisions") { OutputTokens = 12, TokensPerSecond = 51.5, ElapsedMs = 220 }, M4BridgeJsonContext.Default.BridgeEventEnvelopeGenerationOutput));
+    }
+
+    [Fact]
     public void DocumentsTemplatesAndStylesChangedEvents()
     {
         Assert.Equal(
