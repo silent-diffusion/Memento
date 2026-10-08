@@ -3,6 +3,19 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 1.3.0
+
+Speakers that stick to the number you set, a transcript that stays with the audio, filters, copying to the clipboard, and History you can step back into. Memento updates itself to it.
+
+### Review
+
+- **See only one speaker.** Click a speaker's name in People and the transcript shows just their lines, with the row pressed in and their line count. Click again, **Show all** or Esc to clear; Ctrl+click adds another speaker. The **Filter** chip in the transcript header combines speakers, **Highlights**, **Uncertain words**, **Edited lines**, one chapter's span and the search text, each with its count. A line reads "Showing 42 of 318 lines · Sarah · Highlights" with **Copy** and **Show all**. Hidden lines are only hidden: playback, seeking, the arrow keys, editing in place and Undo work on the lines shown.
+- **Copy to the clipboard.** The More menu has **Copy transcript** (as text or Markdown; while filtered it copies the lines shown and says so), the Export dialog has **Copy to clipboard** for the transcript and for each document, and the document viewer's More menu copies the document as text and as formatted content that Word and Outlook paste with its headings. "Copied 42 of 318 lines as text" confirms it quietly. Nothing copied is ever uploaded by Windows' cloud clipboard.
+
+### Export
+
+- **The transcript with or without timestamps and speakers**, in any combination, plus a paragraph choice (as the format, speaker turns, or line by line), for the text and Markdown files and for the clipboard. JSON and SRT keep their own structure. Your choices are remembered, and the export's `manifest.json` records them.
+
 ## 1.2.0
 
 Editing on the spot, undo everywhere, a window into the model's work, and a graphics card that explains itself. Memento updates itself to it.
