@@ -7,8 +7,11 @@ using Memento.Core.Transcripts;
 namespace Memento.Core.Export;
 
 /// <summary>
-/// The readable transcript exports (BRIDGE.md M3): Markdown with speaker-labelled paragraphs and an <c>[h:mm:ss]</c>
-/// marker before every segment, and plain text with one line per segment. Line endings are CRLF, for Windows apps.
+/// The readable transcript (BRIDGE.md M3, and "Clipboard and transcript text options"): Markdown and plain text, for
+/// export files and the clipboard. One formatter for both, so a copy reads exactly like the file. The
+/// <see cref="TranscriptTextOptions"/> choose timestamps, speakers and the layout in any combination; the defaults are
+/// Markdown with speaker-labelled paragraphs and an <c>[h:mm:ss]</c> marker before every segment, and plain text with
+/// one line per segment. Line endings are CRLF, for Windows apps.
 /// </summary>
 public static class TranscriptText
 {
@@ -21,84 +24,116 @@ public static class TranscriptText
         return string.Create(CultureInfo.InvariantCulture, $"[{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}]");
     }
 
-    public static string Markdown(TranscriptDocument transcript, RecordingSummary summary)
+    /// <summary>The layout <paramref name="options"/> gives <paramref name="format"/>, with <c>auto</c> resolved per format.</summary>
+    public static string LayoutFor(string format, TranscriptTextOptions? options)
+    {
+        var layout = (options ?? TranscriptTextOptions.Default).Layout;
+        if (layout is TranscriptTextOptions.Turns or TranscriptTextOptions.Lines)
+        {
+            return layout;
+        }
+
+        return format == ExportRules.Markdown ? TranscriptTextOptions.Turns : TranscriptTextOptions.Lines;
+    }
+
+    /// <summary>Returns the first problem with <paramref name="options"/>, worded for people, or <c>null</c>.</summary>
+    public static string? Validate(TranscriptTextOptions? options) =>
+        options is null || TranscriptTextOptions.Layouts.Contains(options.Layout ?? string.Empty, StringComparer.Ordinal)
+            ? null
+            : $"Transcript layout '{options.Layout}' is not available. Choose {string.Join(", ", TranscriptTextOptions.Layouts)}.";
+
+    /// <summary><see cref="Markdown"/> or <see cref="Plain"/> by export format name (<c>markdown</c>, <c>text</c>).</summary>
+    public static string Format(string format, TranscriptDocument transcript, RecordingSummary summary, TranscriptTextOptions? options = null, IReadOnlySet<string>? only = null) =>
+        format switch
+        {
+            ExportRules.Markdown => Markdown(transcript, summary, options, only),
+            ExportRules.Text => Plain(transcript, summary, options, only),
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Only markdown and text are readable transcript formats."),
+        };
+
+    /// <param name="only">The segment ids to write (a filtered view in Review); <c>null</c> writes them all.</param>
+    public static string Markdown(TranscriptDocument transcript, RecordingSummary summary, TranscriptTextOptions? options = null, IReadOnlySet<string>? only = null)
     {
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(summary);
-        var names = SpeakerNames(transcript);
+        var choice = options ?? TranscriptTextOptions.Default;
+        var lines = Lines(transcript, choice, only);
         var text = new StringBuilder();
         text.Append("# ").Append(EscapeMarkdown(summary.Title)).Append(NewLine).Append(NewLine);
-        text.Append(Heading(summary, transcript, names)).Append(NewLine);
+        text.Append(Heading(summary, lines, choice)).Append(NewLine);
 
-        string? paragraphSpeaker = null;
-        var open = false;
-        foreach (var segment in transcript.Segments)
+        var paragraphs = new List<string>();
+        foreach (var group in Group(lines, LayoutFor(ExportRules.Markdown, choice)))
         {
-            var body = Clean(segment.Text);
-            if (body.Length == 0)
+            var paragraph = new StringBuilder();
+            if (group[0].Speaker is { } speaker)
             {
-                continue;
+                paragraph.Append("**").Append(EscapeMarkdown(speaker)).Append(":** ");
             }
 
-            var speaker = segment.Speaker is { } id ? names.GetValueOrDefault(id, id) : null;
-            if (!open || speaker is null || speaker != paragraphSpeaker)
-            {
-                text.Append(NewLine);
-                if (open)
-                {
-                    text.Append(NewLine);
-                }
-
-                if (speaker is not null)
-                {
-                    text.Append("**").Append(EscapeMarkdown(speaker)).Append(":** ");
-                }
-
-                open = true;
-                paragraphSpeaker = speaker;
-            }
-            else
-            {
-                text.Append(' ');
-            }
-
-            text.Append(Marker(segment.Start)).Append(' ').Append(EscapeMarkdown(body));
+            paragraph.AppendJoin(' ', group.Select(line => (line.Marker is null ? string.Empty : line.Marker + " ") + EscapeMarkdown(line.Body)));
+            paragraphs.Add(paragraph.ToString());
         }
 
-        if (open)
+        if (paragraphs.Count > 0)
         {
-            text.Append(NewLine);
+            text.Append(NewLine).AppendJoin(NewLine + NewLine, paragraphs).Append(NewLine);
         }
 
         return text.ToString();
     }
 
-    public static string Plain(TranscriptDocument transcript, RecordingSummary summary)
+    /// <param name="only">The segment ids to write (a filtered view in Review); <c>null</c> writes them all.</param>
+    public static string Plain(TranscriptDocument transcript, RecordingSummary summary, TranscriptTextOptions? options = null, IReadOnlySet<string>? only = null)
     {
         ArgumentNullException.ThrowIfNull(transcript);
         ArgumentNullException.ThrowIfNull(summary);
-        var names = SpeakerNames(transcript);
+        var choice = options ?? TranscriptTextOptions.Default;
+        var lines = Lines(transcript, choice, only);
         var text = new StringBuilder();
         text.Append(summary.Title).Append(NewLine);
-        text.Append(Heading(summary, transcript, names)).Append(NewLine);
-        foreach (var segment in transcript.Segments)
+        text.Append(Heading(summary, lines, choice)).Append(NewLine);
+        if (LayoutFor(ExportRules.Text, choice) == TranscriptTextOptions.Lines)
         {
-            var body = Clean(segment.Text);
-            if (body.Length == 0)
+            // A line per segment, as Memento has always written it: "[0:00:12] Speaker 1: text".
+            foreach (var line in lines)
             {
-                continue;
+                if (line.Marker is not null)
+                {
+                    text.Append(line.Marker).Append(' ');
+                }
+
+                if (line.Speaker is not null)
+                {
+                    text.Append(line.Speaker).Append(": ");
+                }
+
+                text.Append(line.Body).Append(NewLine);
             }
 
-            text.Append(Marker(segment.Start)).Append(' ');
-            if (segment.Speaker is { } id)
+            return text.ToString();
+        }
+
+        // A paragraph per speaker turn, a blank line before each: "Speaker 1: [0:00:12] text [0:00:15] text".
+        foreach (var group in Group(lines, TranscriptTextOptions.Turns))
+        {
+            text.Append(NewLine);
+            if (group[0].Speaker is { } speaker)
             {
-                text.Append(names.GetValueOrDefault(id, id)).Append(": ");
+                text.Append(speaker).Append(": ");
             }
 
-            text.Append(body).Append(NewLine);
+            text.AppendJoin(' ', group.Select(line => (line.Marker is null ? string.Empty : line.Marker + " ") + line.Body)).Append(NewLine);
         }
 
         return text.ToString();
+    }
+
+    /// <summary>The segments a readable transcript writes: in order, with words, limited to <paramref name="only"/>.</summary>
+    public static IReadOnlyList<TranscriptSegment> Selected(TranscriptDocument transcript, IReadOnlySet<string>? only = null)
+    {
+        ArgumentNullException.ThrowIfNull(transcript);
+        return transcript.Segments.Where(s => Clean(s.Text).Length > 0 && (only is null || only.Contains(s.Id))).ToList();
     }
 
     /// <summary>Speaker id → name as the transcript shows it.</summary>
@@ -126,20 +161,72 @@ public static class TranscriptText
         return builder.ToString();
     }
 
-    private static string Heading(RecordingSummary summary, TranscriptDocument transcript, Dictionary<string, string> names)
+    private static List<Line> Lines(TranscriptDocument transcript, TranscriptTextOptions options, IReadOnlySet<string>? only)
+    {
+        var names = SpeakerNames(transcript);
+        return Selected(transcript, only)
+            .Select(s => new Line(
+                s.Speaker,
+                options.Speakers && s.Speaker is { } id ? names.GetValueOrDefault(id, id) : null,
+                options.Timestamps ? Marker(s.Start) : null,
+                Clean(s.Text)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Runs of lines that share a paragraph: consecutive lines of the same speaker for <c>turns</c> (a line without a
+    /// speaker stands alone), every line on its own for <c>lines</c>.
+    /// </summary>
+    private static IEnumerable<List<Line>> Group(List<Line> lines, string layout)
+    {
+        List<Line>? current = null;
+        foreach (var line in lines)
+        {
+            var joins = layout == TranscriptTextOptions.Turns && current is not null && line.SpeakerId is not null
+                && string.Equals(current[^1].SpeakerId, line.SpeakerId, StringComparison.Ordinal);
+            if (joins)
+            {
+                current!.Add(line);
+                continue;
+            }
+
+            if (current is not null)
+            {
+                yield return current;
+            }
+
+            current = [line];
+        }
+
+        if (current is not null)
+        {
+            yield return current;
+        }
+    }
+
+    private static string Heading(RecordingSummary summary, List<Line> lines, TranscriptTextOptions options)
     {
         var parts = new List<string>
         {
             summary.CreatedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
             HumanFormat.Clock(summary.DurationMs),
         };
-        var speakers = transcript.Segments.Select(s => s.Speaker).OfType<string>().Distinct(StringComparer.Ordinal)
-            .Select(id => names.GetValueOrDefault(id, id)).ToList();
-        if (speakers.Count > 0)
+        if (options.Speakers)
         {
-            parts.Add("Speakers: " + string.Join(", ", speakers));
+            var speakers = lines.Select(l => l.Speaker).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+            if (speakers.Count > 0)
+            {
+                parts.Add("Speakers: " + string.Join(", ", speakers));
+            }
         }
 
         return string.Join(" · ", parts);
     }
+
+    /// <summary>One segment as the readable formats write it.</summary>
+    /// <param name="SpeakerId">Groups turns even when names are left out; <c>null</c> for a line without a speaker.</param>
+    /// <param name="Speaker">The name to write, or <c>null</c> (no speaker, or speakers left out).</param>
+    /// <param name="Marker">The <c>[h:mm:ss]</c> marker, or <c>null</c> when timestamps are left out.</param>
+    /// <param name="Body">The segment's text on one line.</param>
+    private sealed record Line(string? SpeakerId, string? Speaker, string? Marker, string Body);
 }
