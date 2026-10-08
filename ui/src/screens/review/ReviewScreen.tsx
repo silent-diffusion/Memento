@@ -12,6 +12,8 @@ import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
 import { formatDuration } from '../../format/duration';
 import { activeChapterIndex } from '../../format/player';
+import { silenceGaps } from '../../format/silences';
+import { useUiFlag } from '../../state/uiPrefs';
 import { peopleWording, typeName } from '../../format/recording';
 import { calendarDaysBetween, formatClock, formatWhen, parseIso } from '../../format/when';
 import { goToLibrary, openRecord, requestDelete } from '../../state/actions';
@@ -134,7 +136,11 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     [bridge, recordingId],
   );
 
-  const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0);
+  // Skip silences (remembered on this PC): the gaps between the transcript's segments.
+  const [skipSilences, setSkipSilences] = useUiFlag('review.skipSilences', false);
+  const silences = useMemo(() => silenceGaps(transcript?.segments ?? []), [transcript]);
+  const canSkip = transcript !== null && transcript.segments.length > 0;
+  const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0, canSkip && skipSilences ? silences : null);
   const peaks = usePeaks(project?.peaksUrl ?? null);
   // M4: the viewer's Insert timestamp starts where the player is.
   useEffect(() => {
@@ -372,14 +378,18 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
             />
 
             <section class="review-centre" aria-label="Player and transcript">
-              <PlayerStrip
-                player={player}
-                peaks={peaks}
-                hasMedia={project.mixUrl !== null}
-                onHighlight={addHighlight}
-                search={transcript !== null && transcript.segments.length > 0 ? search : null}
-                onJump={jump}
-              />
+              {/* The player strip does not scroll: its speed menu opens in place. */}
+              <FloatingPopovers.Provider value={false}>
+                <PlayerStrip
+                  player={player}
+                  peaks={peaks}
+                  hasMedia={project.mixUrl !== null}
+                  onHighlight={addHighlight}
+                  search={transcript !== null && transcript.segments.length > 0 ? search : null}
+                  onJump={jump}
+                  skip={{ available: canSkip, on: skipSilences, onToggle: setSkipSilences, gaps: silences }}
+                />
+              </FloatingPopovers.Provider>
               <div class={TRANSCRIPT_SCROLLER}>
                 <TranscriptPane
                   project={project}

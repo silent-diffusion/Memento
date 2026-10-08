@@ -443,9 +443,65 @@
   flex: 1;
 }
 
+/* Skip silences: a toggle chip beside the speed control, sunk while on (DESIGN.md §2.5). */
+.player-silences {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.player-silences:disabled {
+  color: var(--text-3);
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+/* "Skipped 4 s": a brief mono caption above the waveform where playback landed, fading in and out.
+   It sits in the strip's top padding, so it takes no room from the controls. */
+.player-skipped {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: player-skipped-fade 1600ms ease-out forwards;
+}
+
+@keyframes player-skipped-fade {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-skipped {
+    animation: none;
+  }
+}
+
+/* Waveform bars standing for time that Skip silences jumps over. */
+.wave-bar.skipped {
+  opacity: 0.3;
+}
+
 .player-search {
   position: relative;
-  width: 260px;
+  /* 260 px when there is room; gives up to 60 px before the controls wrap, so Skip silences fits on
+     one row in common window sizes. */
+  flex: 1 1 200px;
+  max-width: 260px;
 }
 
 .player-search-icon {

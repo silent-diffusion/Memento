@@ -5,6 +5,7 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../App';
 import { createBridgeClient, type BridgeClient } from '../../bridge/client';
+import { silenceGaps, skippedBars } from '../../format/silences';
 import { loadInitialData, refreshLibrary } from '../../state/data';
 import { connectEvents, createStore, type AppStore } from '../../state/store';
 
@@ -185,6 +186,50 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await press(menu as HTMLElement, 'Escape');
     expect(document.querySelector('[role="menu"]')).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('offers Skip silences beside the speed, remembers it, and dims the skipped waveform bars', async () => {
+    localStorage.clear();
+    await open();
+    await until(() => container.querySelectorAll('.wave-bar').length === 160 && container.querySelector('.segm') !== null);
+    const chip = (): HTMLButtonElement => button('Skip silences', container);
+    expect(chip().previousElementSibling?.classList.contains('speed-menu')).toBe(true);
+    expect(chip().disabled).toBe(false);
+    expect(chip().getAttribute('aria-pressed')).toBe('false');
+    expect(container.querySelectorAll('.wave-bar.skipped')).toHaveLength(0);
+
+    await click(chip());
+    expect(chip().getAttribute('aria-pressed')).toBe('true');
+    expect(chip().classList.contains('on')).toBe(true);
+    expect(localStorage.getItem('memento.ui.review.skipSilences')).toBe('1');
+    // The dimmed bars are exactly the ones standing for the transcript's silences.
+    const { transcript } = await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW });
+    const gaps = silenceGaps(transcript?.segments ?? []);
+    const expected = skippedBars(160, store.library.value?.recordings.find((r) => r.id === DESIGN_REVIEW)?.durationMs ?? 0, gaps).filter(Boolean).length;
+    expect(gaps.length).toBeGreaterThan(0);
+    expect(expected).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.wave-bar.skipped')).toHaveLength(expected);
+
+    // Reopened, Review remembers the choice (local UI state on this PC).
+    render(null, container);
+    disconnect();
+    await open();
+    await until(() => container.querySelector('.player-silences') !== null);
+    expect(chip().getAttribute('aria-pressed')).toBe('true');
+    await click(chip());
+    expect(localStorage.getItem('memento.ui.review.skipSilences')).toBe('0');
+    localStorage.clear();
+  });
+
+  it('turns Skip silences off until there is a transcript', async () => {
+    localStorage.setItem('memento.ui.review.skipSilences', '1');
+    await open('20260909-143000-retro');
+    await until(() => container.textContent.includes('Not transcribed yet'));
+    const chip = button('Skip silences', container);
+    expect(chip.disabled).toBe(true);
+    expect(chip.title).toBe('Available once transcribed');
+    expect(chip.getAttribute('aria-pressed')).toBe('false');
+    localStorage.clear();
   });
 
   it('says plainly when a recording has no transcript and starts one on request', async () => {
