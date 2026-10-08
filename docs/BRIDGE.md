@@ -540,7 +540,7 @@ interface GenerationSendSummary { providerId: ProviderId; providerName: string; 
 ```ts
 ai: { …M3,
       defaultProviderId: ProviderId | null;    // null: the local model
-      localModelId: string | null;             // the local model in effect: the choice, or the one the hardware suits; null only without local models
+      localModelId: string | null;             // the local model in effect: the installed choice, else the installed one the hardware suits, else any installed one; with none installed, the choice or the hardware's (to download); null only without local models
       localModelChosen: boolean;               // localModelId was chosen in Settings
       providers: { anthropic: { hasKey: boolean; model: string; models: string[] }; openai: { hasKey: boolean; model: string; models: string[] } } }   // model in effect; models offered
 documents: { defaultTemplateId: string; defaultStyleId: string }   // "meeting-minutes" and "corporate" until chosen
