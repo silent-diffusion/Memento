@@ -25,4 +25,7 @@ public sealed record PipelineInput(
 {
     /// <summary>Sees every request and its answer (tests and diagnostics; the text is content and is never logged).</summary>
     public Action<AiRequest, AiResponse>? OnResponse { get; init; }
+
+    /// <summary>The Live output sheet's feed: every request, the local model's tokens, every reply and the steps done in code.</summary>
+    public GenerationOutputFeed? Output { get; init; }
 }

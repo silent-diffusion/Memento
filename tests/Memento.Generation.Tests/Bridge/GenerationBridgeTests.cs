@@ -125,6 +125,37 @@ public sealed class GenerationBridgeTests : IDisposable
     }
 
     [Fact]
+    public async Task TheLiveOutputOfAGenerationEndsBeforeItsFinalProgressAndIsNotWrittenAnywhere()
+    {
+        _host.InstallLocalModel();
+        var id = await _host.CreateMeetingAsync();
+
+        var jobId = (await _host.ResultAsync("generation.start", new { recordingId = id, template = await _host.MeetingMinutesAsync() })).GetProperty("jobId").GetString()!;
+        await _host.FinishedAsync(jobId);
+
+        var output = _host.Events("generation.output");
+        Assert.All(output, e => Assert.Equal(jobId, e.GetProperty("jobId").GetString()));
+        Assert.Equal("segment", output[0].GetProperty("step").GetString());
+        Assert.Equal("done", output[^1].GetProperty("kind").GetString());
+        Assert.Single(output, e => e.GetProperty("kind").GetString() == "done");
+        var requests = output.Where(e => e.GetProperty("kind").GetString() == "request").ToList();
+        Assert.NotEmpty(requests);
+        Assert.All(requests, r => Assert.StartsWith("System\n", r.GetProperty("text").GetString(), StringComparison.Ordinal));
+        Assert.All(requests, r => Assert.Single(output, e => e.GetProperty("kind").GetString() == "reply" && e.GetProperty("passId").GetString() == r.GetProperty("passId").GetString()));
+
+        // done is posted before the job's final generation.progress.
+        var names = _host.Sink.Posted.Select(p => System.Text.Json.JsonDocument.Parse(p).RootElement).Select(e => (Name: e.GetProperty("event").GetString(), Kind: e.GetProperty("payload").TryGetProperty("kind", out var k) ? k.GetString() : e.GetProperty("payload").TryGetProperty("stage", out var s) ? s.GetString() : null)).ToList();
+        Assert.True(names.IndexOf(("generation.output", "done")) < names.IndexOf(("generation.progress", "done")));
+
+        // The exchange stays in memory: no file in the library holds a request or a reply.
+        var sample = requests[0].GetProperty("text").GetString()!.Split('\n')[1];
+        foreach (var file in Directory.EnumerateFiles(_host.Directory.Path, "*", SearchOption.AllDirectories).Where(f => !f.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase)))
+        {
+            Assert.DoesNotContain(sample, await File.ReadAllTextAsync(file), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task AskBeforeEverySendHoldsACloudJobUntilConfirmed()
     {
         var id = await _host.CreateMeetingAsync();

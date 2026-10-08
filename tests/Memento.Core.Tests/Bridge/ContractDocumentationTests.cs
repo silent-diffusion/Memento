@@ -136,6 +136,28 @@ public sealed partial class ContractDocumentationTests
     }
 
     [Fact]
+    public void EveryHostEventIsDocumentedInBridgeMdAndListedExactlyInTheUi()
+    {
+        var host = Constants(typeof(BridgeEventNames));
+        var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export const EVENT_NAMES = [", "] as const");
+
+        Assert.Equal(host.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+        Assert.All(host, name => Assert.Contains($"`{name}`", Doc, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheLiveOutputEventIsDocumentedWithEveryFieldOfItsPayload()
+    {
+        var section = Sections("## Live output (M4)");
+        var fields = typeof(Memento.Core.Bridge.Contracts.GenerationOutput).GetProperties().Select(p => char.ToLowerInvariant(p.Name[0]) + p.Name[1..]).ToList();
+        var ui = ReadRepoFile("ui", "src", "bridge", "types.ts");
+
+        Assert.Contains("| `generation.output` |", section, StringComparison.Ordinal);
+        Assert.All(fields, field => Assert.Contains(field, section, StringComparison.Ordinal));
+        Assert.All(fields, field => Assert.Matches($@"\n\s+{field}: ", ui[ui.IndexOf("export interface GenerationOutput {", StringComparison.Ordinal)..]));
+    }
+
+    [Fact]
     public void TheUiAndDocumentedStageNamesAreExactlyTheHostStagesInPipelineOrder()
     {
         var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export type StageName =", ";");

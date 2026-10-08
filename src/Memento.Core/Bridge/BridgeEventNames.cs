@@ -24,6 +24,7 @@ public static class BridgeEventNames
 
     // M4.
     public const string GenerationProgress = "generation.progress";
+    public const string GenerationOutput = "generation.output";
     public const string DocumentsChanged = "documents.changed";
     public const string TemplatesChanged = "templates.changed";
     public const string StylesChanged = "styles.changed";

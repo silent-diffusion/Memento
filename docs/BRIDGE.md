@@ -537,6 +537,7 @@ interface GenerationSendSummary { providerId: ProviderId; providerName: string; 
 | Event | Payload |
 |---|---|
 | `generation.progress` | `GenerationProgress` (at most four per second; every stage change and the final one always pass; nothing after the final one) |
+| `generation.output` | `GenerationOutput`: the Live output sheet's exchange (see Live output (M4) below); its `done` comes before the job's final `generation.progress` |
 | `documents.changed` | `{ recordingId, documentId, reason: 'generated' \| 'edited' \| 'created' \| 'deleted' \| 'restored' }` (a rename is `edited`); `library.changed` follows |
 | `templates.changed` / `styles.changed` | `{}` |
 
@@ -618,6 +619,38 @@ interface GpuMemoryInfo {
 - **Cost and failure.** About 10 ms per reading on the reference laptop, cached for 4 s (`engine.refresh` drops the cache); any failure reads as no holders, never as an error, and nothing leaves the PC.
 - **Which card.** The display driver's hybrid flags (`D3DKMT` adapter type: `HybridDiscrete` / `HybridIntegrated`) decide which adapter is the separate card; without them, NVIDIA or ≥ 2 GB dedicated, as before. An integrated GPU is never given holders.
 - **Freshness in the UI.** Opening Settings reads `settings.get` again (the models in effect follow the card's free memory); "Check again" calls `engine.refresh`, then `settings.get`, `models.list` and, in AI and privacy, `providers.list`.
+
+## Live output (M4)
+
+While a document is generated the host sends the exchange with the provider as `generation.output` events, for the Builder's and the viewer's **Show live output** sheet (DESIGN.md §10, §12). Nothing new is sent anywhere: the text is the requests the provider receives and the replies it gives, plus what the pipeline did in code. The host keeps none of it once sent and writes none of it; the UI keeps it in memory until the Builder or viewer that shows it is left (or the next generation starts). The generation record and "How this was made" are unchanged (requests are recorded by hash; "keep a record of what was sent" keeps the payload only, as before).
+
+| Event | Payload |
+|---|---|
+| `generation.output` | `GenerationOutput`, in the order raised, for the running job only |
+
+```ts
+type GenerationOutputStep = 'segment' | 'map' | 'reduce' | 'verify' | 'grounding';
+interface GenerationOutput {
+  jobId: string;
+  passId: string;            // 'p1', 'p2'… in order; '' for done
+  kind: 'step' | 'request' | 'token' | 'reply' | 'done';
+  step: GenerationOutputStep | null;   // with step and request
+  title: string | null;      // with step and request: "Decisions and action items · segment 1 of 2", "Check Decisions and action items · 6 questions", "Second vote · one claim over a wider excerpt"
+  text: string;              // step: what it did; request: the exact text; token: text since the previous token event of the pass; reply: the whole reply; done: ''
+  streamed: boolean | null;  // with request: true for the local model (tokens follow), false for a cloud provider (the reply arrives whole)
+  outputTokens: number | null;     // token: so far (decoded pieces); reply: the reply's
+  promptTokens: number | null;     // reply: the request's tokens as the provider counted them
+  tokensPerSecond: number | null;  // token and reply, local model only
+  elapsedMs: number | null;        // step: its time; token: writing so far; reply: from the request to the reply
+  stopReason: string | null;       // reply: eog, max_tokens, context, end_turn…
+}
+```
+
+- **Order.** `step` (segment) → for each map request `request`, then (local) `token`s, then `reply` → `step` (reduce) → the verify requests the same way (second votes too) → `step` (grounding) → `done`. A cloud provider runs up to three requests at once, so their `request`s and `reply`s interleave; each `reply` follows its own `request`. A pass that never got a reply (cancelled, failed) has none; after `done` nothing is sent.
+- **Request text.** The request's system prompt and turns as sent, each under its role (`System`, `User`, `Assistant`), separated by a blank line (`AiRequestText`): the payload "Preview exactly what will be sent" shows, cut into the request's chunk, with the pass's instructions. A grammar or JSON schema that constrains the answer is not repeated.
+- **Local model.** The worker streams each answer while it is decoded: `progress` lines with phase `generating` carry the text since the previous line, coalesced to the first piece and then at most one line every 40 ms or 8 pieces (`LocalTokenCoalescer`), and an `answered` line closes each prompt with its stop reason, prompt tokens, output tokens, writing time and tokens per second, before the batch's `batch` line. Grammar-constrained passes stream their raw tokens. The host sends a pass's `request` when the worker starts reading it and its `reply` at `answered`.
+- **Throttle.** The host queues every event without waiting (the worker's reader is never held up) and one reader publishes them; `token` text of a pass is held until 100 ms have passed since the last `token` event (about ten a second), and any other event first sends what is held, so a `reply` always follows all of its pass's tokens. The UI repaints at that rate.
+- **Cloud providers.** Not streamed to the sheet: the `request` when it is sent, the `reply` whole on arrival; the sheet says "Replies from {provider} arrive whole". Their counts come from the provider's usage.
 
 ## Updates (H1)
 
