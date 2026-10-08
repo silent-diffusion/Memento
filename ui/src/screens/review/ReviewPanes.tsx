@@ -37,6 +37,18 @@ interface OutlineProps {
   speakers: Speaker[] | null;
   onRenameSpeaker: (speaker: Speaker, name: string) => void;
   onMergeSpeakers: (from: Speaker, into: Speaker) => void;
+  /** After 1.2.0: a click on a speaker's name filters the transcript to their lines. */
+  speakerFilter?: SpeakerFilterProps;
+}
+
+/** The People list's part in the transcript filter (DESIGN.md §9, after 1.2.0). */
+export interface SpeakerFilterProps {
+  /** The speaker ids the transcript is filtered to. */
+  selected: readonly string[];
+  /** Lines per speaker id. */
+  counts: ReadonlyMap<string, number>;
+  /** `add`: Ctrl or Shift was held, so the speaker joins or leaves the others instead of replacing them. */
+  onToggle: (speaker: Speaker, add: boolean) => void;
 }
 
 const SPEAKER_COLOURS = ['var(--sp1)', 'var(--sp2)', 'var(--sp3)', 'var(--sp4)'] as const;
@@ -193,12 +205,22 @@ function MergeMenu({ speaker, speakers, onMerge }: { speaker: Speaker; speakers:
 }
 
 /** People from the transcript (DESIGN.md §9): dot, name, talk-time share, rename, merge. */
-function SpeakerList({ speakers, onRename, onMerge }: { speakers: Speaker[]; onRename: OutlineProps['onRenameSpeaker']; onMerge: OutlineProps['onMergeSpeakers'] }): JSX.Element {
+function SpeakerList({
+  speakers,
+  onRename,
+  onMerge,
+  filter,
+}: {
+  speakers: Speaker[];
+  onRename: OutlineProps['onRenameSpeaker'];
+  onMerge: OutlineProps['onMergeSpeakers'];
+  filter?: SpeakerFilterProps | undefined;
+}): JSX.Element {
   const [renaming, setRenaming] = useState<string | null>(null);
   return (
     <>
       {speakers.map((speaker) => (
-        <div key={speaker.id} class="person" data-speaker-id={speaker.id}>
+        <div key={speaker.id} class={filter?.selected.includes(speaker.id) === true ? 'person person--filtered' : 'person'} data-speaker-id={speaker.id}>
           <span class="person-dot" aria-hidden="true" style={{ background: speakerColourVar(speaker.color) }} />
           {renaming === speaker.id ? (
             <InlineInput
@@ -218,7 +240,11 @@ function SpeakerList({ speakers, onRename, onMerge }: { speakers: Speaker[]; onR
             />
           ) : (
             <>
-              <span class="person-name">{speaker.name}</span>
+              {filter === undefined ? (
+                <span class="person-name">{speaker.name}</span>
+              ) : (
+                <SpeakerFilterButton speaker={speaker} filter={filter} />
+              )}
               <span class="person-share" title="Share of talk time">
                 {talkShare(speaker, speakers)}
               </span>
@@ -241,6 +267,32 @@ function SpeakerList({ speakers, onRename, onMerge }: { speakers: Speaker[]; onR
   );
 }
 
+/**
+ * The speaker's name as a toggle (after 1.2.0): a click shows only their lines, a second click shows
+ * everyone again; Ctrl or Shift adds them to the speakers shown. While on, the row is pressed in and
+ * says how many lines are theirs.
+ */
+function SpeakerFilterButton({ speaker, filter }: { speaker: Speaker; filter: SpeakerFilterProps }): JSX.Element {
+  const on = filter.selected.includes(speaker.id);
+  const lines = filter.counts.get(speaker.id) ?? 0;
+  const words = `${lines} ${lines === 1 ? 'line' : 'lines'}`;
+  return (
+    <button
+      class="person-name person-filter"
+      type="button"
+      aria-pressed={on}
+      aria-label={on ? `Showing ${speaker.name}'s ${words}. Click to show every line.` : `Show only ${speaker.name}'s ${words}`}
+      title={on ? 'Click to show every line (Esc)' : 'Show only their lines · Ctrl+click to add them to the speakers shown'}
+      onClick={(event) => {
+        filter.onToggle(speaker, event.ctrlKey || event.shiftKey || event.metaKey);
+      }}
+    >
+      <span class="person-filter-name">{speaker.name}</span>
+      {on ? <span class="person-count">{words}</span> : null}
+    </button>
+  );
+}
+
 export function OutlinePane({
   project,
   positionMs,
@@ -256,6 +308,7 @@ export function OutlinePane({
   speakers,
   onRenameSpeaker,
   onMergeSpeakers,
+  speakerFilter,
 }: OutlineProps): JSX.Element {
   const [newChapterAt, setNewChapterAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
@@ -383,7 +436,7 @@ export function OutlinePane({
         </div>
         <div class="outline-list">
           {hasSpeakers ? (
-            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} />
+            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} />
           ) : people.length === 0 ? (
             <p class="outline-empty">No participants listed. Add them with Edit details.</p>
           ) : null}

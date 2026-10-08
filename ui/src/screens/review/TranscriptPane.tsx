@@ -15,6 +15,8 @@ import type { PlayerApi } from './Player';
 import { TranscriptSegmentRow, type SegmentHandlers } from './TranscriptSegment';
 import type { ReviewActions } from './reviewActions';
 import type { SearchApi, TranscriptApi } from './useTranscript';
+import { NO_FILTER, type TranscriptFilter } from '../../format/transcriptFilter';
+import { FilterLine, TranscriptFilterMenu, type TranscriptView } from './TranscriptFilter';
 
 /** A typical segment's height before it is measured. */
 const ESTIMATED_ROW = 76;
@@ -47,6 +49,11 @@ export interface TranscriptPaneProps {
   actions: ReviewActions;
   /** A line or a name edited in place was saved ("Saved" beside the Undo button). */
   onSaved: () => void;
+  /** After 1.2.0: the filter (Review's state for this recording) and what it shows; the list shows only those lines. */
+  view?: TranscriptView;
+  onFilter?: (filter: TranscriptFilter) => void;
+  /** Copy the lines the filter shows. */
+  onCopyVisible?: () => void;
 }
 
 /** The line being edited: the draft, the text it started from, and where the caret starts. */
@@ -258,6 +265,8 @@ interface ListProps {
   /** Coverage notices by the index of the segment they come before (`segments.length`: after the last). */
   gaps: Map<number, CoverageGap[]>;
   gapAction: GapAction | null;
+  /** The transcript's line count when a filter shows fewer (the list's accessible name says "42 of 318 lines"). */
+  total?: number;
 }
 
 /** The segments, windowed: only the rows near the viewport are in the DOM, spacers stand for the rest. */
@@ -276,6 +285,7 @@ function TranscriptList({
   focusRef,
   gaps,
   gapAction,
+  total,
 }: ListProps): JSX.Element {
   const listRef = useRef<HTMLDivElement | null>(null);
   const heightsRef = useRef<RowHeights | null>(null);
@@ -497,7 +507,11 @@ function TranscriptList({
       ref={listRef}
       class="segm-list"
       role="list"
-      aria-label={`Transcript, ${segments.length} ${segments.length === 1 ? 'line' : 'lines'}`}
+      aria-label={
+        total !== undefined && total !== segments.length
+          ? `Transcript, ${segments.length} of ${total} lines shown`
+          : `Transcript, ${segments.length} ${segments.length === 1 ? 'line' : 'lines'}`
+      }
       style={{ paddingTop: `${range.padTop}px`, paddingBottom: `${range.padBottom}px` }}
     >
       {rows}
@@ -505,27 +519,52 @@ function TranscriptList({
   );
 }
 
-export function TranscriptPane({ project, api, search, player, chapterName, inProgress, onBackToRecording, onShowHistory, onError, revealRef, actions, onSaved }: TranscriptPaneProps): JSX.Element {
+export function TranscriptPane({
+  project,
+  api,
+  search,
+  player,
+  chapterName,
+  inProgress,
+  onBackToRecording,
+  onShowHistory,
+  onError,
+  revealRef,
+  actions,
+  onSaved,
+  view,
+  onFilter,
+  onCopyVisible,
+}: TranscriptPaneProps): JSX.Element {
   const result = api.result;
   const transcript = result?.transcript ?? null;
-  const segments = useMemo(() => transcript?.segments ?? [], [transcript]);
+  const allSegments = useMemo(() => transcript?.segments ?? [], [transcript]);
   const speakers = useMemo(() => transcript?.speakers ?? [], [transcript]);
   const follow = useMemo(() => createFollowPlayhead(), []);
   const [editing, setEditing] = useState<EditingLine | null>(null);
   const focusRef = useRef<((index: number) => void) | null>(null);
+  // After 1.2.0: a filter hides lines; everything below (playhead, keys, editing, Undo) works on the lines shown.
+  // The line being edited stays shown until it is saved, even when the edit takes it out of the filter.
+  const visibleIds = view?.visibleIds ?? null;
+  const editingId = editing?.segmentId ?? null;
+  const segments = useMemo(
+    () => (visibleIds === null ? allSegments : allSegments.filter((s) => visibleIds.has(s.id) || s.id === editingId)),
+    [allSegments, visibleIds, editingId],
+  );
+  const filtered = visibleIds !== null;
   const currentIndex = segmentIndexAt(segments, player.positionMs / 1000);
   const transcriptStage = api.stages.find((s) => s.stage === 'transcript') ?? null;
 
   const highlightsBySegment = useMemo(() => {
     const map = new Map<string, Highlight[]>();
     for (const h of project.highlights) {
-      const id = h.segmentId ?? segments[segmentIndexAt(segments, h.atMs / 1000)]?.id;
-      if (id !== undefined && segments.some((s) => s.id === id)) {
+      const id = h.segmentId ?? allSegments[segmentIndexAt(allSegments, h.atMs / 1000)]?.id;
+      if (id !== undefined && allSegments.some((s) => s.id === id)) {
         map.set(id, [...(map.get(id) ?? []), h]);
       }
     }
     return map;
-  }, [project.highlights, segments]);
+  }, [project.highlights, allSegments]);
 
   const currentMatch = useMemo(() => {
     const match = search.matches[search.current];
@@ -621,7 +660,8 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
   const services = useServices();
   const { bridge, store } = services;
   const coverageGaps = transcript?.coverageGaps;
-  const gaps = useMemo(() => gapPlacement(segments, coverageGaps ?? []), [segments, coverageGaps]);
+  // A filtered view leaves the coverage notices out: they mark missing words, not lines.
+  const gaps = useMemo(() => (filtered ? new Map<number, CoverageGap[]>() : gapPlacement(segments, coverageGaps ?? [])), [filtered, segments, coverageGaps]);
   const [models, setModels] = useState<ModelInfo[] | null>(null);
   const hasGaps = (coverageGaps?.length ?? 0) > 0;
   useEffect(() => {
@@ -753,7 +793,42 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
     }
   }
 
-  const showList = !inProgress && transcript !== null && segments.length > 0;
+  const showList = !inProgress && transcript !== null && allSegments.length > 0;
+
+  // Esc anywhere in Review shows every line again, unless a field, a menu or a dialog takes it first.
+  const filtering = view?.filtering ?? false;
+  useEffect(() => {
+    if (!filtering || onFilter === undefined) {
+      return undefined;
+    }
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable);
+      if (event.key === 'Escape' && !event.defaultPrevented && !typing && store.dialog.value === null) {
+        event.preventDefault();
+        onFilter(NO_FILTER);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [filtering, onFilter, store]);
+
+  // A new filter starts the list from its first line.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const filterKey = visibleIds === null ? 'all' : JSON.stringify(view?.filter ?? NO_FILTER);
+  const lastKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastKey.current === filterKey) {
+      return;
+    }
+    lastKey.current = filterKey;
+    const scroller = listRef.current?.closest<HTMLElement>(`.${TRANSCRIPT_SCROLLER}`) ?? null;
+    if (scroller !== null) {
+      scroller.scrollTop = 0;
+    }
+  }, [filterKey]);
 
   return (
     <div class="transcript">
@@ -761,6 +836,9 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
         <span class="lbl">{chapterName}</span>
         <span class="transcript-head-end">
           {showList ? <span class="transcript-hint">Click the time to play a line · click the words to correct them</span> : null}
+          {showList && view !== undefined && onFilter !== undefined ? (
+            <TranscriptFilterMenu view={view} speakers={speakers} chapters={project.chapters} query={search.query} onFilter={onFilter} />
+          ) : null}
           {transcript === null ? null : (
             <button
               class={reviewed ? 'chip on tx-reviewed' : 'chip tx-reviewed'}
@@ -804,7 +882,18 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
         <>
           {status === 'failed' ? <p class="tx-partial">The partial transcript, up to {formatDuration((segments.at(-1)?.end ?? 0) * 1000)}:</p> : null}
           <RunningLine stages={api.stages} />
+          {view === undefined || onFilter === undefined ? null : (
+            <FilterLine
+              view={view}
+              onShowAll={() => {
+                onFilter(NO_FILTER);
+              }}
+              onCopy={() => onCopyVisible?.()}
+            />
+          )}
+          <div ref={listRef} class="tx-list-wrap" role="none">
           <TranscriptList
+            key={filterKey}
             segments={segments}
             speakers={speakers}
             threshold={transcript.lowConfidenceThreshold}
@@ -819,7 +908,9 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
             focusRef={focusRef}
             gaps={gaps}
             gapAction={gapAction}
+            {...(filtered ? { total: allSegments.length } : {})}
           />
+          </div>
         </>
       ) : null}
     </div>

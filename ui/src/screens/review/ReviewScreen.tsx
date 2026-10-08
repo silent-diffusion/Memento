@@ -28,6 +28,11 @@ import { FloatingPopovers } from '../../components/Floating';
 import { createReviewActions, type ReviewActionDeps } from './reviewActions';
 import { useTranscript, useTranscriptSearch } from './useTranscript';
 import { rememberPlayhead } from '../docview/playhead';
+import { NO_FILTER, toggleSpeaker, withKnownSpeakers, type TranscriptFilter } from '../../format/transcriptFilter';
+import { copyTranscript } from '../../state/copy';
+import { readCopyFormat, readTranscriptText } from '../../state/uiPrefs';
+import type { TranscriptCopyFormat } from '../../bridge/types';
+import { useTranscriptView } from './TranscriptFilter';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -101,6 +106,13 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const transcriptApi = useTranscript(bridge, recordingId, project?.summary.stages ?? null);
   const transcript = transcriptApi.result?.transcript ?? null;
   const search = useTranscriptSearch(bridge, recordingId, transcript?.version ?? null);
+  // After 1.2.0: the transcript filter, kept while this recording is open in Review (never saved).
+  const [filterState, setFilter] = useState<{ recordingId: string; filter: TranscriptFilter }>({ recordingId, filter: NO_FILTER });
+  const filter = filterState.recordingId === recordingId ? withKnownSpeakers(filterState.filter, transcript?.speakers ?? []) : NO_FILTER;
+  const applyFilter = (next: TranscriptFilter): void => {
+    setFilter({ recordingId, filter: next });
+  };
+  const view = useTranscriptView(transcript, project?.highlights ?? [], project?.chapters ?? [], filter, search.query);
   const historySettings = store.settings.value?.history ?? null;
 
   // Transcript versions for the Details tab, while version history is on.
@@ -235,6 +247,20 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     actions.addHighlight(Math.round(player.positionMs)).catch(fail('The highlight was not added'));
   };
 
+  /** Copies the transcript (the lines shown, while a filter is on) with the remembered text options. */
+  const copy = (format: TranscriptCopyFormat): void => {
+    void copyTranscript(bridge, store, {
+      recordingId,
+      format,
+      options: readTranscriptText(),
+      segmentIds: view.visibleIds === null ? null : (transcript?.segments ?? []).filter((seg) => view.visibleIds?.has(seg.id) === true).map((seg) => seg.id),
+    }).then((done) => {
+      if (done !== null) {
+        undo.announce(done);
+      }
+    });
+  };
+
   const jump = (match: TranscriptSearchMatch): void => {
     player.seek(match.start * 1000);
     revealRef.current?.(match.segmentId);
@@ -331,6 +357,18 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   ],
                 },
                 {
+                  label: view.filtering ? `Copy the ${view.visible} lines shown` : 'Copy transcript',
+                  run: () => undefined,
+                  children: (['text', 'markdown'] as const).map((format) => ({
+                    label: format === 'text' ? 'As text' : 'As Markdown',
+                    disabled: transcript === null || view.visible === 0,
+                    ...(transcript === null ? { note: 'Needs a transcript first' } : {}),
+                    run: () => {
+                      copy(format);
+                    },
+                  })),
+                },
+                {
                   label: 'Delete',
                   run: () => {
                     void requestDelete(services, recordingId);
@@ -368,6 +406,13 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               positionMs={player.positionMs}
               onSeek={player.seek}
               speakers={speakersIdentified ? transcript.speakers : null}
+              speakerFilter={{
+                selected: filter.speakers,
+                counts: view.counts.speakers,
+                onToggle: (speaker, add) => {
+                  applyFilter(toggleSpeaker(filter, speaker.id, add));
+                },
+              }}
               onAddChapter={(atMs, chapterTitle) => {
                 actions.addChapter(atMs, chapterTitle).catch(fail('The chapter was not added'));
               }}
@@ -440,6 +485,11 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                     document.getElementById('review-tab-history')?.focus();
                   }}
                   onError={warn}
+                  view={view}
+                  onFilter={applyFilter}
+                  onCopyVisible={() => {
+                    copy(readCopyFormat());
+                  }}
                 />
               </div>
             </section>
