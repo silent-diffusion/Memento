@@ -2,7 +2,7 @@
 // renders/Review.dc.html.
 import { Fragment, type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import type { Chapter, Highlight, HistoryEntry, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
+import type { Chapter, Highlight, HistoryEntry, HistoryLink, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
 import { TagEditor } from '../../components/DetailsSheet';
 import { AttachmentsSection } from '../../components/attachments/AttachmentsSection';
 import { CloseIcon, MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
@@ -11,6 +11,7 @@ import { SpeakerChooser } from '../../components/SpeakerChooser';
 import { moveFocus } from '../../components/keyboard';
 import { DocumentsTab } from '../docview/DocumentsTab';
 import { formatDuration } from '../../format/duration';
+import { asOfWording, linksByIndex, noVersionNote } from '../../format/history';
 import { activeChapterIndex, chapterInsertIndex, historyTone } from '../../format/player';
 import { typeName } from '../../format/recording';
 import { speakerColourVar, talkShare, versionReasonText } from '../../format/transcript';
@@ -523,10 +524,30 @@ export function historyWhen(iso: string, now: Date): string {
 
 const RETRYABLE: ReadonlySet<string> = new Set<StageName>(['stored', 'transcript', 'speakers', 'minutes', 'optimize']);
 
-function HistoryList({ history, now, onRetry }: { history: HistoryEntry[]; now: Date; onRetry: (stage: StageName) => void }): JSX.Element {
+/** After 1.2.0: a line that made a stored version opens it; the others say on hover why they open nothing. */
+export interface HistoryVersions {
+  /** history.links; null while it is read. */
+  links: HistoryLink[] | null;
+  /** The line whose version is open, or null. */
+  openIndex: number | null;
+  onOpen: (link: HistoryLink, entry: HistoryEntry) => void;
+}
+
+function HistoryList({
+  history,
+  now,
+  onRetry,
+  versions,
+}: {
+  history: HistoryEntry[];
+  now: Date;
+  onRetry: (stage: StageName) => void;
+  versions?: HistoryVersions;
+}): JSX.Element {
   if (history.length === 0) {
     return <p class="outline-empty">Nothing has happened to this recording yet.</p>;
   }
+  const links = linksByIndex(versions?.links ?? null);
   // Retry belongs to a stage's latest entry only: a failure that a later pass fixed is history.
   const latest = new Map<string, number>();
   history.forEach((entry, i) => {
@@ -537,14 +558,30 @@ function HistoryList({ history, now, onRetry }: { history: HistoryEntry[]; now: 
       {history.map((entry, i) => {
         const tone = historyTone(entry);
         const retryable = tone === 'failed' && RETRYABLE.has(entry.stage) && latest.get(entry.stage) === i;
+        const link = links.get(i);
         return (
-          <li key={`${entry.at}-${i}`} class="history-item">
+          <li key={`${entry.at}-${i}`} class={versions?.openIndex === i ? 'history-item history-item--open' : 'history-item'}>
             <span class={`history-dot history-dot--${tone}`} aria-hidden="true" />
             <span class="history-text">
-              <span class="history-title">
-                {entry.summary}
-                {tone === 'failed' ? <span class="sr"> (failed)</span> : null}
-              </span>
+              {versions !== undefined && link?.versionId != null ? (
+                <button
+                  class="history-title history-open"
+                  type="button"
+                  aria-pressed={versions.openIndex === i}
+                  aria-label={`Open ${link.kind === 'transcript' ? 'the transcript' : 'the document'} as of ${asOfWording(entry.at, now)}, ${link.after}`}
+                  title={link.versionId === 'current' ? 'Open this version (it is the one you have now)' : 'Open this version to read it or restore it'}
+                  onClick={() => {
+                    versions.onOpen(link, entry);
+                  }}
+                >
+                  {entry.summary}
+                </button>
+              ) : (
+                <span class="history-title" title={versions?.links == null ? undefined : noVersionNote(link)}>
+                  {entry.summary}
+                  {tone === 'failed' ? <span class="sr"> (failed)</span> : null}
+                </span>
+              )}
               <span class="history-detail">
                 {historyWhen(entry.at, now)}
                 {entry.detail === null ? '' : ` · ${entry.detail}`}
@@ -647,6 +684,8 @@ interface DetailsPaneProps {
   versions: TranscriptVersion[] | null;
   currentVersion: { version: number; engine: string; segments: number } | null;
   onRestore: (version: TranscriptVersion, when: string) => void;
+  /** After 1.2.0: History lines open the version they made. */
+  historyVersions?: HistoryVersions;
   /** M3: the agenda caption's Replace link. */
   onReplaceAgenda?: () => void;
 }
@@ -664,6 +703,7 @@ export function DetailsPane({
   versions,
   currentVersion,
   onRestore,
+  historyVersions,
   onReplaceAgenda,
 }: DetailsPaneProps): JSX.Element {
   const { details, summary, tracks } = project;
@@ -782,7 +822,7 @@ export function DetailsPane({
           // M4: the recording's documents (screens/docview/DocumentsTab.tsx).
           <DocumentsTab recordingId={summary.id} onCreate={onCreateDocument} />
         ) : (
-          <HistoryList history={project.history} now={now} onRetry={onRetry} />
+          <HistoryList history={project.history} now={now} onRetry={onRetry} {...(historyVersions === undefined ? {} : { versions: historyVersions })} />
         )}
       </div>
     </aside>

@@ -8,6 +8,7 @@ import { isoWithOffset } from './mockData';
 import { MODEL_IDS, type MockModelManager } from './mockModels';
 import { buildTranscript, LONG_SAMPLE_ID, scriptSpeakers, withTalkTimes } from './mockTranscripts';
 import { MockHostError } from './mockSession';
+import type { MockCopy } from './mockHistory';
 import type {
   EventName,
   EventPayload,
@@ -109,6 +110,10 @@ export interface MockTranscription {
   retranscribe(params: TranscriptRetranscribeParams): void;
   versions(recordingId: string): TranscriptVersion[];
   restoreVersion(recordingId: string, versionId: string): Transcript;
+  /** transcript.getVersion: a kept version, whole. */
+  getVersion(recordingId: string, versionId: string): Transcript;
+  /** history.links: the current transcript and the kept versions, each with when it was current. */
+  copies(recordingId: string): MockCopy[];
   retry(params: ProcessingRetryParams): void;
   cancel(recordingId: string, stage: StageName): void;
   pauseAll(): void;
@@ -943,6 +948,32 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       env.changed(recordingId);
       notify(recordingId, restored, 'restored');
       return clone(restored);
+    },
+
+    getVersion: (recordingId, versionId) => {
+      project(recordingId);
+      const version = entryOf(recordingId).versions.find((v) => v.meta.id === versionId);
+      if (version === undefined) {
+        throw new MockHostError(
+          'transcript.versionNotFound',
+          'That version of the transcript is no longer kept; versions are removed after the number of days set in Settings › Documents › version history. Nothing was changed.',
+          versionId,
+        );
+      }
+      return clone(version.snapshot);
+    },
+
+    copies: (recordingId) => {
+      project(recordingId);
+      const entry = entryOf(recordingId);
+      if (entry.transcript === null) {
+        return [];
+      }
+      // A kept version's time is when it was replaced; it was current from the version before's replacement.
+      const kept = historyOn() ? [...entry.versions].reverse() : [];
+      const copies: MockCopy[] = kept.map((v, i) => ({ kind: 'transcript', documentId: null, versionId: v.meta.id, start: kept[i - 1]?.meta.at ?? null, end: v.meta.at }));
+      copies.push({ kind: 'transcript', documentId: null, versionId: 'current', start: entry.versions[0]?.meta.at ?? null, end: null });
+      return copies;
     },
 
     retry: ({ recordingId, stage, remedyId }) => {

@@ -3,7 +3,7 @@
 // topics, history and transcript versions come with it (M2).
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Project, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
+import type { HistoryEntry, HistoryLink, Project, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
 import { DetailsSheet } from '../../components/DetailsSheet';
 import type { AgendaMode } from '../../components/agenda/useAgendaImport';
 import { StatusFooter } from '../../components/StatusFooter';
@@ -33,6 +33,9 @@ import { copyTranscript } from '../../state/copy';
 import { readCopyFormat, readTranscriptText } from '../../state/uiPrefs';
 import type { TranscriptCopyFormat } from '../../bridge/types';
 import { useTranscriptView } from './TranscriptFilter';
+import { asOfWording } from '../../format/history';
+import { restoreTranscriptVersion, useHistoryLinks } from './historyVersions';
+import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptVersionView';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -71,6 +74,9 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const [reload, setReload] = useState(0);
   const [versions, setVersions] = useState<TranscriptVersion[] | null>(null);
   const revealRef = useRef<((segmentId: string) => void) | null>(null);
+  // After 1.2.0: a transcript version opened from History, read-only in place of the transcript.
+  const [openVersion, setOpenVersion] = useState<OpenTranscriptVersion | null>(null);
+  const [restoringVersion, setRestoringVersion] = useState(false);
 
   // Read the project, and again whenever the host says it changed (finalize, rename, details).
   useEffect(() => {
@@ -242,6 +248,51 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
       }),
     [],
   );
+
+  // History lines open the version they made (history.links, read while the History tab shows).
+  const historyLinks = useHistoryLinks(bridge, recordingId, tab === 'history', project?.history);
+  const openHistoryVersion = (link: HistoryLink, entry: HistoryEntry): void => {
+    if (link.versionId === null) {
+      return;
+    }
+    if (link.kind === 'document') {
+      if (link.documentId !== null) {
+        services.router.navigate({ name: 'document', recordingId, documentId: link.documentId, ...(link.versionId === 'current' ? {} : { versionId: link.versionId }) });
+      }
+      return;
+    }
+    if (link.versionId === 'current') {
+      setOpenVersion({ link, entry, transcript, error: null });
+      return;
+    }
+    const versionId = link.versionId;
+    setOpenVersion({ link, entry, transcript: null, error: null });
+    bridge
+      .call('transcript.getVersion', { recordingId, versionId })
+      .then(({ transcript: version }) => {
+        setOpenVersion((open) => (open?.link === link ? { ...open, transcript: version } : open));
+      })
+      .catch((e: unknown) => {
+        setOpenVersion((open) => (open?.link === link ? { ...open, error: messageOf(e, 'This version could not be read. Nothing was changed.') } : open));
+      });
+  };
+  const restoreOpenVersion = (): void => {
+    const open = openVersion;
+    if (open?.link.versionId == null || open.link.versionId === 'current') {
+      return;
+    }
+    const asOf = asOfWording(open.entry.at, services.now());
+    setRestoringVersion(true);
+    restoreTranscriptVersion(bridge, undo, recordingId, open.link.versionId, `restore the transcript as of ${asOf}`)
+      .then(() => {
+        setOpenVersion(null);
+        undo.announce(`Restored the transcript as of ${asOf}`);
+      })
+      .catch(fail('The version was not restored'))
+      .finally(() => {
+        setRestoringVersion(false);
+      });
+  };
 
   const addHighlight = (): void => {
     actions.addHighlight(Math.round(player.positionMs)).catch(fail('The highlight was not added'));
@@ -465,6 +516,19 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                 />
               </FloatingPopovers.Provider>
               <div class={TRANSCRIPT_SCROLLER}>
+                {openVersion !== null ? (
+                  <TranscriptVersionView
+                    open={openVersion.link.versionId === 'current' ? { ...openVersion, transcript } : openVersion}
+                    now={now}
+                    positionMs={player.positionMs}
+                    onSeek={player.seek}
+                    onRestore={restoreOpenVersion}
+                    onBack={() => {
+                      setOpenVersion(null);
+                    }}
+                    restoring={restoringVersion}
+                  />
+                ) : (
                 <TranscriptPane
                   project={project}
                   api={transcriptApi}
@@ -491,6 +555,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                     copy(readCopyFormat());
                   }}
                 />
+                )}
               </div>
             </section>
 
@@ -508,6 +573,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               onRetry={(stage) => {
                 void transcriptApi.retry(stage).then(report('The stage was not retried'));
               }}
+              historyVersions={{ links: historyLinks, openIndex: openVersion?.link.index ?? null, onOpen: openHistoryVersion }}
               onEditDetails={() => {
                 saver?.adopt(recordingId, project.details);
                 setSheetAgendaMode(null);

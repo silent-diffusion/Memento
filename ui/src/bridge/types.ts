@@ -659,6 +659,27 @@ export interface TranscriptRestoreVersionResult {
   transcript: Transcript;
 }
 
+/** transcript.getVersion (after 1.2.0): a kept version, whole, to read. */
+export type TranscriptGetVersionParams = TranscriptRestoreVersionParams;
+
+/** history.links (after 1.2.0): a History line that changed the transcript or a document, and the stored copy it opens. */
+export interface HistoryLink {
+  /** The line's position in Project.history (oldest first, from 0). */
+  index: number;
+  kind: 'transcript' | 'document';
+  /** The document the line changed; null for the transcript, or when the document is not known. */
+  documentId: string | null;
+  /** 'current', a kept version's id, or null when no copy of the content right after the line is kept. */
+  versionId: string | null;
+  /** The banner's words for that content: "after speakers were identified". */
+  after: string;
+}
+
+export interface HistoryLinksResult {
+  /** One entry per line that changed the transcript or a document; other lines are not listed. */
+  links: HistoryLink[];
+}
+
 export interface ProcessingRetryParams {
   recordingId: string;
   stage: StageName;
@@ -2051,6 +2072,13 @@ export interface DocumentRestoreVersionResult {
   document: DocumentContent;
 }
 
+/** documents.getVersion (after 1.2.0): a kept version and the viewer's paper for it, to read. */
+export interface DocumentVersionResult {
+  document: DocumentContent;
+  /** The paper as documents.renderHtml (mode view) draws it, for this version. */
+  html: string;
+}
+
 export interface DocumentExportParams {
   recordingId: string;
   documentId: string;
@@ -2127,6 +2155,8 @@ export interface BridgeMethods {
   'transcript.versions': { params: RecordingIdParams; result: TranscriptVersionsResult };
   'transcript.restoreVersion': { params: TranscriptRestoreVersionParams; result: TranscriptRestoreVersionResult };
   'transcript.copy': { params: TranscriptCopyParams; result: TranscriptCopyResult };
+  'transcript.getVersion': { params: TranscriptGetVersionParams; result: TranscriptRestoreVersionResult };
+  'history.links': { params: RecordingIdParams; result: HistoryLinksResult };
   'processing.retry': { params: ProcessingRetryParams; result: EmptyResult };
   'processing.cancel': { params: ProcessingStageParams; result: EmptyResult };
   'processing.pause': { params: EmptyParams; result: EmptyResult };
@@ -2194,6 +2224,7 @@ export interface BridgeMethods {
   'documents.makeTemplate': { params: DocumentNameParams; result: Template };
   'documents.versions': { params: DocumentIdParams; result: DocumentVersionsResult };
   'documents.restoreVersion': { params: DocumentRestoreVersionParams; result: DocumentRestoreVersionResult };
+  'documents.getVersion': { params: DocumentRestoreVersionParams; result: DocumentVersionResult };
   'documents.export': { params: DocumentExportParams; result: DocumentExportResult };
   'documents.copy': { params: DocumentIdParams; result: DocumentCopyResult };
   // H1
@@ -2281,6 +2312,8 @@ export const METHOD_NAMES = [
   'transcript.retranscribe',
   'transcript.versions',
   'transcript.restoreVersion',
+  'transcript.getVersion',
+  'history.links',
   'processing.retry',
   'processing.cancel',
   'processing.pause',
@@ -2345,6 +2378,7 @@ export const METHOD_NAMES = [
   'documents.makeTemplate',
   'documents.versions',
   'documents.restoreVersion',
+  'documents.getVersion',
   'documents.export',
   'updates.status',
   'updates.check',

@@ -96,6 +96,7 @@ export const M4_METHODS = [
   'documents.makeTemplate',
   'documents.versions',
   'documents.restoreVersion',
+  'documents.getVersion',
   'documents.export',
 ] as const satisfies readonly MethodName[];
 
@@ -573,6 +574,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     'documents.makeTemplate': (params) => documents.makeTemplate(params.recordingId, params.documentId, params.name),
     'documents.versions': (params) => ({ versions: documents.versions(params.recordingId, params.documentId) }),
     'documents.restoreVersion': (params) => ({ document: documents.restoreVersion(params.recordingId, params.documentId, params.versionId) }),
+    'documents.getVersion': (params) => documents.getVersion(params.recordingId, params.documentId, params.versionId),
     'documents.export': (params) => documents.exportOne(params.recordingId, params.documentId, params.format, params.path),
   };
 

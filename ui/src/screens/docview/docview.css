@@ -289,6 +289,46 @@
   color: var(--text-2);
 }
 
+/* After 1.2.0: a version's title opens it read-only; the open one is marked, its paper sits under a banner. */
+.doc-ver-open {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  text-decoration: underline dotted var(--text-3);
+  text-underline-offset: 3px;
+}
+
+.doc-ver-open:hover {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.doc-ver-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.doc-ver--open .doc-ver-open {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+
+.doc-version-banner {
+  flex-wrap: wrap;
+}
+
+.doc-version-back {
+  font-size: 13px;
+  color: var(--accent-text);
+}
+
 .doc-ver-restore {
   height: 26px;
   padding: 0 10px;

@@ -7,6 +7,7 @@
 import viewerFixture from './fixtures/meeting-minutes.corporate.viewer.html?raw';
 import { isoWithOffset, type MockProject } from './mockData';
 import { articleOpen, chipHtml, chipTime, cssNumber, escapeHtml, extractArticle, metaLine, moduleOpen, restyle, titleBlock } from './mockPaper';
+import type { MockCopy } from './mockHistory';
 import { MockHostError } from './mockSession';
 import { moduleInfo, type MockTemplateStore } from './mockTemplates';
 import type {
@@ -115,6 +116,10 @@ export interface MockDocuments {
   makeTemplate(recordingId: string, documentId: string, name: string): Template;
   versions(recordingId: string, documentId: string): DocumentVersion[];
   restoreVersion(recordingId: string, documentId: string, versionId: string): DocumentContent;
+  /** documents.getVersion: a kept version's content and paper. */
+  getVersion(recordingId: string, documentId: string, versionId: string): { document: DocumentContent; html: string };
+  /** history.links: every document's versions, each with when it was current. */
+  copies(recordingId: string): MockCopy[];
   exportOne(recordingId: string, documentId: string, format: DocumentExportFormat, path: string | undefined): { path: string; bytes: number; sha256: string };
   /** Writes a generated document (new, or a new version of `documentId`) and returns its id. */
   writeGenerated(request: WriteRequest): string;
@@ -653,6 +658,33 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
       doc.summary = { ...doc.summary, modifiedAt: nowIso() };
       changed(recordingId, documentId, 'restored');
       return contentOf(doc.summary.id, doc.html, doc.record);
+    },
+    getVersion(recordingId, documentId, versionId) {
+      const doc = findDoc(recordingId, documentId);
+      const version = versionId === 'current' ? undefined : doc.versions.slice(0, -1).find((v) => v.id === versionId);
+      if (version === undefined) {
+        throw new MockHostError(
+          'documents.versionNotFound',
+          'That version is not kept any more; versions older than the history setting are removed. Nothing was changed.',
+          versionId,
+        );
+      }
+      const styleId = doc.summary.styleId;
+      return { document: contentOf(doc.summary.id, version.html, doc.record), html: restyle(version.html, styleSettings(styleId), styleId, 'viewer') };
+    },
+    copies(recordingId) {
+      // Each version was current from its own time until the next one's.
+      return documentsOf(recordingId).flatMap((doc) =>
+        doc.versions
+          .map((v, i): MockCopy => ({
+            kind: 'document',
+            documentId: doc.summary.id,
+            versionId: i === doc.versions.length - 1 ? 'current' : v.id,
+            start: v.at,
+            end: doc.versions[i + 1]?.at ?? null,
+          }))
+          .filter((c) => historyOn() || c.versionId === 'current'),
+      );
     },
     exportOne(recordingId, documentId, format, path) {
       const doc = findDoc(recordingId, documentId);
