@@ -508,7 +508,7 @@ interface GenerationSendSummary { providerId: ProviderId; providerName: string; 
 |---|---|---|---|
 | `modules.list` | `{}` | `{ modules: ModuleInfo[] }` | The catalog; the palette reads it. |
 | `templates.list` / `templates.get` | `{}` / `{ templateId }` | `{ templates: Template[] }` / `Template` | Built-ins first, then the user's by name. |
-| `templates.save` | `{ template: Template }` | `Template` | New id (a slug of the name) when `id` is empty or unknown. A built-in is never saved over: saving one creates a copy ("{name} (copy)" when the name is unchanged). The style must exist (`styles.notFound`). |
+| `templates.save` | `{ template: Template }` | `Template` | New id (a slug of the name) when `id` is empty or unknown. A built-in is never saved over: saving one creates a copy. A new template never takes a name already in the library: "{name} (copy)", then "{name} (copy 2)" (1.1.0; the Builder's **Save as new template** sends an empty `id`). The style must exist (`styles.notFound`). |
 | `templates.duplicate` / `templates.delete` / `templates.resetBuiltIn` | `{ templateId }` | `Template` / `{}` / `Template` | Delete refused for built-ins (`templates.builtIn`). |
 | `styles.list` / `styles.get` / `styles.save` / `styles.duplicate` / `styles.delete` / `styles.resetBuiltIn` | likewise | likewise | Presets behave as built-in templates; delete is refused with `styles.inUse` (detail: the templates) while a template uses the style. |
 | `styles.sampleHtml` | `{ settings: StyleSettings }` | `{ html }` | The Style editor's live sample page (fixed sample minutes). |
