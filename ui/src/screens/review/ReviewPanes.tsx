@@ -1,14 +1,15 @@
 // Review's outline (left) and details (right) panes (DESIGN.md §9), transcribed from
 // renders/Review.dc.html.
 import { Fragment, type JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { Chapter, Highlight, HistoryEntry, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
 import { TagEditor } from '../../components/DetailsSheet';
 import { AttachmentsSection } from '../../components/attachments/AttachmentsSection';
-import { MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
+import { CloseIcon, MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
+import { InlineInput } from '../../components/InlineInput';
+import { SpeakerChooser } from '../../components/SpeakerChooser';
 import { moveFocus } from '../../components/keyboard';
 import { DocumentsTab } from '../docview/DocumentsTab';
-import { ActionMenu } from '../../components/Menus';
 import { formatDuration } from '../../format/duration';
 import { activeChapterIndex, chapterInsertIndex, historyTone } from '../../format/player';
 import { typeName } from '../../format/recording';
@@ -19,69 +20,16 @@ import { calendarDaysBetween, formatClock, formatShortDate, parseIso } from '../
 // Outline
 // ---------------------------------------------------------------------------------------------
 
-interface InlineInputProps {
-  label: string;
-  initial?: string;
-  placeholder: string;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-  class?: string;
-}
-
-/** A one-line input that commits on Enter or blur and cancels on Esc or when left empty. */
-function InlineInput({ label, initial = '', placeholder, onCommit, onCancel, class: className }: InlineInputProps): JSX.Element {
-  const ref = useRef<HTMLInputElement | null>(null);
-  const [value, setValue] = useState(initial);
-  const done = useRef(false);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-  const finish = (commit: boolean): void => {
-    if (done.current) {
-      return;
-    }
-    done.current = true;
-    const text = value.trim();
-    if (commit && text !== '') {
-      onCommit(text);
-    } else {
-      onCancel();
-    }
-  };
-  return (
-    <input
-      ref={ref}
-      class={`field inline-input ${className ?? ''}`}
-      type="text"
-      aria-label={label}
-      placeholder={placeholder}
-      value={value}
-      onInput={(event) => {
-        setValue(event.currentTarget.value);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          finish(true);
-        } else if (event.key === 'Escape') {
-          event.preventDefault();
-          event.stopPropagation();
-          finish(false);
-        }
-      }}
-      onBlur={() => {
-        finish(true);
-      }}
-    />
-  );
-}
-
 interface OutlineProps {
   project: Project;
   positionMs: number;
   onSeek: (ms: number) => void;
   onAddChapter: (atMs: number, title: string) => void;
+  /** Clicking a chapter's or highlight's name edits it in place; × removes it (Undo brings it back). */
+  onRenameChapter: (chapter: Chapter, title: string) => void;
+  onRemoveChapter: (chapter: Chapter) => void;
+  onRenameHighlight: (highlight: Highlight, note: string) => void;
+  onRemoveHighlight: (highlight: Highlight) => void;
   onAddTopic: (label: string) => void;
   onRemoveTopic: (topic: Topic) => void;
   onRenamePerson: (index: number, name: string) => void;
@@ -97,34 +45,150 @@ export function speakerColour(index: number): string {
   return SPEAKER_COLOURS[index % SPEAKER_COLOURS.length] ?? 'var(--sp1)';
 }
 
-function ChapterRow({ chapter, active, onSeek }: { chapter: Chapter; active: boolean; onSeek: (ms: number) => void }): JSX.Element {
+/**
+ * A chapter or highlight in the outline (DESIGN.md §5.13): the time plays from there, the name edits in
+ * place (Enter or leaving saves, Esc cancels), and × removes it.
+ */
+function OutlineRow({
+  atMs,
+  name,
+  placeholder,
+  noun,
+  active,
+  emptyName,
+  onSeek,
+  onRename,
+  onRemove,
+}: {
+  atMs: number;
+  name: string;
+  placeholder: string;
+  /** "chapter", "highlight". */
+  noun: string;
+  active: boolean;
+  /** Shown when the name is empty ("Highlight"). */
+  emptyName?: string;
+  onSeek: (ms: number) => void;
+  onRename: (name: string) => void;
+  onRemove: () => void;
+}): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const nameButton = useRef<HTMLButtonElement | null>(null);
+  const time = formatDuration(atMs);
+  const shown = name === '' ? (emptyName ?? '') : name;
+  const nameClass = noun === 'chapter' ? 'chap-title' : name === '' ? 'chap-note chap-note--empty' : 'chap-note';
+  const refocus = (): void => {
+    requestAnimationFrame(() => {
+      nameButton.current?.focus();
+    });
+  };
   return (
-    <button
-      class={active ? 'chap on' : 'chap'}
-      type="button"
-      aria-current={active ? 'true' : undefined}
-      onClick={() => {
-        onSeek(chapter.atMs);
-      }}
-    >
-      <span class="mono chap-at">{formatDuration(chapter.atMs)}</span>
-      <span class="chap-title">{chapter.title}</span>
-    </button>
+    <div class={active ? 'chap chap-row on' : 'chap chap-row'} aria-current={active ? 'true' : undefined}>
+      <button
+        class="chap-time"
+        type="button"
+        aria-label={`Play from ${time}${shown === '' ? '' : `, ${shown}`}`}
+        onClick={() => {
+          onSeek(atMs);
+        }}
+      >
+        <span class="mono chap-at">{time}</span>
+      </button>
+      {editing ? (
+        <InlineInput
+          label={`Name of the ${noun} at ${time}. Enter saves, Esc cancels.`}
+          initial={name}
+          placeholder={placeholder}
+          onCommit={(next) => {
+            setEditing(false);
+            if (next !== name) {
+              onRename(next);
+            }
+            refocus();
+          }}
+          onCancel={() => {
+            setEditing(false);
+            refocus();
+          }}
+        />
+      ) : (
+        <button
+          ref={nameButton}
+          class="chap-name"
+          type="button"
+          aria-label={shown === '' ? `Name the ${noun} at ${time}` : `Rename ${shown}`}
+          title="Click to rename"
+          onClick={() => {
+            setEditing(true);
+          }}
+        >
+          <span class={nameClass}>{shown}</span>
+        </button>
+      )}
+      {editing ? null : (
+        <button
+          class="chap-remove"
+          type="button"
+          aria-label={`Remove the ${noun} at ${time}${shown === '' ? '' : `, ${shown}`}`}
+          title="Remove (Ctrl+Z brings it back)"
+          onClick={onRemove}
+        >
+          <CloseIcon size={12} />
+        </button>
+      )}
+    </div>
   );
 }
 
-function HighlightRow({ highlight, onSeek }: { highlight: Highlight; onSeek: (ms: number) => void }): JSX.Element {
+/** The People list's merge menu: the other speakers in a searchable, scrolling list (SpeakerChooser). */
+function MergeMenu({ speaker, speakers, onMerge }: { speaker: Speaker; speakers: Speaker[]; onMerge: OutlineProps['onMergeSpeakers'] }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLSpanElement | null>(null);
+  const button = useRef<HTMLButtonElement | null>(null);
+  const others = speakers.filter((s) => s.id !== speaker.id);
   return (
-    <button
-      class="chap"
-      type="button"
-      onClick={() => {
-        onSeek(highlight.atMs);
-      }}
-    >
-      <span class="mono chap-at">{formatDuration(highlight.atMs)}</span>
-      <span class={highlight.note === '' ? 'chap-note chap-note--empty' : 'chap-note'}>{highlight.note === '' ? 'Highlight' : highlight.note}</span>
-    </button>
+    <span class={open ? 'menu-root menu-root--open' : 'menu-root'} ref={root}>
+      <button
+        ref={button}
+        class="icon-btn person-rename person-merge"
+        type="button"
+        aria-label={`Merge ${speaker.name} into someone else`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        <MergeIcon size={13} />
+      </button>
+      {open ? (
+        <SpeakerChooser
+          anchorRef={button}
+          rootRef={root}
+          label={`Merge ${speaker.name} into`}
+          heading={`Merge ${speaker.name} into`}
+          speakers={others}
+          currentId={null}
+          align="end"
+          gap={8}
+          onPick={(into) => {
+            onMerge(speaker, into);
+          }}
+          onClose={(focusTrigger) => {
+            setOpen(false);
+            if (focusTrigger) {
+              button.current?.focus();
+            }
+          }}
+        />
+      ) : null}
+    </span>
   );
 }
 
@@ -168,28 +232,7 @@ function SpeakerList({ speakers, onRename, onMerge }: { speakers: Speaker[]; onR
               >
                 <PencilIcon size={13} />
               </button>
-              {speakers.length > 1 ? (
-                <ActionMenu
-                  label={`Merge ${speaker.name} into someone else`}
-                  triggerClass="icon-btn person-rename person-merge"
-                  actions={[
-                    {
-                      label: `Merge ${speaker.name} into`,
-                      run: () => undefined,
-                      children: speakers
-                        .filter((s) => s.id !== speaker.id)
-                        .map((into) => ({
-                          label: into.name,
-                          run: () => {
-                            onMerge(speaker, into);
-                          },
-                        })),
-                    },
-                  ]}
-                >
-                  <MergeIcon size={13} />
-                </ActionMenu>
-              ) : null}
+              {speakers.length > 1 ? <MergeMenu speaker={speaker} speakers={speakers} onMerge={onMerge} /> : null}
             </>
           )}
         </div>
@@ -203,6 +246,10 @@ export function OutlinePane({
   positionMs,
   onSeek,
   onAddChapter,
+  onRenameChapter,
+  onRemoveChapter,
+  onRenameHighlight,
+  onRemoveHighlight,
   onAddTopic,
   onRemoveTopic,
   onRenamePerson,
@@ -261,7 +308,20 @@ export function OutlinePane({
           {chapters.map((chapter, i) => (
             <Fragment key={chapter.id}>
               {i === insertAt ? newChapterRow : null}
-              <ChapterRow chapter={chapter} active={i === active} onSeek={onSeek} />
+              <OutlineRow
+                atMs={chapter.atMs}
+                name={chapter.title}
+                placeholder="Chapter title"
+                noun="chapter"
+                active={i === active}
+                onSeek={onSeek}
+                onRename={(title) => {
+                  onRenameChapter(chapter, title);
+                }}
+                onRemove={() => {
+                  onRemoveChapter(chapter);
+                }}
+              />
             </Fragment>
           ))}
           {insertAt === chapters.length ? newChapterRow : null}
@@ -276,7 +336,24 @@ export function OutlinePane({
           {project.highlights.length === 0 ? (
             <p class="outline-empty">None yet. Highlight marks the playhead; during a recording, Ctrl+M does.</p>
           ) : (
-            project.highlights.map((h) => <HighlightRow key={h.id} highlight={h} onSeek={onSeek} />)
+            project.highlights.map((h) => (
+              <OutlineRow
+                key={h.id}
+                atMs={h.atMs}
+                name={h.note}
+                emptyName="Highlight"
+                placeholder="Highlight name"
+                noun="highlight"
+                active={false}
+                onSeek={onSeek}
+                onRename={(note) => {
+                  onRenameHighlight(h, note);
+                }}
+                onRemove={() => {
+                  onRemoveHighlight(h);
+                }}
+              />
+            ))
           )}
         </div>
       </div>

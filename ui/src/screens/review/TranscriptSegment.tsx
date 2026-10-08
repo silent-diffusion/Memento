@@ -1,13 +1,17 @@
 // One transcript segment (DESIGN.md §5.12, renders/Review.dc.html): speaker with its dot over the mono
 // timecode, the text with low-confidence words and search matches marked, highlight notes under it,
-// in-place editing, and the speaker menu (reassign, New speaker…, Rename…).
+// editing in place (click the text: the caret lands where you clicked), and the speaker menu (find or
+// add a speaker, reassign, Rename…).
 import type { JSX } from 'preact';
 import { memo } from 'preact/compat';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Highlight, Speaker, TranscriptSegment } from '../../bridge/types';
 import { PopoverLayer, useFloatingPopovers } from '../../components/Floating';
-import { CheckIcon, NotesIcon } from '../../components/icons';
-import { moveFocus } from '../../components/keyboard';
+import { InlineInput } from '../../components/InlineInput';
+import { NotesIcon } from '../../components/icons';
+import { SpeakerChooser } from '../../components/SpeakerChooser';
+import { undoKeyOf } from '../../state/undo';
+import { caretOffsetAt, isSelectingIn } from '../../format/caret';
 import { formatDuration } from '../../format/duration';
 import {
   isSpeakerUncertain,
@@ -20,13 +24,17 @@ import {
 
 export interface SegmentHandlers {
   seek: (segment: TranscriptSegment) => void;
-  startEdit: (segment: TranscriptSegment) => void;
+  /** Edit the text in place; `caret` is where in the text the click landed (else the end). */
+  startEdit: (segment: TranscriptSegment, caret?: number) => void;
   draft: (text: string) => void;
   save: () => void;
   cancel: () => void;
-  /** Reassign to an existing speaker, or create one with `newName`. */
-  assign: (segment: TranscriptSegment, speakerId: string | null, newName?: string) => void;
+  /** Move the line to another speaker. */
+  assign: (segment: TranscriptSegment, speaker: Speaker) => void;
+  /** Create a speaker with this name and move the line to them. */
+  addSpeaker: (segment: TranscriptSegment, name: string) => void;
   rename: (speaker: Speaker, name: string) => void;
+  renameHighlight: (highlight: Highlight, note: string) => void;
   /** Arrow keys between segments: the list moves focus. */
   moveFocus: (index: number, direction: 1 | -1) => void;
 }
@@ -44,6 +52,8 @@ interface SegmentProps {
   currentOccurrence: number;
   /** The draft text while this segment is being edited, else null. */
   editing: string | null;
+  /** Where the caret starts in the editor (characters into the text), or null for the end. */
+  caret: number | null;
   saving: boolean;
   highlights: readonly Highlight[];
   handlers: SegmentHandlers;
@@ -51,12 +61,30 @@ interface SegmentProps {
 
 const AUTHORS: Record<Highlight['origin'], string> = { user: 'You', local: 'Suggested', ai: 'AI' };
 
-function SegmentText({ segment, threshold, query, currentOccurrence }: Pick<SegmentProps, 'segment' | 'threshold' | 'query' | 'currentOccurrence'>): JSX.Element {
+function SegmentText({
+  segment,
+  threshold,
+  query,
+  currentOccurrence,
+  onEdit,
+}: Pick<SegmentProps, 'segment' | 'threshold' | 'query' | 'currentOccurrence'> & { onEdit: (caret: number | undefined) => void }): JSX.Element {
   const low = lowConfidenceRanges(segment.text, segment.words, threshold);
   const matches = queryRanges(segment.text, query);
   const runs = textRuns(segment.text, low, matches, currentOccurrence);
   return (
-    <span class="segm-text">
+    <span
+      class="segm-text segm-text--editable"
+      title="Click to correct"
+      onClick={(event) => {
+        // A click on the words edits them; dragging over them selects as usual.
+        event.stopPropagation();
+        const el = event.currentTarget;
+        if (isSelectingIn(el)) {
+          return;
+        }
+        onEdit(caretOffsetAt(el, event.clientX, event.clientY) ?? undefined);
+      }}
+    >
       {runs.map((run, i) => {
         if (!run.low && !run.match) {
           return run.text;
@@ -73,8 +101,22 @@ function SegmentText({ segment, threshold, query, currentOccurrence }: Pick<Segm
   );
 }
 
-/** The textarea that replaces the text while editing: as tall as its content. */
-function SegmentEditor({ value, saving, onDraft, onSave, onCancel }: { value: string; saving: boolean; onDraft: (text: string) => void; onSave: () => void; onCancel: () => void }): JSX.Element {
+/** The textarea that replaces the text while editing: as tall as its content, the caret where the click was. */
+function SegmentEditor({
+  value,
+  caret,
+  saving,
+  onDraft,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  caret: number | null;
+  saving: boolean;
+  onDraft: (text: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}): JSX.Element {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -86,8 +128,9 @@ function SegmentEditor({ value, saving, onDraft, onSave, onCancel }: { value: st
   useEffect(() => {
     const el = ref.current;
     if (el !== null) {
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
+      el.focus({ preventScroll: true });
+      const at = Math.max(0, Math.min(caret ?? el.value.length, el.value.length));
+      el.setSelectionRange(at, at);
     }
   }, []);
   return (
@@ -108,7 +151,10 @@ function SegmentEditor({ value, saving, onDraft, onSave, onCancel }: { value: st
         onDraft(event.currentTarget.value);
       }}
       onKeyDown={(event) => {
-        event.stopPropagation();
+        // Ctrl+Z / Ctrl+Y go on to the app's undo, which leaves them to the field while it has changes.
+        if (undoKeyOf(event) === null) {
+          event.stopPropagation();
+        }
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           onSave();
@@ -122,53 +168,113 @@ function SegmentEditor({ value, saving, onDraft, onSave, onCancel }: { value: st
   );
 }
 
-type MenuMode = { kind: 'list' } | { kind: 'new' } | { kind: 'rename' };
+/** A highlight note under the line: its words edit in place, like the outline's highlight names. */
+function SegmentNote({ highlight, onRename }: { highlight: Highlight; onRename: (note: string) => void }): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const button = useRef<HTMLButtonElement | null>(null);
+  const shown = highlight.note === '' ? `Highlight at ${formatDuration(highlight.atMs)}` : highlight.note;
+  const refocus = (): void => {
+    requestAnimationFrame(() => {
+      button.current?.focus();
+    });
+  };
+  return (
+    <span
+      class="segm-note"
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
+      onDblClick={(event) => {
+        event.stopPropagation();
+      }}
+    >
+      <NotesIcon size={14} class="segm-note-icon" />
+      <span>
+        <span class="segm-note-by">{AUTHORS[highlight.origin]}</span>{' '}
+        {editing ? (
+          <InlineInput
+            label={`Name of the highlight at ${formatDuration(highlight.atMs)}. Enter saves, Esc cancels.`}
+            initial={highlight.note}
+            placeholder="Highlight name"
+            class="segm-note-input"
+            onCommit={(next) => {
+              setEditing(false);
+              if (next !== highlight.note) {
+                onRename(next);
+              }
+              refocus();
+            }}
+            onCancel={() => {
+              setEditing(false);
+              refocus();
+            }}
+          />
+        ) : (
+          <button
+            ref={button}
+            class="segm-note-edit"
+            type="button"
+            title="Click to rename"
+            aria-label={highlight.note === '' ? `Name the highlight at ${formatDuration(highlight.atMs)}` : `Rename ${highlight.note}`}
+            onClick={() => {
+              setEditing(true);
+            }}
+          >
+            <span class="segm-note-words">{shown}</span>
+          </button>
+        )}
+      </span>
+    </span>
+  );
+}
 
-/** The speaker name's menu: reassign to any speaker, New speaker…, Rename…. */
+/**
+ * The speaker name's menu (SpeakerChooser): find or add a speaker, move the line to one, or Rename… the
+ * current speaker everywhere.
+ */
 function SpeakerMenu({
   segment,
   speaker,
   speakers,
   onAssign,
+  onAdd,
   onRename,
 }: {
   segment: TranscriptSegment;
   speaker: Speaker | null;
   speakers: readonly Speaker[];
-  onAssign: (speakerId: string | null, newName?: string) => void;
+  onAssign: (speaker: Speaker) => void;
+  onAdd: (name: string) => void;
   onRename: (name: string) => void;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<MenuMode>({ kind: 'list' });
+  const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState('');
   const root = useRef<HTMLSpanElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
   const pop = useRef<HTMLDivElement | null>(null);
   const floating = useFloatingPopovers();
 
+  // The rename form: its field takes focus, and a click elsewhere closes it.
   useEffect(() => {
-    if (!open) {
+    if (!renaming) {
       return undefined;
     }
-    if (mode.kind === 'list') {
-      (pop.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? pop.current?.querySelector<HTMLElement>('[role^="menuitem"]'))?.focus();
-    } else {
-      pop.current?.querySelector<HTMLInputElement>('input')?.select();
-    }
+    pop.current?.querySelector<HTMLInputElement>('input')?.select();
     const away = (event: PointerEvent): void => {
       if (event.target instanceof Node && root.current?.contains(event.target) !== true && pop.current?.contains(event.target) !== true) {
-        setOpen(false);
+        setRenaming(false);
       }
     };
     document.addEventListener('pointerdown', away);
     return () => {
       document.removeEventListener('pointerdown', away);
     };
-  }, [open, mode]);
+  }, [renaming]);
 
   const close = (focusButton: boolean): void => {
     setOpen(false);
-    setMode({ kind: 'list' });
+    setRenaming(false);
     if (focusButton) {
       button.current?.focus();
     }
@@ -176,15 +282,9 @@ function SpeakerMenu({
 
   const label = speaker?.name ?? 'Unknown speaker';
   const uncertain = isSpeakerUncertain(segment);
-  const commitName = (): void => {
+  const commitRename = (): void => {
     const trimmed = name.trim();
-    if (trimmed === '') {
-      setMode({ kind: 'list' });
-      return;
-    }
-    if (mode.kind === 'new') {
-      onAssign(null, trimmed);
-    } else if (speaker !== null && trimmed !== speaker.name) {
+    if (trimmed !== '' && speaker !== null && trimmed !== speaker.name) {
       onRename(trimmed);
     }
     close(true);
@@ -196,12 +296,12 @@ function SpeakerMenu({
         ref={button}
         class="segm-speaker"
         type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-expanded={open || renaming}
         title={uncertain ? 'Speaker uncertain' : undefined}
         onClick={(event) => {
           event.stopPropagation();
-          setMode({ kind: 'list' });
+          setRenaming(false);
           setOpen(!open);
         }}
         onDblClick={(event) => {
@@ -224,12 +324,44 @@ function SpeakerMenu({
         {uncertain ? <span class="sr"> (speaker uncertain)</span> : null}
       </button>
       {open ? (
+        <SpeakerChooser
+          anchorRef={button}
+          rootRef={root}
+          label={`Speaker for the line at ${formatDuration(segment.start * 1000)}`}
+          heading="This line is said by"
+          speakers={speakers}
+          currentId={segment.speaker}
+          onPick={(chosen) => {
+            if (chosen.id !== segment.speaker) {
+              onAssign(chosen);
+            }
+          }}
+          onAdd={onAdd}
+          actions={
+            speaker === null
+              ? []
+              : [
+                  {
+                    id: 'rename',
+                    label: `Rename ${speaker.name}…`,
+                    run: () => {
+                      setName(speaker.name);
+                      setOpen(false);
+                      setRenaming(true);
+                    },
+                  },
+                ]
+          }
+          onClose={close}
+        />
+      ) : null}
+      {renaming ? (
         <PopoverLayer anchorRef={button} popRef={pop} align="start" gap={6}>
           <div
             ref={pop}
             class="popover popover--menu segm-menu"
-            role="menu"
-            aria-label={`Speaker for the line at ${formatDuration(segment.start * 1000)}`}
+            role="dialog"
+            aria-label={`Rename ${speaker?.name ?? 'speaker'}`}
             onClick={(event) => {
               event.stopPropagation();
             }}
@@ -237,119 +369,56 @@ function SpeakerMenu({
               event.stopPropagation();
             }}
             onKeyDown={(event) => {
-              event.stopPropagation();
+              if (undoKeyOf(event) === null) {
+                event.stopPropagation();
+              }
               if (event.key === 'Escape') {
                 event.preventDefault();
-                if (mode.kind === 'list') {
-                  close(true);
-                } else {
-                  setMode({ kind: 'list' });
-                }
-                return;
-              }
-              if (event.key === 'Tab') {
+                close(true);
+              } else if (event.key === 'Tab') {
                 // Floating on <body>: back to the speaker first, so Tab moves on from there.
                 close(floating);
-                return;
-              }
-              if (mode.kind === 'list' && pop.current !== null) {
-                moveFocus(event, pop.current, '[role^="menuitem"]', 'vertical');
               }
             }}
           >
-            {mode.kind === 'list' ? (
-              <>
-                <span class="menu-label">This line is said by</span>
-                {speakers.map((s) => (
-                  <button
-                    key={s.id}
-                    class="item menu-item"
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={s.id === segment.speaker}
-                    tabIndex={-1}
-                    onClick={() => {
-                      close(true);
-                      if (s.id !== segment.speaker) {
-                        onAssign(s.id);
-                      }
-                    }}
-                  >
-                    <span class="menu-check" aria-hidden="true">
-                      {s.id === segment.speaker ? <CheckIcon size={12} /> : null}
-                    </span>
-                    <span class="segm-dot" aria-hidden="true" style={{ background: speakerColourVar(s.color) }} />
-                    {s.name}
-                  </button>
-                ))}
-                <span class="menu-sep" role="separator" />
+            <form
+              class="segm-menu-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                commitRename();
+              }}
+            >
+              <label class="menu-label" for={`speaker-name-${segment.id}`}>
+                Rename {speaker?.name ?? 'speaker'} everywhere
+              </label>
+              <input
+                id={`speaker-name-${segment.id}`}
+                class="field segm-menu-input"
+                type="text"
+                autocomplete="off"
+                placeholder="Name"
+                maxLength={100}
+                value={name}
+                onInput={(event) => {
+                  setName(event.currentTarget.value);
+                }}
+              />
+              <div class="segm-menu-actions">
                 <button
-                  class="item menu-item"
+                  class="btn g segm-menu-btn"
                   type="button"
-                  role="menuitem"
-                  tabIndex={-1}
                   onClick={() => {
-                    setName('');
-                    setMode({ kind: 'new' });
+                    setRenaming(false);
+                    setOpen(true);
                   }}
                 >
-                  <span class="menu-check" aria-hidden="true" />
-                  New speaker…
+                  Back
                 </button>
-                {speaker === null ? null : (
-                  <button
-                    class="item menu-item"
-                    type="button"
-                    role="menuitem"
-                    tabIndex={-1}
-                    onClick={() => {
-                      setName(speaker.name);
-                      setMode({ kind: 'rename' });
-                    }}
-                  >
-                    <span class="menu-check" aria-hidden="true" />
-                    Rename {speaker.name}…
-                  </button>
-                )}
-              </>
-            ) : (
-              <form
-                class="segm-menu-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  commitName();
-                }}
-              >
-                <label class="menu-label" for={`speaker-name-${segment.id}`}>
-                  {mode.kind === 'new' ? 'New speaker for this line' : `Rename ${speaker?.name ?? 'speaker'} everywhere`}
-                </label>
-                <input
-                  id={`speaker-name-${segment.id}`}
-                  class="field segm-menu-input"
-                  type="text"
-                  autocomplete="off"
-                  placeholder="Name"
-                  value={name}
-                  onInput={(event) => {
-                    setName(event.currentTarget.value);
-                  }}
-                />
-                <div class="segm-menu-actions">
-                  <button
-                    class="btn g segm-menu-btn"
-                    type="button"
-                    onClick={() => {
-                      setMode({ kind: 'list' });
-                    }}
-                  >
-                    Back
-                  </button>
-                  <button class="btn p segm-menu-btn" type="submit" disabled={name.trim() === ''}>
-                    {mode.kind === 'new' ? 'Add' : 'Rename'}
-                  </button>
-                </div>
-              </form>
-            )}
+                <button class="btn p segm-menu-btn" type="submit" disabled={name.trim() === ''}>
+                  Rename
+                </button>
+              </div>
+            </form>
           </div>
         </PopoverLayer>
       ) : null}
@@ -368,6 +437,7 @@ function SegmentRow({
   query,
   currentOccurrence,
   editing,
+  caret,
   saving,
   highlights,
   handlers,
@@ -426,8 +496,11 @@ function SegmentRow({
             segment={segment}
             speaker={speaker}
             speakers={speakers}
-            onAssign={(speakerId, newName) => {
-              handlers.assign(segment, speakerId, newName);
+            onAssign={(chosen) => {
+              handlers.assign(segment, chosen);
+            }}
+            onAdd={(name) => {
+              handlers.addSpeaker(segment, name);
             }}
             onRename={(name) => {
               if (speaker !== null) {
@@ -445,17 +518,26 @@ function SegmentRow({
       </span>
       <span class="segm-body">
         {editing === null ? (
-          <SegmentText segment={segment} threshold={threshold} query={query} currentOccurrence={currentOccurrence} />
+          <SegmentText
+            segment={segment}
+            threshold={threshold}
+            query={query}
+            currentOccurrence={currentOccurrence}
+            onEdit={(at) => {
+              handlers.startEdit(segment, at);
+            }}
+          />
         ) : (
-          <SegmentEditor value={editing} saving={saving} onDraft={handlers.draft} onSave={handlers.save} onCancel={handlers.cancel} />
+          <SegmentEditor value={editing} caret={caret} saving={saving} onDraft={handlers.draft} onSave={handlers.save} onCancel={handlers.cancel} />
         )}
         {highlights.map((h) => (
-          <span key={h.id} class="segm-note">
-            <NotesIcon size={14} class="segm-note-icon" />
-            <span>
-              <span class="segm-note-by">{AUTHORS[h.origin]}</span> {h.note === '' ? `Highlight at ${formatDuration(h.atMs)}` : h.note}
-            </span>
-          </span>
+          <SegmentNote
+            key={h.id}
+            highlight={h}
+            onRename={(note) => {
+              handlers.renameHighlight(h, note);
+            }}
+          />
         ))}
       </span>
     </div>

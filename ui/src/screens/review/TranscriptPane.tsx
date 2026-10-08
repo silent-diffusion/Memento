@@ -13,6 +13,7 @@ import { computeWindow, RowHeights } from '../../format/virtualList';
 import { createFollowPlayhead, followScrollDelta, type FollowPlayhead } from '../../state/followPlayhead';
 import type { PlayerApi } from './Player';
 import { TranscriptSegmentRow, type SegmentHandlers } from './TranscriptSegment';
+import type { ReviewActions } from './reviewActions';
 import type { SearchApi, TranscriptApi } from './useTranscript';
 
 /** A typical segment's height before it is measured. */
@@ -42,6 +43,20 @@ export interface TranscriptPaneProps {
   onError: (title: string, message: string) => void;
   /** Filled by the pane: scrolls a segment into view (search jumps). */
   revealRef: { current: ((segmentId: string) => void) | null };
+  /** Every change goes through Review's actions, which register it with Undo. */
+  actions: ReviewActions;
+  /** A line or a name edited in place was saved ("Saved" beside the Undo button). */
+  onSaved: () => void;
+}
+
+/** The line being edited: the draft, the text it started from, and where the caret starts. */
+interface EditingLine {
+  segmentId: string;
+  draft: string;
+  /** The text when editing began: saving an unchanged draft writes nothing. */
+  startText: string;
+  caret: number | null;
+  saving: boolean;
 }
 
 /** The bottom edge of the sticky header and player strip, in viewport coordinates. */
@@ -235,7 +250,7 @@ interface ListProps {
   query: string;
   currentMatch: { segmentId: string; occurrence: number } | null;
   highlightsBySegment: Map<string, Highlight[]>;
-  editing: { segmentId: string; draft: string; saving: boolean } | null;
+  editing: EditingLine | null;
   handlers: SegmentHandlers;
   follow: FollowPlayhead;
   revealRef: TranscriptPaneProps['revealRef'];
@@ -465,6 +480,7 @@ function TranscriptList({
           query={query}
           currentOccurrence={currentMatch?.segmentId === segment.id ? currentMatch.occurrence : -1}
           editing={isEditing ? editing.draft : null}
+          caret={isEditing ? editing.caret : null}
           saving={isEditing && editing.saving}
           highlights={highlightsBySegment.get(segment.id) ?? NO_HIGHLIGHTS}
           handlers={handlers}
@@ -489,13 +505,13 @@ function TranscriptList({
   );
 }
 
-export function TranscriptPane({ project, api, search, player, chapterName, inProgress, onBackToRecording, onShowHistory, onError, revealRef }: TranscriptPaneProps): JSX.Element {
+export function TranscriptPane({ project, api, search, player, chapterName, inProgress, onBackToRecording, onShowHistory, onError, revealRef, actions, onSaved }: TranscriptPaneProps): JSX.Element {
   const result = api.result;
   const transcript = result?.transcript ?? null;
   const segments = useMemo(() => transcript?.segments ?? [], [transcript]);
   const speakers = useMemo(() => transcript?.speakers ?? [], [transcript]);
   const follow = useMemo(() => createFollowPlayhead(), []);
-  const [editing, setEditing] = useState<{ segmentId: string; draft: string; saving: boolean } | null>(null);
+  const [editing, setEditing] = useState<EditingLine | null>(null);
   const focusRef = useRef<((index: number) => void) | null>(null);
   const currentIndex = segmentIndexAt(segments, player.positionMs / 1000);
   const transcriptStage = api.stages.find((s) => s.stage === 'transcript') ?? null;
@@ -522,8 +538,8 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
 
   // Handlers stay one object for the life of the pane so the memoised rows do not redraw; each call
   // reads the latest state through the ref.
-  const latest = useRef({ editing, segments, api, player, follow, onError });
-  latest.current = { editing, segments, api, player, follow, onError };
+  const latest = useRef({ editing, segments, speakers, actions, player, follow, onError, onSaved });
+  latest.current = { editing, segments, speakers, actions, player, follow, onError, onSaved };
   const handlers = useMemo<SegmentHandlers>(() => {
     const focusSegment = (segmentId: string): void => {
       const index = latest.current.segments.findIndex((s) => s.id === segmentId);
@@ -536,29 +552,35 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
       }
       const segment = latest.current.segments.find((s) => s.id === current.segmentId);
       const text = current.draft.replace(/\s+/g, ' ').trim();
-      if (segment === undefined || text === '' || text === segment.text) {
+      // Unchanged since editing began (an undo may have changed the line meanwhile): nothing to write.
+      if (segment === undefined || text === '' || text === segment.text || text === current.startText.replace(/\s+/g, ' ').trim()) {
         setEditing(null);
         focusSegment(current.segmentId);
         return;
       }
       setEditing({ ...current, saving: true });
-      void latest.current.api.editSegment(current.segmentId, text).then((message) => {
-        if (message === null) {
+      latest.current.actions.editLine(segment, text).then(
+        () => {
           setEditing(null);
           focusSegment(current.segmentId);
-        } else {
+          latest.current.onSaved();
+        },
+        (e: unknown) => {
           setEditing({ ...current, saving: false });
-          latest.current.onError('The line was not saved', message);
-        }
-      });
+          latest.current.onError('The line was not saved', e instanceof Error ? e.message : 'Memento did not answer.');
+        },
+      );
+    };
+    const report = (title: string) => (e: unknown): void => {
+      latest.current.onError(title, e instanceof Error ? e.message : 'Memento did not answer.');
     };
     return {
       seek: (segment) => {
         latest.current.follow.resume();
         latest.current.player.seek(segment.start * 1000);
       },
-      startEdit: (segment) => {
-        setEditing({ segmentId: segment.id, draft: segment.text, saving: false });
+      startEdit: (segment, caret) => {
+        setEditing({ segmentId: segment.id, draft: segment.text, startText: segment.text, caret: caret ?? null, saving: false });
       },
       draft: (text) => {
         setEditing((e) => (e === null ? e : { ...e, draft: text }));
@@ -571,19 +593,19 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
           focusSegment(current.segmentId);
         }
       },
-      assign: (segment, speakerId, newName) => {
-        void latest.current.api.setSpeaker(segment.id, speakerId, newName).then((message) => {
-          if (message !== null) {
-            latest.current.onError('The speaker was not changed', message);
-          }
-        });
+      assign: (segment, speaker) => {
+        latest.current.actions.assignSpeaker(segment, speaker).catch(report('The speaker was not changed'));
+      },
+      addSpeaker: (segment, name) => {
+        latest.current.actions.addSpeaker(segment, name).catch(report(`${name} was not added as a speaker`));
       },
       rename: (speaker, name) => {
-        void latest.current.api.renameSpeaker(speaker.id, name).then((message) => {
-          if (message !== null) {
-            latest.current.onError(`${speaker.name} was not renamed`, message);
-          }
-        });
+        latest.current.actions.renameSpeaker(speaker, name).catch(report(`${speaker.name} was not renamed`));
+      },
+      renameHighlight: (highlight, note) => {
+        latest.current.actions.renameHighlight(highlight, note).then(() => {
+          latest.current.onSaved();
+        }, report('The highlight was not renamed'));
       },
       moveFocus: (index, direction) => {
         focusRef.current?.(index + direction);
@@ -738,17 +760,15 @@ export function TranscriptPane({ project, api, search, player, chapterName, inPr
       <div class="transcript-head">
         <span class="lbl">{chapterName}</span>
         <span class="transcript-head-end">
-          {showList ? <span class="transcript-hint">Click a line to play it · double-click to edit</span> : null}
+          {showList ? <span class="transcript-hint">Click the time to play a line · click the words to correct them</span> : null}
           {transcript === null ? null : (
             <button
               class={reviewed ? 'chip on tx-reviewed' : 'chip tx-reviewed'}
               type="button"
               aria-pressed={reviewed}
               onClick={() => {
-                void api.markReviewed(!reviewed).then((message) => {
-                  if (message !== null) {
-                    onError('The transcript was not marked', message);
-                  }
+                actions.markReviewed(!reviewed).catch((e: unknown) => {
+                  onError('The transcript was not marked', e instanceof Error ? e.message : 'Memento did not answer.');
                 });
               }}
             >

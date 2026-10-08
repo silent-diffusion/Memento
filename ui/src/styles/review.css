@@ -1139,8 +1139,9 @@ button.segm-speaker:hover .segm-speaker-name {
   box-shadow: 0 0 0 1.5px var(--accent-text);
 }
 
+/* The editor sits where the text was: its padding is taken back by the margins, so the words do not move. */
 .segm-editor {
-  width: 100%;
+  width: calc(100% + 20px);
   min-height: 34px;
   padding: 6px 10px;
   margin: -6px -10px;

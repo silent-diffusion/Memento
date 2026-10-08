@@ -3,13 +3,14 @@
 // topics, history and transcript versions come with it (M2).
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Project, RecordingDetails, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
+import type { Project, TranscriptSearchMatch, TranscriptVersion } from '../../bridge/types';
 import { DetailsSheet } from '../../components/DetailsSheet';
 import type { AgendaMode } from '../../components/agenda/useAgendaImport';
 import { StatusFooter } from '../../components/StatusFooter';
 import { CheckIcon, DocumentPlusIcon, MoreIcon } from '../../components/icons';
 import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
+import { UndoButton } from '../../components/UndoButton';
 import { formatDuration } from '../../format/duration';
 import { activeChapterIndex } from '../../format/player';
 import { silenceGaps } from '../../format/silences';
@@ -19,10 +20,12 @@ import { calendarDaysBetween, formatClock, formatWhen, parseIso } from '../../fo
 import { goToLibrary, openRecord, requestDelete } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { createDetailsSaver, type DetailsSaver } from '../../state/detailsSaver';
+import { undoOf } from '../../state/undo';
 import { PlayerStrip, usePeaks, usePlayer } from './Player';
 import { DetailsPane, OutlinePane, type DetailsTab } from './ReviewPanes';
 import { TRANSCRIPT_SCROLLER, TranscriptPane } from './TranscriptPane';
 import { FloatingPopovers } from '../../components/Floating';
+import { createReviewActions, type ReviewActionDeps } from './reviewActions';
 import { useTranscript, useTranscriptSearch } from './useTranscript';
 import { rememberPlayhead } from '../docview/playhead';
 
@@ -190,23 +193,46 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const patch = (changes: Partial<Project>): void => {
     setProject((p) => (p === null ? p : { ...p, ...changes }));
   };
-
-  const updateDetails = (details: Partial<RecordingDetails>, failure: string): void => {
-    bridge
-      .call('project.updateDetails', { recordingId, details })
-      .then((p) => {
-        setProject(p);
-      })
-      .catch(fail(failure));
+  const saved = (): void => {
+    undoOf(store).announce('Saved');
   };
 
+  // Undo: one stack for this recording while Review is open (state/undo.ts); every change goes through the actions.
+  const undo = undoOf(store);
+  const scope = `review:${recordingId}`;
+  useEffect(() => {
+    undo.claim(scope);
+    return () => {
+      undo.release(scope);
+    };
+  }, [undo, scope]);
+  const depsRef = useRef<ReviewActionDeps | null>(null);
+  depsRef.current = {
+    bridge,
+    recordingId,
+    undo,
+    api: transcriptApi,
+    transcript,
+    project,
+    patch,
+    setProject: (p) => {
+      setProject(p);
+    },
+  };
+  const actions = useMemo(
+    () =>
+      createReviewActions(() => {
+        const deps = depsRef.current;
+        if (deps === null) {
+          throw new Error('Review is not open.');
+        }
+        return deps;
+      }),
+    [],
+  );
+
   const addHighlight = (): void => {
-    bridge
-      .call('annotations.addHighlight', { recordingId, highlight: { atMs: Math.round(player.positionMs), note: '' } })
-      .then(({ highlights }) => {
-        patch({ highlights });
-      })
-      .catch(fail('The highlight was not added'));
+    actions.addHighlight(Math.round(player.positionMs)).catch(fail('The highlight was not added'));
   };
 
   const jump = (match: TranscriptSearchMatch): void => {
@@ -248,6 +274,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
         }
         actions={
           <>
+            <UndoButton />
             <button
               class="btn ghost spoke-ghost"
               type="button"
@@ -342,38 +369,40 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               onSeek={player.seek}
               speakers={speakersIdentified ? transcript.speakers : null}
               onAddChapter={(atMs, chapterTitle) => {
-                bridge
-                  .call('annotations.addChapter', { recordingId, chapter: { atMs, title: chapterTitle } })
-                  .then(({ chapters }) => {
-                    patch({ chapters });
-                  })
-                  .catch(fail('The chapter was not added'));
+                actions.addChapter(atMs, chapterTitle).catch(fail('The chapter was not added'));
+              }}
+              onRenameChapter={(chapter, chapterTitle) => {
+                actions
+                  .renameChapter(chapter, chapterTitle)
+                  .then(saved)
+                  .catch(fail(`“${chapter.title}” was not renamed`));
+              }}
+              onRemoveChapter={(chapter) => {
+                actions.removeChapter(chapter).catch(fail(`“${chapter.title}” was not removed`));
+              }}
+              onRenameHighlight={(highlight, note) => {
+                actions
+                  .renameHighlight(highlight, note)
+                  .then(saved)
+                  .catch(fail('The highlight was not renamed'));
+              }}
+              onRemoveHighlight={(highlight) => {
+                actions.removeHighlight(highlight).catch(fail('The highlight was not removed'));
               }}
               onAddTopic={(label) => {
-                bridge
-                  .call('annotations.addTopic', { recordingId, topic: { label } })
-                  .then(({ topics }) => {
-                    patch({ topics });
-                  })
-                  .catch(fail('The topic was not added'));
+                actions.addTopic(label).catch(fail('The topic was not added'));
               }}
               onRemoveTopic={(topic) => {
-                bridge
-                  .call('annotations.removeTopic', { recordingId, topicId: topic.id })
-                  .then(({ topics }) => {
-                    patch({ topics });
-                  })
-                  .catch(fail('The topic was not removed'));
+                actions.removeTopic(topic).catch(fail('The topic was not removed'));
               }}
               onRenamePerson={(index, name) => {
-                const participants = project.details.participants.map((p, i) => (i === index ? name : p));
-                updateDetails({ participants }, 'The name was not changed');
+                actions.renamePerson(index, name).catch(fail('The name was not changed'));
               }}
               onRenameSpeaker={(speaker, name) => {
-                void transcriptApi.renameSpeaker(speaker.id, name).then(report(`${speaker.name} was not renamed`));
+                actions.renameSpeaker(speaker, name).catch(fail(`${speaker.name} was not renamed`));
               }}
               onMergeSpeakers={(from, into) => {
-                void transcriptApi.mergeSpeakers(from.id, into.id).then(report(`${from.name} was not merged into ${into.name}`));
+                actions.mergeSpeakers(from, into).catch(fail(`${from.name} was not merged into ${into.name}`));
               }}
             />
 
@@ -399,6 +428,10 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   chapterName={chapterName}
                   inProgress={inProgress}
                   revealRef={revealRef}
+                  actions={actions}
+                  onSaved={() => {
+                    undo.announce('Saved');
+                  }}
                   onBackToRecording={() => {
                     openRecord(services);
                   }}
@@ -436,7 +469,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                 setSheetOpen(true);
               }}
               onTags={(tags) => {
-                updateDetails({ tags }, 'The tags were not saved');
+                actions.setTags(tags).catch(fail('The tags were not saved'));
               }}
               onCreateDocument={createDocument}
             />

@@ -3,7 +3,16 @@
 // each applied to the local copy from the host's answer.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { BridgeClient } from '../../bridge/client';
-import type { Speaker, StageName, StageStatus, TranscriptGetResult, TranscriptSearchMatch, TranscriptSegment } from '../../bridge/types';
+import type {
+  Speaker,
+  SpeakerRestore,
+  StageName,
+  StageStatus,
+  TranscriptGetResult,
+  TranscriptSearchMatch,
+  TranscriptSegment,
+  TranscriptSetSegmentSpeakerResult,
+} from '../../bridge/types';
 import { isPausedLabel, stepMatch } from '../../format/transcript';
 
 function messageOf(error: unknown, fallback: string): string {
@@ -15,11 +24,17 @@ export interface TranscriptApi {
   error: string | null;
   /** Every stage of the recording, live. */
   stages: StageStatus[];
-  /** The host's answer is the new segment; failures come back as the host's message. */
-  editSegment: (segmentId: string, text: string) => Promise<string | null>;
-  setSpeaker: (segmentId: string, speakerId: string | null, newSpeakerName?: string) => Promise<string | null>;
-  renameSpeaker: (speakerId: string, name: string) => Promise<string | null>;
-  mergeSpeakers: (fromSpeakerId: string, intoSpeakerId: string) => Promise<string | null>;
+  // The edits below apply the host's answer to the local copy and reject with the host's error (Review's
+  // actions register them for Undo and show a refusal); the others resolve to the host's message or null.
+  editSegment: (segmentId: string, text: string) => Promise<TranscriptSegment>;
+  setSpeaker: (segmentId: string, speakerId: string | null, newSpeakerName?: string) => Promise<TranscriptSetSegmentSpeakerResult>;
+  renameSpeaker: (speakerId: string, name: string) => Promise<Speaker[]>;
+  /** Resolves to the number of lines that moved. */
+  mergeSpeakers: (fromSpeakerId: string, intoSpeakerId: string) => Promise<number>;
+  /** Undo: a speaker back with its id, name and colour, with these lines. */
+  restoreSpeaker: (speaker: SpeakerRestore, segmentIds: string[]) => Promise<void>;
+  /** Undo of adding a speaker: removes one no line is assigned to. */
+  removeSpeaker: (speakerId: string) => Promise<void>;
   markReviewed: (reviewed: boolean) => Promise<string | null>;
   retry: (stage: StageName, remedyId?: string) => Promise<string | null>;
   transcribe: (modelId?: string, language?: string) => Promise<string | null>;
@@ -41,6 +56,15 @@ function withSegment(result: TranscriptGetResult, segment: TranscriptSegment, sp
       ...(speakers === undefined ? {} : { speakers }),
     },
   };
+}
+
+/** The speakers from the host's answer, and optionally each segment changed the way the host did. */
+function withSpeakers(result: TranscriptGetResult, speakers: Speaker[], segment?: (s: TranscriptSegment) => TranscriptSegment): TranscriptGetResult {
+  const transcript = result.transcript;
+  if (transcript === null) {
+    return result;
+  }
+  return { ...result, transcript: { ...transcript, speakers, ...(segment === undefined ? {} : { segments: transcript.segments.map(segment) }) } };
 }
 
 export function useTranscript(bridge: BridgeClient, recordingId: string, initialStages: StageStatus[] | null): TranscriptApi {
@@ -128,31 +152,42 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
     reload: () => {
       setReload((n) => n + 1);
     },
-    editSegment: (segmentId, text) =>
-      attempt(async () => {
-        const { segment } = await bridge.call('transcript.editSegment', { recordingId, segmentId, text });
-        apply((r) => withSegment(r, segment));
-      }, 'The line was not saved.'),
-    setSpeaker: (segmentId, speakerId, newSpeakerName) =>
-      attempt(async () => {
-        const { segment, speakers } = await bridge.call('transcript.setSegmentSpeaker', {
-          recordingId,
-          segmentId,
-          speakerId,
-          ...(newSpeakerName === undefined ? {} : { newSpeakerName }),
-        });
-        apply((r) => withSegment(r, segment, speakers));
-      }, 'The speaker was not changed.'),
-    renameSpeaker: (speakerId, name) =>
-      attempt(async () => {
-        const { speakers } = await bridge.call('transcript.renameSpeaker', { recordingId, speakerId, name });
-        apply((r) => (r.transcript === null ? r : { ...r, transcript: { ...r.transcript, speakers } }));
-      }, 'The speaker was not renamed.'),
-    mergeSpeakers: (fromSpeakerId, intoSpeakerId) =>
-      attempt(async () => {
-        await bridge.call('transcript.mergeSpeakers', { recordingId, fromSpeakerId, intoSpeakerId });
-        setReload((n) => n + 1);
-      }, 'The speakers were not merged.'),
+    editSegment: async (segmentId, text) => {
+      const { segment } = await bridge.call('transcript.editSegment', { recordingId, segmentId, text });
+      apply((r) => withSegment(r, segment));
+      return segment;
+    },
+    setSpeaker: async (segmentId, speakerId, newSpeakerName) => {
+      const answer = await bridge.call('transcript.setSegmentSpeaker', {
+        recordingId,
+        segmentId,
+        speakerId,
+        ...(newSpeakerName === undefined ? {} : { newSpeakerName }),
+      });
+      apply((r) => withSegment(r, answer.segment, answer.speakers));
+      return answer;
+    },
+    renameSpeaker: async (speakerId, name) => {
+      const { speakers } = await bridge.call('transcript.renameSpeaker', { recordingId, speakerId, name });
+      apply((r) => withSpeakers(r, speakers));
+      return speakers;
+    },
+    mergeSpeakers: async (fromSpeakerId, intoSpeakerId) => {
+      const { speakers, segmentsChanged } = await bridge.call('transcript.mergeSpeakers', { recordingId, fromSpeakerId, intoSpeakerId });
+      apply((r) => withSpeakers(r, speakers, (s) => (s.speaker === fromSpeakerId ? { ...s, speaker: intoSpeakerId } : s)));
+      setReload((n) => n + 1);
+      return segmentsChanged;
+    },
+    restoreSpeaker: async (speaker, segmentIds) => {
+      const { speakers } = await bridge.call('transcript.restoreSpeaker', { recordingId, speaker, segmentIds });
+      const lines = new Set(segmentIds);
+      apply((r) => withSpeakers(r, speakers, (s) => (lines.has(s.id) ? { ...s, speaker: speaker.id, speakerConfidence: 1 } : s)));
+      setReload((n) => n + 1);
+    },
+    removeSpeaker: async (speakerId) => {
+      const { speakers } = await bridge.call('transcript.removeSpeaker', { recordingId, speakerId });
+      apply((r) => withSpeakers(r, speakers));
+    },
     markReviewed: (reviewed) =>
       attempt(async () => {
         const answer = await bridge.call('transcript.markReviewed', { recordingId, reviewed });

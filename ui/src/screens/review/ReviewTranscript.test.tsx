@@ -181,36 +181,60 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect(segment('Let us keep those')).toBeDefined();
   });
 
-  it('reassigns a line, adds a speaker and renames one from the speaker menu', async () => {
-    await openWithTranscript();
-    const line = segment('Okay, I think everyone');
+  const option = (name: string): HTMLElement => {
+    const match = [...document.querySelectorAll<HTMLElement>('.speaker-menu [role="option"]')].find((o) => o.textContent.trim() === name);
+    if (match === undefined) {
+      throw new Error(`no option named ${name}`);
+    }
+    return match;
+  };
+
+  const openSpeakerMenu = async (text: string): Promise<HTMLInputElement> => {
+    const line = segment(text);
     await click(line.querySelector('.segm-speaker') ?? line);
-    const menu = document.querySelector('.segm-menu');
-    expect([...(menu?.querySelectorAll('[role="menuitemradio"]') ?? [])].map((m) => [m.textContent, m.getAttribute('aria-checked')])).toEqual([
-      ['Sam Okafor', 'true'],
+    const search = document.querySelector<HTMLInputElement>('.speaker-menu input[role="combobox"]');
+    if (search === null) {
+      throw new Error('no speaker search');
+    }
+    return search;
+  };
+
+  it('reassigns a line, finds and adds a speaker, and renames one from the speaker menu', async () => {
+    await openWithTranscript();
+    const search = await openSpeakerMenu('Okay, I think everyone');
+    expect(search.placeholder).toBe('Find or add a speaker');
+    expect(document.activeElement).toBe(search);
+    const menu = document.querySelector('.speaker-menu');
+    expect([...(menu?.querySelectorAll('[role="option"]') ?? [])].map((m) => [m.textContent, m.getAttribute('aria-selected')])).toEqual([
+      ['Sam Okafor (current)', 'true'],
       ['Aiko Tanaka', 'false'],
       ['Lena Fischer', 'false'],
       ['Speaker 4', 'false'],
+      ['Rename Sam Okafor…', 'false'],
     ]);
-    await click(button('Lena Fischer', menu ?? document));
+    // The current speaker is where the arrow keys start.
+    expect(search.getAttribute('aria-activedescendant')).toBe(menu?.querySelector('[aria-selected="true"]')?.id);
+    await click(option('Lena Fischer'));
     await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Lena Fischer');
+    expect(document.querySelector('.speaker-menu')).toBeNull();
 
-    // New speaker…
-    await click(segment('Okay, I think everyone').querySelector('.segm-speaker') ?? line);
-    await click(button('New speaker…'));
-    const input = document.querySelector<HTMLInputElement>('.segm-menu-input');
-    if (input === null) {
-      throw new Error('no name field');
-    }
-    await typeInto(input, 'Jonah Berg');
-    await click(button('Add'));
+    // Typing filters (case and accents ignored); a name nobody has can be added, and Enter on it adds it.
+    const again = await openSpeakerMenu('Okay, I think everyone');
+    await typeInto(again, 'LENA');
+    // Add stays offered unless a speaker has exactly that name (two people may share a first name).
+    expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual(['Lena Fischer (current)', 'Add “LENA” as a new speaker']);
+    await typeInto(again, 'lena fischer');
+    expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual(['Lena Fischer (current)']);
+    await typeInto(again, 'Jonah Berg');
+    expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual(['Add “Jonah Berg” as a new speaker']);
+    await press(again, 'Enter');
     await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Jonah Berg');
     // Jonah is a speaker now, so the participants list no longer repeats him.
     await until(() => !container.textContent.includes('Also listed as participants'));
 
     // Rename… renames everywhere.
-    await click(segment('Mm-hm.').querySelector('.segm-speaker') ?? line);
-    await click(button('Rename Speaker 4…'));
+    await openSpeakerMenu('Mm-hm.');
+    await click(option('Rename Speaker 4…'));
     const rename = document.querySelector<HTMLInputElement>('.segm-menu-input');
     if (rename === null) {
       throw new Error('no rename field');
@@ -220,6 +244,117 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await click(button('Rename'));
     await until(() => [...container.querySelectorAll('.person-name')].some((p) => p.textContent === 'Dana Whitfield'));
     expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Dana Whitfield');
+  });
+
+  it('moves through the speaker menu with the arrow keys, ranks names that start with the text first, and closes with Esc', async () => {
+    await openWithTranscript();
+    // Many speakers: the menu stays inside the window and its list scrolls.
+    const first = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript?.segments.find((s) => s.text.startsWith('Okay, I think everyone'))?.id ?? '';
+    for (const name of ['Ana Lima', 'Bea Novak', 'Cai Wen', 'Dario Rossi', 'Elif Kaya', 'Femi Ade', 'Göran Berg', 'Hana Sato', 'Iris Lund', 'Jonas Ek']) {
+      await act(async () => {
+        await bridge.call('transcript.setSegmentSpeaker', { recordingId: DESIGN_REVIEW, segmentId: first, speakerId: null, newSpeakerName: name });
+      });
+    }
+    await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Jonas Ek');
+    const search = await openSpeakerMenu('Okay, I think everyone');
+    const menu = document.querySelector<HTMLElement>('.speaker-menu');
+    expect(menu?.querySelectorAll('[role="option"]')).toHaveLength(15);
+    expect(menu?.style.maxHeight).toMatch(/^\d+px$/);
+    expect(Number.parseInt(menu?.style.maxHeight ?? '0', 10)).toBeLessThanOrEqual(420);
+    const active = (): string | undefined => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.textContent;
+    expect(active()).toBe('Jonas Ek (current)');
+    await press(search, 'ArrowDown');
+    expect(active()).toBe('Rename Jonas Ek…');
+    await press(search, 'ArrowDown');
+    expect(active()).toBe('Sam Okafor');
+    await press(search, 'ArrowUp');
+    await press(search, 'ArrowUp');
+    expect(active()).toBe('Jonas Ek (current)');
+    // "be": Bea starts with it, Berg has a word that does, Lena Fischer... does not hold it; "goran" ignores the accent.
+    await typeInto(search, 'be');
+    expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual(['Bea Novak', 'Göran Berg', 'Add “be” as a new speaker']);
+    await typeInto(search, 'goran');
+    await press(search, 'Enter');
+    await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Göran Berg');
+    const reopened = await openSpeakerMenu('Okay, I think everyone');
+    await press(reopened, 'Escape');
+    expect(document.querySelector('.speaker-menu')).toBeNull();
+    expect(document.activeElement).toBe(segment('Okay, I think everyone').querySelector('.segm-speaker'));
+  });
+
+  it('edits a line in place with the caret where the text was clicked, keeps the line while playing, and saves on leaving', async () => {
+    await openWithTranscript();
+    const line = segment('Great. Lena');
+    const text = line.querySelector<HTMLElement>('.segm-text');
+    const words = text?.firstChild;
+    if (text === null || words === null || words === undefined) {
+      throw new Error('no text');
+    }
+    // The browser reports the caret under the pointer; jsdom has none, so the test gives one.
+    Object.defineProperty(document, 'caretPositionFromPoint', { value: () => ({ offsetNode: words, offset: 6 }), configurable: true });
+    const scrubber = container.querySelector('.scrubber')?.getAttribute('aria-valuetext');
+    try {
+      await click(text);
+    } finally {
+      Reflect.deleteProperty(document, 'caretPositionFromPoint');
+    }
+    const editor = container.querySelector<HTMLTextAreaElement>('.segm-editor');
+    if (editor === null) {
+      throw new Error('no editor');
+    }
+    expect(document.activeElement).toBe(editor);
+    expect([editor.selectionStart, editor.selectionEnd]).toEqual([6, 6]);
+    // Clicking the words corrects them; it does not move the player.
+    expect(container.querySelector('.scrubber')?.getAttribute('aria-valuetext')).toBe(scrubber);
+
+    // Playback moving on does not take the line away while it is edited.
+    await click(button('Play from 1:01:20, Owners and next steps'));
+    await settle();
+    expect(container.querySelector('.scrubber')?.getAttribute('aria-valuetext')).toBe('1:01:20 of 1:10:02');
+    expect(container.querySelector('.segm-editor')).toBe(editor);
+    // The list did not follow the playhead to the end of the recording.
+    const rendered = [...container.querySelectorAll<HTMLElement>('.segm')].map((el) => Number(el.dataset.index));
+    expect(Math.max(...rendered)).toBeLessThan(60);
+
+    await typeInto(editor, 'Great. Lena, you had questions?');
+    await act(async () => {
+      editor.blur();
+      editor.dispatchEvent(new FocusEvent('blur'));
+      await Promise.resolve();
+    });
+    await until(() => container.querySelector('.segm-editor') === null);
+    expect(segment('Great. Lena, you had questions?').querySelector('.segm-edited')).not.toBeNull();
+    await until(() => container.querySelector('.undo-status')?.textContent === 'Saved');
+  });
+
+  it('renames a highlight from its note under the line', async () => {
+    await openWithTranscript();
+    // Play from the first highlight in the outline: the transcript follows to its line.
+    const time = container.querySelectorAll<HTMLElement>('.review-outline .outline-group')[1]?.querySelector<HTMLElement>('.chap-time');
+    if (time === null || time === undefined) {
+      throw new Error('no highlight in the outline');
+    }
+    await click(time);
+    const note = await (async (): Promise<HTMLButtonElement> => {
+      await until(() => container.querySelector('.segm-note-edit') !== null);
+      const found = container.querySelector<HTMLButtonElement>('.segm-note-edit');
+      if (found === null) {
+        throw new Error('no note');
+      }
+      return found;
+    })();
+    const before = note.textContent;
+    await click(note);
+    const input = container.querySelector<HTMLInputElement>('.segm-note-input');
+    if (input === null) {
+      throw new Error('no note field');
+    }
+    expect(input.getAttribute('aria-label')).toBe('Name of the highlight at 18:42. Enter saves, Esc cancels.');
+    await typeInto(input, 'Decision: keep 68 px rows');
+    await press(input, 'Enter');
+    await until(() => [...container.querySelectorAll('.segm-note-words')].some((w) => w.textContent === 'Decision: keep 68 px rows'));
+    expect([...container.querySelectorAll('.chap-note')].map((n) => n.textContent)).toContain('Decision: keep 68 px rows');
+    expect(before).not.toBe('Decision: keep 68 px rows');
   });
 
   it('searches live, steps with Enter and Shift+Enter, highlights matches and clears with Esc', async () => {
@@ -387,9 +522,14 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
 
     await click(button('Merge Dana Whitfield into someone else'));
     // The menu floats on <body> above the scrolling outline (components/Floating.tsx).
-    const mergeMenu = document.querySelector<HTMLElement>('.popover-layer [role="menu"]');
+    const mergeMenu = document.querySelector<HTMLElement>('.popover-layer .speaker-menu');
     expect(mergeMenu).not.toBeNull();
-    await click(button('Lena Fischer', mergeMenu ?? document));
+    const search = mergeMenu?.querySelector<HTMLInputElement>('input');
+    if (search === null || search === undefined) {
+      throw new Error('no search');
+    }
+    await typeInto(search, 'fisch');
+    await press(search, 'Enter');
     await until(() => ![...container.querySelectorAll('.person-name')].some((p) => p.textContent === 'Dana Whitfield'));
     expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Lena Fischer');
   });
