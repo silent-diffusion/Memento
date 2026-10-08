@@ -7,6 +7,15 @@ packed into the installer package, and the release workflow uses it as the GitHu
 
 Speakers that stick to the number you set, a transcript that stays with the audio, filters, copying to the clipboard, and History you can step back into. Memento updates itself to it.
 
+### Fixed: the transcript stays with the audio
+
+- **Lines now start where the voice starts.** The highlight used to run ahead of the audio by a few seconds and lose whole stretches after long silences. Measurement showed the player, the mix and the clocks were exact: Whisper was starting each line at the beginning of the pause before it, usually on a whole second, and after a pause of 20 seconds or more it could write one sentence over and over through the real speech, which the repeat filter then dropped along with the speech. The transcription worker now shortens every silence to under a second before Whisper hears it, cuts each window between sounds into pieces under 30 seconds so Whisper never breaks a sentence itself, maps the times back and snaps each line to where sound actually starts and stops. On a recording with known timings, 29 of 30 lines start within 10 ms of the voice; on a 55-minute meeting, line starts went from −3.5 to +7 s off to within −0.3 to +0.9 s, and speech with no transcript nearby fell from 14% to 0.3%. Transcription takes about 6% longer.
+- **Recordings transcribed before 1.3.0 keep their old timing** until you choose **Transcribe again** from Review's More menu.
+
+### History
+
+- **Step back into a version.** In Review's History, every line that produced a kept version (a transcript after transcription, speakers, edits or a restore; a document after generation or edits) is now a button. It opens that version read-only under a banner such as "Transcript as of 5:30 PM, after speakers were identified", with **Restore this version** (one Undo step) and **Back to current** (or Esc). Lines that made no version, such as recorded, saved or exported, say so when hovered. A document line opens the viewer on that version, and the viewer's Versions list opens versions the same way. Recordings from earlier versions get the links too.
+
 ### Review
 
 - **See only one speaker.** Click a speaker's name in People and the transcript shows just their lines, with the row pressed in and their line count. Click again, **Show all** or Esc to clear; Ctrl+click adds another speaker. The **Filter** chip in the transcript header combines speakers, **Highlights**, **Uncertain words**, **Edited lines**, one chapter's span and the search text, each with its count. A line reads "Showing 42 of 318 lines · Sarah · Highlights" with **Copy** and **Show all**. Hidden lines are only hidden: playback, seeking, the arrow keys, editing in place and Undo work on the lines shown.
