@@ -14,7 +14,8 @@ namespace Memento.Audio.Recording;
 /// at the stop instant. Independent of Core: an adapter maps it onto <c>IRecordingEngine</c> and the bridge events.
 /// <para>
 /// Threads: capture threads only fill channels; one pump task per track writes; levels and checkpoints run on
-/// timers. Events are raised on thread-pool threads and never on a capture thread.
+/// timers. Events are raised on thread-pool threads and never on a capture thread (a replay of a missed
+/// <see cref="SourceLost"/> or <see cref="Stopped"/> runs on the subscribing thread).
 /// </para>
 /// </summary>
 public sealed partial class AudioRecordingSession : IAsyncDisposable
@@ -31,6 +32,8 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
     private readonly SemaphoreSlim _operations = new(1, 1);
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly TaskCompletionSource<AudioSessionResult> _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly ReplayEvent<SourceLostEventArgs> _sourceLost = new();
+    private readonly ReplayEvent<SessionStoppedEventArgs> _stoppedEvent = new();
     private Timer? _levelTimer;
     private Timer? _checkpointTimer;
     private AudioSessionState _state = AudioSessionState.Recording;
@@ -54,11 +57,26 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
     /// <summary>After every checkpoint (timer or <see cref="CheckpointAsync"/>): what is durable on disk, with drift.</summary>
     public event EventHandler<CheckpointEventArgs>? Checkpointed;
 
-    /// <summary>A source went away; its track has ended and the others continue.</summary>
-    public event EventHandler<SourceLostEventArgs>? SourceLost;
+    /// <summary>
+    /// A source went away; its track has ended and the others continue. Never missed: a source can be lost before
+    /// <see cref="StartAsync"/>'s caller subscribes, so a handler added later receives every earlier loss at once,
+    /// on the subscribing thread.
+    /// </summary>
+    public event EventHandler<SourceLostEventArgs>? SourceLost
+    {
+        add => Replay(value, _sourceLost.Add(value));
+        remove => _sourceLost.Remove(value);
+    }
 
-    /// <summary>The session stopped (requested, disk full, write failure or every source lost).</summary>
-    public event EventHandler<SessionStoppedEventArgs>? Stopped;
+    /// <summary>
+    /// The session stopped (requested, disk full, write failure or every source lost). Like <see cref="SourceLost"/>,
+    /// a handler added after the stop receives it at once, on the subscribing thread.
+    /// </summary>
+    public event EventHandler<SessionStoppedEventArgs>? Stopped
+    {
+        add => Replay(value, _stoppedEvent.Add(value));
+        remove => _stoppedEvent.Remove(value);
+    }
 
     public DateTimeOffset StartedAt { get; }
 
@@ -425,7 +443,7 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
         if (lost is not null)
         {
             LogSourceLost(_logger, lost.SourceId, lost.Reason, lost.At.TotalSeconds);
-            Raise(SourceLost, lost);
+            Raise(_sourceLost.Record(lost), lost);
             if (noneLeft)
             {
                 _ = Task.Run(() => StopCoreAsync(SessionStopReason.AllSourcesLost, $"Recording stopped at {Clock(lost.At)} because every source was lost. Everything recorded up to then is kept."));
@@ -498,8 +516,11 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
             }
 
             LogStopped(_logger, reason, result.Duration.TotalSeconds, result.Tracks.Count);
+            // Recorded before Completion finishes, so whoever subscribes once it has finished gets the replay.
+            var stoppedArgs = new SessionStoppedEventArgs(result);
+            var stoppedHandlers = _stoppedEvent.Record(stoppedArgs);
             _stopped.TrySetResult(result);
-            Raise(Stopped, new SessionStoppedEventArgs(result));
+            Raise(stoppedHandlers, stoppedArgs);
             return result;
         }
 #pragma warning disable CA1031 // The stop path must always complete the session, whatever went wrong.
@@ -578,6 +599,15 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
         }
 
         Raise(Levels, new LevelsEventArgs(levels));
+    }
+
+    private void Replay<T>(EventHandler<T>? handler, IReadOnlyList<T> missed)
+        where T : EventArgs
+    {
+        foreach (var args in missed)
+        {
+            Raise(handler, args);
+        }
     }
 
     private void Raise<T>(EventHandler<T>? handler, T args)

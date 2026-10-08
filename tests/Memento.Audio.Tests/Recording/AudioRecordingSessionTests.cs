@@ -183,6 +183,34 @@ public sealed class AudioRecordingSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task ALossBeforeTheCallerSubscribedIsStillReportedExactlyOnce()
+    {
+        // StartAsync starts capturing before its caller can subscribe. On a starved runner the caller's continuation
+        // can run only after a source is already lost (CI: SourceLost never arrived). Force that order: subscribe
+        // only once the whole session has ended because of the loss.
+        _factory.LoseAfter[Mic] = TimeSpan.FromMilliseconds(100);
+        await using var session = await Start(Mic);
+        var result = await session.Completion.WaitAsync(Patience.Ceiling);
+        var lost = new List<SourceLostEventArgs>();
+        var stopped = new List<SessionStoppedEventArgs>();
+
+        session.SourceLost += (_, e) => lost.Add(e);
+        session.Stopped += (_, e) => stopped.Add(e);
+
+        // Delivered during the subscription, once each.
+        var loss = Assert.Single(lost);
+        Assert.Equal(Mic, loss.SourceId);
+        Assert.Equal(CaptureLostReason.DeviceInvalidated, loss.Reason);
+        Assert.Empty(loss.Remaining);
+        var capture = Assert.Single(_factory.Opened);
+        var wentAway = TimeSpan.FromTicks(capture.StartedAtQpc + TimeSpan.FromMilliseconds(100).Ticks - session.StartedAtQpc);
+        Assert.InRange((loss.At - wentAway).Duration().TotalMilliseconds, 0, 1);
+        Assert.Equal(loss.At, Assert.Single(result.Tracks).EndedEarlyAt);
+        Assert.Same(result, Assert.Single(stopped).Result);
+        Assert.Equal(SessionStopReason.AllSourcesLost, result.StopReason);
+    }
+
+    [Fact]
     public async Task LosingTheLastSourceStopsTheSession()
     {
         _factory.LoseAfter[Mic] = TimeSpan.FromMilliseconds(250);
