@@ -441,7 +441,9 @@ Users should be able to:
 * Search the transcript
 * Navigate between transcript sections and corresponding media
 
-In Review, a single click on a transcript line plays it; a double-click edits it in place. Low-confidence words are visibly marked. Highlights and notes attach to the segment they belong to.
+In Review, a click on a transcript line's time plays it; a click on its words edits it in place with the caret at the click (a double-click edits too). Low-confidence words are visibly marked. Highlights and notes attach to the segment they belong to; a highlight's or chapter's name is renamed by clicking it. The speaker menu on a line searches the speakers as you type and adds a new one by name.
+
+Every change made in Review, the document builder and the document viewer can be undone with an Undo button and Ctrl+Z, and redone with Ctrl+Y or Ctrl+Shift+Z, step by step, while that recording, template or document stays open.
 
 Edits should remain associated with the underlying recording and, when version history is enabled, be versioned.
 

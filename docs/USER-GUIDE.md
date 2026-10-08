@@ -78,10 +78,11 @@ Review opens after you stop, or when you open a recording from the Library.
 
 - The **player** plays the mix of all tracks. Click the waveform to jump, or use the time slider (left/right arrows: 5 seconds; with Shift: 30 seconds). **Skip silences** (next to the speed) jumps over every pause longer than a second and a half between transcript lines; the skipped stretches are dimmed on the waveform and "Skipped 4 s" appears briefly where playback landed. It needs a transcript, never skips while you scrub, and Memento remembers whether it is on.
 - On a window 1024 pixels or wider the player stays in place and the outline on the left, the transcript and the details on the right each scroll on their own. On a narrower window they stack and the page scrolls.
-- The **transcript** follows the playback. Click a line to play it; double-click to correct it (the original wording is kept). Words the engine was unsure of have a dotted underline.
+- The **transcript** follows the playback. Click a line's time (or anywhere beside its words) to play it. Click its words to correct them: the line becomes a text box with the cursor where you clicked; **Enter** or clicking elsewhere saves ("Saved" appears next to Undo), **Esc** cancels. Double-click and F2 still edit too, and the transcript does not scroll away from a line you are correcting while it plays. The original wording is kept. Words the engine was unsure of have a dotted underline.
 - **Search** finds words in the transcript; the Library search also finds words across all recordings.
 - **Mark as reviewed** when you have checked it.
-- **Chapters and highlights** are on the left; add chapters by hand at the playback position. Topics are suggested from the words on your PC.
+- **Chapters and highlights** are on the left; add chapters by hand at the playback position. Click a time to play from there; click a name to rename it in place (Enter saves, Esc cancels); × removes it. A highlight's note under its transcript line can be renamed the same way. Topics are suggested from the words on your PC.
+- **Undo** (in the header, or **Ctrl+Z**) takes back what you just did in Review: a corrected line, a speaker moved, added, renamed or merged, a highlight, chapter or topic added, renamed or removed, a renamed person, tags, the reviewed mark. **Ctrl+Y** or **Ctrl+Shift+Z** does it again. The button's tooltip names the step ("Undo merge speakers") and "Undone: merge speakers" appears beside it. Up to 50 steps are kept while the recording is open; opening another recording starts afresh.
 - **Details** and **History** are on the right. History lists everything that happened to the recording: when it was recorded, saved, transcribed, recovered, and why anything failed.
 - Where a track had speech but the transcript has nothing for ten seconds or more, Review says so at that place and offers **Transcribe again** with another model. You can also transcribe the whole recording again with another model or language from the More menu; with version history on, the earlier transcript is kept and can be restored from Details.
 
@@ -92,7 +93,8 @@ If transcription fails, Review says what happened, what was kept (a partial tran
 After the transcript, Memento tells the voices apart and labels them Speaker 1, Speaker 2 and so on.
 
 - Rename a speaker once and every line changes.
-- Move a single line to another speaker, add a speaker, or merge two speakers into one.
+- Click the speaker name on a line to move that line to another speaker. The menu opens with a **Find or add a speaker** field: type part of a name (capitals and accents do not matter) and the list narrows to the speakers who match, names that start with what you typed first; the arrow keys move through it, Enter picks, Esc closes. When nobody has the name you typed, the last row reads **Add "{name}" as a new speaker**: it adds the speaker and gives them the line. A long list scrolls inside the menu.
+- **Merge** a speaker into another from the People list; its menu has the same search. Undo brings a merged speaker back with its name, colour and lines.
 - If you know how many people spoke, set **Expected speakers** in **Settings › Speakers**; Memento then groups the voices into that many speakers.
 - Speaker identification runs on the processor and needs the speaker models from **Settings › Speakers**.
 
@@ -117,7 +119,9 @@ In Review, choose **Create document**. The **document builder** opens with your 
   - **Claude** (Anthropic) or **ChatGPT** (OpenAI) with your own key. Turn on **Allow external AI services** and add the key in **Settings › AI and privacy** first. **Preview exactly what will be sent** shows the text word for word, and with **Ask before every send** on (the default) Memento asks again before each send, naming the provider, what is included and how much.
 - **Generate**. Every statement is checked against the part of the transcript it cites; what the transcript does not support is left out, and an owner or deadline is kept only if someone named it. A section the meeting never reached says "Not discussed."
 
-The **document viewer** then shows the result on paper. Click a timestamp to hear that moment, edit a paragraph in place ("Saved" appears when it is stored), regenerate with changed instructions, or go back to an earlier version. **How this was made** lists exactly what was used, what was sent and where, and what was checked and dropped; History keeps the same record. Read a generated document before you rely on it: the checks catch statements nobody made, but a summary can still put the weight in the wrong place.
+In the builder, **Undo** (or Ctrl+Z) takes back the last change: a section added, moved or removed, its instructions, length, text size, heading or link, the template's name, what the AI receives, the provider, the style or the output. Typing in one field is one step. While a text box holds changes you made since clicking into it, Ctrl+Z undoes your typing there first.
+
+The **document viewer** then shows the result on paper. Click a timestamp to hear that moment, edit a paragraph in place ("Saved" appears when it is stored; **Undo** takes back a run of typing or a toolbar change, and a rename), regenerate with changed instructions, or go back to an earlier version. **How this was made** lists exactly what was used, what was sent and where, and what was checked and dropped; History keeps the same record. Read a generated document before you rely on it: the checks catch statements nobody made, but a summary can still put the weight in the wrong place.
 
 **Styles** decide how documents look, never what they say: Corporate, Minimal, Academic, or your own copy with its typefaces, sizes, heading colour, spacing, Letter or A4 paper, page numbers and a running header. Manage templates and styles in **Settings › Documents**. Export a document as Word, PDF or Markdown from the viewer, or with the recording from the Export dialog.
 
@@ -196,7 +200,7 @@ The Microsoft Edge WebView2 runtime, which draws Memento's window, has its own b
 
 ## Keyboard
 
-Everything can be reached with Tab and Shift+Tab; the focused control has a visible ring. On the Record screen, Space pauses and resumes and Ctrl+M marks a highlight; Esc does not stop a recording. In dialogs, Esc cancels. Memento follows Windows' "Show animations" setting: with animations off, buttons no longer move when pressed and the processing dot stops pulsing.
+Everything can be reached with Tab and Shift+Tab; the focused control has a visible ring. On the Record screen, Space pauses and resumes and Ctrl+M marks a highlight; Esc does not stop a recording. In dialogs, Esc cancels. In Review, the document builder and the document viewer, **Ctrl+Z** undoes the last change and **Ctrl+Y** or **Ctrl+Shift+Z** redoes it; in a text box you have typed in, they undo and redo your typing first. In Review, F2 or Enter twice edits the focused transcript line, and in the speaker menu the arrow keys, Enter and Esc choose. Memento follows Windows' "Show animations" setting: with animations off, buttons no longer move when pressed and the processing dot stops pulsing.
 
 ## Known limitations
 
