@@ -219,6 +219,17 @@ public sealed class SpeakerAssignerTests
     }
 
     [Fact]
+    public void InAutoALittleVoiceWithAlmostNoSpeechJoinsTheMainVoiceItIsMostLikeHoweverUnlike()
+    {
+        var (segments, tracks) = SplitMeeting();
+
+        // The 3-second laugh sounds like nobody (0.1 at most), but under 5 seconds it is not a speaker of its own.
+        var result = SpeakerAssigner.Assign(segments, tracks, null, joinSimilarity: 0.8, minSpeechSeconds: 10, foldSimilarity: 0.95, ownSpeakerSeconds: 5);
+
+        Assert.Equal(["spk1", "spk2", "spk1", "spk1", "spk2", "spk1"], result.Segments.Select(s => s.Speaker));
+    }
+
+    [Fact]
     public void InAutoVoicesOfDifferentTracksAreNeverJoined()
     {
         var (segments, tracks) = EchoedMeeting();

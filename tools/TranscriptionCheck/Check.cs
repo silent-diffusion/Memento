@@ -230,7 +230,7 @@ internal sealed class Check : IAsyncDisposable
 
     /// <summary>
     /// Identifies the speakers of a recording already in the library again, through the real stage and worker, with the
-    /// recording's own count (Who spoke) when one is given, and prints the result. Run it twice to see the second pass
+    /// recording's own count (Who spoke; 0 sets it back to Auto) when one is given, and prints the result. Run it twice to see the second pass
     /// regroup from voices.json.
     /// </summary>
     public async Task<int> IdentifyAsync(string id, int? count)
@@ -238,7 +238,7 @@ internal sealed class Check : IAsyncDisposable
         await ConfigureAsync(null);
         if (count is not null)
         {
-            await _services.GetRequiredService<ProjectService>().UpdateDetailsAsync(id, new RecordingDetailsPatch { WhoSpoke = new WhoSpoke(count, []) }, CancellationToken.None);
+            await _services.GetRequiredService<ProjectService>().UpdateDetailsAsync(id, new RecordingDetailsPatch { WhoSpoke = new WhoSpoke(count == 0 ? null : count, []) }, CancellationToken.None);
         }
 
         var stopwatch = Stopwatch.StartNew();

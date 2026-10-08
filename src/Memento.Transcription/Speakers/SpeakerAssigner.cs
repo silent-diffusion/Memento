@@ -8,7 +8,7 @@ namespace Memento.Transcription.Speakers;
 /// Gives each transcript segment the speaker whose turns (in the same track) overlap it most, then decides who is the
 /// same person. Every (track, cluster) the diarizer found is a voice with its embedding. Little voices (less speech than
 /// <c>minSpeechSeconds</c>, or <see cref="MinSpeechShare"/> of all speech if that is less: a laugh, a word, two people at
-/// once) are set aside so the main voices are compared with each other and not with noise (ENGINE-NOTES.md §K). With an
+/// once) are set aside so the main voices are compared with each other and not with noise (ENGINE-NOTES.md §L). With an
 /// expected count (the recording's own, else Settings'), the main voices of all tracks are clustered together until that
 /// many are left (a main voice without an embedding goes into the voice with the most speech on its track first, then the
 /// two that sound most alike, by cosine of the speech-weighted embeddings, are joined, again and again), and then every
@@ -16,7 +16,8 @@ namespace Memento.Transcription.Speakers;
 /// expected stay as they are. Without a count, voices of different tracks are different people (a microphone's speaker
 /// and a meeting app's speaker are never merged automatically), main voices on one track at least
 /// <c>joinSimilarity</c> alike are joined, and a little voice joins the main voice on its track it is at least
-/// <c>foldSimilarity</c> alike to, else stays a speaker of its own. Ids <c>spk1…</c>, names "Speaker 1…" and colours 1–4
+/// <c>foldSimilarity</c> alike to (any little voice with less than <c>ownSpeakerSeconds</c> of speech joins one), else stays
+/// a speaker of its own. Ids <c>spk1…</c>, names "Speaker 1…" and colours 1–4
 /// follow the order in which each first speaks.
 /// <c>speakerConfidence</c> is the overlap-weighted, calibrated (<see cref="Calibrate"/>) confidence of the winning
 /// speaker's turns times its share of the overlapping speech. A segment no turn touches keeps no speaker.
@@ -53,7 +54,8 @@ public static class SpeakerAssigner
         int? expectedSpeakers = null,
         double? joinSimilarity = null,
         double minSpeechSeconds = 0,
-        double foldSimilarity = double.PositiveInfinity)
+        double foldSimilarity = double.PositiveInfinity,
+        double ownSpeakerSeconds = 0)
     {
         ArgumentNullException.ThrowIfNull(segments);
         ArgumentNullException.ThrowIfNull(tracks);
@@ -97,7 +99,7 @@ public static class SpeakerAssigner
         }
 
         // Pass 2: who is the same person (numbered in the order people first speak).
-        var group = Group(order, lines, tracks, expectedSpeakers, joinSimilarity, minSpeechSeconds, foldSimilarity, out var people, out var merged);
+        var group = Group(order, lines, tracks, expectedSpeakers, joinSimilarity, minSpeechSeconds, foldSimilarity, ownSpeakerSeconds, out var people, out var merged);
         var speakers = Enumerable.Range(0, people)
             .Select(n => new Speaker(TranscriptSpeakers.IdFor(n + 1), TranscriptSpeakers.DefaultName(n + 1), false, TranscriptSpeakers.ColorFor(n), 0))
             .ToList();
@@ -125,6 +127,7 @@ public static class SpeakerAssigner
         double? joinSimilarity,
         double minSpeechSeconds,
         double foldSimilarity,
+        double ownSpeakerSeconds,
         out int people,
         out int merged)
     {
@@ -170,7 +173,7 @@ public static class SpeakerAssigner
         foreach (var voice in small.OrderByDescending(c => c.Seconds))
         {
             var into = expected is null
-                ? Closest(main, voice, sameTrackOnly: true, atLeast: foldSimilarity)
+                ? Closest(main, voice, sameTrackOnly: true, atLeast: voice.Seconds < ownSpeakerSeconds ? double.NegativeInfinity : foldSimilarity)
                 : Closest(main, voice, sameTrackOnly: false, atLeast: double.NegativeInfinity);
             if (into is null)
             {

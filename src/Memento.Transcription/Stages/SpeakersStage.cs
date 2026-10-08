@@ -254,7 +254,8 @@ public sealed partial class SpeakersStage(
                     expected,
                     expected is null ? TranscriptionDefaults.JoinSimilarity : null,
                     TranscriptionDefaults.MinSpeakerSeconds,
-                    TranscriptionDefaults.FoldSimilarity);
+                    TranscriptionDefaults.FoldSimilarity,
+                    TranscriptionDefaults.OwnSpeakerSeconds);
                 naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames);
                 speakers = naming.Speakers;
                 voices = assigned.Voices ?? [];

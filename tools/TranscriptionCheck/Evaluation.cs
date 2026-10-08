@@ -14,7 +14,7 @@ namespace Memento.Tools.TranscriptionCheck;
 /// </summary>
 internal static class Evaluation
 {
-    public static int Run(string diarizePath, string transcriptPath, string? referencePath, IReadOnlyList<string> counts, IReadOnlyList<string> joins, IReadOnlyList<string> mins, IReadOnlyList<string> folds)
+    public static int Run(string diarizePath, string transcriptPath, string? referencePath, IReadOnlyList<string> counts, IReadOnlyList<string> joins, IReadOnlyList<string> mins, IReadOnlyList<string> folds, double own)
     {
         var reply = JsonSerializer.Deserialize(File.ReadAllText(diarizePath), WorkerJsonContext.Default.WorkerReply)!;
         var segments = Segments(transcriptPath, out var trackId, out _);
@@ -38,7 +38,7 @@ internal static class Evaluation
             double? similarity = similarityText == "none" ? null : double.Parse(similarityText, CultureInfo.InvariantCulture);
             var minSeconds = double.Parse(min, CultureInfo.InvariantCulture);
             var foldSimilarity = fold == "never" ? double.PositiveInfinity : fold == "always" ? double.NegativeInfinity : double.Parse(fold, CultureInfo.InvariantCulture);
-            var result = SpeakerAssigner.Assign(segments, tracks, expected, similarity, minSeconds, foldSimilarity);
+            var result = SpeakerAssigner.Assign(segments, tracks, expected, similarity, minSeconds, foldSimilarity, own);
             var total = Math.Max(1, result.Speakers.Sum(s => s.TalkTimeMs));
             var line = string.Create(
                 CultureInfo.InvariantCulture,

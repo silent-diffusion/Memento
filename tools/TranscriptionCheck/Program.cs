@@ -49,7 +49,8 @@ switch (command)
             (Option("--counts") ?? "auto").Split(','),
             (Option("--join") ?? "none").Split(','),
             (Option("--min") ?? "0").Split(','),
-            (Option("--fold") ?? "never").Split(','));
+            (Option("--fold") ?? "never").Split(','),
+            double.Parse(Option("--own") ?? "0", CultureInfo.InvariantCulture));
     case "diarize":
         return await check.DiarizeAsync(
             args[1],
