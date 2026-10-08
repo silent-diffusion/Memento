@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleId, ModuleInfo, ModuleSettings } from '../../bridge/types';
-import { paletteGroups } from './Palette';
-import { canDropBeside, initialStructure, MAX_PER_ROW, nextModuleId, positionWords, structureReducer, type Rows, type StructureState } from './structureState';
+import { paletteGroups, paletteItemLabel } from './Palette';
+import { canDropBeside, initialStructure, MAX_PER_ROW, modulesInUse, nextModuleId, positionWords, structureReducer, type Rows, type StructureState } from './structureState';
 
 const info = (id: ModuleId, name: string, group: ModuleInfo['group'] = 'structure', generated = true): ModuleInfo => ({
   id,
@@ -124,5 +124,32 @@ describe('palette search', () => {
     // Every word must match, in the name or the description.
     expect(paletteGroups(catalog, 'custom described').flatMap((g) => g.items.map((m) => m.id))).toEqual(['customText']);
     expect(paletteGroups(catalog, 'nothing like this')).toEqual([]);
+  });
+});
+
+describe('modules in use (the palette greys them, DESIGN.md §5.15)', () => {
+  it('is the set of catalog modules placed anywhere in the structure, once each', () => {
+    const placed: Rows = [[mod('m01', 'title')], [mod('m02', 'decisions'), mod('m03', 'customText')], [mod('m04', 'customText')]];
+    expect([...modulesInUse(placed)].sort()).toEqual(['customText', 'decisions', 'title']);
+    expect(modulesInUse([]).size).toBe(0);
+  });
+
+  it('follows every add and remove, and undo', () => {
+    let state = initialStructure([[mod('m01', 'title')]]);
+    state = structureReducer(state, { type: 'append', module: info('decisions', 'Decisions') });
+    expect(modulesInUse(state.rows).has('decisions')).toBe(true);
+    // A second copy, then removing one of the two: still in use.
+    state = structureReducer(state, { type: 'append', module: info('decisions', 'Decisions') });
+    state = structureReducer(state, { type: 'remove', id: 'm02' });
+    expect(modulesInUse(state.rows).has('decisions')).toBe(true);
+    state = structureReducer(state, { type: 'remove', id: 'm03' });
+    expect(modulesInUse(state.rows).has('decisions')).toBe(false);
+    state = structureReducer(state, { type: 'undo' });
+    expect(modulesInUse(state.rows).has('decisions')).toBe(true);
+  });
+
+  it('names an in-use palette item for keyboard and screen-reader users', () => {
+    expect(paletteItemLabel({ name: 'Decisions' }, true)).toBe('Add Decisions, in use');
+    expect(paletteItemLabel({ name: 'Decisions' }, false)).toBe('Add Decisions');
   });
 });

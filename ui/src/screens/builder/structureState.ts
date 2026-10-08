@@ -52,6 +52,11 @@ export function moduleCount(rows: Rows): number {
   return rows.reduce((n, r) => n + r.length, 0);
 }
 
+/** The catalog modules already placed in the structure (the palette greys them, DESIGN.md §5.15). */
+export function modulesInUse(rows: Rows): ReadonlySet<ModuleSettings['module']> {
+  return new Set(rows.flat().map((m) => m.module));
+}
+
 /** "m01", "m02"…: the next id no module in the template uses. */
 export function nextModuleId(rows: Rows): string {
   const used = new Set(rows.flat().map((m) => m.id));

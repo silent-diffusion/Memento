@@ -118,6 +118,26 @@
   flex: none;
 }
 
+/* Already on the template: greyed like a disabled source (text-3 at 55%), with a small "in use"
+   marker, but still draggable and clickable for a second copy. The hover lift and focus ring are
+   unchanged. */
+.pal--in-use {
+  color: var(--text-3);
+}
+
+.pal--in-use .pal-handle,
+.pal--in-use .pal-name,
+.pal--in-use .pal-plus {
+  opacity: 0.55;
+}
+
+.pal-in-use {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
 .palette-hint,
 .palette-empty {
   margin: 0;
