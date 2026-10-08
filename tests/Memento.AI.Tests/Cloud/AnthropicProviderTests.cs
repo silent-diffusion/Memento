@@ -254,7 +254,7 @@ public sealed class AnthropicProviderTests : IDisposable
         var error = await Assert.ThrowsAsync<AiException>(() => Provider(options).GenerateAsync(AiRequest.Create("test.timeout", string.Empty, "Hi"), null, CancellationToken.None));
 
         Assert.Equal(AiErrorCodes.Network, error.Code);
-        Assert.Equal("Claude did not answer within 1 second. Nothing was sent twice and no document was changed. Try again; long inputs take longer.", error.Message);
+        Assert.Equal("Claude did not answer within 2 seconds. Nothing was sent twice and no document was changed. Try again; long inputs take longer.", error.Message);
         Assert.Single(_server.Requests);
     }
 
