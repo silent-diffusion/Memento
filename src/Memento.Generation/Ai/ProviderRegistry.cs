@@ -2,6 +2,7 @@ using System.Globalization;
 using Memento.AI;
 using Memento.AI.Local;
 using Memento.Core.Ai;
+using Memento.Core.Bridge.Contracts;
 using Memento.Core.Engines;
 using Memento.Core.Formatting;
 using Memento.Core.Models;
@@ -114,8 +115,10 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
             notes.Add($"{missing.Name}, chosen in Settings, is not installed, so {entry.Name} writes the documents.");
         }
 
-        var free = snapshot.DiscreteGpu?.FreeVramBytes;
+        var gpu = snapshot.DiscreteGpu;
+        var free = gpu?.FreeVramBytes;
         var plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, 0, VramMarginBytes);
+        string? gpuNote = null;
         if (!plan.UseGpu && entry.RunsOn == "gpu")
         {
             // A graphics-card model that does not fit now: an installed processor model runs instead, else this one runs on the processor.
@@ -124,19 +127,19 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
                 .Select(LocalModelCatalog.ToLocal)
                 .OfType<LocalModelEntry>()
                 .FirstOrDefault();
-            var tooSmall = free is { } shortBy and > 0
-                ? $"The graphics card has {HumanFormat.Bytes(shortBy)} free and {entry.Name} needs {HumanFormat.Bytes(plan.NeededVramBytes)} on it"
-                : $"No graphics card memory is free for {entry.Name}";
-            if (standIn is not null && models.Resolve(standIn.Id) is { } standInPath)
+            var standInPath = standIn is null ? null : models.Resolve(standIn.Id);
+            var instead = standInPath is not null ? $"{standIn!.Name} writes instead" : "it runs on the processor (several times slower)";
+
+            // The card's free memory, who holds the rest and the fix (DESIGN.md §17); without a card, only that there is none.
+            gpuNote = gpu is not null
+                ? GpuMemoryWording.Shortfall(gpu, entry.Name, plan.NeededVramBytes, instead)
+                : $"No graphics card memory is free for {entry.Name}, so {instead}.";
+            notes.Add(gpuNote);
+            if (standInPath is not null)
             {
-                notes.Add($"{tooSmall}, so {standIn.Name} writes instead this time.");
-                entry = standIn;
+                entry = standIn!;
                 path = standInPath;
                 plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, 0, VramMarginBytes);
-            }
-            else
-            {
-                notes.Add($"{tooSmall}, so it runs on the processor, which takes several times longer.");
             }
         }
 
@@ -144,6 +147,10 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
         var k = plan.ContextTokens / 1024;
         var article = k is 8 or 11 or 18 or (>= 80 and < 90) ? "an" : "a";
         notes.Add(string.Create(CultureInfo.InvariantCulture, $"Runs on the {where} with {article} {k}k context. Nothing leaves this PC."));
-        return new ProviderStatus(ProviderIds.Local, true, null, null, string.Join(' ', notes), entry.Id, $"{entry.Name} · {where}", entry, path, plan);
+        return new ProviderStatus(ProviderIds.Local, true, null, null, string.Join(' ', notes), entry.Id, $"{entry.Name} · {where}", entry, path, plan)
+        {
+            GpuMemory = gpu is null ? null : GpuMemoryInfo.From(gpu),
+            GpuNote = gpuNote,
+        };
     }
 }

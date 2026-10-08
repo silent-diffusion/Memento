@@ -65,6 +65,7 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, ModelsCancelInstallMethod>();
         services.AddSingleton<IBridgeHandler, ModelsRemoveMethod>();
         services.AddSingleton<IBridgeHandler, EngineStatusMethod>();
+        services.AddSingleton<IBridgeHandler, EngineRefreshMethod>();
 
         services.AddMementoM3();
 

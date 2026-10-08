@@ -43,7 +43,9 @@ public sealed class FooterStatusService(
         var low = free is not null && free < threshold;
         var storage = new StorageStatus(free, low);
         var paused = board.ProcessingPaused ?? (low ? LowSpaceReason : gate.Reason);
-        var detail = engines.Compute().Transcription;
+        // The card's memory and the shortfall sentence are for Settings; left out here so the footer, sampled every few
+        // seconds, is not re-sent each time another program's memory use moves.
+        var detail = engines.Compute().Transcription with { GpuMemory = null, Note = null };
         return new FooterStatusPayload(new EngineStatus(detail.Ready, detail.Device, detail), storage, board.Recording, paused)
         {
             Export = exports?.Current ?? ExportFooterStatus.Idle,

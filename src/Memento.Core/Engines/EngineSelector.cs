@@ -19,6 +19,9 @@ public sealed class EngineSelector(IModelManager models, IResourceProbe probe)
 
     public ResourceSnapshot Sample() => probe.Sample();
 
+    /// <summary>A sample with nothing reused from earlier readings (<see cref="IResourceProbe.Refresh"/>).</summary>
+    public ResourceSnapshot Refresh() => probe.Refresh();
+
     /// <summary>The recommended transcription model for this PC.</summary>
     public string RecommendedTranscriptionModelId(ResourceSnapshot? snapshot = null)
     {

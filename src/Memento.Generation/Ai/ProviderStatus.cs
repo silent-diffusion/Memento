@@ -1,4 +1,5 @@
 using Memento.AI.Local;
+using Memento.Core.Bridge.Contracts;
 
 namespace Memento.Generation.Ai;
 
@@ -27,6 +28,15 @@ public sealed record ProviderStatus(
     public string Name => ProviderIds.DisplayName(Id);
 
     public bool IsCloud => ProviderIds.IsCloud(Id);
+
+    /// <summary>Local only: the discrete card's memory and who holds it, when there is a card.</summary>
+    public GpuMemoryInfo? GpuMemory { get; init; }
+
+    /// <summary>
+    /// Local only: why a graphics-card model does not run on the card now (DESIGN.md §17), also the start of
+    /// <see cref="Detail"/>; <c>null</c> when it fits or the model is a processor one.
+    /// </summary>
+    public string? GpuNote { get; init; }
 
     /// <summary>Transcript tokens per chunk: the model profile scaled to the context it gets (Local), or 24,000 (cloud).</summary>
     public int ChunkTokens => LocalModel is { } entry && Plan is { } plan
