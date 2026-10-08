@@ -40,7 +40,7 @@ export function UndoButton(): JSX.Element {
         <button
           class="btn ghost spoke-ghost undo-btn"
           type="button"
-          title={`Undo ${label} (Ctrl+Z)`}
+          title={`Undo ${label}`}
           aria-label={`Undo ${label}`}
           aria-keyshortcuts="Control+Z"
           disabled={undo.busy.value}

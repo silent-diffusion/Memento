@@ -101,7 +101,8 @@ describe('Undo in Review (against the browser-preview host)', () => {
     await click(option('Lena Fischer'));
     await until(() => undoButton() !== null);
     expect(undoButton()?.getAttribute('aria-label')).toBe('Undo move line to Lena Fischer');
-    expect(undoButton()?.title).toBe('Undo move line to Lena Fischer (Ctrl+Z)');
+    expect(undoButton()?.title).toBe('Undo move line to Lena Fischer');
+    expect(undoButton()?.getAttribute('aria-keyshortcuts')).toBe('Control+Z');
     await click(undoButton());
     await until(() => h.container.querySelector('.undo-status')?.textContent === 'Undone: move line to Lena Fischer');
     expect((await transcript()).segments.find((s) => s.id === line.id)?.speaker).toBe(line.speaker);
