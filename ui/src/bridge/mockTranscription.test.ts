@@ -234,6 +234,36 @@ describe('preview host transcripts (M2)', () => {
     expect(host.fail('transcript.renameSpeaker', { recordingId: LONG, speakerId: 'sp1', name: '' }).code).toBe('bridge.invalidParams');
   });
 
+  it('restores a merged speaker with its id and lines, removes an unused one, and un-edits a line edited back (Undo)', () => {
+    const host = previewHost();
+    const before = host.call('transcript.get', { recordingId: LONG }).transcript;
+    const sp4 = before?.speakers.find((s) => s.id === 'sp4');
+    if (before === null || sp4 === undefined) {
+      throw new Error('no transcript');
+    }
+    const lines = before.segments.filter((s) => s.speaker === 'sp4').map((s) => s.id);
+    host.call('transcript.mergeSpeakers', { recordingId: LONG, fromSpeakerId: 'sp4', intoSpeakerId: 'sp3' });
+    const restored = host.call('transcript.restoreSpeaker', { recordingId: LONG, speaker: { id: 'sp4', name: sp4.name, color: sp4.color, renamed: sp4.renamed }, segmentIds: lines });
+    expect(restored.segmentsChanged).toBe(lines.length);
+    const after = host.call('transcript.get', { recordingId: LONG }).transcript;
+    expect(after?.speakers.map((s) => [s.id, s.name, s.color, s.talkTimeMs])).toEqual(before.speakers.map((s) => [s.id, s.name, s.color, s.talkTimeMs]));
+    expect(after?.segments.map((s) => s.speaker)).toEqual(before.segments.map((s) => s.speaker));
+    expect(host.fail('transcript.restoreSpeaker', { recordingId: LONG, speaker: { id: 'sp9', name: 'X', color: 1, renamed: true }, segmentIds: ['nope'] }).code).toBe('transcript.segmentNotFound');
+
+    const first = before.segments[0];
+    if (first === undefined) {
+      throw new Error('no line');
+    }
+    const created = host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: first.id, speakerId: null, newSpeakerName: 'Jonah Berg' });
+    const jonah = created.segment.speaker ?? '';
+    expect(host.fail('transcript.removeSpeaker', { recordingId: LONG, speakerId: jonah }).code).toBe('transcript.speakerInUse');
+    host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: first.id, speakerId: first.speaker });
+    expect(host.call('transcript.removeSpeaker', { recordingId: LONG, speakerId: jonah }).speakers.some((s) => s.id === jonah)).toBe(false);
+
+    host.call('transcript.editSegment', { recordingId: LONG, segmentId: first.id, text: 'Something else.' });
+    expect(host.call('transcript.editSegment', { recordingId: LONG, segmentId: first.id, text: first.text }).segment.edited).toBeNull();
+  });
+
   it('marks reviewed and searches case-insensitively on word boundaries with snippets', () => {
     const host = previewHost();
     expect(host.call('transcript.markReviewed', { recordingId: LONG, reviewed: true })).toEqual({ reviewed: true });

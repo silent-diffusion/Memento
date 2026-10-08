@@ -66,6 +66,8 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(SpeakersResult))]
 [JsonSerializable(typeof(TranscriptMergeSpeakersParams))]
 [JsonSerializable(typeof(MergeSpeakersResult))]
+[JsonSerializable(typeof(TranscriptRestoreSpeakerParams))]
+[JsonSerializable(typeof(TranscriptRemoveSpeakerParams))]
 [JsonSerializable(typeof(TranscriptMarkReviewedParams))]
 [JsonSerializable(typeof(MarkReviewedResult))]
 [JsonSerializable(typeof(TranscriptSearchParams))]

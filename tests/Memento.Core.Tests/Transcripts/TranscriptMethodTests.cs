@@ -8,6 +8,8 @@ namespace Memento.Core.Tests.Transcripts;
 /// <summary>The <c>transcript.*</c> methods through the bridge, on a recorded project with a synthetic transcript.</summary>
 public sealed class TranscriptMethodTests : IDisposable
 {
+    private static readonly string[] KnownAndUnknownLine = ["s0001", "s9999"];
+
     private readonly BridgeTestHost _host = new();
 
     public void Dispose() => _host.Dispose();
@@ -143,6 +145,98 @@ public sealed class TranscriptMethodTests : IDisposable
         Assert.Equal("spk1", speaker.GetProperty("id").GetString());
         Assert.Equal(14_000, speaker.GetProperty("talkTimeMs").GetInt64());
         Assert.Equal("bridge.invalidParams", await ErrorAsync("transcript.mergeSpeakers", new { recordingId = id, fromSpeakerId = "spk1", intoSpeakerId = "spk1" }));
+    }
+
+    [Fact]
+    public async Task RestoringAMergedSpeakerPutsItBackWithItsIdColourAndLines()
+    {
+        var id = await RecordingWithTranscriptAsync();
+        var before = (await _host.Transcripts.LoadAsync(id, CancellationToken.None))!;
+        var spk2 = before.Speakers.Single(s => s.Id == "spk2");
+        var lines = before.Segments.Where(s => s.Speaker == "spk2").Select(s => s.Id).ToList();
+        await ResultAsync("transcript.mergeSpeakers", new { recordingId = id, fromSpeakerId = "spk2", intoSpeakerId = "spk1" });
+
+        var result = await ResultAsync(
+            "transcript.restoreSpeaker",
+            new { recordingId = id, speaker = new { id = spk2.Id, name = spk2.Name, color = spk2.Color, renamed = spk2.Renamed }, segmentIds = lines });
+
+        Assert.Equal(lines.Count, result.GetProperty("segmentsChanged").GetInt32());
+        var after = (await _host.Transcripts.LoadAsync(id, CancellationToken.None))!;
+        Assert.Equal(before.Speakers.Select(s => (s.Id, s.Name, s.Color, s.TalkTimeMs)), after.Speakers.Select(s => (s.Id, s.Name, s.Color, s.TalkTimeMs)));
+        Assert.Equal(before.Segments.Select(s => s.Speaker), after.Segments.Select(s => s.Speaker));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == "edited" && h.Summary == "Speaker restored");
+    }
+
+    [Fact]
+    public async Task RestoringAnExistingSpeakerResetsItsNameAndRenamedFlag()
+    {
+        var id = await RecordingWithTranscriptAsync();
+        await ResultAsync("transcript.renameSpeaker", new { recordingId = id, speakerId = "spk1", name = "Rowan Hale" });
+
+        var result = await ResultAsync(
+            "transcript.restoreSpeaker",
+            new { recordingId = id, speaker = new { id = "spk1", name = "Speaker 1", color = 1, renamed = false }, segmentIds = Array.Empty<string>() });
+
+        Assert.Equal(0, result.GetProperty("segmentsChanged").GetInt32());
+        var speaker = result.GetProperty("speakers").EnumerateArray().First();
+        Assert.Equal("Speaker 1", speaker.GetProperty("name").GetString());
+        Assert.False(speaker.GetProperty("renamed").GetBoolean());
+        Assert.True(speaker.GetProperty("talkTimeMs").GetInt64() > 0);
+    }
+
+    [Fact]
+    public async Task RestoreSpeakerRefusesBadValuesAndUnknownLinesWithoutChangingAnything()
+    {
+        var id = await RecordingWithTranscriptAsync();
+        var version = (await _host.Transcripts.LoadAsync(id, CancellationToken.None))!.Version;
+
+        Assert.Equal(
+            "transcript.segmentNotFound",
+            await ErrorAsync("transcript.restoreSpeaker", new { recordingId = id, speaker = new { id = "spk7", name = "Avery", color = 2, renamed = true }, segmentIds = KnownAndUnknownLine }));
+        Assert.Equal(
+            "bridge.invalidParams",
+            await ErrorAsync("transcript.restoreSpeaker", new { recordingId = id, speaker = new { id = "spk7", name = "Avery", color = 7, renamed = true }, segmentIds = Array.Empty<string>() }));
+        Assert.Equal(
+            "bridge.invalidParams",
+            await ErrorAsync("transcript.restoreSpeaker", new { recordingId = id, speaker = new { id = "../x", name = "Avery", color = 2, renamed = true }, segmentIds = Array.Empty<string>() }));
+        Assert.Equal(
+            "bridge.invalidParams",
+            await ErrorAsync("transcript.restoreSpeaker", new { recordingId = id, speaker = new { id = "spk7", name = " ", color = 2, renamed = true }, segmentIds = Array.Empty<string>() }));
+
+        var after = (await _host.Transcripts.LoadAsync(id, CancellationToken.None))!;
+        Assert.Equal(version, after.Version);
+        Assert.DoesNotContain(after.Speakers, s => s.Id == "spk7");
+    }
+
+    [Fact]
+    public async Task RemoveSpeakerRemovesOnlyASpeakerWithoutLines()
+    {
+        var id = await RecordingWithTranscriptAsync();
+        await ResultAsync("transcript.setSegmentSpeaker", new { recordingId = id, segmentId = "s0001", newSpeakerName = "Avery" });
+
+        Assert.Equal("transcript.speakerInUse", await ErrorAsync("transcript.removeSpeaker", new { recordingId = id, speakerId = "spk3" }));
+        await ResultAsync("transcript.setSegmentSpeaker", new { recordingId = id, segmentId = "s0001", speakerId = "spk1" });
+        var result = await ResultAsync("transcript.removeSpeaker", new { recordingId = id, speakerId = "spk3" });
+
+        Assert.Equal(["spk1", "spk2"], result.GetProperty("speakers").EnumerateArray().Select(s => s.GetProperty("id").GetString()));
+        Assert.Equal("transcript.speakerNotFound", await ErrorAsync("transcript.removeSpeaker", new { recordingId = id, speakerId = "spk3" }));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == "edited" && h.Summary == "Speaker removed");
+    }
+
+    [Fact]
+    public async Task EditingBackToTheOriginalWordingLeavesTheLineUnedited()
+    {
+        var id = await RecordingWithTranscriptAsync();
+        var original = (await _host.Transcripts.LoadAsync(id, CancellationToken.None))!.Segments.Single(s => s.Id == "s0002").Text;
+        await ResultAsync("transcript.editSegment", new { recordingId = id, segmentId = "s0002", text = "Thanks. Let us review the budget." });
+
+        var result = await ResultAsync("transcript.editSegment", new { recordingId = id, segmentId = "s0002", text = original });
+
+        var segment = result.GetProperty("segment");
+        Assert.Equal(original, segment.GetProperty("text").GetString());
+        Assert.Equal(JsonValueKind.Null, segment.GetProperty("edited").ValueKind);
     }
 
     [Fact]

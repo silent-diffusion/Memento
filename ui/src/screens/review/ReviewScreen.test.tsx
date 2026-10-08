@@ -117,7 +117,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await until(() => container.querySelector('.segm') !== null);
     expect(container.querySelector('.segm .segm-speaker-name')?.textContent).toBe('Sam Okafor');
     expect(container.querySelector('.segm .segm-at')?.textContent).toBe('00:00:02');
-    expect(container.querySelector('.transcript-hint')?.textContent).toBe('Click a line to play it · double-click to edit');
+    expect(container.querySelector('.transcript-hint')?.textContent).toBe('Click the time to play a line · click the words to correct them');
     expect(container.querySelector<HTMLInputElement>('#tx-search')?.disabled).toBe(false);
     // The preview host's peaks.json (a blob URL) is fetched and drawn as 160 bars.
     await until(() => container.querySelectorAll('.wave-bar').length === 160);
@@ -179,12 +179,17 @@ describe('Review and transcript (against the browser-preview host)', () => {
       throw new Error('no merge button');
     }
     await click(trigger);
-    const menu = document.querySelector('[role="menu"]');
+    const menu = document.querySelector<HTMLElement>('.speaker-menu');
     expect(menu?.closest('.popover-layer')?.parentElement).toBe(document.body);
-    expect(container.querySelector('.review-outline [role="menu"]')).toBeNull();
+    expect(container.querySelector('.review-outline .speaker-menu')).toBeNull();
+    // The other speakers, in a list that scrolls within the room beside the button; the search field has focus.
+    expect([...(menu?.querySelectorAll('[role="option"]') ?? [])].map((o) => o.textContent)).toEqual(['Aiko Tanaka', 'Lena Fischer', 'Speaker 4']);
+    expect(menu?.style.maxHeight).toMatch(/^\d+px$/);
+    const search = menu?.querySelector<HTMLInputElement>('input[role="combobox"]');
+    expect(document.activeElement).toBe(search);
     // Esc closes it and gives focus back to the button in the pane.
-    await press(menu as HTMLElement, 'Escape');
-    expect(document.querySelector('[role="menu"]')).toBeNull();
+    await press(search as HTMLElement, 'Escape');
+    expect(document.querySelector('.speaker-menu')).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 
@@ -279,7 +284,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
 
   it('seeks from a chapter, adds a highlight and a topic, and renames a person', async () => {
     await open();
-    await click(button('34:00Dark theme scope'));
+    await click(button('Play from 34:00, Dark theme scope'));
     expect(container.querySelector('.scrubber')?.getAttribute('aria-valuetext')).toBe('34:00 of 1:10:02');
     expect(container.querySelector('.transcript-head .lbl')?.textContent).toBe('Dark theme scope');
 

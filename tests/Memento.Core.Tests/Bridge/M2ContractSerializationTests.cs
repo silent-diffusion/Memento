@@ -63,6 +63,19 @@ public sealed class M2ContractSerializationTests : IDisposable
     }
 
     [Fact]
+    public void RestoreAndRemoveSpeakerParams()
+    {
+        var restore = JsonSerializer.Deserialize(
+            """{"recordingId":"x","speaker":{"id":"spk2","name":"Avery","color":2,"renamed":true},"segmentIds":["s0001","s0004"]}""",
+            BridgeJsonContext.Default.TranscriptRestoreSpeakerParams)!;
+        Assert.Equal(new SpeakerRestore("spk2", "Avery", 2, true), restore.Speaker);
+        Assert.Equal(["s0001", "s0004"], restore.SegmentIds);
+        Assert.Equal(
+            """{"recordingId":"x","speakerId":"spk3"}""",
+            Json(new TranscriptRemoveSpeakerParams { RecordingId = "x", SpeakerId = "spk3" }, BridgeJsonContext.Default.TranscriptRemoveSpeakerParams));
+    }
+
+    [Fact]
     public void SearchAndVersionResults()
     {
         Assert.Equal(
@@ -164,6 +177,9 @@ public sealed class M2ContractSerializationTests : IDisposable
     [InlineData("transcript.setSegmentSpeaker", """{"recordingId":"x"}""")]
     [InlineData("transcript.renameSpeaker", """{"recordingId":"x","speakerId":"spk1"}""")]
     [InlineData("transcript.mergeSpeakers", """{"recordingId":"x","fromSpeakerId":"a"}""")]
+    [InlineData("transcript.restoreSpeaker", """{"recordingId":"x","speaker":{"id":"spk2","name":"Avery","color":2,"renamed":true}}""")]
+    [InlineData("transcript.restoreSpeaker", """{"recordingId":"x","speaker":{"id":"spk2"},"segmentIds":[]}""")]
+    [InlineData("transcript.removeSpeaker", """{"recordingId":"x"}""")]
     [InlineData("transcript.markReviewed", """{"recordingId":"x"}""")]
     [InlineData("transcript.search", """{"recordingId":"x"}""")]
     [InlineData("transcript.retranscribe", """{"modelId":"whisper-small"}""")]

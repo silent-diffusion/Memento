@@ -1,13 +1,10 @@
 // The Builder's structure (DESIGN.md §10, §5.17 and renders/Builder.dc.html): a list of rows, each
-// holding one to three modules side by side. Every change that moves, adds or removes a module can
-// be undone with Ctrl+Z; editing a module's settings does not touch the undo history (the text
-// fields keep their own).
+// holding one to three modules side by side. Undo is the app's (state/undo.ts): the Builder registers
+// each change with the rows before and after it, and puts them back with 'restore'.
 import type { ContentShape, ModuleInfo, ModuleSettings, Template } from '../../bridge/types';
 
 /** At most three modules share a row. */
 export const MAX_PER_ROW = 3;
-
-const HISTORY_LIMIT = 50;
 
 export type Rows = ModuleSettings[][];
 
@@ -17,8 +14,6 @@ export type DragPayload = { kind: 'palette'; module: ModuleInfo } | { kind: 'car
 export interface StructureState {
   rows: Rows;
   selectedId: string | null;
-  /** Earlier row layouts, newest last. */
-  history: Rows[];
 }
 
 export type StructureAction =
@@ -38,14 +33,15 @@ export type StructureAction =
   | { type: 'remove'; id: string }
   | { type: 'update'; id: string; patch: Partial<Omit<ModuleSettings, 'id' | 'module'>> }
   | { type: 'select'; id: string | null }
-  | { type: 'undo' };
+  /** Undo and Redo: the rows as they were; the selection stays when its module is still there. */
+  | { type: 'restore'; rows: Rows };
 
 export function rowsOf(template: Template): Rows {
   return template.rows.map((r) => r.modules.map((m) => ({ ...m }))).filter((r) => r.length > 0);
 }
 
 export function initialStructure(rows: Rows, selectedId: string | null = null): StructureState {
-  return { rows, selectedId, history: [] };
+  return { rows, selectedId };
 }
 
 export function moduleCount(rows: Rows): number {
@@ -116,7 +112,7 @@ export function canDropBeside(rows: Rows, rowIndex: number, payload: DragPayload
 }
 
 function changed(state: StructureState, rows: Rows, selectedId: string | null = state.selectedId): StructureState {
-  return { rows, selectedId, history: [...state.history, state.rows].slice(-HISTORY_LIMIT) };
+  return { rows, selectedId };
 }
 
 export function structureReducer(state: StructureState, action: StructureAction): StructureState {
@@ -215,16 +211,9 @@ export function structureReducer(state: StructureState, action: StructureAction)
       };
     case 'select':
       return state.selectedId === action.id ? state : { ...state, selectedId: action.id };
-    case 'undo': {
-      const previous = state.history[state.history.length - 1];
-      if (previous === undefined) {
-        return state;
-      }
-      // The layout goes back; settings edited since keep their latest values.
-      const current = new Map(state.rows.flat().map((m) => [m.id, m]));
-      const rows = previous.map((r) => r.map((m) => current.get(m.id) ?? m));
-      const selectedId = rows.some((r) => r.some((m) => m.id === state.selectedId)) ? state.selectedId : null;
-      return { rows, selectedId, history: state.history.slice(0, -1) };
+    case 'restore': {
+      const selectedId = action.rows.some((r) => r.some((m) => m.id === state.selectedId)) ? state.selectedId : null;
+      return { rows: action.rows, selectedId };
     }
   }
 }

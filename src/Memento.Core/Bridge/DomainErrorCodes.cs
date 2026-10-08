@@ -36,6 +36,9 @@ public static class DomainErrorCodes
     public const string TranscriptSpeakerNotFound = "transcript.speakerNotFound";
     public const string TranscriptVersionNotFound = "transcript.versionNotFound";
 
+    /// <summary><c>transcript.removeSpeaker</c> for a speaker that lines are still assigned to; <c>detail</c> is the id.</summary>
+    public const string TranscriptSpeakerInUse = "transcript.speakerInUse";
+
     /// <summary>No catalog model has that id.</summary>
     public const string ModelsNotFound = "models.notFound";
 

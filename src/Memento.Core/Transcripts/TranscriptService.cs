@@ -75,12 +75,14 @@ public sealed partial class TranscriptService(
                     return null;
                 }
 
+                // An edit back to the original wording (Undo) leaves the line unedited again.
+                var original = segment.Edited?.Original ?? segment.Text;
                 edited = segment with
                 {
                     Text = value,
                     Words = keepWords || segment.Words.Count > 0 ? WordAligner.Realign(value, segment.Start, segment.End) : [],
                     Confidence = 1,
-                    Edited = new TranscriptEdit(time.GetLocalNow(), segment.Edited?.Original ?? segment.Text),
+                    Edited = string.Equals(value, original, StringComparison.Ordinal) ? null : new TranscriptEdit(time.GetLocalNow(), original),
                 };
                 return t with { Segments = Replace(t.Segments, edited) };
             },
@@ -165,6 +167,73 @@ public sealed partial class TranscriptService(
             cancellationToken);
         await HistoryAsync(recordingId, "Speakers merged", HumanFormat.Count(changed, "line moved", "lines moved"), cancellationToken);
         return new MergeSpeakersResult(saved!.Speakers, changed);
+    }
+
+    /// <summary>
+    /// <c>transcript.restoreSpeaker</c> (Undo): puts the speaker back with its id, name, colour and renamed flag (added after
+    /// the others when the transcript lacks it) and assigns the listed lines to it. Every line must exist, or nothing changes.
+    /// </summary>
+    public async Task<MergeSpeakersResult> RestoreSpeakerAsync(string recordingId, SpeakerRestore speaker, IReadOnlyList<string> segmentIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(speaker);
+        ArgumentNullException.ThrowIfNull(segmentIds);
+        var id = ValidateSpeakerId(speaker.Id);
+        var name = ValidateSpeakerName(speaker.Name);
+        if (speaker.Color is < 1 or > TranscriptSpeakers.Colors)
+        {
+            throw Invalid($"A speaker colour is a number from 1 to {TranscriptSpeakers.Colors}; this one is {speaker.Color}.");
+        }
+
+        var wanted = segmentIds.ToHashSet(StringComparer.Ordinal);
+        var changed = 0;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                foreach (var segmentId in wanted)
+                {
+                    FindSegment(t, segmentId);
+                }
+
+                var restored = new Speaker(id, name, speaker.Renamed, speaker.Color, 0);
+                var speakers = t.Speakers.Any(s => s.Id == id)
+                    ? t.Speakers.Select(s => s.Id == id ? restored with { TalkTimeMs = s.TalkTimeMs } : s).ToList()
+                    : [.. t.Speakers, restored];
+                changed = t.Segments.Count(s => wanted.Contains(s.Id) && s.Speaker != id);
+                var segments = t.Segments.Select(s => wanted.Contains(s.Id) && s.Speaker != id ? s with { Speaker = id, SpeakerConfidence = 1.0 } : s).ToList();
+                return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
+            },
+            cancellationToken);
+        await HistoryAsync(recordingId, "Speaker restored", HumanFormat.Count(changed, "line moved", "lines moved"), cancellationToken);
+        return new MergeSpeakersResult(saved!.Speakers, changed);
+    }
+
+    /// <summary><c>transcript.removeSpeaker</c> (Undo of adding one): removes a speaker no line is assigned to.</summary>
+    public async Task<IReadOnlyList<Speaker>> RemoveSpeakerAsync(string recordingId, string speakerId, CancellationToken cancellationToken)
+    {
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                var speaker = FindSpeaker(t, speakerId);
+                var lines = t.Segments.Count(s => s.Speaker == speaker.Id);
+                if (lines > 0)
+                {
+                    throw new BridgeException(
+                        DomainErrorCodes.TranscriptSpeakerInUse,
+                        string.Create(
+                            CultureInfo.InvariantCulture,
+                            $"{speaker.Name} still says {HumanFormat.Count(lines, "line", "lines")}, so the speaker was kept. Nothing was changed. Move those lines to another speaker first, or merge the speakers."),
+                        speaker.Id);
+                }
+
+                return t with { Speakers = t.Speakers.Where(s => s.Id != speaker.Id).ToList() };
+            },
+            cancellationToken);
+        await HistoryAsync(recordingId, "Speaker removed", null, cancellationToken);
+        return saved!.Speakers;
     }
 
     public async Task<bool> MarkReviewedAsync(string recordingId, bool reviewed, CancellationToken cancellationToken)
@@ -307,6 +376,18 @@ public sealed partial class TranscriptService(
         if (value.Length is 0 or > MaxSpeakerNameLength)
         {
             throw Invalid($"A speaker name needs 1 to {MaxSpeakerNameLength} characters.");
+        }
+
+        return value;
+    }
+
+    /// <summary>A speaker id as the host writes them (<c>spk3</c>) or the mock does (<c>sp3</c>): letters, digits, '-' and '_'.</summary>
+    private static string ValidateSpeakerId(string id)
+    {
+        var value = id ?? string.Empty;
+        if (value.Length is 0 or > 40 || !value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+        {
+            throw Invalid("A speaker id is 1 to 40 letters, digits, '-' or '_'.");
         }
 
         return value;

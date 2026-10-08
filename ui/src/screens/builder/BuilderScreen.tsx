@@ -17,8 +17,10 @@ import type {
 } from '../../bridge/types';
 import { ArrowRightIcon } from '../../components/paper/icons';
 import { SpokeHeader } from '../../components/SpokeHeader';
+import { UndoButton } from '../../components/UndoButton';
 import { documentWord, moduleWords, paperName } from '../../format/documents';
 import { useServices } from '../../state/context';
+import { undoOf } from '../../state/undo';
 import type { Route } from '../../state/router';
 import { openStyleEditor } from '../styleeditor/styleReturn';
 import './builder.css';
@@ -27,6 +29,7 @@ import { cancelGeneration, confirmGeneration, dismissGeneration, generationOf, s
 import { Palette } from './Palette';
 import { PreviewPanel, type InputRow } from './PreviewPanel';
 import { layoutOfDocument } from './regenerate';
+import { bindBuilderUndo, recordBuilderStep, structureStep, templateStep, type BuilderSnapshot } from './builderUndo';
 import { ConfirmSendDialog, PayloadSheet } from './SendDialogs';
 import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
@@ -303,12 +306,51 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   const otherBusy = job !== null && job.recordingId !== recordingId && (job.phase === 'running' || job.phase === 'confirm' || job.phase === 'starting');
   const canGenerate = recordingId !== null && template !== null && provider?.ready === true && count > 0 && !busy && !otherBusy;
 
+  // Undo (state/undo.ts): structure and template changes are steps with the state before and after.
+  const undo = undoOf(store);
+  const undoScope = `builder:${key}`;
+  /** What the screen holds, kept current between a change and the next render. */
+  const now = useRef({ template, structure });
+  now.current = { template, structure };
+  useEffect(() => {
+    undo.claim(undoScope);
+    const unbind = bindBuilderUndo(undoScope, (snapshot: BuilderSnapshot) => {
+      // Undo puts back structure and settings; what Save template gave the template (its id) stays.
+      const t = now.current.template;
+      const restored = t === null ? snapshot.template : { ...snapshot.template, id: t.id, builtIn: t.builtIn, modifiedAt: t.modifiedAt, ...(t.customized === undefined ? {} : { customized: t.customized }) };
+      now.current = { template: restored, structure: structureReducer(now.current.structure, { type: 'restore', rows: snapshot.rows }) };
+      setTemplate(restored);
+      dispatch({ type: 'restore', rows: snapshot.rows });
+    });
+    return () => {
+      unbind();
+      // The Style editor keeps the draft, and with it this stack; Back and Generate drop both.
+      undo.release(undoScope, { keep: keepDraft.current });
+    };
+  }, [undo, undoScope]);
+
   const structureDispatch = (action: StructureAction): void => {
+    const { template: t, structure: before } = now.current;
+    const after = structureReducer(before, action);
+    const step = t === null ? null : structureStep(before.rows, action, (m) => moduleName(m, catalog));
+    if (t !== null && step !== null && JSON.stringify(after.rows) !== JSON.stringify(before.rows)) {
+      recordBuilderStep(undo, undoScope, { template: t, rows: before.rows }, { template: t, rows: after.rows }, step);
+    }
+    now.current = { template: t, structure: after };
     dispatch(action);
   };
 
   const patchTemplate = (patch: Partial<Template>): void => {
-    setTemplate((t) => (t === null ? t : { ...t, ...patch }));
+    const { template: t, structure: s } = now.current;
+    if (t === null) {
+      return;
+    }
+    const next = { ...t, ...patch };
+    if (JSON.stringify(next) !== JSON.stringify(t)) {
+      recordBuilderStep(undo, undoScope, { template: t, rows: s.rows }, { template: next, rows: s.rows }, templateStep(patch));
+    }
+    now.current = { template: next, structure: s };
+    setTemplate(next);
   };
 
   const generate = (chosen: ProviderInfo | null = provider): void => {
@@ -320,6 +362,11 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
 
   /** Another template from the header's list: its structure, inputs, provider, style and output replace the current ones. */
   const openTemplate = (next: Template): void => {
+    const { template: t, structure: s } = now.current;
+    if (t !== null) {
+      recordBuilderStep(undo, undoScope, { template: t, rows: s.rows }, { template: next, rows: rowsOf(next) }, { label: `open ${next.name}` });
+    }
+    now.current = { template: next, structure: structureReducer(s, { type: 'load', rows: rowsOf(next) }) };
     clean.current = null;
     setTemplate(next);
     dispatch({ type: 'load', rows: rowsOf(next) });
@@ -455,6 +502,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       }
       actions={
         <>
+          <UndoButton />
           <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(); }}>
             Save template
           </button>
@@ -509,7 +557,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
               inUse={inUse}
               modules={modules}
               onAdd={(m) => {
-                dispatch({ type: 'append', module: m });
+                structureDispatch({ type: 'append', module: m });
                 setAnnouncement(`${m.name} added at the end.`);
               }}
               onDragStart={setDrag}
@@ -535,7 +583,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
             onAddModule={() => {
               const custom = catalog.get('customAi');
               if (custom !== undefined) {
-                dispatch({ type: 'append', module: custom });
+                structureDispatch({ type: 'append', module: custom });
                 setAnnouncement(`${custom.name} added at the end.`);
               }
             }}

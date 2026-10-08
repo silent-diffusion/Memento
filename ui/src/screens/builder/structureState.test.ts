@@ -82,32 +82,27 @@ describe('Builder structure (DESIGN.md §10, §5.17)', () => {
     expect(positionWords(before.rows, 'm03')).toBe('row 2, column 2 of 2');
   });
 
-  it('removes and undoes, keeping settings edited since', () => {
+  it('removes, collapsing an emptied row, and keeps settings in place', () => {
     let state = start(['m01'], ['m02', 'm03']);
     state = structureReducer(state, { type: 'select', id: 'm02' });
     state = structureReducer(state, { type: 'remove', id: 'm02' });
     expect(shape(state)).toEqual([['m01'], ['m03']]);
     expect(state.selectedId).toBeNull();
     state = structureReducer(state, { type: 'update', id: 'm03', patch: { instructions: 'Shorter.', textSize: 'smaller' } });
-    expect(state.history).toHaveLength(1);
-    state = structureReducer(state, { type: 'undo' });
-    expect(shape(state)).toEqual([['m01'], ['m02', 'm03']]);
-    expect(state.rows[1]?.[1]).toMatchObject({ instructions: 'Shorter.', textSize: 'smaller' });
-    // Nothing left to undo.
-    expect(structureReducer(state, { type: 'undo' })).toBe(state);
+    expect(state.rows[1]?.[0]).toMatchObject({ instructions: 'Shorter.', textSize: 'smaller' });
     // Removing the last module of a row collapses the row.
     expect(shape(structureReducer(start(['m01'], ['m02']), { type: 'remove', id: 'm02' }))).toEqual([['m01']]);
   });
 
-  it('undoes moves and drops one step at a time', () => {
-    let state = start(['m01'], ['m02'], ['m03']);
-    state = structureReducer(state, { type: 'dropBeside', rowIndex: 0, payload: { kind: 'card', id: 'm03' } });
-    state = structureReducer(state, { type: 'up', id: 'm02' });
-    expect(shape(state)).toEqual([['m02'], ['m01', 'm03']]);
-    state = structureReducer(state, { type: 'undo' });
-    expect(shape(state)).toEqual([['m01', 'm03'], ['m02']]);
-    state = structureReducer(state, { type: 'undo' });
+  it('restores earlier rows for Undo, keeping the selection only when its module is still there', () => {
+    const earlier = rows(['m01'], ['m02'], ['m03']);
+    let state = structureReducer(initialStructure(earlier), { type: 'dropBeside', rowIndex: 0, payload: { kind: 'card', id: 'm03' } });
+    state = structureReducer(state, { type: 'select', id: 'm03' });
+    state = structureReducer(state, { type: 'restore', rows: earlier });
     expect(shape(state)).toEqual([['m01'], ['m02'], ['m03']]);
+    expect(state.selectedId).toBe('m03');
+    state = structureReducer(state, { type: 'restore', rows: rows(['m01']) });
+    expect(state.selectedId).toBeNull();
   });
 });
 
@@ -134,7 +129,7 @@ describe('modules in use (the palette greys them, DESIGN.md §5.15)', () => {
     expect(modulesInUse([]).size).toBe(0);
   });
 
-  it('follows every add and remove, and undo', () => {
+  it('follows every add and remove, and a restore', () => {
     let state = initialStructure([[mod('m01', 'title')]]);
     state = structureReducer(state, { type: 'append', module: info('decisions', 'Decisions') });
     expect(modulesInUse(state.rows).has('decisions')).toBe(true);
@@ -142,9 +137,10 @@ describe('modules in use (the palette greys them, DESIGN.md §5.15)', () => {
     state = structureReducer(state, { type: 'append', module: info('decisions', 'Decisions') });
     state = structureReducer(state, { type: 'remove', id: 'm02' });
     expect(modulesInUse(state.rows).has('decisions')).toBe(true);
+    const withOne = state.rows;
     state = structureReducer(state, { type: 'remove', id: 'm03' });
     expect(modulesInUse(state.rows).has('decisions')).toBe(false);
-    state = structureReducer(state, { type: 'undo' });
+    state = structureReducer(state, { type: 'restore', rows: withOne });
     expect(modulesInUse(state.rows).has('decisions')).toBe(true);
   });
 

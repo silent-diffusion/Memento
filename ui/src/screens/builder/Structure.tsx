@@ -1,7 +1,7 @@
 // The structure (DESIGN.md §10.2, §5.14, §5.17): rows of one to three module cards with drop zones
 // between rows and a "beside" slot at the end of each row while something is dragged. Keyboard:
 // Alt+Up and Alt+Down move a card like its buttons, Alt+Left and Alt+Right swap columns, Delete
-// removes, Ctrl+Z undoes; the selected card expands with its settings.
+// removes, Ctrl+Z undoes (the app's undo, state/undo.ts); the selected card expands with its settings.
 import type { JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import type { ModuleInfo, ModuleLength, ModuleSettings, TextSize } from '../../bridge/types';
@@ -122,17 +122,6 @@ export function Structure(props: StructureProps): JSX.Element {
       ref={root}
       class="structure"
       aria-label="Document structure"
-      onKeyDown={(event) => {
-        const target = event.target as HTMLElement;
-        if (target.closest('textarea, input') !== null) {
-          return;
-        }
-        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
-          event.preventDefault();
-          dispatch({ type: 'undo' });
-          props.announce('Undone.');
-        }
-      }}
     >
       <div class="structure-head">
         <span class="lbl" id="structure-label">

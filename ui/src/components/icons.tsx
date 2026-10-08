@@ -343,3 +343,13 @@ export function DragHandleIcon(props: IconProps): JSX.Element {
     </svg>
   );
 }
+
+/** Undo: a counter-clockwise arrow (the header's Undo button). */
+export function UndoIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke {...props}>
+      <path d="M9 14L4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </Stroke>
+  );
+}

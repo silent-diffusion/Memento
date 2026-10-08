@@ -1,0 +1,271 @@
+/* Editing in place and Undo (DESIGN.md §9, §10, §12): the header's Undo button and its status, the
+   speaker menu with its search field and scrolling list, and the outline's editable names. */
+
+/* The viewer's paper sits in a wrapper that notices an edit before it happens (Undo); it adds no box. */
+.doc-paper-undo {
+  display: contents;
+}
+
+/* The header's Undo: a ghost button (§5.1) with a leading glyph. */
+.undo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.undo-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* "Undone: merge speakers", "Saved": quiet text-3, like the viewer's autosave word. */
+.undo-status {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo-status:empty {
+  display: none;
+}
+
+.undo-status--failed {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* The speaker menu: search field on top, the list scrolls within the room beside the trigger. */
+.speaker-menu {
+  left: 0;
+  right: auto;
+  top: calc(100% + 6px);
+  width: 260px;
+  max-width: calc(100vw - 16px);
+  max-height: 420px;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.speaker-menu-search {
+  flex: none;
+  height: 34px;
+  margin: 2px 2px 0;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.speaker-menu .menu-label {
+  flex: none;
+}
+
+.speaker-menu-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.speaker-option {
+  flex: none;
+  padding-left: 8px;
+  border-radius: 12px;
+}
+
+.speaker-option-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The row the arrow keys are on, or the pointer: a shallow press (§2.4 hover on a list row). */
+.speaker-option--active {
+  box-shadow: var(--neo-in-xs);
+  color: var(--text);
+}
+
+.speaker-option[aria-selected='true'] {
+  color: var(--text);
+}
+
+/* The first row after the speakers (Add, Rename) sits under a groove. */
+.speaker-option--after {
+  position: relative;
+  margin-top: 9px;
+}
+
+.speaker-option--after::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -6px;
+  height: 1px;
+  background: var(--line);
+}
+
+/* The Add row may wrap: the typed name is never cut off. */
+.speaker-option--add {
+  color: var(--text);
+  height: auto;
+  min-height: 34px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  white-space: normal;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.speaker-option--add .speaker-option-name {
+  overflow-wrap: anywhere;
+}
+
+.speaker-menu-empty {
+  margin: 0;
+  padding: 4px 12px 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Transcript text you can click to correct. */
+.segm-text--editable {
+  cursor: text;
+  border-radius: 6px;
+}
+
+.segm-text--editable:hover {
+  text-decoration: underline dotted var(--line-strong);
+  text-underline-offset: 4px;
+}
+
+/* A highlight note under a line: its words are a button that edits them in place. */
+.segm-note-edit {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: text;
+  border-radius: 4px;
+}
+
+.segm-note-edit:hover .segm-note-words {
+  text-decoration: underline dotted var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+.segm-note-edit:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.segm-note-input {
+  min-width: 220px;
+}
+
+/* Outline rows with an editable name (§5.13): the time plays from there, the name edits, × removes.
+   The row keeps the chapter row look (tokens.css .chap) and its parts are plain buttons inside it. */
+.chap.chap-row {
+  padding: 0;
+  gap: 0;
+  cursor: default;
+}
+
+/* Pressing a part of the row does not sink the whole row. */
+.chap.chap-row:active {
+  transform: none;
+}
+
+.chap-time,
+.chap-name {
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.chap-time {
+  flex: none;
+  padding: 8px 0 8px 10px;
+  cursor: pointer;
+  border-radius: 12px;
+}
+
+.chap-name {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px 8px 10px;
+  cursor: text;
+  overflow-wrap: anywhere;
+  border-radius: 12px;
+}
+
+.chap-name:hover .chap-title,
+.chap-name:hover .chap-note {
+  text-decoration: underline dotted var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+/* Inside the row the focus ring is drawn inward, so it never covers the time beside it. */
+.chap-time:focus-visible,
+.chap-name:focus-visible,
+.chap-remove:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.chap-row .inline-input {
+  margin: 4px 6px 4px 10px;
+}
+
+/* × to remove: shadowless icon button inside a card (§5.1), shown on hover and focus. */
+.chap-remove {
+  flex: none;
+  align-self: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.chap-row:hover .chap-remove,
+.chap-row:focus-within .chap-remove {
+  opacity: 1;
+}
+
+.chap-remove:hover {
+  box-shadow: var(--neo-sm-hi);
+  color: var(--text);
+}
+
+.chap-remove:active {
+  box-shadow: var(--neo-in);
+}
+
+@media (hover: none) {
+  .chap-remove {
+    opacity: 1;
+  }
+}

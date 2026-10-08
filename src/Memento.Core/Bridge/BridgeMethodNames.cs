@@ -42,6 +42,8 @@ public static class BridgeMethodNames
     public const string TranscriptSetSegmentSpeaker = "transcript.setSegmentSpeaker";
     public const string TranscriptRenameSpeaker = "transcript.renameSpeaker";
     public const string TranscriptMergeSpeakers = "transcript.mergeSpeakers";
+    public const string TranscriptRestoreSpeaker = "transcript.restoreSpeaker";
+    public const string TranscriptRemoveSpeaker = "transcript.removeSpeaker";
     public const string TranscriptMarkReviewed = "transcript.markReviewed";
     public const string TranscriptSearch = "transcript.search";
     public const string TranscriptRetranscribe = "transcript.retranscribe";
