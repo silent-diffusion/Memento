@@ -44,8 +44,15 @@ public sealed class M4ContractSerializationTests
             [new ProviderInfo("local", "Local model", "This PC", "local", true, null, "Qwen3.5 4B · graphics card") { Detail = "Runs on the graphics card with a 16k context. Nothing leaves this PC.", ModelId = "qwen3.5-4b-q4" }],
             false);
         Assert.Equal(
-            """{"providers":[{"id":"local","name":"Local model","vendor":"This PC","kind":"local","ready":true,"reason":null,"modelLabel":"Qwen3.5 4B · graphics card","code":null,"detail":"Runs on the graphics card with a 16k context. Nothing leaves this PC.","modelId":"qwen3.5-4b-q4"}],"externalAiEnabled":false,"defaultProviderId":null}""",
+            """{"providers":[{"id":"local","name":"Local model","vendor":"This PC","kind":"local","ready":true,"reason":null,"modelLabel":"Qwen3.5 4B · graphics card","code":null,"detail":"Runs on the graphics card with a 16k context. Nothing leaves this PC.","modelId":"qwen3.5-4b-q4","gpuMemory":null,"gpuNote":null}],"externalAiEnabled":false,"defaultProviderId":null}""",
             Dot(JsonSerializer.Serialize(providers, M4BridgeJsonContext.Default.ProvidersListResult)));
+
+        // The owner's case: Ollama holds the card, so Qwen runs on the processor and the card says why.
+        var memory = new GpuMemoryInfo("RTX 3060", 6_442_450_944, 858_993_459, 5_368_709_120, [new GpuMemoryHolderInfo("llama-server.exe", "Ollama (llama-server.exe)", 5_368_709_120, false, null)], "The graphics card has 0.8 GB of 6 GB free.");
+        var busy = new ProviderInfo("local", "Local model", "This PC", "local", true, null, "Qwen3.5 4B · processor") { GpuMemory = memory, GpuNote = "Qwen3.5 4B needs 3.6 GB on the card." };
+        Assert.Equal(
+            """{"providers":[{"id":"local","name":"Local model","vendor":"This PC","kind":"local","ready":true,"reason":null,"modelLabel":"Qwen3.5 4B · processor","code":null,"detail":null,"modelId":null,"gpuMemory":{"gpuName":"RTX 3060","totalBytes":6442450944,"freeBytes":858993459,"usedBytes":5368709120,"holders":[{"processName":"llama-server.exe","description":"Ollama (llama-server.exe)","bytes":5368709120,"memento":false,"startedBy":null}],"summary":"The graphics card has 0.8 GB of 6 GB free."},"gpuNote":"Qwen3.5 4B needs 3.6 GB on the card."}],"externalAiEnabled":true,"defaultProviderId":null}""",
+            Dot(JsonSerializer.Serialize(new ProvidersListResult([busy], true), M4BridgeJsonContext.Default.ProvidersListResult)));
 
         var start = new GenerationStartResult("g1") { ConfirmationRequired = true, Summary = new GenerationSendSummary("anthropic", "Claude", "claude-opus-5-5", Inputs, 18432, 1) };
         Assert.Equal(

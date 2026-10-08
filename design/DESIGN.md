@@ -459,6 +459,8 @@ Canvas artboards: *Settings · light / dark* (the AI and privacy section is show
 
 Rules: every row has a description that says what the setting does in one sentence; defaults match the README (local first, AI off, nothing written outside the library). API key fields are password inputs and never echo the key. The checklists are the single source of truth for what the Builder may send.
 
+**Graphics card line** (after 1.1.0; not on the canvas): under the Transcription › Engine row and under the local model's "Documents are written with …" line, a full-width row with the host's sentence at 13 px `text-2` ("The graphics card has 4.0 GB of 6 GB free. Windows desktop (dwm.exe) is using 0.4 GB.") and a **Check again** small button (§5.1, `neo-sm`) at its right; while checking the button reads "Checking…" and is disabled. When the model in effect cannot use the card the sentence is the §17 one (the amount, who holds the memory, what runs meanwhile, the fix) in `accent-text`, the colour of the other warning states. Under 640 px the button drops below the text. The Builder's Local provider card shows the same §17 sentence on its own line under the name (12 px `accent-text`).
+
 ---
 
 ## 12. Screen: Document viewer
@@ -560,6 +562,7 @@ Canvas artboard: *Error and recovery states* (light and dark side by side). Comp
 | Delete a recording | Dialog with destructive button | Name the recording, say exactly what is removed and its size, state that exports are untouched and it cannot be undone. Cancel, Delete (`danger`). |
 | Export failed | Inline card with `danger` icon | What could not be written and why; "Nothing inside Memento was changed." Actions: Try again, Choose another folder. |
 | AI provider failed | Inline card with `danger` icon | Provider + what happened (rate limited, no network, invalid key); "Nothing was sent twice and no document was changed." Actions: Try again, Switch to {other provider}. |
+| Another program holds the graphics card | Graphics card line (§11), `accent-text` | "The graphics card has {free} of {size} free. {Program} is using {amount}. {Model} needs {need} on the card, so it runs on the processor until that memory is free." + "To use the card, close {program or the app that started it} or wait until it lets go of the memory, then check again." Action: Check again. |
 | Windows blocks a device | Inline card | "Memento needs access to your microphone." + where to allow it; "the other sources keep working." Actions: Open Windows settings, Continue without microphone. |
 | Drive fills during recording | Stage status with `danger` label | "Stopped · drive full" + the exact time, "Everything up to that point is saved and will transcribe once there is room." Actions: Open recording, Free up space. |
 | Status footer variants | Footer | `ok` dot = normal; `accent` dot = paused or warning; `danger` dot = a source lost; the right side carries the storage warning in `accent-text`. |

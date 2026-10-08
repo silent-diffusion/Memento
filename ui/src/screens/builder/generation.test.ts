@@ -3,8 +3,8 @@ import type { GenerationProgress, ProviderInfo, Template } from '../../bridge/ty
 import { builtInTemplates } from '../../bridge/mockTemplates';
 import { failureLead, failureWords, NOTHING_TWICE } from './generation';
 
-const claude: ProviderInfo = { id: 'anthropic', name: 'Claude', vendor: 'Anthropic', kind: 'cloud', ready: true, reason: null, modelLabel: 'claude-opus-5-5', code: null, detail: null, modelId: null };
-const local: ProviderInfo = { id: 'local', name: 'Local model', vendor: 'This PC', kind: 'local', ready: true, reason: null, modelLabel: 'Qwen3.5 4B', code: null, detail: null, modelId: 'qwen3.5-4b-q4' };
+const claude: ProviderInfo = { id: 'anthropic', name: 'Claude', vendor: 'Anthropic', kind: 'cloud', ready: true, reason: null, modelLabel: 'claude-opus-5-5', code: null, detail: null, modelId: null, gpuMemory: null, gpuNote: null };
+const local: ProviderInfo = { id: 'local', name: 'Local model', vendor: 'This PC', kind: 'local', ready: true, reason: null, modelLabel: 'Qwen3.5 4B', code: null, detail: null, modelId: 'qwen3.5-4b-q4', gpuMemory: null, gpuNote: null };
 function minutes(): Template {
   const found = builtInTemplates().find((t) => t.id === 'meeting-minutes');
   if (found === undefined) throw new Error('The mock has no Meeting minutes template.');

@@ -2,10 +2,11 @@
 // (docs/BRIDGE.md "Settings (M4)", ARCHITECTURE.md §8): the model in effect is an installed one whenever any is
 // installed, and the Local provider names the model that writes and where it runs. `?vram=low` stands for a graphics
 // card another app is using: Qwen3.5 4B then gives way to an installed Ministral 3 3B, or runs on the processor.
+import { mockGpuMemory, mockGpuNote, type VramFlag } from './mockGpu';
 import { MODEL_IDS } from './mockModels';
 import type { ModelInfo, ProviderInfo } from './types';
 
-export type VramFlag = 'ok' | 'low';
+export type { VramFlag } from './mockGpu';
 
 /** `?llm=`: which local models the preview starts with (default: Qwen with `?ai=local`, else none). */
 export type LocalModelsFlag = 'qwen' | 'ministral' | 'both' | 'none';
@@ -60,6 +61,8 @@ export function localProviderInfo(models: readonly ModelInfo[], chosen: string |
       code: 'ai.modelNotInstalled',
       detail: `The local model ${nameOf(id)} is not installed. Nothing was sent anywhere. Download it in Settings › AI and privacy.`,
       modelId: id,
+      gpuMemory: mockGpuMemory(vram),
+      gpuNote: null,
     };
   }
   const notes: string[] = [];
@@ -68,15 +71,27 @@ export function localProviderInfo(models: readonly ModelInfo[], chosen: string |
   }
   let writer = id;
   let onGpu = true;
+  let gpuNote: string | null = null;
   if (vram === 'low') {
     onGpu = false;
     if (id === GPU_MODEL) {
       const standIn = models.some((m) => m.id === CPU_MODEL && m.installed);
-      notes.push(`The graphics card has 2.0 GB free and ${model.name} needs 3.4 GB on it, so ${standIn ? `${nameOf(CPU_MODEL)} writes instead this time.` : 'it runs on the processor, which takes several times longer.'}`);
+      gpuNote = mockGpuNote(vram, model.name, '3.4 GB', standIn ? `${nameOf(CPU_MODEL)} writes instead` : 'it runs on the processor (several times slower)');
+      notes.push(gpuNote ?? '');
       writer = standIn ? CPU_MODEL : id;
     }
   }
   const where = onGpu ? 'graphics card' : 'processor';
   notes.push(`Runs on the ${where} with ${onGpu ? 'a 16k' : 'an 8k'} context. Nothing leaves this PC.`);
-  return { ...base, ready: true, reason: null, modelLabel: `${nameOf(writer)} · ${where}`, code: null, detail: notes.join(' '), modelId: writer };
+  return {
+    ...base,
+    ready: true,
+    reason: null,
+    modelLabel: `${nameOf(writer)} · ${where}`,
+    code: null,
+    detail: notes.join(' '),
+    modelId: writer,
+    gpuMemory: mockGpuMemory(vram),
+    gpuNote,
+  };
 }

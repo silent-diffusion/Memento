@@ -9,6 +9,7 @@ import { createMockTranscription, type StageFlag } from './mockTranscription';
 import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
+import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { localModelsInstalled } from './mockLocalModel';
 import type {
   AnnotationOrigin,
@@ -175,7 +176,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     engine: {
       ready: true,
       device: 'GPU',
-      detail: { ready: true, device: 'GPU', gpuName: null, freeVramBytes: null, model: null, paused: null },
+      detail: { ready: true, device: 'GPU', gpuName: null, freeVramBytes: null, model: null, paused: null, gpuMemory: null, note: null },
     },
     storage: { freeBytes: (options.lowSpace ?? false) ? 4 * GIB : 212 * GIB, lowSpace: options.lowSpace ?? false },
     recording: { active: false, lastCheckpointAt: null, lostSource: null },
@@ -313,9 +314,19 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     ...(options.stepMs === undefined ? {} : { stepMs: options.stepMs }),
   });
 
-  const transcriptionDetail = () => engineDetail(models, settings.transcription.modelId, 'GPU', transcription.pausedReason());
+  // `?vram=low`: Ollama holds the card, so Large v3 Turbo (2.5 GB) transcribes on the processor and says why.
+  const transcriptionDetail = () => {
+    const modelId = settings.transcription.modelId;
+    const short = m4Flags.vram === 'low' && modelId === MODEL_IDS.turbo;
+    const name = models.list().find((m) => m.id === modelId)?.name ?? modelId;
+    return engineDetail(models, modelId, short ? 'CPU' : 'GPU', transcription.pausedReason(), {
+      gpuMemory: mockGpuMemory(m4Flags.vram),
+      note: short ? mockGpuNote(m4Flags.vram, name, '2.5 GB', 'it transcribes on the processor (slower)') : null,
+    });
+  };
   function refreshEngine(): void {
-    const detail = transcriptionDetail();
+    // Like the host's footer: the card's memory and the note are for Settings only.
+    const detail = { ...transcriptionDetail(), gpuMemory: null, note: null };
     footer = {
       ...footer,
       engine: { ready: detail.ready, device: detail.device, detail },
@@ -886,6 +897,14 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       transcription: transcriptionDetail(),
       speakers: engineDetail(models, settings.speakers.embeddingModelId, 'CPU', transcription.pausedReason()),
     }),
+    'engine.refresh': () => {
+      refreshEngine();
+      emitFooter();
+      return {
+        transcription: transcriptionDetail(),
+        speakers: engineDetail(models, settings.speakers.embeddingModelId, 'CPU', transcription.pausedReason()),
+      };
+    },
     ...m3.handlers,
     ...m4.handlers,
   };

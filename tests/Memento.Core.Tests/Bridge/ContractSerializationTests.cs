@@ -133,7 +133,8 @@ public sealed class ContractSerializationTests : IDisposable
 
         // No GPU and no model installed: the recommended CPU model, not ready.
         var detail = engine.GetProperty("detail");
-        Assert.Equal("ready,device,gpuName,freeVramBytes,model,paused", Names(detail));
+        Assert.Equal("ready,device,gpuName,freeVramBytes,model,paused,gpuMemory,note", Names(detail));
+        Assert.Equal(JsonValueKind.Null, detail.GetProperty("gpuMemory").ValueKind);
         Assert.Equal("whisper-small", detail.GetProperty("model").GetString());
         Assert.Equal(JsonValueKind.Null, detail.GetProperty("gpuName").ValueKind);
     }
@@ -232,7 +233,7 @@ public sealed class ContractSerializationTests : IDisposable
     public void FooterStatusEvent()
     {
         Assert.Equal(
-            """{"event":"status.footer","payload":{"engine":{"ready":true,"device":"GPU","detail":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"whisper-large-v3-turbo","paused":null}},"storage":{"freeBytes":227633266688,"lowSpace":false},"recording":{"active":true,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","lostSource":"Shure MV7"},"processingPaused":null,"export":{"active":false,"percent":null,"title":null},"update":{"downloading":false,"percent":null,"version":null}}}""",
+            """{"event":"status.footer","payload":{"engine":{"ready":true,"device":"GPU","detail":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"whisper-large-v3-turbo","paused":null,"gpuMemory":null,"note":null}},"storage":{"freeBytes":227633266688,"lowSpace":false},"recording":{"active":true,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","lostSource":"Shure MV7"},"processingPaused":null,"export":{"active":false,"percent":null,"title":null},"update":{"downloading":false,"percent":null,"version":null}}}""",
             BridgeEventPublisher.SerializeFooterStatus(
                 new FooterStatusPayload(
                     new EngineStatus(true, "GPU", new EngineStatusDetail(true, "GPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 5_368_709_120, "whisper-large-v3-turbo", null)),

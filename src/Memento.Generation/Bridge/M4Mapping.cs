@@ -47,6 +47,8 @@ public static class M4Mapping
             Code = status.Code,
             Detail = status.Detail,
             ModelId = status.IsCloud ? null : status.Model,
+            GpuMemory = status.GpuMemory,
+            GpuNote = status.GpuNote,
         };
     }
 

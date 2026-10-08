@@ -237,7 +237,8 @@ interface ModelInfo {
   recommended: boolean; runsOn: 'gpu' | 'cpu' | 'either'; minVramBytes: number | null; accuracyNote: string;   // "Most accurate", "Fast on CPU"
   role: 'segmentation' | 'embedding' | null;     // speaker models: segmentation is always needed, the embedding (voice) model is the Settings choice
 }
-interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: string | null; freeVramBytes: number | null; model: string | null; paused: string | null }
+interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: string | null; freeVramBytes: number | null; model: string | null; paused: string | null;
+                               gpuMemory: GpuMemoryInfo | null; note: string | null }   // added after 1.1.0, see "Graphics card memory"; both null in status.footer
 // model: the catalog id the engine would use, named even while it is not installed (ready is then false).
 ```
 
@@ -270,6 +271,7 @@ interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: s
 | `models.cancelInstall` | `{ modelId }` | `{}` | Removes the partial file. The download's last `models.progress` is `state: 'failed'` with a message saying it was cancelled; it is sent before this call answers. |
 | `models.remove` | `{ modelId }` | `{}` | Refused with `models.inUse` while a stage is using it. |
 | `engine.status` | `{}` | `{ transcription: EngineStatusDetail, speakers: EngineStatusDetail }` | Probe result; `freeVramBytes` null on CPU-only. |
+| `engine.refresh` | `{}` | as `engine.status` | Added after 1.1.0: Settings' "Check again". Reads the card again with nothing cached (who holds its memory is otherwise reused for 4 s) and updates the footer when where transcription runs has changed. Any parameter is `bridge.invalidParams`. |
 | `library.list` | (as M1) | `RecordingSummary` | `query` now also matches transcript text (FTS); the summary gains `matchSnippet: string \| null`: the words around the first transcript hit, and `null` when only the title or people matched (or there is no query). |
 
 ## Events (M2)
@@ -483,7 +485,8 @@ interface Template {
 type ProviderId = 'anthropic' | 'openai' | 'local';
 interface ProviderInfo { id: ProviderId; name: string; vendor: string /* "Anthropic", "OpenAI", "This PC" */; kind: 'cloud' | 'local'; ready: boolean;
                          reason: string | null /* "External AI is off", "No key saved", "Model not installed", "Not enough video memory" */; modelLabel: string | null;
-                         code: string | null /* ai.disabled | ai.noKey | ai.modelNotInstalled | ai.notEnoughVram */; detail: string | null /* the §17 sentence, or a note when ready */; modelId: string | null /* local catalog id */ }
+                         code: string | null /* ai.disabled | ai.noKey | ai.modelNotInstalled | ai.notEnoughVram */; detail: string | null /* the §17 sentence, or a note when ready */; modelId: string | null /* local catalog id */;
+                         gpuMemory: GpuMemoryInfo | null /* local only, after 1.1.0 */; gpuNote: string | null /* local only: why a card model is off the card; also starts detail */ }
 interface StyleSettings { headingFace: 'sans' | 'serif'; bodyFace: 'sans' | 'serif'; baseSize: 'small' | 'normal' | 'large'; headingCase: 'normal' | 'smallCaps'; numberedHeadings: boolean; headingColor: 'navy' | 'ink' | 'forest' | 'burgundy'; tableHeaderFill: boolean; ruleUnderTitle: boolean; linesBetweenSections: boolean; spacing: 'tight' | 'normal' | 'airy'; paper: 'letter' | 'a4'; pageNumbers: boolean; runningHeader: boolean }
 interface Style { id: string; name: string; builtIn: boolean; settings: StyleSettings; usedByTemplates: number; modifiedAt: string | null; customized?: boolean }
 interface DocumentSummary { id: string; name: string; kind: 'generated' | 'written'; templateName: string | null; styleId: string; providerId: ProviderId | null; generatedAt: string | null; version: number; versions: number; modifiedAt: string; sizeBytes: number }
@@ -585,6 +588,34 @@ Builder: DESIGN §10 and `Builder.dc.html`. Viewer: §12 and `DocView.dc.html`. 
 16. `generation.preview`'s `inputsUsed` and the send confirmation's summary name only the inputs the payload holds: a ticked input with nothing in it (no participants, no agenda) is not "used". The record's `inputs` stay the ticks (a regeneration starts from them); its `sent` lines name what was read.
 17. A failed `generation.progress` carries `code` in the UI type too; the failure card leads with what happened from it ("Claude did not accept the key", "The local model ran out of video memory").
 18. End-to-end runs may point Claude or ChatGPT at a fake server through `MEMENTO_TEST_ANTHROPIC_URL` / `MEMENTO_TEST_OPENAI_URL`; only a loopback address is honoured.
+
+## Graphics card memory (after 1.1.0)
+
+A product owner read "0.1 GB free" on an RTX 3060 and took the reading for wrong: another app's Ollama server held the card. The reading matched the driver's (ENGINE-NOTES §J); what was missing was who held the memory. The discrete card's memory and its holders now travel with the engine and provider status.
+
+```ts
+interface GpuMemoryHolder {
+  processName: string;        // "llama-server.exe": the executable holding most of this entry
+  description: string;        // "Ollama (llama-server.exe)", "Ollama (llama-server.exe, started by Dictation)", "python.exe (started by Dictation)", "Windows desktop (dwm.exe)", "Memento", "Another program (process 4242)"
+  bytes: number;              // dedicated video memory held
+  memento: boolean;           // the app, its WebView2 processes and its worker, one entry
+  startedBy: string | null;   // the app that started a runtime (Python, Node, Java, Ollama's server), unless a shell or Windows started it
+}
+interface GpuMemoryInfo {
+  gpuName: string;
+  totalBytes: number;         // DXGI's dedicated memory (5994 MiB on a "6 GB" card; the sentences round it to the size it is sold with)
+  freeBytes: number | null;   // the probe's free memory: min(DXGI budget − use, card − all processes' use); null when unreadable
+  usedBytes: number | null;   // all processes' dedicated use on the card (PDH \GPU Adapter Memory)
+  holders: GpuMemoryHolder[]; // at most 3, largest first, each ≥ 32 MB; empty when the counters cannot be read
+  summary: string;            // "The graphics card has 0.8 GB of 6 GB free. Ollama (llama-server.exe) is using 5.0 GB."
+}
+```
+
+- **Where it appears.** `engine.status` / `engine.refresh`: `transcription.gpuMemory` (null without a discrete card; `speakers.gpuMemory` is always null) and `transcription.note`, the §17 sentence when the model in effect is installed but runs on the processor because the card is short: "{summary} Large v3 Turbo needs 2.5 GB on the card, so it transcribes on the processor (slower) until that memory is free. To use the card, close Ollama (llama-server.exe) or wait until it lets go of the memory, then check again." `providers.list`: Local's `gpuMemory` (also while its model is not installed) and `gpuNote` when a graphics-card model does not fit ("… Qwen3.5 4B needs 3.6 GB on the card, so it runs on the processor (several times slower) until …", or "so Ministral 3 3B writes instead until …"); `detail` starts with the same sentence, so older readers of `detail` stay complete. Cloud providers carry `null` for both. `status.footer` always carries `null` for `gpuMemory` and `note`, so the 5-second footer sample is not re-sent each time another program's use moves.
+- **Holders.** From `\GPU Process Memory(*)\Dedicated Usage` (instances `pid_N_luid_0xHIGH_0xLOW_phys_N`), read once per sample, summed by process over the card's LUID (every `phys_N`), described from one Toolhelp snapshot (executable, parent, start time, file description). Ollama's executables and its `llama-server.exe` read "Ollama (…)"; `llama-server.exe` without an Ollama parent reads "llama.cpp server (…)". A runtime names the nearest ancestor that is neither a runtime nor a shell as `startedBy`; a parent that started after the child (a reused id) is ignored. Processes with the same description are added together. The fix sentence offers `startedBy` (else the description) of the largest holder that is neither Memento nor part of Windows; when Memento is the holder it says its own job is using the card instead.
+- **Cost and failure.** About 10 ms per reading on the reference laptop, cached for 4 s (`engine.refresh` drops the cache); any failure reads as no holders, never as an error, and nothing leaves the PC.
+- **Which card.** The display driver's hybrid flags (`D3DKMT` adapter type: `HybridDiscrete` / `HybridIntegrated`) decide which adapter is the separate card; without them, NVIDIA or ≥ 2 GB dedicated, as before. An integrated GPU is never given holders.
+- **Freshness in the UI.** Opening Settings reads `settings.get` again (the models in effect follow the card's free memory); "Check again" calls `engine.refresh`, then `settings.get`, `models.list` and, in AI and privacy, `providers.list`.
 
 ## Updates (H1)
 

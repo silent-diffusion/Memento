@@ -11,6 +11,7 @@ import { TRANSCRIPTION_LANGUAGES } from '../../format/languages';
 import { formatSize } from '../../format/storage';
 import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
+import { GpuMemoryLine, useCheckAgain } from './GpuMemoryLine';
 import { ModelCards, useModels } from './ModelCards';
 import { DocumentDefaultsRows } from './sections-m4';
 import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
@@ -66,7 +67,7 @@ export function segmentationKeep(sp: SpeakerSettings, models: readonly ModelInfo
   );
 }
 
-function useEngineStatus(): EngineStatusResult | null {
+function useEngineStatus(): [EngineStatusResult | null, (next: EngineStatusResult) => void] {
   const { bridge, store } = useServices();
   const [status, setStatus] = useState<EngineStatusResult | null>(null);
   // Re-read whenever the footer reports a change (a model installed or removed, a pause).
@@ -87,7 +88,7 @@ function useEngineStatus(): EngineStatusResult | null {
       live = false;
     };
   }, [bridge, footer]);
-  return status;
+  return [status, setStatus];
 }
 
 export function TranscriptionSection(): JSX.Element {
@@ -95,8 +96,12 @@ export function TranscriptionSection(): JSX.Element {
   const { bridge, store } = services;
   const settings = store.settings.value;
   const models = useModels(bridge);
-  const engine = useEngineStatus();
+  const [engine, setEngine] = useEngineStatus();
   const [error, setError] = useState<string | null>(null);
+  const { checking, check } = useCheckAgain(async (status) => {
+    setEngine(status);
+    await models.reload();
+  });
   if (settings === null) {
     return <></>;
   }
@@ -149,7 +154,18 @@ export function TranscriptionSection(): JSX.Element {
       </SettingsGroup>
 
       <SettingsGroup label="Engine">
-        <SettingsRow label="Engine" description="Falls back to the CPU when no GPU is available.">
+        <SettingsRow
+          label="Engine"
+          description="Falls back to the CPU when no GPU is available."
+          below={
+            <GpuMemoryLine
+              memory={engine?.transcription.gpuMemory ?? null}
+              note={engine?.transcription.note ?? null}
+              checking={checking}
+              onCheck={check}
+            />
+          }
+        >
           {engineText.note === null ? null : <span class="settings-note">{engineText.note}</span>}
           <span class="settings-value" data-testid="engine-value">
             {engineText.value}

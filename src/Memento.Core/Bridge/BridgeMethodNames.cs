@@ -56,6 +56,7 @@ public static class BridgeMethodNames
     public const string ModelsCancelInstall = "models.cancelInstall";
     public const string ModelsRemove = "models.remove";
     public const string EngineStatus = "engine.status";
+    public const string EngineRefresh = "engine.refresh";
 
     public const string AgendaImportFile = "agenda.importFile";
     public const string AgendaImportDropped = "agenda.importDropped";

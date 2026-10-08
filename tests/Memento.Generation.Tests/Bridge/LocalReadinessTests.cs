@@ -66,9 +66,55 @@ public sealed class LocalReadinessTests : IDisposable
 
         Assert.True(local.GetProperty("ready").GetBoolean());
         var detail = local.GetProperty("detail").GetString()!;
-        Assert.Contains("The graphics card has 2.0 GB free and Qwen3.5 4B needs", detail, StringComparison.Ordinal);
-        Assert.Contains("so it runs on the processor", detail, StringComparison.Ordinal);
+        Assert.StartsWith("The graphics card has 2.0 GB of 6 GB free. Qwen3.5 4B needs ", detail, StringComparison.Ordinal);
+        Assert.Contains("so it runs on the processor (several times slower) until that memory is free.", detail, StringComparison.Ordinal);
         Assert.Contains("Runs on the processor with an 8k context. Nothing leaves this PC.", detail, StringComparison.Ordinal);
+        Assert.StartsWith(local.GetProperty("gpuNote").GetString()!, detail, StringComparison.Ordinal);
+        Assert.Equal(Low, local.GetProperty("gpuMemory").GetProperty("freeBytes").GetInt64());
+    }
+
+    [Fact]
+    public async Task TheOwnersCaseNamesOllamaHoldingTheCardInTheDetailAndTheCardMemory()
+    {
+        _host.InstallLocalModel(Qwen);
+        _host.Host.Probe.Snapshot = FakeResourceProbe.WithGpu(820L << 20, FakeResourceProbe.Ollama);
+
+        var local = await LocalAsync();
+
+        Assert.Equal("Qwen3.5 4B · processor", local.GetProperty("modelLabel").GetString());
+        var note = local.GetProperty("gpuNote").GetString()!;
+        Assert.Matches(
+            @"^The graphics card has 0\.8 GB of 6 GB free\. Ollama \(llama-server\.exe\) is using 5\.0 GB\. Qwen3\.5 4B needs \d\.\d GB on the card, so it runs on the processor \(several times slower\) until that memory is free\. To use the card, close Ollama \(llama-server\.exe\) or wait until it lets go of the memory, then check again\.$",
+            note);
+        Assert.StartsWith(note, local.GetProperty("detail").GetString()!, StringComparison.Ordinal);
+        var holder = Assert.Single(local.GetProperty("gpuMemory").GetProperty("holders").EnumerateArray());
+        Assert.Equal("llama-server.exe", holder.GetProperty("processName").GetString());
+        Assert.Equal(5L << 30, holder.GetProperty("bytes").GetInt64());
+    }
+
+    [Fact]
+    public async Task WhenQwenFitsThereIsNoNoteButTheCardMemoryIsStillThere()
+    {
+        _host.InstallLocalModel(Qwen);
+        _host.Host.Probe.Snapshot = FakeResourceProbe.WithGpu(Plenty, FakeResourceProbe.Ollama with { Bytes = 600L << 20 });
+
+        var local = await LocalAsync();
+
+        Assert.Equal(JsonValueKind.Null, local.GetProperty("gpuNote").ValueKind);
+        Assert.Equal(
+            "The graphics card has 5.0 GB of 6 GB free. Ollama (llama-server.exe) is using 0.6 GB.",
+            local.GetProperty("gpuMemory").GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public async Task CloudProvidersAndPcsWithoutACardCarryNoCardMemory()
+    {
+        _host.InstallLocalModel(Ministral);
+
+        var list = (await _host.ResultAsync("providers.list", new { })).GetProperty("providers").EnumerateArray().ToList();
+
+        Assert.All(list, p => Assert.Equal(JsonValueKind.Null, p.GetProperty("gpuMemory").ValueKind));
+        Assert.All(list, p => Assert.Equal(JsonValueKind.Null, p.GetProperty("gpuNote").ValueKind));
     }
 
     [Fact]
@@ -102,7 +148,8 @@ public sealed class LocalReadinessTests : IDisposable
         var settings = (await _host.ResultAsync("settings.get", new { })).GetProperty("ai");
 
         Assert.Equal(Ministral, local.GetProperty("modelId").GetString());
-        Assert.Contains("so Ministral 3 3B writes instead this time", local.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Contains("so Ministral 3 3B writes instead until that memory is free.", local.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Contains("Qwen3.5 4B needs", local.GetProperty("gpuNote").GetString(), StringComparison.Ordinal);
         Assert.Equal(Qwen, settings.GetProperty("localModelId").GetString());
         Assert.True(settings.GetProperty("localModelChosen").GetBoolean());
     }
@@ -119,6 +166,10 @@ public sealed class LocalReadinessTests : IDisposable
         Assert.False(local.GetProperty("ready").GetBoolean());
         Assert.Equal(AiErrorCodes.ModelNotInstalled, local.GetProperty("code").GetString());
         Assert.Contains($"The local model {name} is not installed.", local.GetProperty("detail").GetString(), StringComparison.Ordinal);
+
+        // The card is described even so: what is free helps choose which model to download.
+        Assert.Equal(free, local.GetProperty("gpuMemory").GetProperty("freeBytes").GetInt64());
+        Assert.Equal(JsonValueKind.Null, local.GetProperty("gpuNote").ValueKind);
     }
 
     [Fact]

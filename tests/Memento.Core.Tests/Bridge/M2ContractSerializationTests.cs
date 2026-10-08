@@ -104,12 +104,19 @@ public sealed class M2ContractSerializationTests : IDisposable
     [Fact]
     public void EngineStatusShape()
     {
+        var memory = new GpuMemoryInfo(
+            "NVIDIA GeForce RTX 3060 Laptop GPU",
+            6_285_164_544,
+            858_993_459,
+            5_368_709_120,
+            [new GpuMemoryHolderInfo("llama-server.exe", "Ollama (llama-server.exe, started by Dictation)", 5_368_709_120, false, "Dictation")],
+            "The graphics card has 0.8 GB of 6 GB free. Ollama (llama-server.exe, started by Dictation) is using 5.0 GB.");
         var result = new EngineStatusResult(
-            new EngineStatusDetail(true, "GPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 5_368_709_120, "whisper-large-v3-turbo", null),
+            new EngineStatusDetail(true, "CPU", "NVIDIA GeForce RTX 3060 Laptop GPU", 858_993_459, "whisper-large-v3-turbo", null) { GpuMemory = memory, Note = "The graphics card has 0.8 GB of 6 GB free." },
             new EngineStatusDetail(false, null, null, null, "nemo-titanet-small", "PC is busy"));
 
         Assert.Equal(
-            """{"transcription":{"ready":true,"device":"GPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":5368709120,"model":"whisper-large-v3-turbo","paused":null},"speakers":{"ready":false,"device":null,"gpuName":null,"freeVramBytes":null,"model":"nemo-titanet-small","paused":"PC is busy"}}""",
+            """{"transcription":{"ready":true,"device":"CPU","gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","freeVramBytes":858993459,"model":"whisper-large-v3-turbo","paused":null,"gpuMemory":{"gpuName":"NVIDIA GeForce RTX 3060 Laptop GPU","totalBytes":6285164544,"freeBytes":858993459,"usedBytes":5368709120,"holders":[{"processName":"llama-server.exe","description":"Ollama (llama-server.exe, started by Dictation)","bytes":5368709120,"memento":false,"startedBy":"Dictation"}],"summary":"The graphics card has 0.8 GB of 6 GB free. Ollama (llama-server.exe, started by Dictation) is using 5.0 GB."},"note":"The graphics card has 0.8 GB of 6 GB free."},"speakers":{"ready":false,"device":null,"gpuName":null,"freeVramBytes":null,"model":"nemo-titanet-small","paused":"PC is busy","gpuMemory":null,"note":null}}""",
             Json(result, BridgeJsonContext.Default.EngineStatusResult));
     }
 

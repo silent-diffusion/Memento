@@ -238,7 +238,7 @@ public sealed class BridgeRouterTests
             "recording.current", "recording.markHighlight", "recording.pause", "recording.resume", "recording.setSource",
             "recording.start", "recording.stop", "recovery.acknowledge", "recovery.list", "settings.get", "settings.set",
             "sources.list", "status.get", "ui.ready",
-            "engine.status", "models.cancelInstall", "models.install", "models.list", "models.remove",
+            "engine.refresh", "engine.status", "models.cancelInstall", "models.install", "models.list", "models.remove",
             "processing.cancel", "processing.pause", "processing.resume", "processing.retry",
             "transcript.editSegment", "transcript.get", "transcript.markReviewed", "transcript.mergeSpeakers", "transcript.renameSpeaker",
             "transcript.restoreVersion", "transcript.retranscribe", "transcript.search", "transcript.setSegmentSpeaker", "transcript.versions",
