@@ -90,7 +90,8 @@ internal sealed class SherpaDiarizer(ProtocolWriter output)
 
     /// <summary>
     /// Each speaker's voice embedding from up to <see cref="VoiceSeconds"/> of their turns (turns shorter than half a
-    /// second are skipped: too little to hear a voice in), so the host can tell the same person on another track.
+    /// second are skipped, too little to hear a voice in, unless the speaker has no longer ones), so the host can tell the
+    /// same person on another track and which voices sound alike.
     /// </summary>
     private static List<SpeakerVoice> Voices(string embeddingModelPath, int threads, float[] samples, OfflineSpeakerDiarizationSegment[] segments, CancellationToken cancellationToken)
     {
@@ -106,7 +107,10 @@ internal sealed class SherpaDiarizer(ProtocolWriter output)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var audio = new List<float>();
-            foreach (var turn in speaker.Where(t => t.End - t.Start >= MinTurnSeconds).OrderByDescending(t => t.End - t.Start))
+
+            // A speaker heard only in short turns gets a voice from all of them, so the host can still compare it.
+            var turns = speaker.Any(t => t.End - t.Start >= MinTurnSeconds) ? speaker.Where(t => t.End - t.Start >= MinTurnSeconds) : speaker;
+            foreach (var turn in turns.OrderByDescending(t => t.End - t.Start))
             {
                 var from = Math.Clamp((int)(turn.Start * TrackAudio.SampleRate), 0, samples.Length);
                 var to = Math.Clamp((int)(turn.End * TrackAudio.SampleRate), from, samples.Length);

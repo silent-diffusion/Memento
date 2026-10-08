@@ -19,6 +19,8 @@ public sealed class StageTests : IDisposable
 {
     private static readonly ModelCatalog TinyCatalog = TestCatalogs.Tiny;
 
+    private static readonly string[] TwoNames = ["Avery Stone", "Rowan Hale"];
+
     private static readonly WorkerDevice Gpu = new("vulkan", "GPU (Vulkan)", "NVIDIA GeForce RTX 3060 Laptop GPU", 0, "1.9.1");
 
     private readonly BridgeTestHost _host;
@@ -503,16 +505,74 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
-    public async Task TheExpectedSpeakerCountIsUsedForASingleSpokenTrack()
+    public async Task TheExpectedSpeakerCountIsReachedByGroupingVoicesNeverBySplitting()
     {
         InstallAll();
         await _host.ResultAsync("settings.set", """{"speakers":{"expectedSpeakers":3,"rememberRenamed":true}}""");
 
         var id = await RecordAndProcessAsync();
 
-        Assert.Equal(3, Assert.Single(Jobs(WorkerJobKinds.Diarize)).Diarize!.NumClusters);
+        // The diarizer always clusters by threshold; the host groups its voices to the count, so 2 voices stay 2.
+        Assert.Equal(-1, Assert.Single(Jobs(WorkerJobKinds.Diarize)).Diarize!.NumClusters);
+        Assert.Equal(2, (await TranscriptAsync(id)).Speakers.Count);
         var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
         Assert.Contains(history, h => h.Stage == "speakers" && h.Summary == "Renamed speakers are not remembered yet");
+        Assert.Contains(history, h => h.Stage == "speakers" && h.Event == "started" && h.Detail!.EndsWith(" · 3 expected (Settings)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TheRecordingsOwnCountAndNamesBeatSettingsAndRegroupWithoutListeningAgain()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        _host.Workers.Script = TwoTrackDiarizer((_, _) => Task.FromResult(true));
+        await _host.ResultAsync("settings.set", """{"speakers":{"expectedSpeakers":4}}""");
+        var id = await RecordAndProcessAsync();
+        Assert.Equal(4, (await TranscriptAsync(id)).Speakers.Count);
+        Assert.Single(Jobs(WorkerJobKinds.Diarize));
+
+        await _host.ResultAsync("project.updateDetails", JsonSerializer.Serialize(new { recordingId = id, details = new { whoSpoke = new { count = 2, names = TwoNames } } }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+
+        // voices.json kept what the diarizer heard: no second job, the voices of both tracks grouped into 2 and named.
+        Assert.Single(Jobs(WorkerJobKinds.Diarize));
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(["Avery Stone", "Rowan Hale"], transcript.Speakers.Select(s => s.Name));
+        Assert.All(transcript.Speakers, s => Assert.True(s.Renamed));
+        Assert.Equal(["spk1", "spk1", "spk2", "spk2"], transcript.Segments.OrderBy(s => s.Start).Select(s => s.Speaker));
+        var voices = await _host.Transcripts.LoadVoicesAsync(id, CancellationToken.None);
+        Assert.Equal(["mic", "system"], voices!.Tracks.Select(t => t.TrackId).Order(StringComparer.Ordinal));
+        Assert.Equal(4, voices.Clusters.Count);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var again = history.Where(h => h.Stage == "speakers" && h.Event == "started").Last();
+        Assert.Equal("Identifying speakers (from the voices heard before)", again.Summary);
+        Assert.Contains("2 tracks heard before · 2 expected (this recording) · 2 names given", again.Detail, StringComparison.Ordinal);
+        var found = history.Where(h => h.Stage == "speakers" && h.Event == "completed").Last();
+        Assert.Contains("4 voices heard, grouped into 2 speakers (2 expected, this recording) · 2 names from Who spoke", found.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NamesGivenInTheTranscriptCarryOverAndTheCorrectionsAreKeptAsAVersion()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        _host.Workers.Script = TwoTrackDiarizer((_, _) => Task.FromResult(true));
+        var id = await RecordAndProcessAsync();
+        var first = await TranscriptAsync(id);
+        var micFirst = first.Segments.Where(s => s.Track == "mic").OrderBy(s => s.Start).First().Speaker!;
+        await _host.ResultAsync("transcript.renameSpeaker", JsonSerializer.Serialize(new { recordingId = id, speakerId = micFirst, name = "Sam Okafor" }));
+
+        await _host.ResultAsync("project.updateDetails", JsonSerializer.Serialize(new { recordingId = id, details = new { whoSpoke = new { count = 2, names = Array.Empty<string>() } } }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+
+        var transcript = await TranscriptAsync(id);
+        var sam = Assert.Single(transcript.Speakers, s => s.Name == "Sam Okafor");
+        Assert.True(sam.Renamed);
+        Assert.Equal(sam.Id, transcript.Segments.Where(s => s.Track == "mic").OrderBy(s => s.Start).First().Speaker);
+        var versions = await _host.ResultAsync("transcript.versions", JsonSerializer.Serialize(new { recordingId = id }));
+        Assert.Contains(versions.GetProperty("versions").EnumerateArray(), v => v.GetProperty("reason").GetString() == "edited");
     }
 
     [Fact]
@@ -751,7 +811,7 @@ public sealed class StageTests : IDisposable
         var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
         var found = Assert.Single(history, h => h.Stage == "speakers" && h.Event == "completed");
         Assert.Equal("Found 2 speakers", found.Summary);
-        Assert.Contains("grouped by sound into the 2 expected speakers", found.Detail, StringComparison.Ordinal);
+        Assert.Contains("4 voices heard, grouped into 2 speakers (2 expected, Settings)", found.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -783,7 +843,10 @@ public sealed class StageTests : IDisposable
         await IdleAsync();
 
         var jobs = Jobs(WorkerJobKinds.Diarize);
-        Assert.Equal([-1, 3], jobs.Select(j => j.Diarize!.NumClusters));
+        // Nothing was heard yet when it started over, so it listens again; the diarizer never gets the count.
+        Assert.Equal([-1, -1], jobs.Select(j => j.Diarize!.NumClusters));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == "speakers" && h.Event == "started" && h.Detail!.EndsWith(" · 3 expected (Settings)", StringComparison.Ordinal));
         Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
         Assert.Empty((await ManifestAsync(id)).Failures);
     }
