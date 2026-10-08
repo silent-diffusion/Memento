@@ -713,3 +713,29 @@ Both answer `clipboard.unavailable` when Windows does not let Memento open the c
 ## Error codes (clipboard)
 
 `clipboard.unavailable` (Windows did not let Memento write the clipboard; nothing was copied; detail: Windows' code).
+
+## History links (after 1.2.0)
+
+The product owner asked to click an event in History and go back to that version of the transcript or document. A History line that changed the transcript or a document opens the stored copy of the content right after it, read-only, with "Restore this version" (the existing restore methods, one Undo step) and "Back to current" (DESIGN.md §9, §5.19 banner).
+
+```ts
+interface HistoryLink {
+  index: number;                      // the line's position in Project.history (oldest first, from 0)
+  kind: 'transcript' | 'document';
+  documentId: string | null;          // the document the line changed; null for the transcript, or when not known
+  versionId: string | null;           // 'current', a kept version's id, or null: no copy of the content right after the line is kept
+  after: string;                      // the banner's words: "after speakers were identified"
+}
+interface HistoryLinksResult { links: HistoryLink[] }
+interface DocumentVersionResult { document: DocumentContent; html: string }   // html: the viewer's paper (renderHtml, view) for that version
+```
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `history.links` | `{ recordingId }` | `HistoryLinksResult` | One entry per line that changed the transcript (`transcript` `completed`, `speakers` `completed`, and the `edited` lines "Transcript edited", "Speaker …", "Speakers merged", "Transcript version restored") or a document (`minutes` `completed`, and `edited` "Document "…" created / created as a copy / edited / restored"); other lines are not listed. Works from the files already on disk, so recordings from before have links too. `project.notFound` for an unknown recording. Reads only. |
+| `transcript.getVersion` | `{ recordingId, versionId }` | `{ transcript }` | A kept version, whole (the shape of `transcript.get`'s `transcript`), to read before restoring. `transcript.versionNotFound` when it is not kept (any more). Reads only. |
+| `documents.getVersion` | `{ recordingId, documentId, versionId }` | `DocumentVersionResult` | A kept version's content and its paper, drawn with the style it names. `documents.notFound`, `documents.versionNotFound`. Reads only. |
+
+How a line finds its copy (`Memento.Core.History.HistoryLinker`): every stored copy (the current content, and each kept version while Settings › Documents › version history is on, as `transcript.versions` and `documents.versions` list them) was current from the write that defined it (its `lastChange.at`) until a write replaced it (a kept version's id is the UTC moment it was replaced). A History line is written just after its write, so it belongs to the copy current at its time; for a document, the copy written last before the line, within two minutes. Of the lines inside one copy only the last opens it: the earlier ones were changed again before a copy was kept (the transcript before speakers were identified, the first lines of a run of edits, which keeps one version). Lines whose copy was removed after the version-history days have `versionId: null`. Retention is unchanged. Restoring from the banner goes through `transcript.restoreVersion` / `documents.restoreVersion`; the version that restore keeps of the replaced content (the id new in `transcript.versions` / `documents.versions`) is what Undo restores, and Redo restores the opened version again. Without version history nothing is kept, so only `current` links open.
+
+The document viewer's route takes the version to open: `#/document/<recordingId>/<documentId>?version=<versionId>`.
