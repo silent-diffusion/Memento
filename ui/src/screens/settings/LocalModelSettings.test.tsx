@@ -43,6 +43,7 @@ describe('Local model readiness in Settings and the Builder (against the browser
         };
       });
   const inUse = (): string => (document.querySelector('.model-in-use')?.textContent ?? '').replace(/\s+/g, ' ');
+  const gpuLine = (): string => (document.querySelector('[data-testid="gpu-memory"] .gpu-memory-text')?.textContent ?? '').replace(/\s+/g, ' ');
 
   it('with only Qwen installed and the graphics card busy, Qwen is selected and runs on the processor', async () => {
     await openSettings({ llm: 'qwen', vram: 'low' });
@@ -55,7 +56,9 @@ describe('Local model readiness in Settings and the Builder (against the browser
     expect(ministral?.text).toContain('Not installed');
     expect(ministral?.text).not.toContain('Use this model');
     expect(inUse()).toContain('Documents are written with Qwen3.5 4B · processor.');
-    expect(inUse()).toContain('so it runs on the processor');
+    expect(inUse()).not.toContain('graphics card has');
+    expect(gpuLine()).toContain('Ollama (llama-server.exe) is using 9.4 GB');
+    expect(gpuLine()).toContain('so it runs on the processor (several times slower) until that memory is free.');
     expect(document.querySelector('.model-in-use')?.getAttribute('data-local-ready')).toBe('true');
   });
 
@@ -75,7 +78,7 @@ describe('Local model readiness in Settings and the Builder (against the browser
 
     const qwenRadio = document.querySelector<HTMLInputElement>('[data-model-id="qwen3.5-4b-q4"] input[type="radio"]');
     await click(qwenRadio);
-    await until(() => cards()[0]?.checked === true && inUse().includes('writes instead this time'));
+    await until(() => cards()[0]?.checked === true && gpuLine().includes('so Ministral 3 3B writes instead until that memory is free.'));
     expect((h.callsOf('settings.set') as SettingsSetParams[]).at(-1)?.ai?.localModelId).toBe('qwen3.5-4b-q4');
     expect(h.store.settings.value?.ai.localModelChosen).toBe(true);
     expect(inUse()).toContain('Documents are written with Ministral 3 3B · processor.');
@@ -102,7 +105,40 @@ describe('Local model readiness in Settings and the Builder (against the browser
     const local = [...document.querySelectorAll<HTMLElement>('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.textContent === 'Local model');
     expect(local?.querySelector('.provider-note')?.textContent).toBe('Qwen3.5 4B · processor · on this PC');
     expect(local?.querySelector('input')?.disabled).toBe(false);
+    expect(local?.querySelector('.provider-detail')?.textContent).toBe(
+      'The graphics card has 2.0 GB of 12 GB free. Ollama (llama-server.exe) is using 9.4 GB and Windows desktop (dwm.exe) 0.4 GB. Qwen3.5 4B needs 3.4 GB on the card, '
+        + 'so it runs on the processor (several times slower) until that memory is free. To use the card, close Ollama (llama-server.exe) or wait until it lets go of the memory, then check again.',
+    );
     await settle(10);
     expect(button('Generate minutes').disabled).toBe(false);
+  });
+
+  it('the Builder adds no card sentence when the local model fits on the card', async () => {
+    h = await mountApp({ name: 'builder', recordingId: DESIGN, templateId: null, documentId: null }, { m4: { llm: 'qwen' } });
+    await until(() => document.querySelector('.mod') !== null);
+    await click(button('Inputs and output'));
+    await until(() => document.querySelector('.providers .provider') !== null);
+    expect(document.querySelector('.provider-detail')).toBeNull();
+    expect(document.querySelector('.provider--detail')).toBeNull();
+  });
+
+  it('Settings shows the card with nothing to fix when the model fits, and Check again reads the card and the models again', async () => {
+    await openSettings({ llm: 'qwen' });
+    expect(inUse()).toContain('Documents are written with Qwen3.5 4B · graphics card.');
+    expect(gpuLine()).toBe('The graphics card has 9.2 GB of 12 GB free. Windows desktop (dwm.exe) is using 0.4 GB.');
+    expect(document.querySelector('.gpu-memory--short')).toBeNull();
+
+    const before = { refresh: h.callsOf('engine.refresh').length, providers: h.callsOf('providers.list').length, settings: h.callsOf('settings.get').length, models: h.callsOf('models.list').length };
+    await click(button('Check again'));
+    await until(() => h.callsOf('providers.list').length > before.providers && document.querySelector<HTMLButtonElement>('.gpu-memory-check')?.disabled === false);
+    expect(h.callsOf('engine.refresh').length).toBe(before.refresh + 1);
+    expect(h.callsOf('settings.get').length).toBeGreaterThan(before.settings);
+    expect(h.callsOf('models.list').length).toBeGreaterThan(before.models);
+  });
+
+  it('a busy card is shown as a warning with the fix', async () => {
+    await openSettings({ llm: 'qwen', vram: 'low' });
+    expect(document.querySelector('.gpu-memory--short')).not.toBeNull();
+    expect(gpuLine()).toMatch(/^The graphics card has 2\.0 GB of 12 GB free\. Ollama \(llama-server\.exe\) is using 9\.4 GB .* then check again\.$/);
   });
 });

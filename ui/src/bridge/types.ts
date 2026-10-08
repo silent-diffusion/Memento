@@ -458,6 +458,38 @@ export interface EngineStatusDetail {
   model: string | null;
   /** Why processing is paused, in words ("PC is busy"), or null. */
   paused: ProcessingPausedReason | null;
+  /** The card's memory and who holds it (transcription only); null on CPU-only PCs and in `status.footer`. */
+  gpuMemory: GpuMemoryInfo | null;
+  /** Why the model runs on the processor although there is a card (DESIGN §17); null when it runs on the card and in `status.footer`. */
+  note: string | null;
+}
+
+/** A program holding video memory on the graphics card. */
+export interface GpuMemoryHolder {
+  /** "llama-server.exe". */
+  processName: string;
+  /** "Ollama (llama-server.exe)", "python.exe (started by Dictation)", "Windows desktop (dwm.exe)", "Memento". */
+  description: string;
+  bytes: number;
+  /** Memento's own processes (the app, its WebView2 processes, its worker), counted as one entry. */
+  memento: boolean;
+  /** The app that started a runtime such as Python or Ollama's server, or null. */
+  startedBy: string | null;
+}
+
+/** The discrete graphics card's memory as the probe read it (`engine.status`, `engine.refresh`, `providers.list`). */
+export interface GpuMemoryInfo {
+  gpuName: string;
+  /** Dedicated memory as DXGI reports it (a little under the size the card is sold with). */
+  totalBytes: number;
+  /** Null when it could not be read. */
+  freeBytes: number | null;
+  /** What every process together uses on the card; null when unreadable. */
+  usedBytes: number | null;
+  /** Up to three programs holding the most, largest first. */
+  holders: GpuMemoryHolder[];
+  /** "The graphics card has 0.8 GB of 6 GB free. Ollama (llama-server.exe) is using 5.0 GB." */
+  summary: string;
 }
 
 export interface TranscriptGetResult {
@@ -1596,6 +1628,10 @@ export interface ProviderInfo {
   detail: string | null;
   /** The local model's catalog id. */
   modelId: string | null;
+  /** Local only: the discrete card's memory and who holds it; null for cloud providers and on PCs without a card. */
+  gpuMemory: GpuMemoryInfo | null;
+  /** Local only: why a graphics-card model does not run on the card now (DESIGN §17); it also starts `detail`. */
+  gpuNote: string | null;
 }
 
 export type HeadingColor = 'navy' | 'ink' | 'forest' | 'burgundy';
@@ -2003,6 +2039,8 @@ export interface BridgeMethods {
   'models.cancelInstall': { params: ModelIdParams; result: EmptyResult };
   'models.remove': { params: ModelIdParams; result: EmptyResult };
   'engine.status': { params: EmptyParams; result: EngineStatusResult };
+  /** Settings' "Check again": reads the graphics card again with nothing cached. */
+  'engine.refresh': { params: EmptyParams; result: EngineStatusResult };
   // M3
   'agenda.importFile': { params: AgendaImportFileParams; result: AgendaImportResult };
   'agenda.importDropped': { params: AgendaImportDroppedParams; result: AgendaImportResult };
@@ -2151,6 +2189,7 @@ export const METHOD_NAMES = [
   'models.cancelInstall',
   'models.remove',
   'engine.status',
+  'engine.refresh',
   'agenda.importFile',
   'agenda.importDropped',
   'agenda.parseText',

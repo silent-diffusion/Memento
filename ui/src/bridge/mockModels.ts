@@ -3,7 +3,7 @@
 // models.progress, cancel and remove. Nothing is downloaded.
 import { formatSize } from '../format/storage';
 import { MockHostError } from './mockSession';
-import type { EngineStatusDetail, EventName, EventPayload, ModelInfo } from './types';
+import type { EngineStatusDetail, EventName, EventPayload, GpuMemoryInfo, ModelInfo } from './types';
 
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
@@ -320,15 +320,19 @@ export function engineDetail(
   modelId: string,
   device: 'GPU' | 'CPU',
   paused: EngineStatusDetail['paused'],
+  card: { gpuMemory: GpuMemoryInfo | null; note: string | null } | null = null,
 ): EngineStatusDetail {
   const ready = manager.isInstalled(modelId);
+  const gpuMemory = card?.gpuMemory ?? null;
   return {
     ready,
     device: ready ? device : null,
-    gpuName: device === 'GPU' ? 'NVIDIA GeForce RTX 4070' : null,
-    freeVramBytes: device === 'GPU' ? Math.round(9.2 * GB) : null,
+    gpuName: gpuMemory?.gpuName ?? (device === 'GPU' ? 'NVIDIA GeForce RTX 4070' : null),
+    freeVramBytes: gpuMemory?.freeBytes ?? (device === 'GPU' ? Math.round(9.2 * GB) : null),
     // Like the host: the model it would use, installed or not.
     model: modelId,
     paused,
+    gpuMemory,
+    note: ready ? (card?.note ?? null) : null,
   };
 }

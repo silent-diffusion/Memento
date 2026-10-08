@@ -8,6 +8,7 @@ import { SelectMenu } from '../../components/Menus';
 import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { TemplatesManager } from '../styleeditor/TemplatesManager';
+import { GpuMemoryLine, useCheckAgain, withoutGpuNote } from './GpuMemoryLine';
 import { ModelCards, useModels } from './ModelCards';
 import { SettingsGroup, SettingsRow } from './SettingsParts';
 
@@ -115,23 +116,30 @@ export function DocumentDefaultsRows(): JSX.Element {
 
 const NO_DEFAULT = 'first-ready';
 
-/** Under the local model cards: which model writes documents now and where it runs, as providers.list says. */
-export function LocalModelInUse({ provider }: { provider: ProviderInfo | null }): JSX.Element | null {
+/**
+ * Under the local model cards: which model writes documents now and where it runs, as providers.list says, then the
+ * graphics card's memory and who holds it with "Check again" (the card sentence moves from the detail to that line).
+ */
+export function LocalModelInUse({ provider, checking = false, onCheck }: { provider: ProviderInfo | null; checking?: boolean; onCheck?: () => void }): JSX.Element | null {
   if (provider === null) {
     return null;
   }
+  const detail = withoutGpuNote(provider.detail, provider.gpuNote) ?? '';
   return (
-    <p class="model-in-use" role="status" data-local-ready={provider.ready ? 'true' : 'false'}>
-      {provider.ready ? (
-        <>
-          Documents are written with <strong>{provider.modelLabel ?? 'the local model'}</strong>. {provider.detail ?? ''}
-        </>
-      ) : (
-        <>
-          <strong>{provider.reason ?? 'The local model is not ready'}.</strong> {provider.detail ?? ''}
-        </>
-      )}
-    </p>
+    <>
+      <p class="model-in-use" role="status" data-local-ready={provider.ready ? 'true' : 'false'}>
+        {provider.ready ? (
+          <>
+            Documents are written with <strong>{provider.modelLabel ?? 'the local model'}</strong>. {detail}
+          </>
+        ) : (
+          <>
+            <strong>{provider.reason ?? 'The local model is not ready'}.</strong> {detail}
+          </>
+        )}
+      </p>
+      {onCheck === undefined ? null : <GpuMemoryLine memory={provider.gpuMemory} note={provider.gpuNote} checking={checking} onCheck={onCheck} />}
+    </>
   );
 }
 
@@ -145,6 +153,10 @@ export function AiProviderDefaults(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const aiKey = JSON.stringify(settings?.ai ?? null);
   const installedLocal = models.state.models.filter((m) => m.engine === 'llm' && m.installed).length;
+  const { checking, check } = useCheckAgain(async () => {
+    const [list] = await Promise.all([bridge.call('providers.list'), models.reload()]);
+    setProviders(list.providers);
+  });
 
   useEffect(() => {
     let live = true;
@@ -230,7 +242,7 @@ export function AiProviderDefaults(): JSX.Element {
                   void updateSettings(services, { ai: { localModelId } }).then(setError);
                 }}
               />
-              <LocalModelInUse provider={local} />
+              <LocalModelInUse provider={local} checking={checking} onCheck={check} />
             </>
           }
         />

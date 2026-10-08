@@ -605,6 +605,19 @@
   text-align: right;
 }
 
+/* The local card's graphics-card sentence (providers.list gpuNote) on its own line under the name. */
+.provider--detail {
+  flex-wrap: wrap;
+}
+
+.provider-detail {
+  flex: 1 1 100%;
+  padding-left: 30px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--accent-text);
+}
+
 .style-choice .seg-well {
   width: 100%;
   box-sizing: border-box;

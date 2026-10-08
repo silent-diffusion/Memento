@@ -24,6 +24,8 @@ export interface ModelsApi {
   cancel: (modelId: string) => void;
   remove: (modelId: string) => void;
   dismiss: (modelId: string) => void;
+  /** Reads models.list again (the recommendation follows the graphics card's free memory). */
+  reload: () => Promise<void>;
 }
 
 /** models.list once, then models.progress as downloads move. */
@@ -86,6 +88,13 @@ export function useModels(bridge: BridgeClient): ModelsApi {
     dismiss: (modelId) => {
       dispatch({ type: 'dismiss', modelId });
     },
+    reload: () =>
+      bridge
+        .call('models.list')
+        .then(({ models }) => {
+          dispatch({ type: 'loaded', models });
+        })
+        .catch(() => undefined),
   };
 }
 

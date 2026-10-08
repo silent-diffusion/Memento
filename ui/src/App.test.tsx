@@ -16,7 +16,7 @@ const bridge: BridgeClient = {
 const EMPTY = { recordings: [], totalDurationMs: 0, totalCount: 0 };
 
 const footerPayload = (overrides: Partial<FooterStatusPayload> = {}): FooterStatusPayload => ({
-  engine: { ready: false, device: null, detail: { ready: false, device: null, gpuName: null, freeVramBytes: null, model: null, paused: null } },
+  engine: { ready: false, device: null, detail: { ready: false, device: null, gpuName: null, freeVramBytes: null, model: null, paused: null, gpuMemory: null, note: null } },
   storage: { freeBytes: 212 * 1024 ** 3, lowSpace: false },
   recording: { active: false, lastCheckpointAt: null, lostSource: null },
   processingPaused: null,

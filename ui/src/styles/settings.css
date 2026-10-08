@@ -355,6 +355,40 @@
   font-weight: 700;
 }
 
+/* The graphics card's memory and who holds it, with "Check again" (engine.refresh). A card too full for the model
+   reads in the accent text colour, like the other "paused or warning" states (DESIGN.md §17). */
+.gpu-memory {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.gpu-memory-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.gpu-memory--short .gpu-memory-text {
+  color: var(--accent-text);
+}
+
+.gpu-memory-check {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .gpu-memory {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
 /* "Needed by the current settings": why Remove is off on this card. */
 .model-needed {
   display: block;

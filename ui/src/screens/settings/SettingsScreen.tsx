@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import { useEffect } from 'preact/hooks';
 import { BannerSlot } from '../../components/Banners';
 import { PathIcon, SETTINGS_ICON_PATHS } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
@@ -35,8 +36,26 @@ export const SECTIONS: Record<SettingsSection, SectionInfo> = {
 /** Settings spoke (DESIGN.md §11, renders/Settings.dc.html). */
 export function SettingsScreen({ section }: { section: SettingsSection }): JSX.Element {
   const services = useServices();
-  const { store, router } = services;
+  const { bridge, store, router } = services;
   const info = SECTIONS[section];
+  // The snapshot read at start-up names the models in effect for the graphics card as it was then; read it again on
+  // opening Settings so another program that has since taken or freed the card's memory is reflected.
+  useEffect(() => {
+    let live = true;
+    bridge
+      .call('settings.get')
+      .then((fresh) => {
+        if (live) {
+          store.settings.value = fresh;
+        }
+      })
+      .catch((e: unknown) => {
+        console.warn('[settings] settings.get failed', e);
+      });
+    return () => {
+      live = false;
+    };
+  }, [bridge, store]);
   const version = store.version.value?.version;
   const path = store.settings.value?.libraryPath;
   return (

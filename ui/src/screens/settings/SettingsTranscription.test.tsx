@@ -201,7 +201,7 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
   });
 
   it('words the engine row from engine.status', () => {
-    const detail = { ready: true, device: 'GPU', gpuName: 'RTX 3060', freeVramBytes: 6 * 1024 ** 3, model: 'whisper-large-v3-turbo', paused: null };
+    const detail = { ready: true, device: 'GPU', gpuName: 'RTX 3060', freeVramBytes: 6 * 1024 ** 3, model: 'whisper-large-v3-turbo', paused: null, gpuMemory: null, note: null };
     expect(engineWording(null)).toEqual({ value: 'Checking…', note: null });
     expect(engineWording({ transcription: detail, speakers: detail })).toEqual({ value: 'Local · GPU (RTX 3060)', note: '6 GB video memory free' });
     expect(engineWording({ transcription: { ...detail, device: 'CPU', gpuName: null, freeVramBytes: null }, speakers: detail })).toEqual({

@@ -251,7 +251,10 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
             ) : (
               <div class="providers" role="radiogroup" aria-labelledby="inputs-provider">
                 {shownProviders.map((p) => (
-                  <label key={p.id} class={['provider', props.providerId === p.id ? 'on' : '', p.ready ? '' : 'provider--off'].filter((c) => c !== '').join(' ')}>
+                  <label
+                    key={p.id}
+                    class={['provider', props.providerId === p.id ? 'on' : '', p.ready ? '' : 'provider--off', p.gpuNote === null ? '' : 'provider--detail'].filter((c) => c !== '').join(' ')}
+                  >
                     <input
                       class="chk"
                       type="radio"
@@ -264,6 +267,8 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
                     />
                     <span class="provider-name">{p.name}</span>
                     <span class="provider-note">{providerNote(p)}</span>
+                    {/* The local model on the processor because another program holds the card: who, how much, the fix. */}
+                    {p.gpuNote === null ? null : <span class="provider-detail">{p.gpuNote}</span>}
                   </label>
                 ))}
               </div>

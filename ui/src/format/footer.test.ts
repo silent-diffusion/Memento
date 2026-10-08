@@ -4,7 +4,7 @@ import { engineLine, footerStorageLine, statusLine, storageLine } from './footer
 import { formatFreeSpace } from './storage';
 
 const GIB = 1024 ** 3;
-const DETAIL: EngineStatusDetail = { ready: true, device: 'GPU', gpuName: 'RTX 3060', freeVramBytes: null, model: 'large-v3', paused: null };
+const DETAIL: EngineStatusDetail = { ready: true, device: 'GPU', gpuName: 'RTX 3060', freeVramBytes: null, model: 'large-v3', paused: null, gpuMemory: null, note: null };
 
 describe('formatFreeSpace', () => {
   it.each([
