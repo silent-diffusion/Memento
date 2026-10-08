@@ -6,7 +6,8 @@
 //                              [--port <n>] [--from-review] [--simulate]
 //
 // --play is a public-domain recording of two readers that plays through the default output while Memento records the
-// microphone and system audio. --models is a folder with whisper/, sherpa-onnx/ and llama/ (Qwen3.5 4B): its files are
+// microphone and system audio. --models is a folder with whisper/, sherpa-onnx/ and llama/ (Qwen3.5 4B, Ministral 3 3B or
+// both; with one of them the run checks it is selected without choosing, 1.1.0): its files are
 // hard-linked into the private data root (copied when a link is not possible). The app runs with LOCALAPPDATA pointed
 // at --data (default artifacts/e2e-data-m4), so the real library is never touched; the microphone is recorded, so
 // delete --data afterwards. Claude is pointed at a fake server on this PC (MEMENTO_TEST_ANTHROPIC_URL) that refuses the
@@ -95,6 +96,9 @@ function forgetEarlierDocuments() {
     if (!existsSync(versions)) continue;
     for (const file of readdirSync(versions).filter((f) => f.startsWith('document.'))) rmSync(join(versions, file), { force: true });
   }
+  // The templates and styles an earlier run saved, so this run's copies get the same names.
+  rmSync(join(app.memento, 'templates'), { recursive: true, force: true });
+  rmSync(join(app.memento, 'styles'), { recursive: true, force: true });
 }
 
 /** Answers Windows' file or folder picker titled `title` with `path`. Resolves when done. */
@@ -353,24 +357,42 @@ try {
   await openSettings('AI and privacy');
   await hasText('Allow external AI services');
   check((await page.eval(`document.querySelector('[aria-label="Allow external AI services"]')?.getAttribute('aria-checked')`)) !== 'true', 'external AI is off');
-  await page.waitFor(`!!document.querySelector('[aria-label^="Remove Qwen3.5 4B"]')`, 'Qwen3.5 4B installed', 30_000);
-  // Qwen is the default for this graphics card; the run chooses the other model and then Qwen, so the choice is made in
-  // Settings. When another app holds the card's memory (Qwen would be refused as "Not enough video memory"), it ends on
-  // Ministral 3 3B, which runs on the processor (--model qwen|ministral forces one).
-  const radioOf = (name) => page.eval(`(() => { const radio = [...document.querySelectorAll('input[type=radio]')].find((r) => (r.closest('.model-card, label, li, div')?.innerText ?? '').includes(${JSON.stringify(name)})); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const b = radio.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, checked: radio.checked }; })()`);
+  // At least one local model is installed (a copied model file is hashed in the background first).
+  await page.waitFor(`!!document.querySelector('[aria-label^="Remove Qwen3.5 4B"], [aria-label^="Remove Ministral 3 3B"]')`, 'a local model installed', 60_000);
+  const cardOf = (name) => page.eval(`(() => { const card = [...document.querySelectorAll('.model-card')].find((c) => c.querySelector('.model-name')?.innerText.includes(${JSON.stringify(name)})); const radio = card?.querySelector('input[type=radio]'); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const b = radio.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, checked: radio.checked, disabled: radio.disabled, installed: !!card.querySelector('[aria-label^="Remove "]'), text: card.innerText.replace(/\\s+/g, ' ') }; })()`);
+  const inUse = () => page.eval(`(document.querySelector('.model-in-use')?.innerText ?? '').replace(/\\s+/g, ' ').trim()`);
   summary.gpuAtStart = gpuMemory();
-  const wanted = option('--model', summary.gpuAtStart.usedMiB > 2000 ? 'ministral' : 'qwen') === 'ministral' ? 'Ministral 3 3B' : 'Qwen3.5 4B';
-  for (const name of wanted === 'Qwen3.5 4B' ? ['Ministral 3 3B', 'Qwen3.5 4B'] : ['Qwen3.5 4B', 'Ministral 3 3B']) {
-    const radio = await radioOf(name);
-    check(radio !== null, `the ${name} card can be chosen`);
-    await clickAt(radio);
-    await page.waitFor(`(() => { const r = [...document.querySelectorAll('input[type=radio]')].find((x) => (x.closest('.model-card, label, li, div')?.innerText ?? '').includes(${JSON.stringify(name)})); return r?.checked === true; })()`, `${name} chosen`, 10_000);
+  const cards = { qwen: await cardOf('Qwen3.5 4B'), ministral: await cardOf('Ministral 3 3B') };
+  summary.localModelsInstalled = Object.entries(cards).filter(([, c]) => c?.installed).map(([k]) => k);
+  for (const [key, card] of Object.entries(cards)) {
+    check(card !== null, `the ${key} card is listed`);
+    // 1.1.0: an installed, verified model never reads "Not installed", and its radio says "Use this model".
+    if (card.installed) check(!card.text.includes('Not installed') && card.text.includes('Use this model') && !card.disabled, `the installed ${key} card can be used (${card.text})`);
+    else check(card.disabled && card.text.includes('Not installed'), `the ${key} card that is not installed says so`);
   }
+  let wanted;
+  if (summary.localModelsInstalled.length === 2) {
+    // Both installed: the run chooses the other model and then the wanted one, so the choice is made in Settings. When
+    // another app holds the card's memory it ends on Ministral 3 3B, which runs on the processor (--model forces one).
+    wanted = option('--model', summary.gpuAtStart.usedMiB > 2000 ? 'ministral' : 'qwen') === 'ministral' ? 'Ministral 3 3B' : 'Qwen3.5 4B';
+    for (const name of wanted === 'Qwen3.5 4B' ? ['Ministral 3 3B', 'Qwen3.5 4B'] : ['Qwen3.5 4B', 'Ministral 3 3B']) {
+      await clickAt(await cardOf(name));
+      await page.waitFor(`[...document.querySelectorAll('.model-card')].find((c) => c.querySelector('.model-name')?.innerText.includes(${JSON.stringify(name)}))?.querySelector('input[type=radio]')?.checked === true`, `${name} chosen`, 10_000);
+    }
+  } else {
+    // Only one installed (bug report for 1.0.0: only Qwen, and Settings showed Ministral "not installed"): it is the one
+    // selected without choosing anything, whatever the graphics card has free.
+    wanted = summary.localModelsInstalled[0] === 'qwen' ? 'Qwen3.5 4B' : 'Ministral 3 3B';
+  }
+  await page.waitFor(`/Documents are written with/.test(document.querySelector('.model-in-use')?.innerText ?? '')`, 'the local model in use', 20_000);
   await sleep(800);
   await shot('settings-ai-local-chosen');
-  summary.localModel = (await radioOf(wanted))?.checked ? wanted : null;
-  check(summary.localModel !== null, `${wanted} is the chosen local model`);
-  log('Settings › AI and privacy', `external AI off; ${wanted} installed and chosen (graphics card: ${summary.gpuAtStart.text})`);
+  summary.localModel = (await cardOf(wanted))?.checked ? wanted : null;
+  check(summary.localModel !== null, `${wanted} is the selected local model`);
+  summary.settingsLocalInUse = await inUse();
+  check(summary.settingsLocalInUse.includes(wanted) || summary.localModelsInstalled.length === 2, `Settings names the model that writes (${summary.settingsLocalInUse})`);
+  check(/· (graphics card|processor)/.test(summary.settingsLocalInUse), `Settings names where it runs (${summary.settingsLocalInUse})`);
+  log('Settings › AI and privacy', `external AI off; installed ${summary.localModelsInstalled.join(' + ')}; ${wanted} selected; ${summary.settingsLocalInUse} (graphics card: ${summary.gpuAtStart.text})`);
 
   // 2. Three minutes of microphone and system audio while the two readers play; the transcript with speakers.
   let recordingId;
@@ -455,6 +477,21 @@ try {
   summary.previewPills = await page.eval(`[...document.querySelectorAll('[role=dialog] .pill')].map((p) => p.innerText.trim())`);
   await shot('builder-payload-preview');
   await page.click({ name: 'Done', within: '[role=dialog]' });
+  // The Local provider card names the model that writes and where it runs (1.1.0), as Settings does.
+  const localNote = `[...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Local model')?.querySelector('.provider-note')?.innerText.trim() ?? ''`;
+  await page.waitFor(`!document.querySelector('[role=dialog]')`, 'the payload preview to close', 10_000);
+  for (let attempt = 0; ; attempt++) {
+    // A click that lands while the dialog is still closing does nothing: press the tab until the card shows.
+    if (!(await page.eval(localNote))) await page.click({ selector: '#builder-tab-inputs' });
+    try {
+      summary.builderLocal = await page.waitFor(localNote, 'the Local provider card', 5_000);
+      break;
+    } catch (error) {
+      if (attempt === 2) throw error;
+    }
+  }
+  check(/^(Qwen3\.5 4B|Ministral 3 3B) · (graphics card|processor) · on this PC$/.test(summary.builderLocal), `the Builder names the local model and where it runs (${summary.builderLocal})`);
+  await shot('builder-local-provider');
 
   // 4. Generate with the local model: nothing is sent, so nothing is asked; progress, then the viewer.
   const first = await generate('local');
@@ -569,14 +606,44 @@ try {
   await page.waitFor(`!!document.querySelector('[data-card="m01"]')`, 'the Builder', 30_000);
   await page.click({ name: 'Inputs and output' });
   await page.click({ name: 'Corporate (copy)' });
+  const savedAt = Date.now() - 1000;
   await page.click({ name: 'Save template' });
-  await sleep(1500);
+  const templateFile = await waitForFile(join(app.memento, 'templates'), /^meeting-minutes-copy\.json$/, savedAt, 20_000);
+  const savedTemplate = readJson(templateFile);
+  check(savedTemplate.name === 'Meeting minutes (copy)' && savedTemplate.defaultStyleId === 'corporate-copy', `the template is saved in the templates folder (${savedTemplate.name}, ${savedTemplate.defaultStyleId})`);
+  await page.waitFor(`document.querySelector('.tpl-chooser button')?.getAttribute('aria-label') === 'Template: Meeting minutes (copy)'`, 'the saved template chosen in the list', 10_000);
   await shot('builder-template-with-style');
+  log('template saved', templateFile);
+
+  // 10b. Leave the Builder, Create document again: it opens Meeting minutes, the saved template is in the header's
+  // template list after the built-ins; choosing it brings back its style, and the document is written with it.
+  await page.click({ selector: '[data-spoke-back]' });
+  await page.waitFor(`!!document.querySelector('.review-panes')`, 'Review', 20_000);
+  await page.click({ name: 'Create document' });
+  await page.waitFor(`!!document.querySelector('[data-card="m01"]') && document.querySelector('#tpl-name')?.value === 'Meeting minutes'`, 'the Builder with Meeting minutes', 30_000);
+  await page.click({ selector: '.tpl-chooser button[aria-haspopup=listbox]' });
+  summary.builderTemplates = await page.waitFor(`(() => { const items = [...document.querySelectorAll('.tpl-chooser [role=listbox] li')].map((li) => (li.getAttribute('role') === 'presentation' ? '# ' : '') + li.textContent.trim()); return items.length > 0 ? items : null; })()`, 'the template list', 10_000);
+  await shot('builder-template-list');
+  const savedIndex = summary.builderTemplates.indexOf('Meeting minutes (copy)');
+  check(summary.builderTemplates[0] === '# Built in' && savedIndex > summary.builderTemplates.indexOf('# Your templates') && summary.builderTemplates.indexOf('# Your templates') > 4, `the Builder lists the built-ins, then the saved template (${summary.builderTemplates.join(' | ')})`);
+  await page.click({ role: 'option', name: 'Meeting minutes (copy)' });
+  await page.waitFor(`document.querySelector('#tpl-name')?.value === 'Meeting minutes (copy)'`, 'the saved template in the Builder', 20_000);
+  await page.waitFor(`(document.querySelector('.preview-caption')?.innerText ?? '').includes('Corporate (copy) style')`, 'the saved template\'s style', 20_000);
+  await shot('builder-saved-template-chosen');
+  const fourth = await generate('saved-template');
+  check(fourth.ended === 'done', `the saved template wrote a document (${await builderStatus()})`);
+  const madeWith = documentFiles(recordingId).map((f) => readFileSync(join(projectFolder(recordingId), 'documents', f), 'utf8'));
+  check(madeWith.some((text) => /"templateName":\s*"Meeting minutes \(copy\)"/.test(text)), 'the document records the saved template');
+  summary.timings.savedTemplateGenerationSeconds = fourth.seconds;
+  await shot('viewer-saved-template');
+  log('generated with the saved template', `${fourth.seconds} s`);
+
   await openSettings('Documents');
   await page.click({ name: 'Manage' });
   await hasText('Corporate (copy)');
   const manager = (await page.text('body')).replace(/\s+/g, ' ');
   check(/Corporate \(copy\) Used by 1 template/.test(manager), 'the Documents manager shows the style, used by the saved template');
+  check(/Meeting minutes \(copy\) \d+ modules · Corporate \(copy\) · Yours/.test(manager), 'the Documents manager lists the saved template as yours');
   await shot('settings-documents-manager');
   await page.click({ name: 'Done' });
 
