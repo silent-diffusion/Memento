@@ -26,6 +26,7 @@ import { openStyleEditor } from '../styleeditor/styleReturn';
 import './builder.css';
 import { draftKey, draftOf, type BuilderTab } from './draft';
 import { cancelGeneration, confirmGeneration, dismissGeneration, generationOf, startGeneration, watchGeneration } from './generation';
+import { holdLiveOutput, liveOutputOf, openLiveOutput, releaseLiveOutput, resetLiveOutput } from './liveOutput';
 import { Palette } from './Palette';
 import { PreviewPanel, type InputRow } from './PreviewPanel';
 import { layoutOfDocument } from './regenerate';
@@ -260,6 +261,18 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       watchGeneration(store, false);
     };
   }, [store, recordingId]);
+  // The Live output of this recording's generation stays readable while this Builder is open.
+  useEffect(() => {
+    if (recordingId === null) {
+      return undefined;
+    }
+    const holder = `builder:${recordingId}`;
+    holdLiveOutput(store, holder);
+    return () => {
+      releaseLiveOutput(store, holder);
+    };
+  }, [store, recordingId]);
+  const live = liveOutputOf(store).value;
   const mine = job !== null && job.recordingId === recordingId ? job : null;
   useEffect(() => {
     if (mine?.phase === 'done' && mine.resultId !== null && recordingId !== null) {
@@ -357,6 +370,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
     if (current === null || recordingId === null || chosen === null) {
       return;
     }
+    resetLiveOutput(store);
     void startGeneration(services, { recordingId, template: current, provider: chosen, documentId });
   };
 
@@ -613,6 +627,13 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
               onCancel={() => {
                 void cancelGeneration(bridge, store);
               }}
+              onShowLiveOutput={
+                busy || (mine?.phase === 'failed' && live !== null && live.recordingId === recordingId)
+                  ? () => {
+                      openLiveOutput(store);
+                    }
+                  : undefined
+              }
               onRetry={() => {
                 generate(mine?.provider ?? provider);
               }}

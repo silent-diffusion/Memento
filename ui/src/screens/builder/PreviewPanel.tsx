@@ -37,6 +37,8 @@ interface PreviewPanelProps {
   job: ActiveGeneration | null;
   moduleName: (moduleId: string) => string | null;
   onCancel: () => void;
+  /** Opens the Live output sheet (generating and failed states); left out when there is nothing to show. */
+  onShowLiveOutput?: (() => void) | undefined;
   onRetry: () => void;
   /** A ready provider other than the one that failed, for "Switch to …". */
   alternative: ProviderInfo | null;
@@ -61,7 +63,17 @@ interface PreviewPanelProps {
   onPreviewPayload: () => void;
 }
 
-function ProgressCard({ job, moduleName, onCancel }: { job: ActiveGeneration; moduleName: (id: string) => string | null; onCancel: () => void }): JSX.Element {
+export function ProgressCard({
+  job,
+  moduleName,
+  onCancel,
+  onShowLiveOutput,
+}: {
+  job: ActiveGeneration;
+  moduleName: (id: string) => string | null;
+  onCancel: () => void;
+  onShowLiveOutput?: (() => void) | undefined;
+}): JSX.Element {
   const words = progressWords(job, moduleName);
   const percent = Math.max(0, Math.min(100, words.percent));
   return (
@@ -78,10 +90,15 @@ function ProgressCard({ job, moduleName, onCancel }: { job: ActiveGeneration; mo
       <span class="gen-track" aria-hidden="true">
         <span class="gen-fill" style={{ width: `${percent}%` }} />
       </span>
-      <div class="gen-actions">
+      <div class={onShowLiveOutput === undefined ? 'gen-actions' : 'gen-actions gen-actions--live'}>
         <button class="btn g small-btn" type="button" onClick={onCancel} disabled={job.jobId === null || job.phase === 'confirm'}>
           Cancel
         </button>
+        {onShowLiveOutput === undefined ? null : (
+          <button class="btn g small-btn" type="button" aria-haspopup="dialog" onClick={onShowLiveOutput} disabled={job.phase === 'confirm'}>
+            Show live output
+          </button>
+        )}
         <span class="gen-note">{job.provider.kind === 'local' ? 'Running on this PC. Nothing leaves it.' : 'Audio and video are not sent.'}</span>
       </div>
     </div>
@@ -94,12 +111,14 @@ function FailureCard({
   onRetry,
   onSwitch,
   onDismiss,
+  onShowLiveOutput,
 }: {
   job: ActiveGeneration;
   alternative: ProviderInfo | null;
   onRetry: () => void;
   onSwitch: (provider: ProviderInfo) => void;
   onDismiss: () => void;
+  onShowLiveOutput?: (() => void) | undefined;
 }): JSX.Element {
   const lead = failureLead(job);
   return (
@@ -123,6 +142,11 @@ function FailureCard({
             }}
           >
             Switch to {alternative.kind === 'local' ? 'the local model' : alternative.name}
+          </button>
+        )}
+        {onShowLiveOutput === undefined ? null : (
+          <button class="btn g" type="button" aria-haspopup="dialog" onClick={onShowLiveOutput}>
+            Show live output
           </button>
         )}
         <button class="btn link-btn ai-failure-dismiss" type="button" onClick={onDismiss}>
@@ -181,9 +205,9 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
         ))}
       </div>
 
-      {running ? <ProgressCard job={job} moduleName={props.moduleName} onCancel={props.onCancel} /> : null}
+      {running ? <ProgressCard job={job} moduleName={props.moduleName} onCancel={props.onCancel} onShowLiveOutput={props.onShowLiveOutput} /> : null}
       {failed ? (
-        <FailureCard job={job} alternative={props.alternative} onRetry={props.onRetry} onSwitch={props.onSwitch} onDismiss={props.onDismissFailure} />
+        <FailureCard job={job} alternative={props.alternative} onRetry={props.onRetry} onSwitch={props.onSwitch} onDismiss={props.onDismissFailure} onShowLiveOutput={props.onShowLiveOutput} />
       ) : null}
 
       {tab === 'preview' ? (

@@ -15,6 +15,10 @@ import { serializePaper } from '../../components/paper/paperDom';
 import { PROVIDER_SHORT, whenWords } from '../../format/documents';
 import { useServices } from '../../state/context';
 import { MERGE_WINDOW_MS, undoOf } from '../../state/undo';
+import { cancelGeneration, generationOf } from '../builder/generation';
+import { holdLiveOutput, liveOutputOf, openLiveOutput, releaseLiveOutput } from '../builder/liveOutput';
+import { ProgressCard } from '../builder/PreviewPanel';
+import '../builder/builder.css';
 import './docview.css';
 import { blockKind, currentBlock, insertTable, insertTimestamp, selectionRange, setBlock, toggleInline, toggleList, type BlockKind } from './editing';
 import { playheadOf } from './playhead';
@@ -67,6 +71,20 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
       undo.release(undoScope);
     };
   }, [undo, undoScope]);
+
+  // Live output: a regeneration into this document (its progress card), and the exchange that wrote it, kept
+  // readable until this viewer is left.
+  useEffect(() => {
+    const holder = `viewer:${documentId}`;
+    holdLiveOutput(store, holder);
+    return () => {
+      releaseLiveOutput(store, holder);
+    };
+  }, [store, documentId]);
+  const job = generationOf(store).value;
+  const live = liveOutputOf(store).value;
+  const regenerating = job !== null && job.recordingId === recordingId && job.documentId === documentId && (job.phase === 'starting' || job.phase === 'running' || job.phase === 'confirm') ? job : null;
+  const finishedLive = live !== null && live.ended && live.recordingId === recordingId && live.documentId === documentId ? live : null;
 
   // The document, its paper and the recording it belongs to.
   useEffect(() => {
@@ -523,7 +541,34 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
               </div>
             </section>
             <aside class="doc-side" aria-label="About this document">
+              {regenerating === null ? null : (
+                <ProgressCard
+                  job={regenerating}
+                  moduleName={(id) => regenerating.template.rows.flatMap((r) => r.modules).find((m) => m.id === id)?.customTitle ?? null}
+                  onCancel={() => {
+                    void cancelGeneration(bridge, store);
+                  }}
+                  onShowLiveOutput={() => {
+                    openLiveOutput(store);
+                  }}
+                />
+              )}
               {summary === null ? null : <HowMade summary={summary} record={record} styleName={styleName} now={now} onRegenerate={regenerate} />}
+              {finishedLive === null || regenerating !== null ? null : (
+                <div class="doc-live">
+                  <button
+                    class="btn ghost side-btn"
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => {
+                      openLiveOutput(store);
+                    }}
+                  >
+                    Show live output
+                  </button>
+                  <p class="doc-live-note">The exchange with {finishedLive.provider.kind === 'local' ? 'the local model' : finishedLive.provider.name} that wrote this version. It is not saved and goes when you leave this document.</p>
+                </div>
+              )}
               <Versions
                 history={history}
                 versions={versions}
