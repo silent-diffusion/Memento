@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { DocumentSummary, DocumentVersion, GenerationRecord, Project, Style } from '../../bridge/types';
 import { MoreIcon } from '../../components/icons';
 import { SpokeHeader } from '../../components/SpokeHeader';
+import { UndoButton } from '../../components/UndoButton';
 import { ActionMenu } from '../../components/Menus';
 import { Dialog } from '../../components/Overlay';
 import { RegenerateIcon } from '../../components/paper/icons';
@@ -13,6 +14,7 @@ import { Paper } from '../../components/paper/Paper';
 import { serializePaper } from '../../components/paper/paperDom';
 import { PROVIDER_SHORT, whenWords } from '../../format/documents';
 import { useServices } from '../../state/context';
+import { MERGE_WINDOW_MS, undoOf } from '../../state/undo';
 import './docview.css';
 import { blockKind, currentBlock, insertTable, insertTimestamp, selectionRange, setBlock, toggleInline, toggleList, type BlockKind } from './editing';
 import { playheadOf } from './playhead';
@@ -53,6 +55,18 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
   const lastRange = useRef<Range | null>(null);
   const saverRef = useRef<EditSaver | null>(null);
   const history = store.settings.value?.history ?? null;
+  // Undo (state/undo.ts): a run of typing in the paper is one step; Undo puts the paper back as it was and saves it.
+  const undo = undoOf(store);
+  const undoScope = `document:${recordingId}/${documentId}`;
+  const [paperKey, setPaperKey] = useState(0);
+  const burst = useRef<{ before: string; after: string | null } | null>(null);
+  const lastEdit = useRef(0);
+  useEffect(() => {
+    undo.claim(undoScope);
+    return () => {
+      undo.release(undoScope);
+    };
+  }, [undo, undoScope]);
 
   // The document, its paper and the recording it belongs to.
   useEffect(() => {
@@ -172,7 +186,43 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
       : [styleName, summary.providerId === null ? 'Written by you' : PROVIDER_SHORT[summary.providerId], whenWords(summary.generatedAt ?? summary.modifiedAt, now)].join(' · ');
 
   const edited = (): void => {
+    lastEdit.current = Date.now();
     saverRef.current?.changed();
+  };
+
+  /** The paper as `markup` again (Undo, Redo): drawn afresh and saved like an edit. */
+  const restorePaper = (markup: string): void => {
+    burst.current = null;
+    setHtml(markup);
+    setPaperKey((k) => k + 1);
+    saverRef.current?.changed();
+  };
+
+  /** Before the paper changes: a new step unless typing goes on from the last change. */
+  const beginEdit = (): void => {
+    const paper = article.current;
+    if (paper === null) {
+      return;
+    }
+    const now = Date.now();
+    if (burst.current !== null && now - lastEdit.current <= MERGE_WINDOW_MS) {
+      return;
+    }
+    lastEdit.current = now;
+    const step = { before: serializePaper(paper), after: null as string | null };
+    burst.current = step;
+    undo.push({
+      label: 'edit document',
+      undo: () => {
+        step.after = article.current === null ? step.after : serializePaper(article.current);
+        restorePaper(step.before);
+      },
+      redo: () => {
+        if (step.after !== null) {
+          restorePaper(step.after);
+        }
+      },
+    });
   };
 
   const range = (): Range | null => {
@@ -212,6 +262,7 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
       return;
     }
     const r = range();
+    beginEdit();
     const done =
       cmd === 'bold'
         ? toggleInline(paper, r, 'strong')
@@ -244,11 +295,19 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
       setName(summary.name);
       return;
     }
-    bridge
-      .call('documents.rename', { recordingId, documentId, name: trimmed })
-      .then((next) => {
-        setSummary(next);
-        setName(next.name);
+    const before = summary.name;
+    const renameTo = async (to: string): Promise<void> => {
+      const next = await bridge.call('documents.rename', { recordingId, documentId, name: to });
+      setSummary(next);
+      setName(next.name);
+    };
+    renameTo(trimmed)
+      .then(() => {
+        undo.push({
+          label: 'rename document',
+          undo: () => renameTo(before),
+          redo: () => renameTo(trimmed),
+        });
       })
       .catch((e: unknown) => {
         setName(summary.name);
@@ -362,6 +421,7 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
         }
         actions={
           <>
+          <UndoButton />
           <button class="btn ghost spoke-ghost doc-action" type="button" disabled={regenerate === null} title={regenerate === null ? 'Written by hand: there is nothing to regenerate' : undefined} onClick={() => regenerate?.()}>
             <RegenerateIcon size={16} />
             Regenerate
@@ -439,6 +499,7 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
                 onCommand={command}
                 onTimestamp={(seconds) => {
                   const paper = article.current;
+                  beginEdit();
                   if (paper !== null && insertTimestamp(paper, range(), seconds)) {
                     refocus(paper);
                     edited();
@@ -452,7 +513,14 @@ export function DocumentScreen({ recordingId, documentId }: { recordingId: strin
                   {save.message}
                 </p>
               ) : null}
-              <Paper html={html} label={summary?.name ?? 'Document'} editable articleRef={article} onEdit={edited} onTimestamp={openReview} loadingText="Opening the document…" class="doc-paper" />
+              <div
+                class="doc-paper-undo"
+                onBeforeInput={() => {
+                  beginEdit();
+                }}
+              >
+                <Paper key={paperKey} html={html} label={summary?.name ?? 'Document'} editable articleRef={article} onEdit={edited} onTimestamp={openReview} loadingText="Opening the document…" class="doc-paper" />
+              </div>
             </section>
             <aside class="doc-side" aria-label="About this document">
               {summary === null ? null : <HowMade summary={summary} record={record} styleName={styleName} now={now} onRegenerate={regenerate} />}

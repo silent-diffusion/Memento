@@ -1,6 +1,11 @@
 /* Editing in place and Undo (DESIGN.md §9, §10, §12): the header's Undo button and its status, the
    speaker menu with its search field and scrolling list, and the outline's editable names. */
 
+/* The viewer's paper sits in a wrapper that notices an edit before it happens (Undo); it adds no box. */
+.doc-paper-undo {
+  display: contents;
+}
+
 /* The header's Undo: a ghost button (§5.1) with a leading glyph. */
 .undo-btn {
   display: inline-flex;
