@@ -58,6 +58,12 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, TranscriptRetranscribeMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptVersionsMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptRestoreVersionMethod>();
+
+        // The clipboard (after 1.2.0): the app registers the WPF clipboard first; tests and tools have none.
+        services.TryAddSingleton<Host.IClipboard, Host.UnavailableClipboard>();
+        services.AddSingleton<Export.TranscriptClipboard>();
+        services.AddSingleton<IBridgeHandler, TranscriptCopyMethod>();
+
         services.AddSingleton<IBridgeHandler, ProcessingRetryMethod>();
         services.AddSingleton<IBridgeHandler, ProcessingCancelMethod>();
         services.AddSingleton<IBridgeHandler, ProcessingPauseMethod>();

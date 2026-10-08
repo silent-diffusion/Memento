@@ -48,6 +48,7 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(DocumentRestoreResult))]
 [JsonSerializable(typeof(DocumentExportParams))]
 [JsonSerializable(typeof(DocumentFileResult))]
+[JsonSerializable(typeof(DocumentCopyResult))]
 [JsonSerializable(typeof(GenerationRecord))]
 [JsonSerializable(typeof(BridgeEventEnvelope<GenerationProgress>))]
 [JsonSerializable(typeof(BridgeEventEnvelope<GenerationOutput>))]

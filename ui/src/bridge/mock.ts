@@ -9,6 +9,7 @@ import { createMockTranscription, type StageFlag } from './mockTranscription';
 import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
+import { createMockClipboard } from './mockClipboard';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { localModelsInstalled } from './mockLocalModel';
 import type {
@@ -63,6 +64,8 @@ export interface MockOptions {
   m3?: Partial<M3Flags>;
   /** M4: `?ai=off|nokey|ready|local` (starting AI settings, keys, local model) and `?gen=fail|rate` (the first generation fails). */
   m4?: Partial<M4Flags>;
+  /** After 1.2.0: another program holds the clipboard, so transcript.copy and documents.copy answer clipboard.unavailable. */
+  clipboardBusy?: boolean;
 }
 
 const STAGE_FLAGS: readonly StageFlag[] = ['done', 'queued', 'running', 'failed', 'paused'];
@@ -569,6 +572,19 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     stepMs: options.stepMs ?? 400,
   });
 
+  // After 1.2.0: transcript.copy and documents.copy, with the copy kept in memory.
+  const clipboard = createMockClipboard({
+    summary: (recordingId) => find(recordingId).summary,
+    transcript: (recordingId) => transcription.get(recordingId).transcript,
+    document: (recordingId, documentId) => {
+      const { document } = m4.handlers['documents.get']({ recordingId, documentId });
+      const { html } = m4.handlers['documents.renderHtml']({ recordingId, documentId, mode: 'print' });
+      const markdown = html.replace(/<[^>]+>/g, ' ').replace(/[ \t]+/g, ' ').trim();
+      return { title: document.title, markdown, html };
+    },
+    busy: () => options.clipboardBusy ?? false,
+  });
+
   const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
 
   /** Like the host: each field present (not null) replaces the stored one; the others keep their value. */
@@ -909,6 +925,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     ...m3.handlers,
     ...m4.handlers,
+    ...clipboard.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

@@ -69,11 +69,12 @@ describe('M3 contract names', () => {
       'app.startupRefused',
       'ai.keyWriteFailed',
     ];
-    // M4 codes follow them, and the H1 codes come last.
+    // M4 codes follow them, then the H1 codes, and the clipboard's (after 1.2.0) come last.
     const start = ERROR_CODES.indexOf('agenda.fileTooLarge');
     expect(ERROR_CODES.slice(start, start + m3Codes.length)).toEqual(m3Codes);
     const h1Codes = ['library.unavailable', 'updates.unavailable', 'updates.notReady', 'updates.busy'];
-    expect(ERROR_CODES.slice(-h1Codes.length)).toEqual(h1Codes);
+    expect(ERROR_CODES.slice(-h1Codes.length - 1, -1)).toEqual(h1Codes);
+    expect(ERROR_CODES.at(-1)).toBe('clipboard.unavailable');
   });
 });
 

@@ -12,6 +12,8 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(BridgeError))]
 [JsonSerializable(typeof(EmptyParams))]
 [JsonSerializable(typeof(EmptyResult))]
+[JsonSerializable(typeof(TranscriptCopyParams))]
+[JsonSerializable(typeof(TranscriptCopyResult))]
 [JsonSerializable(typeof(AppVersionResult))]
 [JsonSerializable(typeof(SettingsSnapshot))]
 [JsonSerializable(typeof(SettingsSetParams))]
