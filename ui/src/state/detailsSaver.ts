@@ -44,6 +44,7 @@ export function emptyDetails(title: string, type: RecordingType): RecordingDetai
     notes: '',
     tags: [],
     agenda: { source: null, parsedLocally: true, items: [] },
+    whoSpoke: { count: null, names: [] },
   };
 }
 

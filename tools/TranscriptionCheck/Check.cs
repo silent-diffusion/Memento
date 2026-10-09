@@ -211,6 +211,52 @@ internal sealed class Check : IAsyncDisposable
         return await ShowAsync(id);
     }
 
+    /// <summary>The worker's speaker job on one audio file, with its turns and voices saved for offline comparison.</summary>
+    public async Task<int> DiarizeAsync(string audio, string segmentation, string embedding, float threshold, int count, string output)
+    {
+        var job = new DiarizeJob([new WorkerTrack("track", Path.GetFullPath(audio), 0)], segmentation, embedding, count, threshold, TranscriptionDefaults.DiarizationThreads);
+        var stopwatch = Stopwatch.StartNew();
+        var reply = await _services.GetRequiredService<WorkerClient>().RunAsync(new WorkerJob(WorkerJobKinds.Diarize, Diarize: job), null, CancellationToken.None);
+        var result = reply.Diarization!;
+        var track = result.Tracks[0];
+        var clusters = track.Turns.GroupBy(t => t.Speaker).Select(g => (Speaker: g.Key, Seconds: g.Sum(t => t.End - t.Start))).OrderByDescending(c => c.Seconds).ToList();
+        var total = Math.Max(0.001, clusters.Sum(c => c.Seconds));
+        Console.WriteLine($"threshold {threshold.ToString(CultureInfo.InvariantCulture)}, count {count}: {clusters.Count} speakers in {result.AudioSeconds:0} s of audio, {stopwatch.Elapsed.TotalSeconds:0.0} s");
+        Console.WriteLine($"  with at least 2% of the speech: {clusters.Count(c => c.Seconds / total >= 0.02)}; under 10 s each: {clusters.Count(c => c.Seconds < 10)}");
+        Console.WriteLine($"  shares: {string.Join(", ", clusters.Select(c => $"{100 * c.Seconds / total:0.0}%"))}");
+        await File.WriteAllTextAsync(output, System.Text.Json.JsonSerializer.Serialize(reply, WorkerJsonContext.Default.WorkerReply));
+        return 0;
+    }
+
+    /// <summary>
+    /// Identifies the speakers of a recording already in the library again, through the real stage and worker, with the
+    /// recording's own count (Who spoke; 0 sets it back to Auto) when one is given, and prints the result. Run it twice to see the second pass
+    /// regroup from voices.json.
+    /// </summary>
+    public async Task<int> IdentifyAsync(string id, int? count)
+    {
+        await ConfigureAsync(null);
+        if (count is not null)
+        {
+            await _services.GetRequiredService<ProjectService>().UpdateDetailsAsync(id, new RecordingDetailsPatch { WhoSpoke = new WhoSpoke(count == 0 ? null : count, []) }, CancellationToken.None);
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        await Processing.RetryAsync(id, StageNames.Speakers, Remedies.Retry, CancellationToken.None);
+        await Task.Delay(200);
+        await Processing.WhenIdleAsync();
+        Console.WriteLine($"speakers identified again in {stopwatch.Elapsed.TotalSeconds:0.0} s");
+        var transcript = await Transcripts.LoadAsync(id, CancellationToken.None);
+        var total = Math.Max(1, transcript!.Speakers.Sum(s => s.TalkTimeMs));
+        Console.WriteLine($"{transcript.Speakers.Count} speakers: {string.Join(", ", transcript.Speakers.Select(s => $"{s.Id} {100.0 * s.TalkTimeMs / total:0.0}%{(s.Renamed ? " (named)" : string.Empty)}"))}");
+        foreach (var entry in (await Store.ReadHistoryAsync(id, CancellationToken.None)).Where(h => h.Stage == StageNames.Speakers).TakeLast(2))
+        {
+            Console.WriteLine($"  {entry.Stage}/{entry.Event}: {entry.Summary} | {entry.Detail}");
+        }
+
+        return 0;
+    }
+
     public async Task<int> ShowAsync(string id)
     {
         var manifest = await Store.LoadAsync(id, CancellationToken.None);

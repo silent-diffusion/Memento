@@ -195,7 +195,7 @@ public sealed class ContractSerializationTests : IDisposable
         var summary = new RecordingSummary("20261006-100000-k3f9ab", "Sync", "meeting", At, 1000, 0, false, [], [], false, "ready", 4096);
         var project = new Project(
             summary,
-            new RecordingDetails("Sync", "meeting", [], "", "", "", "", "", [], Agenda.Empty),
+            new RecordingDetails("Sync", "meeting", [], "", "", "", "", "", [], Agenda.Empty, WhoSpoke.Unknown),
             [new Track("mic", "mic:x", "microphone", "Mic", "tracks/mic.flac", 48000, 1, 1000, "ab", 0, null)],
             "https://library.memento/20261006-100000-k3f9ab/mix.flac",
             "https://library.memento/20261006-100000-k3f9ab/peaks.json",
@@ -209,7 +209,8 @@ public sealed class ContractSerializationTests : IDisposable
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(project, BridgeJsonContext.Default.Project));
         var root = document.RootElement;
         Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes", Names(root));
-        Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda", Names(root.GetProperty("details")));
+        Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda,whoSpoke", Names(root.GetProperty("details")));
+        Assert.Equal("""{"count":null,"names":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         Assert.Equal("""{"source":null,"parsedLocally":false,"items":[]}""", root.GetProperty("details").GetProperty("agenda").GetRawText());
         Assert.Equal(
             """{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.flac","sampleRate":48000,"channels":1,"durationMs":1000,"sha256":"ab","startOffsetMs":0,"endedEarlyAtMs":null}""",

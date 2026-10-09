@@ -30,6 +30,9 @@ public sealed partial class TranscriptService(
     public const int MaxSegmentTextLength = 4000;
     public const int MaxSpeakerNameLength = 100;
 
+    /// <summary>At most this many speakers in one <c>transcript.restoreSpeakers</c>.</summary>
+    public const int MaxRestores = 500;
+
     private readonly ILogger<TranscriptService> _logger = logger;
 
     private TranscriptStore Transcripts => writer.Store;
@@ -177,13 +180,8 @@ public sealed partial class TranscriptService(
     {
         ArgumentNullException.ThrowIfNull(speaker);
         ArgumentNullException.ThrowIfNull(segmentIds);
-        var id = ValidateSpeakerId(speaker.Id);
-        var name = ValidateSpeakerName(speaker.Name);
-        if (speaker.Color is < 1 or > TranscriptSpeakers.Colors)
-        {
-            throw Invalid($"A speaker colour is a number from 1 to {TranscriptSpeakers.Colors}; this one is {speaker.Color}.");
-        }
-
+        var restored = ValidateRestore(speaker);
+        var id = restored.Id;
         var wanted = segmentIds.ToHashSet(StringComparer.Ordinal);
         var changed = 0;
         var saved = await WriteAsync(
@@ -196,7 +194,6 @@ public sealed partial class TranscriptService(
                     FindSegment(t, segmentId);
                 }
 
-                var restored = new Speaker(id, name, speaker.Renamed, speaker.Color, 0);
                 var speakers = t.Speakers.Any(s => s.Id == id)
                     ? t.Speakers.Select(s => s.Id == id ? restored with { TalkTimeMs = s.TalkTimeMs } : s).ToList()
                     : [.. t.Speakers, restored];
@@ -207,6 +204,108 @@ public sealed partial class TranscriptService(
             cancellationToken);
         await HistoryAsync(recordingId, "Speaker restored", HumanFormat.Count(changed, "line moved", "lines moved"), cancellationToken);
         return new MergeSpeakersResult(saved!.Speakers, changed);
+    }
+
+    /// <summary>
+    /// <c>transcript.restoreSpeakers</c>: <see cref="RestoreSpeakerAsync"/> for each entry in order, in one write (the Undo of
+    /// <see cref="ReduceSpeakersAsync"/>). Every line must exist, or nothing changes.
+    /// </summary>
+    public async Task<MergeSpeakersResult> RestoreSpeakersAsync(string recordingId, IReadOnlyList<SpeakerLines> restores, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(restores);
+        if (restores.Count is 0 or > MaxRestores)
+        {
+            throw Invalid($"Restore 1 to {MaxRestores} speakers at a time.");
+        }
+
+        var checkedRestores = restores
+            .Select(r => r?.Speaker is null || r.SegmentIds is null
+                ? throw Invalid("Each speaker to restore needs its speaker and its segmentIds.")
+                : (Speaker: ValidateRestore(r.Speaker), Lines: r.SegmentIds.ToHashSet(StringComparer.Ordinal)))
+            .ToList();
+        var changed = 0;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                foreach (var segmentId in checkedRestores.SelectMany(r => r.Lines))
+                {
+                    FindSegment(t, segmentId);
+                }
+
+                var speakers = t.Speakers.ToList();
+                var segments = t.Segments.ToList();
+                foreach (var (speaker, lines) in checkedRestores)
+                {
+                    var index = speakers.FindIndex(s => s.Id == speaker.Id);
+                    if (index >= 0)
+                    {
+                        speakers[index] = speaker with { TalkTimeMs = speakers[index].TalkTimeMs };
+                    }
+                    else
+                    {
+                        speakers.Add(speaker);
+                    }
+
+                    for (var i = 0; i < segments.Count; i++)
+                    {
+                        if (lines.Contains(segments[i].Id) && segments[i].Speaker != speaker.Id)
+                        {
+                            segments[i] = segments[i] with { Speaker = speaker.Id, SpeakerConfidence = 1.0 };
+                            changed++;
+                        }
+                    }
+                }
+
+                return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
+            },
+            cancellationToken);
+        await HistoryAsync(
+            recordingId,
+            "Speakers restored",
+            string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Count(checkedRestores.Count, "speaker", "speakers")}, {HumanFormat.Count(changed, "line moved", "lines moved")}"),
+            cancellationToken);
+        return new MergeSpeakersResult(saved!.Speakers, changed);
+    }
+
+    /// <summary>
+    /// <c>transcript.reduceSpeakers</c>: merges the speakers whose voices are most alike (<see cref="SpeakerReducer"/>) until
+    /// <paramref name="count"/> are left, in one write. Named speakers are never merged with each other.
+    /// </summary>
+    public async Task<ReduceSpeakersResult> ReduceSpeakersAsync(string recordingId, int count, CancellationToken cancellationToken)
+    {
+        if (count is < 1 or > WhoSpoke.MaxCount)
+        {
+            throw Invalid(string.Create(CultureInfo.InvariantCulture, $"Reduce to 1 to {WhoSpoke.MaxCount} speakers; {count} is not possible."));
+        }
+
+        await LoadManifestAsync(recordingId, cancellationToken);
+        var voices = await Transcripts.LoadVoicesAsync(recordingId, cancellationToken);
+        SpeakerReducer.Result? reduced = null;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                reduced = SpeakerReducer.Reduce(t.Segments, t.Speakers, voices, count);
+                return reduced.Merges.Count == 0 ? null : t with { Segments = reduced.Segments, Speakers = reduced.Speakers };
+            },
+            cancellationToken);
+        if (saved is null)
+        {
+            var current = await LoadAsync(recordingId, cancellationToken);
+            return new ReduceSpeakersResult(current?.Speakers ?? [], [], 0, reduced?.Basis ?? SpeakerReducer.BasisTalkTime);
+        }
+
+        await HistoryAsync(
+            recordingId,
+            "Speakers reduced",
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"{HumanFormat.Count(saved.Speakers.Count, "speaker", "speakers")} left, {HumanFormat.Count(reduced!.Merges.Count, "speaker", "speakers")} merged by {(reduced.Basis == SpeakerReducer.BasisVoices ? "voice" : "talk time")}, {HumanFormat.Count(reduced.SegmentsChanged, "line moved", "lines moved")}"),
+            cancellationToken);
+        return new ReduceSpeakersResult(saved.Speakers, reduced.Merges, reduced.SegmentsChanged, reduced.Basis);
     }
 
     /// <summary><c>transcript.removeSpeaker</c> (Undo of adding one): removes a speaker no line is assigned to.</summary>
@@ -379,6 +478,19 @@ public sealed partial class TranscriptService(
         }
 
         return value;
+    }
+
+    /// <summary>A speaker to put back (Undo): a valid id, a name of 1–100 characters and a colour 1–4; talk time is recomputed.</summary>
+    private static Speaker ValidateRestore(SpeakerRestore speaker)
+    {
+        var id = ValidateSpeakerId(speaker.Id);
+        var name = ValidateSpeakerName(speaker.Name);
+        if (speaker.Color is < 1 or > TranscriptSpeakers.Colors)
+        {
+            throw Invalid($"A speaker colour is a number from 1 to {TranscriptSpeakers.Colors}; this one is {speaker.Color}.");
+        }
+
+        return new Speaker(id, name, speaker.Renamed, speaker.Color, 0);
     }
 
     /// <summary>A speaker id as the host writes them (<c>spk3</c>) or the mock does (<c>sp3</c>): letters, digits, '-' and '_'.</summary>

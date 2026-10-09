@@ -116,7 +116,7 @@ public sealed class SpeakerAssignerTests
 
         Assert.Equal(["spk1", "spk1", "spk2", "spk2"], result.Segments.Select(s => s.Speaker));
         Assert.Equal(["Speaker 1", "Speaker 2"], result.Speakers.Select(s => s.Name));
-        Assert.Equal(2, result.MergedAcrossTracks);
+        Assert.Equal(2, result.Merged);
         Assert.Equal([19_800L, 19_800L], result.Speakers.Select(s => s.TalkTimeMs));
     }
 
@@ -133,14 +133,126 @@ public sealed class SpeakerAssignerTests
     }
 
     [Fact]
-    public void SpeakersWithoutAVoiceEmbeddingAreNeverJoined()
+    public void WithoutVoiceEmbeddingsTheCountStillHolds()
     {
         var (segments, tracks) = EchoedMeeting(voices: false);
 
         var result = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 2);
 
+        // Nothing to compare by: each voiceless voice goes into the voice with the most speech on its track.
+        Assert.Equal(2, result.Speakers.Count);
+        Assert.Equal(2, result.Merged);
+        Assert.Equal(["spk1", "spk2", "spk1", "spk2"], result.Segments.Select(s => s.Speaker));
+    }
+
+    [Fact]
+    public void WithoutVoiceEmbeddingsAutoJoinsNothing()
+    {
+        var (segments, tracks) = EchoedMeeting(voices: false);
+
+        var result = SpeakerAssigner.Assign(segments, tracks, null, joinSimilarity: 0.5, minSpeechSeconds: 30, foldSimilarity: 0.3);
+
         Assert.Equal(4, result.Speakers.Count);
-        Assert.Equal(0, result.MergedAcrossTracks);
+        Assert.Equal(0, result.Merged);
+    }
+
+    /// <summary>
+    /// One track: readers A and B (who sound somewhat alike, 0.6) talk for 40 and 30 seconds; the diarizer also made a
+    /// cluster of a 3-second laugh that sounds like nobody, and split 12 seconds of A off as a cluster of its own.
+    /// </summary>
+    private static (TranscriptSegment[] Segments, DiarizedTrack[] Tracks) SplitMeeting()
+    {
+        var segments = new[]
+        {
+            Segment("a1", 0, 20, "mic"), Segment("b1", 20, 35, "mic"), Segment("l1", 35, 38, "mic"),
+            Segment("a2", 38, 58, "mic"), Segment("b2", 58, 73, "mic"), Segment("a3", 73, 85, "mic"),
+        };
+        var turns = new[]
+        {
+            new SpeakerTurn(0, 20, 0, 0.7), new SpeakerTurn(20, 35, 1, 0.7), new SpeakerTurn(35, 38, 2, 0.3),
+            new SpeakerTurn(38, 58, 0, 0.7), new SpeakerTurn(58, 73, 1, 0.7), new SpeakerTurn(73, 85, 3, 0.6),
+        };
+        SpeakerVoice[] voices =
+        [
+            new(0, [1f, 0f, 0f], 40), new(1, [0.6f, 0.8f, 0f], 30),
+            new(2, [0.1f, 0f, 1f], 3), new(3, [0.95f, 0.3f, 0f], 12),
+        ];
+        return (segments, [new DiarizedTrack("mic", turns, voices, 85)]);
+    }
+
+    [Fact]
+    public void LittleVoicesAreFoldedInLastSoTheMainVoicesAreComparedWithEachOther()
+    {
+        var (segments, tracks) = SplitMeeting();
+
+        // With the laugh among the main voices, A and B are the most alike pair once A is whole, so they would be joined.
+        var naive = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 2, minSpeechSeconds: 0);
+        Assert.Equal(naive.Segments[0].Speaker, naive.Segments[1].Speaker);
+        var result = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 2, minSpeechSeconds: 10);
+
+        Assert.Equal(["spk1", "spk2", "spk1", "spk1", "spk2", "spk1"], result.Segments.Select(s => s.Speaker));
+        Assert.Equal(2, result.Merged);
+    }
+
+    [Fact]
+    public void ACountIsNeverReachedBySplitting()
+    {
+        var (segments, tracks) = SplitMeeting();
+
+        var result = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 6, minSpeechSeconds: 10);
+
+        Assert.Equal(4, result.Speakers.Count);
+        Assert.Equal(0, result.Merged);
+    }
+
+    [Fact]
+    public void InAutoVoicesOnOneTrackThatSoundAlikeAreOnePerson()
+    {
+        var (segments, tracks) = SplitMeeting();
+
+        var joined = SpeakerAssigner.Assign(segments, tracks, null, joinSimilarity: 0.8, minSpeechSeconds: 10, foldSimilarity: 0.95);
+        var apart = SpeakerAssigner.Assign(segments, tracks, null, joinSimilarity: 0.999, minSpeechSeconds: 10, foldSimilarity: 0.95);
+
+        // A's split-off part (similarity 0.95) joins A, B (0.6) does not; the laugh is not like anyone enough and stays.
+        Assert.Equal(["spk1", "spk2", "spk3", "spk1", "spk2", "spk1"], joined.Segments.Select(s => s.Speaker));
+        Assert.Equal(4, apart.Speakers.Count);
+    }
+
+    [Fact]
+    public void InAutoALittleVoiceWithAlmostNoSpeechJoinsTheMainVoiceItIsMostLikeHoweverUnlike()
+    {
+        var (segments, tracks) = SplitMeeting();
+
+        // The 3-second laugh sounds like nobody (0.1 at most), but under 5 seconds it is not a speaker of its own.
+        var result = SpeakerAssigner.Assign(segments, tracks, null, joinSimilarity: 0.8, minSpeechSeconds: 10, foldSimilarity: 0.95, ownSpeakerSeconds: 5);
+
+        Assert.Equal(["spk1", "spk2", "spk1", "spk1", "spk2", "spk1"], result.Segments.Select(s => s.Speaker));
+    }
+
+    [Fact]
+    public void InAutoVoicesOfDifferentTracksAreNeverJoined()
+    {
+        var (segments, tracks) = EchoedMeeting();
+
+        var result = SpeakerAssigner.Assign(segments, tracks, null, joinSimilarity: 0.1, minSpeechSeconds: 0, foldSimilarity: 0.1);
+
+        Assert.Equal(4, result.Speakers.Count);
+    }
+
+    [Fact]
+    public void EveryVoiceIsKeptWithItsTrackEmbeddingAndLines()
+    {
+        var (segments, tracks) = SplitMeeting();
+
+        var result = SpeakerAssigner.Assign(segments, tracks, expectedSpeakers: 2, minSpeechSeconds: 10);
+
+        var voices = result.Voices!;
+        Assert.Equal([0, 1, 2, 3], voices.Select(v => v.Speaker));
+        Assert.All(voices, v => Assert.Equal("mic", v.Track));
+        Assert.Equal(["a1", "a2"], voices[0].SegmentIds);
+        Assert.Equal(["l1"], voices[2].SegmentIds);
+        Assert.Equal([1f, 0f, 0f], voices[0].Embedding);
+        Assert.Equal(40, voices[0].Seconds);
     }
 
     [Fact]

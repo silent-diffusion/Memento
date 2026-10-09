@@ -52,7 +52,7 @@ Measured on the reference machine: Windows 11 (26200), .NET 8.0.425, AMD Ryzen 7
 ## E. sherpa-onnx 1.13.8 diarization
 
 - `OfflineSpeakerDiarization.Process(float[] 16 kHz mono)` → segments `{Start, End, Speaker, Confidence}` (confidence needs `Clustering.ComputeConfidence = 1`).
-- `pyannote segmentation-3.0` (MIT, 6 MB; int8 1.5 MB untested) + **`nemo_en_titanet_small`** (CC-BY-4.0, 40 MB): RTF 0.10 on CPU (4 threads), 400–465 MB RAM. With clustering threshold **0.8** it found exactly 2 speakers in a two-reader file (confusion 0.2%) and 1 in a one-reader file. Threshold 0.5 over-splits (extra clusters are still pure). WeSpeaker resnet34-LM collapsed two speakers into one; the 3D-Speaker model is zh-cn trained. Expected-speaker-count setting maps to `NumClusters`.
+- `pyannote segmentation-3.0` (MIT, 6 MB; int8 1.5 MB untested) + **`nemo_en_titanet_small`** (CC-BY-4.0, 40 MB): RTF 0.10 on CPU (4 threads), 400–465 MB RAM. With clustering threshold **0.8** it found exactly 2 speakers in a two-reader file (confusion 0.2%) and 1 in a one-reader file. Threshold 0.5 over-splits (extra clusters are still pure). WeSpeaker resnet34-LM collapsed two speakers into one; the 3D-Speaker model is zh-cn trained. The expected-speaker count mapped to `NumClusters` until 1.2.0; since then the host groups the voices instead (§L).
 - Native footprint 22.4 MB (`onnxruntime.dll` + `sherpa-onnx-c-api.dll`), statically linked CRT. The DLL is named plain `onnxruntime.dll`; avoid adding another ONNX Runtime package.
 - `SpeakerEmbeddingExtractor` is available for cross-track and enrolled-voice matching later.
 
@@ -236,3 +236,41 @@ The owner's before/after spread is measured against the same kind of energy onse
 
 - **Media Foundation's MP3 duration is short**: `MediaFoundationReader.TotalTime` said 299.354 s for a 300.030 s MP3 (the decoded frames). The import already takes the length from the decoded frames.
 - **Not verified**: a recording with both microphone and system audio at mismatched device rates on real hardware (the simulated engine records at 48 kHz only; the mixer test covers 44.1 + 48 kHz); other models than large-v3-turbo with the new chunking (small was not re-measured); recordings with steady background noise louder than −50 dBFS, where the packer keeps nearly everything and the engine behaves as before.
+## L. Too many speakers: grouping voices on the host, October 2026 (after 1.2.0)
+
+The product owner reported "way too many speakers". Their two meetings (imported files, one track each, Expected speakers on Auto) had come out with **84 speakers** (1:32:14) and **35 speakers** (55:40) at clustering threshold 0.8; the 92-minute one had been corrected by hand down to 4 named people (and 63 leftover unnamed speakers), the other lists 4 participants but its corrections were lost when its speakers were identified again (which is why a speakers pass over corrected lines now keeps them as a version). Measured on private copies with `tools/TranscriptionCheck` (`diarize` runs the worker's speaker job on one file and saves its turns and voices; `evaluate` groups a saved job on a transcript's lines offline; `identify` runs the real stage), sherpa-onnx 1.13.8, pyannote 3.0 + TitaNet small, CPU, 4 threads, the PC shared with other builds. "Named speech right" is the share of the speech of the 4 people the owner named (1,110 of 1,505 lines) that lands on the right speaker, one speaker per person (matched greedily by shared speech); purity counts each speaker as its majority person.
+
+| 1:32:14 meeting, 4 named people | Speakers (raw clusters) | With 2 %+ of the talk | Named speech right | Purity |
+|---|---|---|---|---|
+| Threshold 0.8, Auto (**before**: the shipped behaviour) | 84 (114) | 8 | 63.6 % | 99.7 % |
+| Threshold 1.0, Auto | 28 (38) | 5 | 89.1 % | 97.7 % |
+| Threshold 1.2, Auto | 5 (6) | 3 | 89.8 % | 90.1 % |
+| Threshold 0.8, sherpa-onnx fixed count 4 (before, one-track count) | 4 | 3 | 89.8 % | 90.1 % |
+| 0.8, host grouping to 4, little voices first (min 0 s) | 4 | 1 | 73.8 % | 73.8 % |
+| **0.8, host grouping to 4 (Who spoke = 4)** | **4** | **4** | **97.8 %** | **97.8 %** |
+| 0.8, host grouping to 3 / to 5 | 3 / 5 | 3 / 4 | 97.8 % / 97.5 % | 97.8 % / 98.8 % |
+| **0.8, Auto, host join 0.66 (after)** | **4** | **4** | **97.8 %** | **97.8 %** |
+| 0.8, Auto, host join 0.6 / 0.72 | 6 / 9 | 3 / 6 | 97.8 % / 91.0 % | 97.8 % / 98.8 % |
+| 1.0, host grouping to 4 / Auto join 0.7 | 4 / 9 | 4 / 6 | 96.6 % / 91.0 % | 96.6 % / 97.3 % |
+
+| 55:40 meeting, 4 participants listed | Speakers (raw clusters) | Talk shares |
+|---|---|---|
+| 0.8, Auto (**before**) | 35 (48) | 25.0, 22.6, 18.1, 11.8, 3.9, 3.1 … (6 with 2 %+, 19 under 10 s) |
+| 1.0 / 1.1 / 1.2, Auto | 12 (16) / 7 (8) / 5 (5) | 55.2, 21.5, 21.3, 1.2, 0.7 at 1.2 |
+| 0.8, sherpa-onnx fixed count 4 | 4 | 54.1, 22.6, 19.9, 3.4 |
+| **0.8, host grouping to 4 (Who spoke = 4)** | **4** | **57.6, 21.2, 15.9, 5.4** |
+| **0.8, Auto, host join 0.66 (after)** | **3** | **57.6, 21.2, 21.2** |
+
+| Synthetic two-voice fixture (`tools/e2e/speech.ps1`, two Windows voices, 45 s) | Raw clusters |
+|---|---|
+| Threshold 0.5 / **0.8** | 2 / **2** (55 / 45 %; the two voices' embeddings are 0.25 alike) |
+| Threshold 1.0 / 1.2 | 1 / 1 (both voices merged) |
+
+What this decided:
+
+- **The threshold stays 0.8.** It over-segments real meetings badly (114 voices for 4 people) but every voice is nearly pure (99.7 %), and a pure voice can be grouped later. Higher thresholds, and sherpa-onnx's own fixed cluster count, merge different people inside the diarizer (two of the four named people became one: purity 90 %), and nothing on the host can part them again; 1.0 already merges the two synthetic voices. So the diarizer never gets the count any more (`numClusters` −1) and the host groups.
+- **Little voices go last.** Joining the most alike pair first, as the multi-track grouping did, compares the main voices with noise: most of the 114 voices are a few seconds of laughter, cross-talk or one word, their embeddings are unlike anything, and the real people (about 0.6 alike to each other) are joined first: 73.8 %, one speaker holding everything. Setting aside voices under 30 s (or 5 % of all speech, whichever is less, so a short recording's voices all count) and joining them last, each to the main voice it sounds most like, gives 97.8 %. With a count, every voice is joined in the end; voices are never split, so a count above the voices found leaves them as they are.
+- **Auto joins main voices on one track at cosine 0.66 or more**, and folds a little voice into the main voice on its track it is at least 0.2 alike to; a less alike one stays a speaker of its own only with 10 s of speech or more (before that rule, a few voices of a second or two, unlike anyone, stayed as speakers with 0 % of the talk: 2 on the 92-minute meeting, 3 on the other once the worker gave short-turn voices an embedding). 0.62–0.69 gave the same result on both meetings; 0.6 merged the fourth (least talking) person into another and 0.72 split one person into three. Different tracks are still never joined without a count.
+- Grouping 114 voices takes milliseconds, so the diarizer's output (turns and voice embeddings per track, about 250 KB for 92 minutes) is kept in `voices.json`, and identifying speakers again with another count or other names regroups without listening again (5–10 minutes for these files on the CPU).
+- A speaker heard only in turns under half a second had no voice embedding and could never be joined, so a count could not be reached; such a speaker now gets an embedding from all its turns.
+- **Through the real stage** (`TranscriptionCheck identify` on a private copy of the 55:40 meeting, the published worker): the first pass listened for 305.7 s of processor time and found 48 voices; Auto gives **3 speakers** (57.6, 21.2, 21.2 %), and setting Who spoke to 4 regroups from voices.json in 0.3 s into **4 speakers** (57.6, 21.2, 15.9, 5.4 %), History reading "48 voices heard, grouped into 4 speakers (4 expected, this recording)". With other builds loading the PC the pass paused for "PC is busy" four times, and a one-track pass starts its track again after each pause (speakers.partial.json keeps whole tracks only), so it took 75 minutes of wall time; not changed here.

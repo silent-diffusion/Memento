@@ -10,6 +10,7 @@ import { gapNoticeText, gapPlacement, isPausedLabel, otherModelFor, segmentIndex
 import { openSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { computeWindow, RowHeights } from '../../format/virtualList';
+import { orderSpeakers } from '../../format/speakerOrder';
 import { createFollowPlayhead, followScrollDelta, type FollowPlayhead } from '../../state/followPlayhead';
 import type { PlayerApi } from './Player';
 import { TranscriptSegmentRow, type SegmentHandlers } from './TranscriptSegment';
@@ -539,7 +540,8 @@ export function TranscriptPane({
   const result = api.result;
   const transcript = result?.transcript ?? null;
   const allSegments = useMemo(() => transcript?.segments ?? [], [transcript]);
-  const speakers = useMemo(() => transcript?.speakers ?? [], [transcript]);
+  // Named people first, then "Speaker n", each by first appearance (format/speakerOrder.ts).
+  const speakers = useMemo(() => orderSpeakers(transcript?.speakers ?? [], transcript?.segments ?? []), [transcript]);
   const follow = useMemo(() => createFollowPlayhead(), []);
   const [editing, setEditing] = useState<EditingLine | null>(null);
   const focusRef = useRef<((index: number) => void) | null>(null);
@@ -634,6 +636,9 @@ export function TranscriptPane({
       },
       assign: (segment, speaker) => {
         latest.current.actions.assignSpeaker(segment, speaker).catch(report('The speaker was not changed'));
+      },
+      merge: (from, into) => {
+        latest.current.actions.mergeSpeakers(from, into).catch(report(`${from.name} was not merged into ${into.name}`));
       },
       addSpeaker: (segment, name) => {
         latest.current.actions.addSpeaker(segment, name).catch(report(`${name} was not added as a speaker`));

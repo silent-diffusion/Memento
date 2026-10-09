@@ -15,9 +15,12 @@ namespace Memento.Transcription.Stages;
 
 /// <summary>
 /// The <c>speakers</c> stage: sherpa-onnx offline diarization of each track that has transcript lines, in the worker
-/// (pyannote segmentation 3.0 + the voice model from Settings, clustering threshold 0.8, 4 threads), then speakers are
-/// assigned to segments by time overlap within each track. The expected speaker count is applied only when one track
-/// has speech (it says nothing about how many people each track holds).
+/// (pyannote segmentation 3.0 + the voice model from Settings, clustering by threshold, 4 threads), then speakers are
+/// assigned to segments by time overlap within each track and the voices of all tracks are grouped into people
+/// (<see cref="SpeakerAssigner"/>): to the recording's own count (Who spoke) or Settings' expected speakers when there is
+/// one, for any number of tracks, else by how alike they sound. Names a person gave before carry over, and the
+/// recording's known names go to the others (<see cref="SpeakerNamer"/>). The diarizer's output is kept in
+/// <c>voices.json</c>, so identifying the speakers again with another count or other names only regroups.
 /// </summary>
 public sealed partial class SpeakersStage(
     IProjectStore store,
@@ -120,10 +123,16 @@ public sealed partial class SpeakersStage(
             return;
         }
 
-        var clusters = current.ExpectedSpeakers is { } expected && tracks.Count == 1 ? expected : -1;
+        // The recording's own count and names (Who spoke) come first; Settings' expected speakers is the default.
+        var whoSpoke = manifest.Details.WhoSpoke ?? WhoSpoke.Unknown;
+        var expected = whoSpoke.EffectiveCount ?? current.ExpectedSpeakers;
+        var expectedFrom = whoSpoke.EffectiveCount is not null ? "this recording" : "Settings";
+        var knownNames = whoSpoke.Names ?? [];
 
-        // Tracks a stopped pass already finished (speakers.partial.json) are not diarized again.
-        var signature = string.Join('|', segmentation!.Id, embedding!.Id, current.ExpectedSpeakers?.ToString(CultureInfo.InvariantCulture) ?? "auto", TranscriptionDefaults.ClusteringThreshold.ToString(CultureInfo.InvariantCulture));
+        // What the diarizer hears does not depend on the count (it always clusters by threshold; the host groups the voices
+        // to the count), so tracks heard before with the same models and threshold are not listened to again: the ones a
+        // finished pass kept (voices.json), and the ones a stopped pass finished (speakers.partial.json).
+        var signature = string.Join('|', segmentation!.Id, embedding!.Id, TranscriptionDefaults.ClusteringThreshold.ToString(CultureInfo.InvariantCulture));
         var partial = await writer.Store.LoadSpeakersPartialAsync(recordingId, cancellationToken);
         if (partial is not null && partial.Signature != signature)
         {
@@ -131,11 +140,15 @@ public sealed partial class SpeakersStage(
             partial = null;
         }
 
+        var heardBefore = await writer.Store.LoadVoicesAsync(recordingId, cancellationToken) is { } voicesBefore && voicesBefore.Signature == signature ? voicesBefore.Tracks : [];
         var wanted = tracks.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
         var done = (partial?.Tracks ?? []).Where(t => wanted.Contains(t.TrackId)).ToList();
+        var continued = done.Count;
+        done.AddRange(heardBefore.Where(t => wanted.Contains(t.TrackId) && done.All(d => d.TrackId != t.TrackId)));
+        var reused = done.Count - continued;
         var elapsedBefore = partial?.ElapsedMs ?? 0;
         var remaining = tracks.Where(t => done.All(d => d.TrackId != t.Id)).ToList();
-        var job = new DiarizeJob(remaining, segmentationPath, embeddingPath, clusters, TranscriptionDefaults.ClusteringThreshold, TranscriptionDefaults.DiarizationThreads);
+        var job = new DiarizeJob(remaining, segmentationPath, embeddingPath, -1, TranscriptionDefaults.ClusteringThreshold, TranscriptionDefaults.DiarizationThreads);
         var startPercent = (int)Math.Floor(100.0 * done.Count / tracks.Count);
         var progress = new StageStatus(Name, StageStates.Active, startPercent, string.Create(CultureInfo.InvariantCulture, $"{startPercent}% · CPU"));
         manifest = await status.SetAsync(recordingId, progress, cancellationToken);
@@ -143,10 +156,12 @@ public sealed partial class SpeakersStage(
             recordingId,
             Name,
             "started",
-            done.Count > 0 ? "Identifying speakers (continuing where it stopped)" : "Identifying speakers",
+            remaining.Count == 0 ? "Identifying speakers (from the voices heard before)" : continued > 0 ? "Identifying speakers (continuing where it stopped)" : "Identifying speakers",
             $"sherpa-onnx · {segmentation.Name} + {embedding.Name} · CPU, {TranscriptionDefaults.DiarizationThreads} threads · {HumanFormat.Count(tracks.Count, "track", "tracks")}"
-                + (done.Count > 0 ? $" · {HumanFormat.Count(done.Count, "track", "tracks")} already done" : string.Empty)
-                + (current.ExpectedSpeakers is { } count ? string.Create(CultureInfo.InvariantCulture, $" · {count} expected") : string.Empty));
+                + (continued > 0 ? $" · {HumanFormat.Count(continued, "track", "tracks")} already done" : string.Empty)
+                + (reused > 0 ? $" · {HumanFormat.Count(reused, "track", "tracks")} heard before" : string.Empty)
+                + (expected is { } count ? string.Create(CultureInfo.InvariantCulture, $" · {count} expected ({expectedFrom})") : string.Empty)
+                + (knownNames.Count > 0 ? $" · {HumanFormat.Count(knownNames.Count, "name", "names")} given" : string.Empty));
         LogStarting(recordingId, tracks.Count, done.Count);
 
         var stopwatch = Stopwatch.StartNew();
@@ -214,11 +229,13 @@ public sealed partial class SpeakersStage(
             return;
         }
 
-        // Every track: the ones finished before (and reported as they finished) and the job's result.
+        // Every track: the ones heard before or finished before (and reported as they finished) and the job's result.
         var all = done.Concat(diarization.Tracks.Where(t => done.All(d => d.TrackId != t.TrackId))).ToList();
         var audioSeconds = all.Sum(t => t.AudioSeconds) is > 0 and var sum ? sum : diarization.AudioSeconds;
         IReadOnlyList<Speaker> speakers = [];
+        IReadOnlyList<VoiceCluster> voices = [];
         var merged = 0;
+        var naming = new SpeakerNamer.Result([], 0, 0);
         var saved = await writer.UpdateAsync(
             recordingId,
             TranscriptChangeReasons.Speakers,
@@ -229,19 +246,31 @@ public sealed partial class SpeakersStage(
                     return null;
                 }
 
-                // Lines edited meanwhile keep their text; only speaker fields are written.
-                var assigned = SpeakerAssigner.Assign(latest.Segments, all, current.ExpectedSpeakers);
-                speakers = assigned.Speakers;
-                merged = assigned.MergedAcrossTracks;
-                return latest with { Segments = assigned.Segments, Speakers = assigned.Speakers };
+                // Lines edited meanwhile keep their text; only speaker fields are written. Names given before carry over to
+                // the voice that took their lines, then the recording's known names go to the others.
+                var assigned = SpeakerAssigner.Assign(
+                    latest.Segments,
+                    all,
+                    expected,
+                    expected is null ? TranscriptionDefaults.JoinSimilarity : null,
+                    TranscriptionDefaults.MinSpeakerSeconds,
+                    TranscriptionDefaults.FoldSimilarity,
+                    TranscriptionDefaults.OwnSpeakerSeconds);
+                naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames);
+                speakers = naming.Speakers;
+                voices = assigned.Voices ?? [];
+                merged = assigned.Merged;
+                return latest with { Segments = assigned.Segments, Speakers = naming.Speakers };
             },
             CancellationToken.None);
+        await writer.Store.SaveVoicesAsync(recordingId, new VoicesDocument(VoicesDocument.CurrentSchemaVersion, embedding.Id, signature, all, voices), CancellationToken.None);
         writer.Store.DeleteSpeakersPartial(recordingId);
         await status.SetAsync(recordingId, new StageStatus(Name, StageStates.Done, null, "Done"), CancellationToken.None);
 
         var total = Math.Max(1, speakers.Sum(s => s.TalkTimeMs));
         var shares = string.Join(", ", speakers.Select(s => string.Create(CultureInfo.InvariantCulture, $"{s.Name} {100.0 * s.TalkTimeMs / total:0}%")));
         var elapsed = (elapsedBefore + stopwatch.ElapsedMilliseconds) / 1000.0;
+        var found = all.Sum(t => t.Turns.Select(u => u.Speaker).Distinct().Count());
         await _history.AppendAsync(
             recordingId,
             Name,
@@ -249,10 +278,18 @@ public sealed partial class SpeakersStage(
             $"Found {HumanFormat.Count(speakers.Count, "speaker", "speakers")}",
             string.Join(
                 " · ",
-                $"sherpa-onnx · {segmentation.Name} + {embedding.Name} · CPU",
-                string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Clock((long)(audioSeconds * 1000))} of audio in {elapsed:0.0} s"),
-                "talk time: " + (speakers.Count == 0 ? "none" : shares))
-                + (merged > 0 ? string.Create(CultureInfo.InvariantCulture, $" · voices on {HumanFormat.Count(all.Count, "track", "tracks")} grouped by sound into the {current.ExpectedSpeakers} expected speakers") : string.Empty));
+                new[]
+                {
+                    $"sherpa-onnx · {segmentation.Name} + {embedding.Name} · CPU",
+                    string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Clock((long)(audioSeconds * 1000))} of audio in {elapsed:0.0} s"),
+                    merged > 0
+                        ? string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Count(found, "voice", "voices")} heard, grouped into {HumanFormat.Count(speakers.Count, "speaker", "speakers")}") + (expected is { } wantedCount ? string.Create(CultureInfo.InvariantCulture, $" ({wantedCount} expected, {expectedFrom})") : string.Empty)
+                        : string.Empty,
+                    naming.Carried + naming.Known > 0
+                        ? string.Join(" and ", new[] { naming.Carried > 0 ? $"{HumanFormat.Count(naming.Carried, "name", "names")} kept from before" : string.Empty, naming.Known > 0 ? $"{HumanFormat.Count(naming.Known, "name", "names")} from Who spoke" : string.Empty }.Where(p => p.Length > 0))
+                        : string.Empty,
+                    "talk time: " + (speakers.Count == 0 ? "none" : shares),
+                }.Where(p => p.Length > 0)));
         if (current.RememberRenamed)
         {
             await _history.AppendAsync(

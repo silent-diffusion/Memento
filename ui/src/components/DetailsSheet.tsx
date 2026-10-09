@@ -1,24 +1,38 @@
 // Details and agenda (DESIGN.md §14), transcribed from renders/AgendaImport.dc.html: a 480 px side
 // sheet over the Recording session (and Review's Edit details). Every change goes through the
 // DetailsSaver, which applies it at once and saves it with project.updateDetails after a pause.
+// Participants can be filled from the speakers (Add from speakers), and Who spoke sets how many
+// people spoke and their names for this recording.
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { RecordingDetails, RecordingType } from '../bridge/types';
 import { CHOOSABLE_TYPES, isBuiltInType, typeName } from '../format/recording';
+import { participantsFromSpeakers } from '../format/speakerOrder';
+import { useServices } from '../state/context';
 import type { DetailsSaver } from '../state/detailsSaver';
 import { saveStatusText } from '../state/detailsSaver';
+import type { UndoEntry } from '../state/undo';
 import { AgendaSection } from './agenda/AgendaSection';
 import { useAgendaImport, type AgendaMode } from './agenda/useAgendaImport';
 import { AttachmentsSection } from './attachments/AttachmentsSection';
 import { CloseIcon } from './icons';
 import { SelectMenu } from './Menus';
+import { NameWell } from './NameWell';
 import { SideSheet } from './Overlay';
+import { WhoSpokeEditor } from './WhoSpoke';
 
 interface DetailsSheetProps {
   saver: DetailsSaver;
   onClose: () => void;
   /** M3: Review › Details › Replace opens the sheet at the drop zone. */
   agendaMode?: AgendaMode | null;
+  /**
+   * The names "Add from speakers" offers: Review's speakers in list order (named ones first). Without
+   * it (the Record screen, before there is a transcript) the Who spoke names are offered.
+   */
+  speakerNames?: readonly string[];
+  /** Registers "add participants from speakers" with Undo (Review). */
+  onUndoable?: (entry: UndoEntry) => void;
 }
 
 export function typeOptions(current: RecordingType): { value: string; label: string }[] {
@@ -32,84 +46,6 @@ export function typeOptions(current: RecordingType): { value: string; label: str
 // ---------------------------------------------------------------------------------------------
 // Name pills (participants, tags)
 // ---------------------------------------------------------------------------------------------
-
-interface PillWellProps {
-  id: string;
-  label: string;
-  values: string[];
-  placeholder: string;
-  onChange: (values: string[]) => void;
-}
-
-/** A pressed-in well of name pills with an inline input: Enter or comma adds, Backspace on empty removes the last. */
-function PillWell({ id, label, values, placeholder, onChange }: PillWellProps): JSX.Element {
-  const [draft, setDraft] = useState('');
-  const addNames = (names: string[]): void => {
-    const next = [...values];
-    for (const raw of names) {
-      const name = raw.trim();
-      if (name !== '' && !next.some((v) => v.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-        next.push(name);
-      }
-    }
-    if (next.length !== values.length) {
-      onChange(next);
-    }
-  };
-  const add = (): void => {
-    addNames([draft]);
-    setDraft('');
-  };
-  return (
-    <div class="sheet-well">
-      {values.map((value) => (
-        <span key={value} class="pill done sheet-pill">
-          {value}
-          <button
-            class="sheet-pill-remove"
-            type="button"
-            aria-label={`Remove ${value}`}
-            onClick={() => {
-              onChange(values.filter((v) => v !== value));
-            }}
-          >
-            <CloseIcon size={10} />
-          </button>
-        </span>
-      ))}
-      <label class="sr" for={id}>
-        {label}
-      </label>
-      <input
-        id={id}
-        class="sheet-well-input"
-        type="text"
-        placeholder={placeholder}
-        value={draft}
-        autocomplete="off"
-        onInput={(event) => {
-          // A comma ends a name, also when several arrive at once (pasted "Sam, Priya, ").
-          const parts = event.currentTarget.value.split(',');
-          const rest = parts.pop() ?? '';
-          if (parts.length > 0) {
-            addNames(parts);
-            event.currentTarget.value = rest;
-          }
-          setDraft(rest);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            add();
-          } else if (event.key === 'Backspace' && draft === '' && values.length > 0) {
-            onChange(values.slice(0, -1));
-          }
-        }}
-        onBlur={add}
-      />
-    </div>
-  );
-}
 
 /** Tags: raised pills plus a dashed "+ Add" that turns into an input. */
 export function TagEditor({
@@ -206,8 +142,37 @@ export function TagEditor({
 // The sheet
 // ---------------------------------------------------------------------------------------------
 
-export function DetailsSheet({ saver, onClose, agendaMode = null }: DetailsSheetProps): JSX.Element {
+export function DetailsSheet({ saver, onClose, agendaMode = null, speakerNames, onUndoable }: DetailsSheetProps): JSX.Element {
   const details = saver.details.value;
+  const { store } = useServices();
+  const expected = store.settings.value?.speakers.expectedSpeakers ?? 'auto';
+  const settingsDefault = expected === 'auto' ? null : expected;
+  // Add from speakers: the named speakers not listed yet ("Speaker n" skipped), undoable.
+  const fromSpeakers = participantsFromSpeakers(details.participants, speakerNames ?? details.whoSpoke.names);
+  const [lastAdd, setLastAdd] = useState<{ before: string[]; added: string[] } | null>(null);
+  const addFromSpeakers = (): void => {
+    const before = details.participants;
+    const after = [...before, ...fromSpeakers];
+    saver.update({ participants: after });
+    setLastAdd({ before, added: fromSpeakers });
+    onUndoable?.({
+      label: 'add participants from speakers',
+      undo: () => {
+        saver.update({ participants: before });
+        return saver.flush();
+      },
+      redo: () => {
+        saver.update({ participants: after });
+        return saver.flush();
+      },
+    });
+  };
+  const undoAddFromSpeakers = (): void => {
+    if (lastAdd !== null) {
+      saver.update({ participants: lastAdd.before });
+      setLastAdd(null);
+    }
+  };
   const agenda = useAgendaImport(saver, agendaMode);
   const update = (patch: Partial<RecordingDetails>): void => {
     saver.update(patch);
@@ -282,16 +247,45 @@ export function DetailsSheet({ saver, onClose, agendaMode = null }: DetailsSheet
             />
           </label>
           <div class="sheet-field sheet-field--wide">
-            <span class="lbl" id="participants-label">
-              Participants
-            </span>
-            <PillWell
+            <div class="sheet-section-head">
+              <span class="lbl" id="participants-label">
+                Participants
+              </span>
+              {fromSpeakers.length > 0 ? (
+                <button class="link-btn sheet-from-speakers" type="button" title={`Adds ${fromSpeakers.join(', ')}`} onClick={addFromSpeakers}>
+                  Add from speakers
+                </button>
+              ) : lastAdd !== null ? (
+                <button class="link-btn sheet-from-speakers" type="button" onClick={undoAddFromSpeakers}>
+                  Undo add from speakers
+                </button>
+              ) : null}
+            </div>
+            <NameWell
               id="add-person"
               label="Add a participant"
               values={details.participants}
               placeholder="Add a name"
               onChange={(participants) => {
+                setLastAdd(null);
                 update({ participants });
+              }}
+            />
+            {lastAdd === null ? null : (
+              <p class="sheet-caption" role="status">
+                Added {lastAdd.added.join(', ')} from the speakers.
+              </p>
+            )}
+          </div>
+          <div class="sheet-field sheet-field--wide">
+            <span class="lbl">Who spoke</span>
+            <WhoSpokeEditor
+              idPrefix="sheet-who-spoke"
+              value={details.whoSpoke}
+              participants={details.participants}
+              settingsDefault={settingsDefault}
+              onChange={(whoSpoke) => {
+                update({ whoSpoke });
               }}
             />
           </div>

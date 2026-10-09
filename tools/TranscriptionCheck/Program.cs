@@ -8,6 +8,15 @@
 //                                                     import the WAV as a recording and run transcript, speakers, topics
 //   TranscriptionCheck killtest <wav> [--model id]    kill the worker mid-pass, show the failure, retry on CPU
 //   TranscriptionCheck show <recordingId>             print a recording's transcript summary and History
+//   TranscriptionCheck diarize <audio> --segmentation <onnx> --embedding <onnx> [--threshold 0.8] [--count n] --out <json>
+//                                                     run the worker's speaker job on one file and save its turns and voices
+//   TranscriptionCheck identify <recordingId> [--count n]
+//                                                     identify a library recording's speakers again through the real
+//                                                     stage (with its own count when given) and print the result
+//   TranscriptionCheck evaluate <diarize.json> --transcript <transcript.json> [--reference <transcript.json>]
+//                     [--counts auto,4] [--join none,0.7]
+//                                                     assign a saved speaker job to a transcript's lines with each count and
+//                                                     join similarity, and score it against the reference's renamed speakers
 using System.Globalization;
 using Memento.Tools.TranscriptionCheck;
 
@@ -30,6 +39,26 @@ switch (command)
         return await check.KillTestAsync(args[1], Option("--model"));
     case "show":
         return await check.ShowAsync(args[1]);
+    case "identify":
+        return await check.IdentifyAsync(args[1], Option("--count") is { } count ? int.Parse(count, CultureInfo.InvariantCulture) : null);
+    case "evaluate":
+        return Evaluation.Run(
+            args[1],
+            Option("--transcript") ?? throw new ArgumentException("--transcript <transcript.json> is needed"),
+            Option("--reference"),
+            (Option("--counts") ?? "auto").Split(','),
+            (Option("--join") ?? "none").Split(','),
+            (Option("--min") ?? "0").Split(','),
+            (Option("--fold") ?? "never").Split(','),
+            double.Parse(Option("--own") ?? "0", CultureInfo.InvariantCulture));
+    case "diarize":
+        return await check.DiarizeAsync(
+            args[1],
+            Option("--segmentation") ?? throw new ArgumentException("--segmentation <onnx> is needed"),
+            Option("--embedding") ?? throw new ArgumentException("--embedding <onnx> is needed"),
+            float.Parse(Option("--threshold") ?? "0.8", CultureInfo.InvariantCulture),
+            int.Parse(Option("--count") ?? "-1", CultureInfo.InvariantCulture),
+            Option("--out") ?? throw new ArgumentException("--out <json> is needed"));
     default:
         Console.WriteLine("usage: TranscriptionCheck models | install <id>... | adopt <id> <file> | run <wav> [--model id] [--cpu] | killtest <wav> | show <id>   [--worker <exe>]");
         return 2;

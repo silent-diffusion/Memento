@@ -259,6 +259,18 @@ export interface RecordingDetails {
   notes: string;
   tags: string[];
   agenda: Agenda;
+  /** The recording's own speaker count and names (after 1.2.0); Settings › Speakers decides when both are empty. */
+  whoSpoke: WhoSpoke;
+}
+
+/**
+ * Who spoke in one recording: how many people (1–20, or null) and/or their names (at most 20, 1–100
+ * characters each). Speakers are identified with `count`, else with as many as `names`, else with
+ * Settings' expected speakers; the names become the speakers' names in order of first appearance.
+ */
+export interface WhoSpoke {
+  count: number | null;
+  names: string[];
 }
 
 export type AnnotationOrigin = 'user' | 'local' | 'ai';
@@ -561,6 +573,40 @@ export interface TranscriptRestoreSpeakerParams {
   recordingId: string;
   speaker: SpeakerRestore;
   segmentIds: string[];
+}
+
+/** A speaker as it was and the lines to give back to it (transcript.restoreSpeakers). */
+export interface SpeakerLines {
+  speaker: SpeakerRestore;
+  segmentIds: string[];
+}
+
+/** transcript.restoreSpeakers (Undo of a reduce): transcript.restoreSpeaker for each entry in order, in one write. */
+export interface TranscriptRestoreSpeakersParams {
+  recordingId: string;
+  speakers: SpeakerLines[];
+}
+
+/** transcript.reduceSpeakers: merge the most alike speakers until `count` (1–20) are left. */
+export interface TranscriptReduceSpeakersParams {
+  recordingId: string;
+  count: number;
+}
+
+/** One speaker folded into another by a reduce: the speaker as it was and the lines it had then. */
+export interface SpeakerMerge {
+  speaker: SpeakerRestore;
+  intoSpeakerId: string;
+  segmentIds: string[];
+}
+
+export interface TranscriptReduceSpeakersResult {
+  speakers: Speaker[];
+  /** In the order made; Undo restores them last first. */
+  merged: SpeakerMerge[];
+  segmentsChanged: number;
+  /** `voices`: the speakers' voices decided; `talkTime`: no voices were kept, least speech went first. */
+  basis: 'voices' | 'talkTime';
 }
 
 /** transcript.removeSpeaker (Undo of adding one): refused with transcript.speakerInUse while lines are assigned to it. */
@@ -2149,6 +2195,8 @@ export interface BridgeMethods {
   'transcript.mergeSpeakers': { params: TranscriptMergeSpeakersParams; result: TranscriptMergeSpeakersResult };
   'transcript.restoreSpeaker': { params: TranscriptRestoreSpeakerParams; result: TranscriptMergeSpeakersResult };
   'transcript.removeSpeaker': { params: TranscriptRemoveSpeakerParams; result: SpeakersResult };
+  'transcript.restoreSpeakers': { params: TranscriptRestoreSpeakersParams; result: TranscriptMergeSpeakersResult };
+  'transcript.reduceSpeakers': { params: TranscriptReduceSpeakersParams; result: TranscriptReduceSpeakersResult };
   'transcript.markReviewed': { params: TranscriptMarkReviewedParams; result: TranscriptMarkReviewedResult };
   'transcript.search': { params: TranscriptSearchParams; result: TranscriptSearchResult };
   'transcript.retranscribe': { params: TranscriptRetranscribeParams; result: EmptyResult };
@@ -2307,6 +2355,8 @@ export const METHOD_NAMES = [
   'transcript.mergeSpeakers',
   'transcript.restoreSpeaker',
   'transcript.removeSpeaker',
+  'transcript.restoreSpeakers',
+  'transcript.reduceSpeakers',
   'transcript.markReviewed',
   'transcript.search',
   'transcript.retranscribe',

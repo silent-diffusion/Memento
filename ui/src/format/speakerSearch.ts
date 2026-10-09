@@ -28,12 +28,16 @@ export function matchRank(name: string, query: string): 0 | 1 | 2 | null {
   return n.includes(q) ? 2 : null;
 }
 
-/** The items whose name matches `query`, best first; all of them, in order, for an empty query. */
-export function filterByName<T>(items: readonly T[], query: string, nameOf: (item: T) => string): T[] {
+/**
+ * The items whose name matches `query`, best first; all of them, in order, for an empty query.
+ * `groupOf` (optional) keeps groups apart: a lower group always comes first (people the user named
+ * before "Speaker n"), and the ranking applies within each group.
+ */
+export function filterByName<T>(items: readonly T[], query: string, nameOf: (item: T) => string, groupOf: (item: T) => number = () => 0): T[] {
   return items
-    .map((item, index) => ({ item, index, rank: matchRank(nameOf(item), query) }))
-    .filter((x): x is { item: T; index: number; rank: 0 | 1 | 2 } => x.rank !== null)
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item, index) => ({ item, index, group: groupOf(item), rank: matchRank(nameOf(item), query) }))
+    .filter((x): x is { item: T; index: number; group: number; rank: 0 | 1 | 2 } => x.rank !== null)
+    .sort((a, b) => a.group - b.group || a.rank - b.rank || a.index - b.index)
     .map((x) => x.item);
 }
 

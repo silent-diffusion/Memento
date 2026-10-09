@@ -99,6 +99,7 @@ describe('Undo in Review (against the browser-preview host)', () => {
     // Move the line to Lena: the button names the step, Undo puts it back, Ctrl+Y does it again.
     await click(segmentEl('Okay, I think everyone').querySelector('.segm-speaker'));
     await click(option('Lena Fischer'));
+    await click(document.querySelector('.speaker-menu--choices [data-choice="line"]'));
     await until(() => undoButton() !== null);
     expect(undoButton()?.getAttribute('aria-label')).toBe('Undo move line to Lena Fischer');
     expect(undoButton()?.title).toBe('Undo move line to Lena Fischer');

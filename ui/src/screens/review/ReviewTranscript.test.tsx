@@ -189,6 +189,15 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     return match;
   };
 
+  /** A choice after picking a speaker: `line` (Just this line), `merge`, or `back`. */
+  const choice = (id: string): HTMLElement => {
+    const match = document.querySelector<HTMLElement>(`.speaker-menu--choices [data-choice="${id}"]`);
+    if (match === null) {
+      throw new Error(`no choice ${id}`);
+    }
+    return match;
+  };
+
   const openSpeakerMenu = async (text: string): Promise<HTMLInputElement> => {
     const line = segment(text);
     await click(line.querySelector('.segm-speaker') ?? line);
@@ -215,6 +224,8 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     // The current speaker is where the arrow keys start.
     expect(search.getAttribute('aria-activedescendant')).toBe(menu?.querySelector('[aria-selected="true"]')?.id);
     await click(option('Lena Fischer'));
+    // Another speaker for a line that has one: just this line, or every line of Sam (Merge).
+    await click(choice('line'));
     await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Lena Fischer');
     expect(document.querySelector('.speaker-menu')).toBeNull();
 
@@ -246,6 +257,74 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Dana Whitfield');
   });
 
+  it('asks after a pick whether to move just this line or merge the whole speaker, and Undo takes the merge back as one step', async () => {
+    await openWithTranscript();
+    const speakerOf = (text: string): string | undefined => segment(text).querySelector('.segm-speaker-name')?.textContent;
+    const samLines = (): number => [...container.querySelectorAll('.segm-speaker-name')].filter((n) => n.textContent === 'Sam Okafor').length;
+    const before = samLines();
+    expect(before).toBeGreaterThan(1);
+
+    await openSpeakerMenu('Okay, I think everyone');
+    await click(option('Aiko Tanaka'));
+    const choices = document.querySelector<HTMLElement>('.speaker-menu--choices');
+    expect(choices?.querySelector('.speaker-choice-heading')?.textContent).toBe('Move to Aiko Tanaka');
+    expect([...(choices?.querySelectorAll('.speaker-choice-label, .speaker-choice--back .speaker-option-name') ?? [])].map((o) => o.textContent)).toEqual([
+      'Just this line',
+      'Merge Sam Okafor into Aiko Tanaka',
+      'Back to the speakers',
+    ]);
+    expect(choice('merge').textContent).toContain('Every line of Sam Okafor moves to Aiko Tanaka, and Sam Okafor goes away. Undo puts them back.');
+
+    // Esc (or Back) goes back to the speakers with the field focused; nothing changed.
+    await press(choices?.querySelector('[role="listbox"]') ?? document.body, 'Escape');
+    const search = document.querySelector<HTMLInputElement>('.speaker-menu input[role="combobox"]');
+    expect(search).not.toBeNull();
+    expect(document.activeElement).toBe(search);
+    expect(speakerOf('Okay, I think everyone')).toBe('Sam Okafor');
+
+    // Merge: every line of Sam goes to Aiko, and Sam leaves the People list.
+    await click(option('Aiko Tanaka'));
+    await click(choice('merge'));
+    await until(() => samLines() === 0);
+    expect(speakerOf('Okay, I think everyone')).toBe('Aiko Tanaka');
+    await until(() => ![...container.querySelectorAll('.person[data-speaker-id] .person-name')].some((p) => p.textContent === 'Sam Okafor'));
+    expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe('Undo merge speakers');
+
+    // One Undo puts Sam back with every line.
+    await click(container.querySelector('.undo-btn') ?? document.body);
+    await until(() => samLines() === before);
+    expect(speakerOf('Okay, I think everyone')).toBe('Sam Okafor');
+    expect([...container.querySelectorAll('.person[data-speaker-id] .person-name')].map((p) => p.textContent)).toContain('Sam Okafor');
+  });
+
+  it('lists named people before "Speaker n" in the People list, the menu and its search', async () => {
+    await openWithTranscript();
+    // Lena is renamed back to an unnamed speaker: she moves below the named ones, before the later "Speaker 4".
+    const lena = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript?.speakers.find((s) => s.name === 'Lena Fischer');
+    await act(async () => {
+      await bridge.call('transcript.restoreSpeaker', { recordingId: DESIGN_REVIEW, speaker: { id: lena?.id ?? '', name: 'Speaker 3', color: lena?.color ?? 3, renamed: false }, segmentIds: [] });
+    });
+    await until(() => [...container.querySelectorAll('.person-name')].some((p) => p.textContent === 'Speaker 3'));
+    expect([...container.querySelectorAll('.person[data-speaker-id] .person-name')].map((p) => p.textContent)).toEqual(['Sam Okafor', 'Aiko Tanaka', 'Speaker 3', 'Speaker 4']);
+
+    const search = await openSpeakerMenu('Okay, I think everyone');
+    expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual([
+      'Sam Okafor (current)',
+      'Aiko Tanaka',
+      'Speaker 3',
+      'Speaker 4',
+      'Rename Sam Okafor…',
+    ]);
+    // "s": names that start with it come first within each group, named people before "Speaker n".
+    await typeInto(search, 's');
+    expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual([
+      'Sam Okafor (current)',
+      'Speaker 3',
+      'Speaker 4',
+      'Add “s” as a new speaker',
+    ]);
+  });
+
   it('moves through the speaker menu with the arrow keys, ranks names that start with the text first, and closes with Esc', async () => {
     await openWithTranscript();
     // Many speakers: the menu stays inside the window and its list scrolls.
@@ -261,13 +340,34 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect(menu?.querySelectorAll('[role="option"]')).toHaveLength(15);
     expect(menu?.style.maxHeight).toMatch(/^\d+px$/);
     expect(Number.parseInt(menu?.style.maxHeight ?? '0', 10)).toBeLessThanOrEqual(420);
+    // Named people first by first appearance (Jonas has the first line now; the others have none yet), "Speaker 4" last.
+    expect([...(menu?.querySelectorAll('[role="option"]') ?? [])].map((o) => o.textContent)).toEqual([
+      'Jonas Ek (current)',
+      'Aiko Tanaka',
+      'Sam Okafor',
+      'Lena Fischer',
+      'Ana Lima',
+      'Bea Novak',
+      'Cai Wen',
+      'Dario Rossi',
+      'Elif Kaya',
+      'Femi Ade',
+      'Göran Berg',
+      'Hana Sato',
+      'Iris Lund',
+      'Speaker 4',
+      'Rename Jonas Ek…',
+    ]);
     const active = (): string | undefined => document.getElementById(search.getAttribute('aria-activedescendant') ?? '')?.textContent;
     expect(active()).toBe('Jonas Ek (current)');
-    await press(search, 'ArrowDown');
-    expect(active()).toBe('Rename Jonas Ek…');
-    await press(search, 'ArrowDown');
-    expect(active()).toBe('Sam Okafor');
     await press(search, 'ArrowUp');
+    expect(active()).toBe('Rename Jonas Ek…');
+    await press(search, 'ArrowUp');
+    expect(active()).toBe('Speaker 4');
+    await press(search, 'ArrowDown');
+    await press(search, 'ArrowDown');
+    await press(search, 'ArrowDown');
+    expect(active()).toBe('Aiko Tanaka');
     await press(search, 'ArrowUp');
     expect(active()).toBe('Jonas Ek (current)');
     // "be": Bea starts with it, Berg has a word that does, Lena Fischer... does not hold it; "goran" ignores the accent.
@@ -275,6 +375,10 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect([...document.querySelectorAll('.speaker-menu [role="option"]')].map((o) => o.textContent)).toEqual(['Bea Novak', 'Göran Berg', 'Add “be” as a new speaker']);
     await typeInto(search, 'goran');
     await press(search, 'Enter');
+    // The choices take the keys: Enter takes the first, Just this line.
+    const choices = document.querySelector<HTMLElement>('.speaker-menu--choices [role="listbox"]');
+    expect(document.activeElement).toBe(choices);
+    await press(choices ?? document.body, 'Enter');
     await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Göran Berg');
     const reopened = await openSpeakerMenu('Okay, I think everyone');
     await press(reopened, 'Escape');
@@ -532,5 +636,41 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await press(search, 'Enter');
     await until(() => ![...container.querySelectorAll('.person-name')].some((p) => p.textContent === 'Dana Whitfield'));
     expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Lena Fischer');
+  });
+
+  it('sets who spoke in the People pane, offers Reduce and Identify speakers again, and undoes the reduce as one step', async () => {
+    await openWithTranscript();
+    const people = (): string[] => [...container.querySelectorAll('.person[data-speaker-id] .person-name')].map((p) => p.textContent);
+    expect(people()).toEqual(['Sam Okafor', 'Aiko Tanaka', 'Lena Fischer', 'Speaker 4']);
+    const toggle = container.querySelector<HTMLButtonElement>('.people-who-toggle');
+    expect(toggle?.textContent).toBe('Who spokeAuto');
+    expect(container.querySelector('.people-who-offer')).toBeNull();
+
+    await click(toggle ?? document.body);
+    await click(button('How many people spoke: Auto'));
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent.trim() === '2 speakers') ?? document.body);
+    await until(() => container.querySelector('.people-who-offer') !== null);
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 2, names: [] });
+    expect(container.querySelector('.people-who-value')?.textContent).toBe('2 speakers');
+    expect(container.querySelector('.people-who-offer .people-who-note')?.textContent).toBe('4 speakers found, 2 expected.');
+    expect(container.querySelector('.who-spoke-hint')?.textContent).toBe('Speakers are identified as 2 speakers.');
+    expect(button('Identify speakers again', container.querySelector('.people-who-offer') ?? container)).not.toBeNull();
+    expect(container.querySelector('.people-who-offer')?.textContent).toContain('names you gave are kept where the same voice is found');
+
+    // Use participants: the names come from the details.
+    await click(button('Use participants'));
+    await until(() => (container.querySelector('.people-who-value')?.textContent ?? '').startsWith('2 speakers · '));
+
+    // Reduce: the preview keeps no voices, so the unnamed speaker with the least talk goes into the one with the most;
+    // the three named people stay apart, so three are left and the toast says why.
+    await click(button('Reduce to 2 speakers'));
+    await until(() => !people().includes('Speaker 4'));
+    expect(people()).toEqual(['Sam Okafor', 'Aiko Tanaka', 'Lena Fischer']);
+    await until(() => store.toasts.items.value.some((t) => t.title === 'Reduced to 3 speakers'));
+    expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe('Undo reduce to 2 speakers');
+
+    await click(container.querySelector('.undo-btn') ?? document.body);
+    await until(() => people().includes('Speaker 4'));
+    expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Speaker 4');
   });
 });

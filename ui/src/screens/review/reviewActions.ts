@@ -4,7 +4,7 @@
 // rejects with the host's error and registers nothing when the host refuses. The inverses call the
 // same host methods (and transcript.restoreSpeaker / removeSpeaker), so an undo can be refused too.
 import type { BridgeClient } from '../../bridge/client';
-import type { Chapter, Highlight, Project, RecordingDetails, Speaker, SpeakerRestore, Topic, Transcript, TranscriptSegment } from '../../bridge/types';
+import type { Chapter, Highlight, Project, RecordingDetails, Speaker, SpeakerRestore, Topic, Transcript, TranscriptSegment, WhoSpoke } from '../../bridge/types';
 import type { UndoManager } from '../../state/undo';
 import type { TranscriptApi } from './useTranscript';
 
@@ -26,6 +26,10 @@ export interface ReviewActions {
   addSpeaker(segment: TranscriptSegment, name: string): Promise<void>;
   renameSpeaker(speaker: Speaker, name: string): Promise<void>;
   mergeSpeakers(from: Speaker, into: Speaker): Promise<void>;
+  /** Merges the most alike speakers until `count` are left (one Undo step); resolves to how many were merged and who is left. */
+  reduceSpeakers(count: number): Promise<{ merged: number; left: Speaker[] }>;
+  /** The recording's own speaker count and names (Who spoke). */
+  setWhoSpoke(whoSpoke: WhoSpoke): Promise<void>;
   addHighlight(atMs: number): Promise<void>;
   renameHighlight(highlight: Highlight, note: string): Promise<void>;
   removeHighlight(highlight: Highlight): Promise<void>;
@@ -175,6 +179,35 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
         undo: () => deps().api.restoreSpeaker(before, lines),
         redo: () => deps().api.mergeSpeakers(from.id, into.id),
       });
+    },
+
+    async reduceSpeakers(count) {
+      const { api, undo } = deps();
+      const { merged, speakers } = await api.reduceSpeakers(count);
+      if (merged.length === 0) {
+        return { merged: 0, left: speakers };
+      }
+      // Undo puts every merged speaker back, the last merge first, in one host call.
+      const restores = [...merged].reverse().map((m) => ({ speaker: m.speaker, segmentIds: m.segmentIds }));
+      undo.push({
+        label: `reduce to ${count} ${count === 1 ? 'speaker' : 'speakers'}`,
+        undo: () => deps().api.restoreSpeakers(restores),
+        redo: () => deps().api.reduceSpeakers(count),
+      });
+      return { merged: merged.length, left: speakers };
+    },
+
+    async setWhoSpoke(whoSpoke) {
+      const before = deps().project?.details.whoSpoke ?? { count: null, names: [] };
+      await updateDetails({ whoSpoke });
+      deps().undo.push(
+        {
+          label: 'change who spoke',
+          undo: () => updateDetails({ whoSpoke: before }),
+          redo: () => updateDetails({ whoSpoke }),
+        },
+        { mergeKey: 'who-spoke' },
+      );
     },
 
     async addHighlight(atMs) {

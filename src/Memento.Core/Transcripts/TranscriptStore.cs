@@ -193,16 +193,39 @@ public sealed partial class TranscriptStore(IProjectStore projects, TimeProvider
         File.Delete(path + ".tmp");
     }
 
+    /// <summary><c>voices.json</c>, or <c>null</c> when there is none or it cannot be read (Review then falls back to talk time).</summary>
+    public async Task<VoicesDocument?> LoadVoicesAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var voices = await AtomicJsonFile.ReadAsync(VoicesPath(recordingId), TranscriptJsonContext.Default.VoicesDocument, cancellationToken);
+            return voices?.SchemaVersion == VoicesDocument.CurrentSchemaVersion && voices.Clusters is not null && voices.Tracks is not null ? voices : null;
+        }
+        catch (JsonException ex)
+        {
+            LogUnreadable(ex, recordingId);
+            return null;
+        }
+    }
+
+    public Task SaveVoicesAsync(string recordingId, VoicesDocument voices, CancellationToken cancellationToken) =>
+        AtomicJsonFile.WriteAsync(VoicesPath(recordingId), voices, TranscriptJsonContext.Default.VoicesDocument, cancellationToken);
+
+    private string VoicesPath(string recordingId) => Path.Combine(projects.GetProjectFolder(recordingId), ProjectLayout.VoicesFile);
+
     private static bool IsVersionId(string versionId) =>
         DateTime.TryParseExact(versionId, StampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out _);
 
     /// <summary>
     /// BRIDGE.md M2 clarification 3: a version is kept on the first edit after a pass or a restore (a run of edits is one
-    /// version), on retranscribe and on restore; a pass, a speakers pass or topics keep none.
+    /// version), on retranscribe and on restore, and before a speakers pass replaces lines a person edited (after 1.2.0);
+    /// a pass, a speakers pass over an unedited transcript or topics keep none.
     /// </summary>
     private static bool ShouldKeepVersion(TranscriptDocument current, string reason) => reason switch
     {
         TranscriptChangeReasons.Edited => current.LastChange?.Reason != TranscriptChangeReasons.Edited,
+        // Identifying speakers again over lines a person corrected keeps those corrections as a version.
+        TranscriptChangeReasons.Speakers => current.LastChange?.Reason == TranscriptChangeReasons.Edited,
         TranscriptChangeReasons.Retranscribed or TranscriptChangeReasons.Restored => true,
         _ => false,
     };

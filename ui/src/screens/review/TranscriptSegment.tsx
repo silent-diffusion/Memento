@@ -29,10 +29,12 @@ export interface SegmentHandlers {
   draft: (text: string) => void;
   save: () => void;
   cancel: () => void;
-  /** Move the line to another speaker. */
+  /** Move the line to another speaker ("Just this line"). */
   assign: (segment: TranscriptSegment, speaker: Speaker) => void;
   /** Create a speaker with this name and move the line to them. */
   addSpeaker: (segment: TranscriptSegment, name: string) => void;
+  /** Every line of one speaker moves to another, which keeps its name ("Merge {old} into {new}"). */
+  merge: (from: Speaker, into: Speaker) => void;
   rename: (speaker: Speaker, name: string) => void;
   renameHighlight: (highlight: Highlight, note: string) => void;
   /** Arrow keys between segments: the list moves focus. */
@@ -237,6 +239,7 @@ function SpeakerMenu({
   speaker,
   speakers,
   onAssign,
+  onMerge,
   onAdd,
   onRename,
 }: {
@@ -244,6 +247,7 @@ function SpeakerMenu({
   speaker: Speaker | null;
   speakers: readonly Speaker[];
   onAssign: (speaker: Speaker) => void;
+  onMerge: (from: Speaker, into: Speaker) => void;
   onAdd: (name: string) => void;
   onRename: (name: string) => void;
 }): JSX.Element {
@@ -336,6 +340,29 @@ function SpeakerMenu({
               onAssign(chosen);
             }
           }}
+          pickChoices={(chosen) =>
+            // A line with a speaker: move just it, or every line of that speaker (Undo puts them back).
+            speaker === null
+              ? null
+              : [
+                  {
+                    id: 'line',
+                    label: 'Just this line',
+                    detail: `The line at ${formatDuration(segment.start * 1000)} moves to ${chosen.name}.`,
+                    run: () => {
+                      onAssign(chosen);
+                    },
+                  },
+                  {
+                    id: 'merge',
+                    label: `Merge ${speaker.name} into ${chosen.name}`,
+                    detail: `Every line of ${speaker.name} moves to ${chosen.name}, and ${speaker.name} goes away. Undo puts them back.`,
+                    run: () => {
+                      onMerge(speaker, chosen);
+                    },
+                  },
+                ]
+          }
           onAdd={onAdd}
           actions={
             speaker === null
@@ -498,6 +525,9 @@ function SegmentRow({
             speakers={speakers}
             onAssign={(chosen) => {
               handlers.assign(segment, chosen);
+            }}
+            onMerge={(from, into) => {
+              handlers.merge(from, into);
             }}
             onAdd={(name) => {
               handlers.addSpeaker(segment, name);

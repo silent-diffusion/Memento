@@ -264,6 +264,32 @@ describe('preview host transcripts (M2)', () => {
     expect(host.call('transcript.editSegment', { recordingId: LONG, segmentId: first.id, text: first.text }).segment.edited).toBeNull();
   });
 
+  it('reduces to a count least speech first, keeps named speakers apart, and restores the merges in one call', () => {
+    const host = previewHost();
+    const before = host.call('transcript.get', { recordingId: LONG }).transcript;
+    if (before === null) {
+      throw new Error('no transcript');
+    }
+    expect(host.fail('transcript.reduceSpeakers', { recordingId: LONG, count: 0 }).code).toBe('bridge.invalidParams');
+    const named = before.speakers.filter((s) => s.renamed).length;
+    const reduced = host.call('transcript.reduceSpeakers', { recordingId: LONG, count: 1 });
+    expect(reduced.basis).toBe('talkTime');
+    expect(reduced.speakers).toHaveLength(Math.max(1, named));
+    expect(reduced.merged).toHaveLength(before.speakers.length - reduced.speakers.length);
+    expect(reduced.merged.every((m) => !m.speaker.renamed)).toBe(true);
+    expect(reduced.segmentsChanged).toBe(reduced.merged.reduce((n, m) => n + m.segmentIds.length, 0));
+
+    const restored = host.call('transcript.restoreSpeakers', {
+      recordingId: LONG,
+      speakers: [...reduced.merged].reverse().map((m) => ({ speaker: m.speaker, segmentIds: m.segmentIds })),
+    });
+    expect(restored.segmentsChanged).toBe(reduced.segmentsChanged);
+    const after = host.call('transcript.get', { recordingId: LONG }).transcript;
+    expect(after?.segments.map((s) => s.speaker)).toEqual(before.segments.map((s) => s.speaker));
+    expect(after?.speakers.map((s) => s.id).sort()).toEqual(before.speakers.map((s) => s.id).sort());
+    expect(host.fail('transcript.restoreSpeakers', { recordingId: LONG, speakers: [] }).code).toBe('bridge.invalidParams');
+  });
+
   it('marks reviewed and searches case-insensitively on word boundaries with snippets', () => {
     const host = previewHost();
     expect(host.call('transcript.markReviewed', { recordingId: LONG, reviewed: true })).toEqual({ reviewed: true });

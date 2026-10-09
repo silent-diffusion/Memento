@@ -393,6 +393,59 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(card()?.textContent).toContain('Rough draft. Speaker names and corrections happen in Review.');
   });
 
+  it('takes who spoke before recording starts, adds those names as participants, and saves both with the recording', async () => {
+    await setUp();
+    store.route.value = { name: 'record', sessionId: null };
+    await mount();
+    await until(() => container.querySelectorAll('.src').length === 5);
+    await act(async () => {
+      button('Details and agenda').click();
+      await Promise.resolve();
+    });
+    const sheet = document.querySelector<HTMLElement>('.sheet');
+    expect(sheet?.textContent).toContain('Who spoke');
+    // Nothing to add from yet: no transcript and no names.
+    expect([...(sheet?.querySelectorAll('button') ?? [])].some((b) => b.textContent === 'Add from speakers')).toBe(false);
+    await act(async () => {
+      button('How many people spoke: Auto').click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent.trim() === '2 speakers')?.click();
+      await Promise.resolve();
+    });
+    const names = document.querySelector<HTMLInputElement>('#sheet-who-spoke-name');
+    await act(async () => {
+      if (names !== null) {
+        names.value = 'Avery Stone, Rowan Hale,';
+        names.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      await Promise.resolve();
+    });
+    // The names are the speakers before there is a transcript: Add from speakers lists them as participants.
+    await act(async () => {
+      button('Add from speakers').click();
+      await Promise.resolve();
+    });
+    expect([...(sheet?.querySelector('.sheet-well')?.querySelectorAll('.sheet-pill') ?? [])].map((p) => p.textContent.trim())).toEqual(['Avery Stone', 'Rowan Hale']);
+    expect(sheet?.querySelector('.who-spoke-hint')?.textContent).toBe('Speakers are identified as 2 speakers and named in the order they first speak. Rename any that are off in Review.');
+
+    await act(async () => {
+      button('Done').click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      button('Start recording').click();
+      await Promise.resolve();
+    });
+    await until(() => store.recording.value?.state === 'recording');
+    const recordingId = store.recording.value?.recordingId ?? '';
+    await settle(100);
+    const details = (await bridge.call('project.get', { recordingId })).details;
+    expect(details.whoSpoke).toEqual({ count: 2, names: ['Avery Stone', 'Rowan Hale'] });
+    expect(details.participants).toEqual(['Avery Stone', 'Rowan Hale']);
+  });
+
   it('says live transcription is off when Timing is After recording', async () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };

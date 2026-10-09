@@ -2,10 +2,13 @@
 // list's merge menu. A "Find or add a speaker" field at the top filters as you type (case and accents
 // ignored, names that start with the text first); the list under it scrolls inside the room the
 // window has beside the trigger; the arrow keys move through it, Enter picks, Esc closes. When the
-// typed name matches nobody, a last row adds it as a new speaker.
+// typed name matches nobody, a last row adds it as a new speaker. People the user named are listed
+// before "Speaker n" ones. With `pickChoices` (the line's menu), a pick first asks how to apply it:
+// Just this line, or Merge {old} into {new}.
 import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Speaker } from '../bridge/types';
+import { speakerGroup } from '../format/speakerOrder';
 import { filterByName, hasExactName } from '../format/speakerSearch';
 import { speakerColourVar } from '../format/transcript';
 import './editing.css';
@@ -18,6 +21,15 @@ export const SPEAKER_MENU_MAX_HEIGHT = 420;
 export interface ChooserAction {
   id: string;
   label: string;
+  run: () => void;
+}
+
+/** One way to apply a picked speaker ("Just this line", "Merge Speaker 3 into Ana"). */
+export interface PickChoice {
+  id: string;
+  label: string;
+  /** A second, quieter line saying what happens. */
+  detail?: string;
   run: () => void;
 }
 
@@ -44,6 +56,12 @@ export interface SpeakerChooserProps {
   gap?: number;
   /** Shown when nothing matches and nothing can be added. */
   emptyText?: string;
+  /**
+   * Choices to make once a speaker is picked, before anything changes (the line's menu: Just this
+   * line, or Merge). The menu shows them under "Move to {name}"; Esc goes back to the speakers.
+   * Null or none: the pick applies at once (onPick).
+   */
+  pickChoices?: (speaker: Speaker) => readonly PickChoice[] | null;
 }
 
 type Row = { kind: 'speaker'; speaker: Speaker } | { kind: 'add'; name: string } | { kind: 'action'; action: ChooserAction };
@@ -64,7 +82,11 @@ export function SpeakerChooser({
   align = 'start',
   gap = 6,
   emptyText = 'No speaker has that name.',
+  pickChoices,
 }: SpeakerChooserProps): JSX.Element {
+  const [choosing, setChoosing] = useState<{ speaker: Speaker; choices: readonly PickChoice[] } | null>(null);
+  const [activeChoice, setActiveChoice] = useState(0);
+  const choiceList = useRef<HTMLUListElement | null>(null);
   const ids = useMemo(() => {
     nextId += 1;
     return { list: `speaker-list-${nextId}`, heading: `speaker-heading-${nextId}`, option: `speaker-option-${nextId}` };
@@ -79,7 +101,8 @@ export function SpeakerChooser({
 
   const typed = query.trim().replace(/\s+/g, ' ');
   const rows = useMemo((): Row[] => {
-    const matches = filterByName(speakers, typed, (s) => s.name).map((speaker): Row => ({ kind: 'speaker', speaker }));
+    // Named people first, then "Speaker n" (format/speakerOrder.ts); names that start with the text first within each.
+    const matches = filterByName(speakers, typed, (s) => s.name, speakerGroup).map((speaker): Row => ({ kind: 'speaker', speaker }));
     const add: Row[] = onAdd !== undefined && typed !== '' && !hasExactName(speakers, typed, (s) => s.name) ? [{ kind: 'add', name: typed.slice(0, 100) }] : [];
     const extra: Row[] = typed === '' ? actions.map((action): Row => ({ kind: 'action', action })) : [];
     return [...matches, ...add, ...extra];
@@ -106,6 +129,15 @@ export function SpeakerChooser({
     };
   }, []);
 
+  // The choices take focus when they show; back at the speakers, the field has it again.
+  useEffect(() => {
+    if (choosing !== null) {
+      choiceList.current?.focus({ preventScroll: true });
+    } else {
+      input.current?.focus({ preventScroll: true });
+    }
+  }, [choosing]);
+
   // Keep the active row in view inside the scrolling list.
   useLayoutEffect(() => {
     const el = list.current?.querySelector<HTMLElement>(`#${ids.option}-${activeIndex}`);
@@ -119,6 +151,12 @@ export function SpeakerChooser({
       return;
     }
     if (row.kind === 'speaker') {
+      const choices = row.speaker.id === currentId ? null : (pickChoices?.(row.speaker) ?? null);
+      if (choices !== null && choices.length > 0) {
+        setActiveChoice(0);
+        setChoosing({ speaker: row.speaker, choices });
+        return;
+      }
       closeRef.current(true);
       onPick(row.speaker);
     } else if (row.kind === 'add') {
@@ -162,6 +200,109 @@ export function SpeakerChooser({
       </>
     );
   };
+
+  if (choosing !== null) {
+    const { speaker, choices } = choosing;
+    // The choices, then a row back to the speakers.
+    const count = choices.length + 1;
+    const current = Math.min(activeChoice, count - 1);
+    const back = (): void => {
+      setChoosing(null);
+    };
+    const run = (index: number): void => {
+      const choice = choices[index];
+      if (choice === undefined) {
+        back();
+        return;
+      }
+      closeRef.current(true);
+      choice.run();
+    };
+    return (
+      <PopoverLayer anchorRef={anchorRef} popRef={pop} align={align} gap={gap} capHeight={SPEAKER_MENU_MAX_HEIGHT}>
+        <div
+          ref={pop}
+          class="popover speaker-menu speaker-menu--choices"
+          role="group"
+          aria-label={label}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onDblClick={(event) => {
+            event.stopPropagation();
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <span class="menu-label speaker-choice-heading" id={ids.heading}>
+            <span class="segm-dot" aria-hidden="true" style={{ background: speakerColourVar(speaker.color) }} />
+            Move to {speaker.name}
+          </span>
+          <ul
+            ref={choiceList}
+            id={ids.list}
+            class="speaker-menu-list"
+            role="listbox"
+            tabIndex={0}
+            aria-labelledby={ids.heading}
+            aria-activedescendant={`${ids.option}-choice-${current}`}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                setActiveChoice((current + (event.key === 'ArrowDown' ? 1 : -1) + count) % count);
+              } else if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                run(current);
+              } else if (event.key === 'Escape' || event.key === 'ArrowLeft' || event.key === 'Backspace') {
+                event.preventDefault();
+                back();
+              } else if (event.key === 'Tab') {
+                closeRef.current(floating);
+              }
+            }}
+          >
+            {[...choices, null].map((choice, index) => (
+              <li
+                key={choice === null ? 'back' : choice.id}
+                id={`${ids.option}-choice-${index}`}
+                class={[
+                  'item menu-item speaker-option speaker-choice',
+                  index === current ? 'speaker-option--active' : '',
+                  choice === null ? 'speaker-option--after speaker-choice--back' : '',
+                ]
+                  .filter((c) => c !== '')
+                  .join(' ')}
+                role="option"
+                aria-selected={index === current}
+                data-choice={choice === null ? 'back' : choice.id}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                }}
+                onPointerMove={() => {
+                  if (index !== current) {
+                    setActiveChoice(index);
+                  }
+                }}
+                onClick={() => {
+                  run(index);
+                }}
+              >
+                {choice === null ? (
+                  <span class="speaker-option-name">Back to the speakers</span>
+                ) : (
+                  <span class="speaker-choice-text">
+                    <span class="speaker-choice-label">{choice.label}</span>
+                    {choice.detail === undefined ? null : <span class="speaker-choice-detail">{choice.detail}</span>}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </PopoverLayer>
+    );
+  }
 
   const firstAction = rows.findIndex((r) => r.kind !== 'speaker');
   return (

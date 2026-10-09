@@ -27,6 +27,9 @@ public sealed record ProjectDetails
 
     public Agenda Agenda { get; init; } = Agenda.Empty;
 
+    /// <summary>The recording's own speaker count and names (schema v3, after 1.2.0).</summary>
+    public WhoSpoke WhoSpoke { get; init; } = WhoSpoke.Unknown;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

@@ -22,4 +22,7 @@ public sealed record RecordingDetailsPatch
     public IReadOnlyList<string>? Tags { get; init; }
 
     public Agenda? Agenda { get; init; }
+
+    /// <summary>Replaces the recording's count and names whole.</summary>
+    public WhoSpoke? WhoSpoke { get; init; }
 }

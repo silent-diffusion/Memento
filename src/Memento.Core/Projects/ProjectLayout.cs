@@ -20,5 +20,8 @@ public static class ProjectLayout
 
     /// <summary>The tracks an unfinished speaker pass has done, so it continues with the others.</summary>
     public const string SpeakersPartialFile = "speakers.partial.json";
+
+    /// <summary>The voices the last speaker pass found, for telling which speakers sound alike later.</summary>
+    public const string VoicesFile = "voices.json";
     public const string DocumentsFolder = "documents";
 }
