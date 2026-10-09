@@ -7,6 +7,15 @@ packed into the installer package, and the release workflow uses it as the GitHu
 
 Speakers that stick to the number you set, a transcript that stays with the audio, filters, copying to the clipboard, and History you can step back into. Memento updates itself to it.
 
+### Fixed: speakers stick to the number you set
+
+- **No more 84 speakers.** The diarizer's voices are now grouped by Memento, on every track, to the number you set, joining the most alike voices first and never splitting one; voices with under ten seconds of speech never become a speaker of their own. On a 92-minute meeting with four named people, 84 speakers became 4 with 97.8% of their speech on the right person (63.6% before); on a 55-minute meeting, 35 became 3 on Auto and 4 with the count set. The diarizer's output is kept with the recording, so changing the count regroups in well under a second without listening again.
+- **Who spoke, per recording.** Set **how many** people spoke and/or **their names** in the details before or after recording (with **Use participants** to take the participants list), and under People in Review. Names go to the speakers in order of first appearance, and names you gave earlier carry over to the speaker that took their lines. Settings › Speakers › Expected speakers remains the default for recordings without their own value.
+- **Reduce to n speakers** in People merges the most alike voices (never two named speakers together), as one Undo step. **Identify speakers again** keeps your corrected transcript as a version first, so it no longer wipes your fixes.
+- **Just this line or merge.** Choosing another speaker for a line now asks **Just this line** or **Merge {old} into {new}**; the merge is one Undo step.
+- **Named speakers first** in every list: the People pane, the speaker menu and its search results, and the merge menu, each by first appearance.
+- **Add from speakers** in the details fills the participants from the recording's named speakers.
+
 ### Fixed: the transcript stays with the audio
 
 - **Lines now start where the voice starts.** The highlight used to run ahead of the audio by a few seconds and lose whole stretches after long silences. Measurement showed the player, the mix and the clocks were exact: Whisper was starting each line at the beginning of the pause before it, usually on a whole second, and after a pause of 20 seconds or more it could write one sentence over and over through the real speech, which the repeat filter then dropped along with the speech. The transcription worker now shortens every silence to under a second before Whisper hears it, cuts each window between sounds into pieces under 30 seconds so Whisper never breaks a sentence itself, maps the times back and snaps each line to where sound actually starts and stops. On a recording with known timings, 29 of 30 lines start within 10 ms of the voice; on a 55-minute meeting, line starts went from −3.5 to +7 s off to within −0.3 to +0.9 s, and speech with no transcript nearby fell from 14% to 0.3%. Transcription takes about 6% longer.
