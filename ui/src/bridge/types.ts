@@ -123,6 +123,9 @@ export const ERROR_CODES = [
   'updates.busy',
   // After 1.2.0
   'clipboard.unavailable',
+  // 2.0 Review
+  'voices.notFound',
+  'voices.newerVersion',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -823,8 +826,11 @@ export interface SpeakerSettings {
   identify: boolean;
   /** "auto" or a whole number from 1 to 20; applied when one track has speech. */
   expectedSpeakers: 'auto' | number;
+  /** The 1.x switch, stored but never applied; superseded by `rememberVoices` (2.0). */
   rememberRenamed: boolean;
   embeddingModelId: string;
+  /** 2.0: "Remember speakers by voice" (off by default). */
+  rememberVoices: boolean;
 }
 
 export interface HistorySettings {
@@ -2151,6 +2157,116 @@ export interface DocumentsChangedPayload {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 2.0 Review: known voices, suggested chapters, selection mode (BRIDGE.md "Review (2.0)")
+// ---------------------------------------------------------------------------------------------
+
+/** A voice in Settings › Known voices. Its signature never crosses the bridge. */
+export interface KnownVoiceInfo {
+  id: string;
+  name: string;
+  /** How many recordings the name was confirmed in. */
+  recordings: number;
+  lastConfirmedAt: string;
+  /** "Suggest this voice". */
+  suggest: boolean;
+}
+
+export interface KnownVoicesResult {
+  /** Settings › Speakers › "Remember speakers by voice". */
+  remember: boolean;
+  voices: KnownVoiceInfo[];
+}
+
+export interface VoiceIdParams {
+  voiceId: string;
+}
+
+export interface VoiceSuggestParams {
+  voiceId: string;
+  suggest: boolean;
+}
+
+export interface VoiceRememberParams {
+  recordingId: string;
+  speakerId: string;
+}
+
+export interface VoiceRememberResult {
+  remembered: boolean;
+  /** Undo with voices.revert; null when nothing changed. */
+  changeId: string | null;
+  voice: KnownVoiceInfo | null;
+  /** Why nothing was remembered (setting off, too little speech, no voices kept). */
+  reason: string | null;
+}
+
+export interface VoiceChangeParams {
+  changeId: string;
+}
+
+/** "This sounds like {name}" under an unnamed speaker. */
+export interface VoiceMatch {
+  speakerId: string;
+  voiceId: string;
+  name: string;
+  /** Cosine of the two voices, 0..1 (shown as a percentage). */
+  similarity: number;
+  recordings: number;
+}
+
+export interface VoiceMatchesResult {
+  matches: VoiceMatch[];
+}
+
+export interface VoiceDeclineParams {
+  recordingId: string;
+  voiceId: string;
+  declined: boolean;
+}
+
+export interface VoiceAcceptParams {
+  recordingId: string;
+  speakerId: string;
+  voiceId: string;
+}
+
+export interface VoiceAcceptResult {
+  speakers: Speaker[];
+  changeId: string | null;
+}
+
+export interface ChapterSuggestion {
+  /** `sc` and the time in milliseconds. */
+  id: string;
+  atMs: number;
+  title: string;
+  /** "The subject changes · 4 s pause · new speaker". */
+  basis: string;
+}
+
+export interface ChapterSuggestionsResult {
+  suggestions: ChapterSuggestion[];
+}
+
+export interface ChapterSuggestionParams {
+  recordingId: string;
+  atMs: number;
+}
+
+export interface TranscriptSetSegmentsSpeakerParams {
+  recordingId: string;
+  segmentIds: string[];
+  /** Null clears the assignment. Ignored when `newSpeakerName` is given. */
+  speakerId: string | null;
+  newSpeakerName?: string;
+}
+
+export interface TranscriptSetSegmentsSpeakerResult {
+  segments: TranscriptSegment[];
+  speakers: Speaker[];
+}
+
+// ---------------------------------------------------------------------------------------------
 // Maps
 // ---------------------------------------------------------------------------------------------
 
@@ -2279,6 +2395,20 @@ export interface BridgeMethods {
   'updates.status': { params: EmptyParams; result: UpdateStatus };
   'updates.check': { params: EmptyParams; result: UpdateStatus };
   'updates.apply': { params: EmptyParams; result: EmptyResult };
+  // 2.0 Review
+  'voices.list': { params: EmptyParams; result: KnownVoicesResult };
+  'voices.setSuggest': { params: VoiceSuggestParams; result: KnownVoicesResult };
+  'voices.forget': { params: VoiceIdParams; result: KnownVoicesResult };
+  'voices.forgetAll': { params: EmptyParams; result: KnownVoicesResult };
+  'voices.remember': { params: VoiceRememberParams; result: VoiceRememberResult };
+  'voices.revert': { params: VoiceChangeParams; result: EmptyResult };
+  'voices.matches': { params: RecordingIdParams; result: VoiceMatchesResult };
+  'voices.decline': { params: VoiceDeclineParams; result: VoiceMatchesResult };
+  'voices.acceptMatch': { params: VoiceAcceptParams; result: VoiceAcceptResult };
+  'annotations.suggestChapters': { params: RecordingIdParams; result: ChapterSuggestionsResult };
+  'annotations.dismissSuggestion': { params: ChapterSuggestionParams; result: ChapterSuggestionsResult };
+  'annotations.restoreSuggestion': { params: ChapterSuggestionParams; result: ChapterSuggestionsResult };
+  'transcript.setSegmentsSpeaker': { params: TranscriptSetSegmentsSpeakerParams; result: TranscriptSetSegmentsSpeakerResult };
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -2436,6 +2566,20 @@ export const METHOD_NAMES = [
   // After 1.2.0
   'transcript.copy',
   'documents.copy',
+  // 2.0 Review
+  'voices.list',
+  'voices.setSuggest',
+  'voices.forget',
+  'voices.forgetAll',
+  'voices.remember',
+  'voices.revert',
+  'voices.matches',
+  'voices.decline',
+  'voices.acceptMatch',
+  'annotations.suggestChapters',
+  'annotations.dismissSuggestion',
+  'annotations.restoreSuggestion',
+  'transcript.setSegmentsSpeaker',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [

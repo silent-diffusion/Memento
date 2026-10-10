@@ -1,0 +1,277 @@
+/* Review's 2.0 parts (DESIGN.md §19, renders/Features20.dc.html): the match prompt, suggested chapters, selection mode
+   and the line context menu. Colours and shadows are tokens by role (§2.5); controls press per §2.4. */
+
+/* Match prompt: a pressed-in line under the speaker. */
+.sug {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin: 2px 0 6px 18px;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--neo-in-xs);
+}
+
+.sug-icon {
+  color: var(--text-3);
+  flex: none;
+}
+
+.sug-text {
+  flex: 1 1 140px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.sug-name {
+  font-weight: 700;
+}
+
+.sug-meta {
+  color: var(--text-3);
+}
+
+.sug-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.btn.sug-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Suggested chapters: under the Chapters list, dotted titles until accepted. */
+.sug-chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.sug-chapters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 0 10px;
+}
+
+.btn.link.sug-accept-all {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.sug-chapter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chap.sug-chapter {
+  align-items: center;
+  padding: 0 4px 0 0;
+  gap: 6px;
+  cursor: default;
+}
+
+.chap.sug-chapter:active {
+  transform: none;
+}
+
+.sug-chapter-title {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline dotted var(--text-3);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.icon-btn.sug-icon-btn {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.icon-btn.sug-icon-btn--ok {
+  color: var(--ok);
+}
+
+.icon-btn.sug-icon-btn:hover {
+  box-shadow: var(--neo-sm-hi);
+}
+
+.icon-btn.sug-icon-btn:disabled {
+  opacity: 0.55;
+}
+
+.sug-note {
+  margin: 2px 4px 0 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Selection mode: the bar (raised, radius 16) sticks above the lines; rows gain a checkbox and sink when selected. */
+.sel-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 0 0 12px;
+  padding: 10px 14px 10px 18px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+}
+
+.sel-count {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sel-spacer {
+  flex: 1;
+}
+
+.btn.sel-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.btn.sel-btn:disabled {
+  opacity: 0.55;
+}
+
+.btn.sel-btn--danger {
+  color: var(--danger);
+}
+
+.btn.sel-cancel {
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.segm.segm--selecting {
+  grid-template-columns: 20px 132px minmax(0, 1fr);
+  gap: 12px 16px;
+}
+
+.segm-check {
+  align-self: start;
+  margin-top: 3px;
+}
+
+.segm.segm--selected,
+.segm.segm--selected:hover {
+  background: var(--surface);
+  box-shadow: var(--neo-in);
+}
+
+/* The context menu: 240 px, raised, radius 16, 6 px padding, 34 px items. */
+.line-menu {
+  position: fixed;
+  z-index: 60;
+  width: 240px;
+  padding: 6px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.line-menu-item {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  width: 100%;
+  padding: 0 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.line-menu-item:hover,
+.line-menu-item:focus-visible {
+  background: var(--surface);
+  box-shadow: var(--neo-in-xs);
+  outline: none;
+}
+
+.line-menu-item:focus-visible {
+  box-shadow: var(--neo-in-xs), 0 0 0 2px var(--focus);
+}
+
+.line-menu-item:active {
+  box-shadow: var(--neo-in);
+}
+
+.line-menu-item--danger {
+  color: var(--danger);
+}
+
+.line-menu-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--line);
+}
+
+.line-menu-anchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-menu-item:active {
+    transform: none;
+  }
+}

@@ -18,6 +18,7 @@ import type { ReviewActions } from './reviewActions';
 import type { SearchApi, TranscriptApi } from './useTranscript';
 import { NO_FILTER, type TranscriptFilter } from '../../format/transcriptFilter';
 import { FilterLine, TranscriptFilterMenu, type TranscriptView } from './TranscriptFilter';
+import { useLineSelection, type LineActions } from './LineSelection';
 
 /** A typical segment's height before it is measured. */
 const ESTIMATED_ROW = 76;
@@ -55,6 +56,8 @@ export interface TranscriptPaneProps {
   onFilter?: (filter: TranscriptFilter) => void;
   /** Copy the lines the filter shows. */
   onCopyVisible?: () => void;
+  /** 2.0: selection mode and the line context menu act through these; without them neither is offered. */
+  lineActions?: LineActions;
 }
 
 /** The line being edited: the draft, the text it started from, and where the caret starts. */
@@ -268,6 +271,8 @@ interface ListProps {
   gapAction: GapAction | null;
   /** The transcript's line count when a filter shows fewer (the list's accessible name says "42 of 318 lines"). */
   total?: number;
+  /** 2.0 selection mode: the selected lines, or null outside it. */
+  selectedIds?: ReadonlySet<string> | null;
 }
 
 /** The segments, windowed: only the rows near the viewport are in the DOM, spacers stand for the rest. */
@@ -287,6 +292,7 @@ function TranscriptList({
   gaps,
   gapAction,
   total,
+  selectedIds = null,
 }: ListProps): JSX.Element {
   const listRef = useRef<HTMLDivElement | null>(null);
   const heightsRef = useRef<RowHeights | null>(null);
@@ -495,6 +501,7 @@ function TranscriptList({
           saving={isEditing && editing.saving}
           highlights={highlightsBySegment.get(segment.id) ?? NO_HIGHLIGHTS}
           handlers={handlers}
+          selected={selectedIds === null ? null : selectedIds.has(segment.id)}
         />
         {after.map((gap) => (
           <GapNotice key={`gap-${gap.start}`} gap={gap} action={gapAction} />
@@ -536,6 +543,7 @@ export function TranscriptPane({
   view,
   onFilter,
   onCopyVisible,
+  lineActions,
 }: TranscriptPaneProps): JSX.Element {
   const result = api.result;
   const transcript = result?.transcript ?? null;
@@ -577,10 +585,24 @@ export function TranscriptPane({
     return { segmentId: match.segmentId, occurrence };
   }, [search.matches, search.current]);
 
+  // 2.0: selection mode and the line context menu (LineSelection.tsx), over the lines shown.
+  const allIds = useMemo(() => new Set(allSegments.map((s) => s.id)), [allSegments]);
+  const selection = useLineSelection({
+    segments,
+    allIds,
+    highlightsBySegment,
+    speakers,
+    actions: lineActions,
+    focusLine: (segmentId) => {
+      focusRef.current?.(latest.current.segments.findIndex((s) => s.id === segmentId));
+    },
+  });
+  const withSelection = useRef(lineActions !== undefined).current;
+
   // Handlers stay one object for the life of the pane so the memoised rows do not redraw; each call
   // reads the latest state through the ref.
-  const latest = useRef({ editing, segments, speakers, actions, player, follow, onError, onSaved });
-  latest.current = { editing, segments, speakers, actions, player, follow, onError, onSaved };
+  const latest = useRef({ editing, segments, speakers, actions, player, follow, onError, onSaved, selection });
+  latest.current = { editing, segments, speakers, actions, player, follow, onError, onSaved, selection };
   const handlers = useMemo<SegmentHandlers>(() => {
     const focusSegment = (segmentId: string): void => {
       const index = latest.current.segments.findIndex((s) => s.id === segmentId);
@@ -654,6 +676,22 @@ export function TranscriptPane({
       moveFocus: (index, direction) => {
         focusRef.current?.(index + direction);
       },
+      ...(withSelection
+        ? {
+            select: (segment: TranscriptSegment, how: 'toggle' | 'range') => {
+              latest.current.selection.select(segment, how);
+            },
+            selectAll: () => {
+              latest.current.selection.selectAll();
+            },
+            extend: (segment: TranscriptSegment, direction: 1 | -1) => {
+              latest.current.selection.extend(segment, direction);
+            },
+            contextMenu: (segment: TranscriptSegment, at: { x: number; y: number }) => {
+              latest.current.selection.openMenu(segment, at);
+            },
+          }
+        : {}),
     };
   }, []);
 
@@ -896,6 +934,7 @@ export function TranscriptPane({
               onCopy={() => onCopyVisible?.()}
             />
           )}
+          {selection.bar}
           <div ref={listRef} class="tx-list-wrap" role="none">
           <TranscriptList
             key={filterKey}
@@ -914,8 +953,10 @@ export function TranscriptPane({
             gaps={gaps}
             gapAction={gapAction}
             {...(filtered ? { total: allSegments.length } : {})}
+            selectedIds={selection.selectedIds}
           />
           </div>
+          {selection.menu}
         </>
       ) : null}
     </div>

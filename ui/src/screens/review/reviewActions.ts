@@ -18,6 +18,8 @@ export interface ReviewActionDeps {
   /** Applies part of the project from the host's answer. */
   patch: (changes: Partial<Project>) => void;
   setProject: (project: Project) => void;
+  /** 2.0: Settings › Speakers › Remember speakers by voice; a rename then also learns the voice (voices.remember). */
+  rememberVoices?: boolean;
 }
 
 export interface ReviewActions {
@@ -33,7 +35,8 @@ export interface ReviewActions {
   addHighlight(atMs: number): Promise<void>;
   renameHighlight(highlight: Highlight, note: string): Promise<void>;
   removeHighlight(highlight: Highlight): Promise<void>;
-  addChapter(atMs: number, title: string): Promise<void>;
+  /** `origin` 'local': an accepted suggested chapter (2.0). */
+  addChapter(atMs: number, title: string, origin?: Chapter['origin']): Promise<void>;
   renameChapter(chapter: Chapter, title: string): Promise<void>;
   removeChapter(chapter: Chapter): Promise<void>;
   addTopic(label: string): Promise<void>;
@@ -110,6 +113,24 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
     }
   };
 
+  /**
+   * voices.remember after a rename when the setting is on: resolves to the change Undo reverts, or null when nothing
+   * was learned (too little speech, no voices kept). A failure to learn never fails the rename.
+   */
+  const rememberVoice = async (speakerId: string): Promise<string | null> => {
+    const { bridge, recordingId, rememberVoices } = deps();
+    if (rememberVoices !== true) {
+      return null;
+    }
+    try {
+      const { changeId } = await bridge.call('voices.remember', { recordingId, speakerId });
+      return changeId;
+    } catch (e: unknown) {
+      console.warn('[review] voices.remember failed', e);
+      return null;
+    }
+  };
+
   /** Re-creates something removed and points its old id at the new one. */
   const recreate = async (id: string, add: () => Promise<string>): Promise<void> => {
     const fresh = await add();
@@ -162,10 +183,21 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
       const { api, undo } = deps();
       const before = restoreOf(speaker);
       await api.renameSpeaker(speaker.id, name);
+      // 2.0: with Remember speakers by voice on, the confirmed name also teaches Memento the voice; Undo takes both back.
+      let change = await rememberVoice(speaker.id);
       undo.push({
         label: 'rename speaker',
-        undo: () => deps().api.restoreSpeaker(before, []),
-        redo: () => deps().api.renameSpeaker(speaker.id, name),
+        undo: async () => {
+          await deps().api.restoreSpeaker(before, []);
+          if (change !== null) {
+            await deps().bridge.call('voices.revert', { changeId: change });
+            change = null;
+          }
+        },
+        redo: async () => {
+          await deps().api.renameSpeaker(speaker.id, name);
+          change = await rememberVoice(speaker.id);
+        },
       });
     },
 
@@ -239,12 +271,12 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
       });
     },
 
-    async addChapter(atMs, title) {
-      const id = await addChapterRaw({ atMs, title });
+    async addChapter(atMs, title, origin = 'user') {
+      const id = await addChapterRaw({ atMs, title, origin });
       deps().undo.push({
         label: 'add chapter',
         undo: () => removeChapterRaw(id),
-        redo: () => recreate(id, () => addChapterRaw({ atMs, title })),
+        redo: () => recreate(id, () => addChapterRaw({ atMs, title, origin })),
       });
     },
 
