@@ -288,7 +288,7 @@ interface EngineStatusDetail { ready: boolean; device: string | null; gpuName: s
 | `transcript.changed` | `{ recordingId, version, reason: 'transcribed' \| 'edited' \| 'speakers' \| 'restored' \| 'topics' }` | The UI refetches `transcript.get` (or applies the edit it made). |
 | `models.progress` | `{ modelId, percent, bytesDone, bytesTotal, state: 'downloading' \| 'verifying' \| 'done' \| 'failed', message: string \| null }` | `message` says why a download failed, including "The download of … was cancelled; the partial file was removed." after `models.cancelInstall`. |
 | `status.footer` | `engine` is `{ ready, device, detail: EngineStatusDetail }` | Footer left side: "Local transcription ready · GPU (RTX 3060)" / "Transcription paused · PC is busy" / "No transcription model installed". `processingPaused` is one of "Low disk space", "PC is busy", "Paused by you", or null. |
-| `recording.liveTranscript` | `{ sessionId, segments: { start: number, end: number, text: string }[] }` | Optional. Rough draft segments for the Recording session's Live transcript card; replaced entirely by the full pass. If live transcription is not available in a build, the host never sends it and the card says so. |
+| `recording.liveTranscript` | `{ sessionId, segments: { start: number, end: number, text: string }[], /* 2.0: */ state, engine, note }` | Rough draft segments for the Recording session's Live transcript card; replaced entirely by the full pass. Sent from 2.0 when Settings turns it on: see "Live transcript (2.0)". |
 
 ## Settings snapshot (M2 additions)
 
@@ -429,7 +429,7 @@ interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; l
 ## Settings snapshot (M3 additions)
 
 ```ts
-general:  { startWithWindows: boolean; keepRunningInTray: boolean; language: 'en' }   // tray: stored; applied in M5
+general:  { startWithWindows: boolean; keepRunningInTray: boolean; language: 'en' }   // tray and startup applied in 2.0 (see "Tray and Start with Windows (2.0)")
 export:   { saveCopiesOutside: boolean; defaultFolder: string | null; askWhereEachTime: boolean; createSubfolder: boolean; defaults: ExportSelection }
 ai:       { enabled: boolean; askBeforeSend: boolean; keepRecord: boolean;                 // false, true, true
             share: { transcript: boolean; details: boolean; participants: boolean; agenda: boolean; highlights: boolean; attachments: boolean };   // all true but attachments
@@ -821,6 +821,22 @@ general: {                                  // M3 block, two read-only fields ad
 | Event | Payload | Notes |
 |---|---|---|
 | `app.openScreen` | `{ screen: 'record' }` | The tray's Record item, after the host has shown the window: the page opens the Recording session, rejoining the session in progress (recording or paused) or ready to record. |
+
+## Live transcript (2.0)
+
+Settings › Transcription › Live transcript while recording is `transcription.timing: 'during'` (off by default; the full pass after Stop always runs and replaces the draft). `transcription.liveOnGpu: boolean` (default `false`) lets it use the graphics card; `settings.set` merges it like the other fields.
+
+```ts
+interface RecordingLiveTranscriptPayload {
+  sessionId: string;
+  segments: { start: number; end: number; text: string }[];   // the newest 100 lines of the draft so far, seconds on the recording timeline
+  state: 'starting' | 'listening' | 'paused' | 'unavailable' | 'failed';
+  engine: string | null;   // "Local · CPU · Small", "Local · GPU · Small"; null before the model is loaded
+  note: string | null;     // a §17 sentence for paused (recording paused; waiting for a full pass; turned off in Settings), unavailable, failed
+}
+```
+
+Sent while a session records or is paused and the setting is on: after every heard window, on every state change, and again every few seconds while nothing changes (a page that reloads catches up). Each payload replaces the last. The lines are provisional: the page marks them so, they are never written to the project, and they are dropped when the session ends. `unavailable` when neither Small nor Base is installed (the note says to install one; Turbo, Medium and Large are never used for it); `failed` when its worker stopped twice (recording is not affected). The worker protocol gains the job kind `live` (`LiveJob`), the host line `audio` (`LiveAudio`: window, start, 16 kHz mono int16 base64) and the worker line `heard` (window, segments).
 
 ## Keep only the mix (2.0)
 
