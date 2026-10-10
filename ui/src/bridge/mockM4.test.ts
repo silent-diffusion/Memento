@@ -78,7 +78,7 @@ describe('M4 contract names (BRIDGE.md, M4 sections)', () => {
   it('carries the M4 settings: default provider, local model, default template and style', async () => {
     const bridge = client();
     const settings = await bridge.call('settings.get');
-    expect(settings.documents).toEqual({ defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' });
+    expect(settings.documents).toEqual({ defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate', ocrEngine: 'windows' });
     expect(settings.ai).toMatchObject({ defaultProviderId: null, localModelId: 'qwen3.5-4b-q4' });
     const changed = await bridge.call('settings.set', { ai: { defaultProviderId: 'local' }, documents: { defaultStyleId: 'minimal' } });
     expect(changed.ai.defaultProviderId).toBe('local');

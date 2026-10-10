@@ -136,6 +136,8 @@ interface ModelCardProps {
   useLabel: string | null;
   /** The status of the chosen model ("Installed · default"). */
   defaultStatus: string;
+  /** The status of an installed model that is not the chosen one (default: "Installed", or "Installed · needed" when not selectable). */
+  installedStatus: string | null;
   onDefault: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -143,10 +145,10 @@ interface ModelCardProps {
   onDismiss: () => void;
 }
 
-function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, useLabel, defaultStatus, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
+function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, useLabel, defaultStatus, installedStatus, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
   const downloading = phase.kind === 'starting' || phase.kind === 'downloading' || phase.kind === 'verifying' || phase.kind === 'cancelling';
   const radioId = `${group}-${model.id}`;
-  const status = model.installed ? (isDefault ? defaultStatus : selectable ? 'Installed' : 'Installed · needed') : downloading ? 'Downloading' : 'Not installed';
+  const status = model.installed ? (isDefault ? defaultStatus : (installedStatus ?? (selectable ? 'Installed' : 'Installed · needed'))) : downloading ? 'Downloading' : 'Not installed';
   return (
     <div class={isDefault ? 'model-card model-card--default' : 'model-card'} data-model-id={model.id}>
       <div class="model-main">
@@ -280,10 +282,12 @@ interface ModelCardsProps {
   useLabel?: string;
   /** The status of the chosen model (default "Installed · default"). */
   defaultStatus?: string;
+  /** The status of an installed model that is not the chosen one. */
+  installedStatus?: string;
 }
 
 /** The catalog for one engine as a radio group of cards. */
-export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {}, useLabel, defaultStatus = 'Installed · default' }: ModelCardsProps): JSX.Element {
+export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {}, useLabel, defaultStatus = 'Installed · default', installedStatus }: ModelCardsProps): JSX.Element {
   const { state } = api;
   if (!state.loaded) {
     return <p class="settings-row-desc model-loading">Reading the installed models…</p>;
@@ -311,6 +315,7 @@ export function ModelCards({ api, engine, role, selectable = true, defaultId, la
             selectable={selectable}
             useLabel={useLabel ?? null}
             defaultStatus={defaultStatus}
+            installedStatus={installedStatus ?? null}
             isDefault={selectable && model.id === defaultId}
             keepReason={keep[model.id] ?? null}
             busy={busy && !ownDownload}

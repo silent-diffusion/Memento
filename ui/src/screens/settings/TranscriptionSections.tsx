@@ -14,6 +14,7 @@ import { useServices } from '../../state/context';
 import { GpuMemoryLine, useCheckAgain } from './GpuMemoryLine';
 import { KnownVoices } from './KnownVoices';
 import { ModelCards, useModels } from './ModelCards';
+import { AgendaOcrSettings } from './AgendaOcrSettings';
 import { DocumentDefaultsRows } from './sections-m4';
 import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
 
@@ -370,6 +371,8 @@ export function DocumentsSection(): JSX.Element {
         {/* M4: live defaults and the templates and styles manager (sections-m4.tsx). */}
         <DocumentDefaultsRows />
       </SettingsGroup>
+      {/* 2.0: Windows OCR or Tesseract for agenda photos and scans. */}
+      <AgendaOcrSettings />
       <SettingsGroup label="History">
         <SettingsRow label="Keep version history" description="Previous versions of transcripts and documents can be restored.">
           <OnOff on={h.keepVersions} />

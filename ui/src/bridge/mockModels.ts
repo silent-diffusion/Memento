@@ -131,7 +131,7 @@ export function sampleModels(installed: 'sample' | 'none' = 'sample', alsoInstal
       id: MODEL_IDS.tesseract,
       engine: 'ocr',
       name: 'Tesseract English',
-      description: 'English language data for the Tesseract OCR engine (agenda photos). Used from version 0.4.',
+      description: 'English language data for Tesseract, the open-source alternative to Windows OCR for agenda photos and scanned PDFs. It marks the words it is unsure of.',
       sizeBytes: 4_113_088,
       license: 'Apache-2.0',
       recommended: true,

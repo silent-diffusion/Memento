@@ -146,7 +146,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet, rememberVoices: false },
     history: { keepVersions: true, keepDays: 90 },
     ...defaultM3Settings(),
-    documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' },
+    documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate', ocrEngine: 'windows' },
   };
   const m4Flags: M4Flags = { ...DEFAULT_M4_FLAGS, ...options.m4 };
   settings = { ...settings, ...m4Settings(settings, m4Flags.ai, m4Flags.vram) };

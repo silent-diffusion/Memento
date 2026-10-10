@@ -115,7 +115,7 @@ export function m4Settings(base: SettingsSnapshot, flag: AiFlag, vram: VramFlag 
       localModelId: recommendedLocalModelId(vram),
       localModelChosen: false,
     },
-    documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' },
+    documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate', ocrEngine: 'windows' },
   };
 }
 
@@ -593,6 +593,12 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       if (!store.styles().some((s) => s.id === documentsBlock.defaultStyleId)) {
         throw invalid('That style is not in this library any more. Nothing was changed.', documentsBlock.defaultStyleId);
       }
+      if (!(['windows', 'tesseract'] as string[]).includes(documentsBlock.ocrEngine)) {
+        throw invalid('Choose windows or tesseract. Nothing was changed.', 'documents.ocrEngine');
+      }
+      if (documentsBlock.ocrEngine === 'tesseract' && env.models.list().find((m) => m.engine === 'ocr')?.installed !== true) {
+        throw invalid("Tesseract English is not installed, so it can't be chosen yet. Download it in Settings › Documents first. Nothing was changed.", 'documents.ocrEngine');
+      }
       const ai = settings.ai;
       const provider = ai.defaultProviderId;
       if (provider !== null && !(['anthropic', 'openai', 'local'] as string[]).includes(provider)) {
@@ -608,7 +614,10 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     present(settings) {
       const chosen = chosenLocalModel(settings.ai);
       const localModelId = effectiveLocalModelId(env.models.list(), chosen, env.flags.vram);
-      return { ...settings, ai: { ...settings.ai, localModelId, localModelChosen: chosen !== null && chosen === localModelId } };
+      // 2.0: Tesseract is in effect only while its language data is installed (as the host's snapshot).
+      const tesseract = env.models.list().find((m) => m.engine === 'ocr')?.installed === true;
+      const ocrEngine = settings.documents.ocrEngine === 'tesseract' && tesseract ? 'tesseract' : 'windows';
+      return { ...settings, ai: { ...settings.ai, localModelId, localModelChosen: chosen !== null && chosen === localModelId }, documents: { ...settings.documents, ocrEngine } };
     },
   };
 }

@@ -2267,10 +2267,18 @@ export interface DocumentVersion {
 /** documents.changed reasons. */
 export type DocumentChangeReason = 'generated' | 'edited' | 'created' | 'deleted' | 'restored';
 
+/** 2.0: the text recognition that reads agenda photos and scanned PDFs. */
+export type OcrEngineId = 'windows' | 'tesseract';
+
 /** Settings › Documents › Defaults (M4). */
 export interface DocumentsSettings {
   defaultTemplateId: string;
   defaultStyleId: string;
+  /**
+   * 2.0, Settings › Documents › Agenda photos and scans: the engine in effect (the choice, or 'windows' while
+   * Tesseract English is not installed). settings.set refuses 'tesseract' until it is installed.
+   */
+  ocrEngine: OcrEngineId;
 }
 
 export interface ModulesListResult {
