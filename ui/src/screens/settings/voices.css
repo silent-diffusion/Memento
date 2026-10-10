@@ -87,10 +87,21 @@
   border-radius: 12px;
 }
 
-.known-forget-all {
+.btn.link.known-forget-all {
   align-self: flex-start;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
   font-size: 13px;
+  font-weight: 600;
   color: var(--danger);
+  cursor: pointer;
+}
+
+.btn.link.known-forget-all:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .known-confirm {

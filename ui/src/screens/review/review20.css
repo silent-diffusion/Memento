@@ -63,9 +63,26 @@
 }
 
 .btn.link.sug-accept-all {
+  padding: 4px 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn.link.sug-accept-all:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn.link.sug-accept-all:disabled {
+  opacity: 0.55;
 }
 
 .sug-chapter-list {
