@@ -795,6 +795,7 @@ Accepting a suggested chapter is `annotations.addChapter` with `origin: 'local'`
 ## Error codes (Review 2.0)
 
 `voices.notFound` (a `voices.*` method named a known voice or an enrolment change Memento does not have; `detail` is the id), `voices.newerVersion` (`voices/known.json` was written by a newer Memento; it is left as it is and nothing changed; Forget all still deletes it).
+
 ---
 
 # 2.0 — Live transcript, tray and keep only the mix
