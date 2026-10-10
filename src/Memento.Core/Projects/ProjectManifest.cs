@@ -5,14 +5,15 @@ using Memento.Core.Bridge.Contracts;
 namespace Memento.Core.Projects;
 
 /// <summary>
-/// <c>project.json</c>, schema v3 (ARCHITECTURE.md §4). Fields this build does not know are kept in
+/// <c>project.json</c>, schema v4 (ARCHITECTURE.md §4). Fields this build does not know are kept in
 /// <see cref="ExtensionData"/> and written back unchanged. v2 (0.4.0) makes <see cref="Attachments"/> a typed field;
 /// v1 files carried the same array untyped, and <see cref="ProjectManifestMigrator"/> drops entries it cannot read. v3 (after
-/// 1.2.0) adds <see cref="ProjectDetails.WhoSpoke"/> (<see cref="WhoSpokeMigration"/>).
+/// 1.2.0) adds <see cref="ProjectDetails.WhoSpoke"/> (<see cref="WhoSpokeMigration"/>). v4 (2.0) types
+/// <see cref="VideoTracks"/> (<see cref="VideoTracksMigration"/>) and adds <see cref="VideoRemoved"/>.
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -32,13 +33,20 @@ public sealed record ProjectManifest
     /// <summary>Recorded time, excluding pauses.</summary>
     public long DurationMs { get; init; }
 
-    /// <summary>Reserved for video capture (not in 1.0).</summary>
+    /// <summary>The recording has (or had, before "Remove video") at least one video track (2.0).</summary>
     public bool HasVideo { get; init; }
 
     public IReadOnlyList<ProjectTrack> Tracks { get; init; } = [];
 
-    /// <summary>Reserved for video tracks (not in 1.0); kept so adding video does not change the schema.</summary>
-    public IReadOnlyList<JsonElement> VideoTracks { get; init; } = [];
+    /// <summary>
+    /// Video tracks (schema v4, ARCHITECTURE.md §5.x), apart from the audio <see cref="Tracks"/> on purpose: every 1.x
+    /// reader mixes, transcribes and hashes each entry of <c>tracks[]</c> as audio, and kept this list untouched. A setter
+    /// rather than init, so a manifest without the field reads as an empty list.
+    /// </summary>
+    public IReadOnlyList<VideoTrack> VideoTracks { get; set; } = [];
+
+    /// <summary>"Remove video, keep audio" deleted the video files (2.0); <c>null</c> while they are kept.</summary>
+    public ProjectVideoRemoved? VideoRemoved { get; init; }
 
     /// <summary>Pauses, so transcript timings stay continuous across the gap.</summary>
     public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];

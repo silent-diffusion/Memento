@@ -4,6 +4,7 @@ using Memento.Video.Encoding;
 using Memento.Video.Recording;
 using Memento.Video.Sources;
 using Memento.Video.Tests.Fakes;
+using Memento.Core.Projects;
 using Memento.Video.Tracks;
 
 namespace Memento.Video.Tests.Recording;

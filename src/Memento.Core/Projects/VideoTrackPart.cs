@@ -1,4 +1,4 @@
-namespace Memento.Video.Tracks;
+namespace Memento.Core.Projects;
 
 /// <summary>One file of a video track (<c>tracks/screen.mp4</c>, then <c>tracks/screen.part2.mp4</c> after a hardware encoder failure).</summary>
 /// <param name="File">Relative to the project folder.</param>

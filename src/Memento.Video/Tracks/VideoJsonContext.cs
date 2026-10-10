@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 
+using Memento.Core.Projects;
+
 namespace Memento.Video.Tracks;
 
 /// <summary>Source-generated JSON for the video track descriptor and its checkpoint (camelCase, like project.json).</summary>

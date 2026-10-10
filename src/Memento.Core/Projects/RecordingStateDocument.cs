@@ -40,6 +40,12 @@ public sealed record RecordingStateDocument
 
     public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];
 
+    /// <summary>
+    /// Video tracks (2.0), written at every checkpoint after their files were flushed: enough for recovery to find and
+    /// repair every part without the manifest. An optional field within schema 1; older builds keep it as extension data.
+    /// </summary>
+    public IReadOnlyList<VideoTrackCheckpoint> VideoTracks { get; set; } = [];
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

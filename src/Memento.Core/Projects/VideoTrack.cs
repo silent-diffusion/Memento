@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Memento.Video.Tracks;
+namespace Memento.Core.Projects;
 
 /// <summary>
 /// One video track as <c>project.json</c> stores it in <c>videoTracks[]</c> (schema v4, ARCHITECTURE.md §5.x). Video
@@ -12,6 +12,10 @@ namespace Memento.Video.Tracks;
 public sealed record VideoTrack
 {
     public const string KindVideo = "video";
+
+    public const string RoleScreen = "screen";
+
+    public const string RoleCamera = "camera";
 
     /// <summary>Unique in the project: <c>screen</c>, <c>camera</c>, <c>screen-2</c>.</summary>
     public required string Id { get; init; }
@@ -25,7 +29,7 @@ public sealed record VideoTrack
     /// <summary><c>display</c>, <c>window</c> or <c>camera</c>.</summary>
     public required string SourceKind { get; init; }
 
-    /// <summary><see cref="Sources.VideoSourceId"/> in its text form (<c>display:\\.\DISPLAY1</c>).</summary>
+    /// <summary><c>VideoSourceId</c> (Memento.Video) in its text form (<c>display:\\.\DISPLAY1</c>).</summary>
     public required string SourceId { get; init; }
 
     /// <summary>What the user saw: "Display 1", a window title, the camera's name.</summary>
