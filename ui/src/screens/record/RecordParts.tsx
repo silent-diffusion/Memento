@@ -1,6 +1,6 @@
 // Cards of the Recording session (DESIGN.md §8), transcribed from renders/Record.dc.html: sources,
 // the stage, highlights, live transcript and agenda, and the footer.
-import type { JSX } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AgendaItem, AudioSource, FooterStatusPayload, Highlight, RecordingDetails, RecordingLiveTranscriptPayload, TranscriptionTiming } from '../../bridge/types';
 import { Toggle } from '../../components/Controls';
@@ -10,7 +10,7 @@ import { formatTimecode } from '../../format/duration';
 import type { ElapsedClock } from '../../format/elapsed';
 import type { TrackFormat } from '../../format/estimate';
 import { meterPercent } from '../../format/levels';
-import { recordStatusLine, recordStorageLine, type RecordPhase } from '../../format/recordFooter';
+import { recordStatusLine, recordStorageLine, withVideo, type RecordPhase, type VideoFooter } from '../../format/recordFooter';
 
 // ---------------------------------------------------------------------------------------------
 // Sources
@@ -78,9 +78,11 @@ interface SourcesCardProps {
   error: string | null;
   onToggle: (source: AudioSource, on: boolean) => void;
   onRescan: () => void;
+  /** 2.0: the VIDEO section (VideoSources), under the audio sources. */
+  video: ComponentChildren;
 }
 
-export function SourcesCard({ rows, error, onToggle, onRescan }: SourcesCardProps): JSX.Element {
+export function SourcesCard({ rows, error, onToggle, onRescan, video }: SourcesCardProps): JSX.Element {
   const labels = sourceToggleLabels((rows ?? []).map((r) => r.source));
   return (
     <section class="rec-card rec-sources" aria-label="Sources">
@@ -129,26 +131,8 @@ export function SourcesCard({ rows, error, onToggle, onRescan }: SourcesCardProp
           ))
         )}
       </div>
-      <div class="rec-divider" />
-      <div class="rec-card-head">
-        <span class="lbl" id="rec-video-label">
-          Video
-        </span>
-      </div>
-      <div class="rec-source-list" role="group" aria-labelledby="rec-video-label">
-        {['Screen', 'Camera'].map((name) => (
-          <div key={name} class="src off">
-            <div class="src-row">
-              <Toggle label={`${name} (available in a later version)`} checked={false} disabled />
-              <div class="src-text">
-                <span class="src-name">{name}</span>
-                <span class="src-sub">Available in a later version</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <p class="rec-foot-note">Each source is saved as its own synchronized track.</p>
+      {video}
+      <p class="rec-foot-note">Each source is saved as its own synchronized track. Video never leaves this PC.</p>
     </section>
   );
 }
@@ -157,8 +141,8 @@ export function SourcesCard({ rows, error, onToggle, onRescan }: SourcesCardProp
 // Stage
 // ---------------------------------------------------------------------------------------------
 
-/** The 64 px timer: redraws four times a second from the interpolating clock. */
-export function Timer({ clock, phase }: { clock: ElapsedClock; phase: RecordPhase }): JSX.Element {
+/** The 64 px timer (56 px beside the video preview): redraws four times a second from the interpolating clock. */
+export function Timer({ clock, phase, compact = false }: { clock: ElapsedClock; phase: RecordPhase; compact?: boolean }): JSX.Element {
   const [, setTick] = useState(0);
   useEffect(() => {
     if (phase !== 'recording') {
@@ -173,7 +157,7 @@ export function Timer({ clock, phase }: { clock: ElapsedClock; phase: RecordPhas
   }, [phase]);
   const ms = phase === 'ready' ? 0 : clock.read(performance.now());
   return (
-    <div class={phase === 'ready' ? 'mono rec-timer rec-timer--ready' : 'mono rec-timer'} role="timer" aria-live="off">
+    <div class={`mono rec-timer${phase === 'ready' ? ' rec-timer--ready' : ''}${compact ? ' rec-timer--video' : ''}`} role="timer" aria-live="off">
       {formatTimecode(ms)}
     </div>
   );
@@ -191,6 +175,8 @@ interface StageCardProps {
   onStop: () => void;
   onMark: () => void;
   onOpenRecording: () => void;
+  /** 2.0: the live preview under the sub-line while a video source is on (§18.1). */
+  preview?: ComponentChildren;
 }
 
 export function StageCard(props: StageCardProps): JSX.Element {
@@ -214,8 +200,9 @@ export function StageCard(props: StageCardProps): JSX.Element {
         </div>
       )}
 
-      <Timer clock={props.clock} phase={phase} />
+      <Timer clock={props.clock} phase={phase} compact={props.preview != null} />
       <div class="rec-subline">{props.subline}</div>
+      {props.preview}
 
       <div class="rec-controls">
         {live ? (
@@ -344,7 +331,12 @@ interface LiveTranscriptCardProps {
   timing: TranscriptionTiming | null;
   phase: RecordPhase;
   elapsedMs: number;
+  /** 2.0: video is recorded too; the card says it is never analysed (§18.1). */
+  video?: boolean;
 }
+
+/** §18.1: the live transcript's footnote while video is on. */
+export const VIDEO_NOT_ANALYSED = 'Video is not analysed; only the audio tracks are transcribed.';
 
 /** What the card says when there is no draft to show (DESIGN.md §8, §17). */
 export function liveTranscriptCopy(timing: TranscriptionTiming | null, phase: RecordPhase, elapsedMs: number, live: RecordingLiveTranscriptPayload | null = null): string {
@@ -364,7 +356,7 @@ export function liveTranscriptCopy(timing: TranscriptionTiming | null, phase: Re
   return 'Listening. Words appear here a few seconds behind the recording.';
 }
 
-export function LiveTranscriptCard({ live, timing, phase, elapsedMs }: LiveTranscriptCardProps): JSX.Element {
+export function LiveTranscriptCard({ live, timing, phase, elapsedMs, video = false }: LiveTranscriptCardProps): JSX.Element {
   const on = timing === 'during';
   const shown = on ? (live?.segments ?? []).slice(-LIVE_LINES) : [];
   const recording = phase === 'recording' || phase === 'paused';
@@ -391,9 +383,12 @@ export function LiveTranscriptCard({ live, timing, phase, elapsedMs }: LiveTrans
             ))}
           </ol>
           {note === null ? null : <p class="rec-side-text rec-live-note">{note}</p>}
-          <p class="rec-side-text rec-live-foot">Rough draft, not saved. The full transcript after you stop replaces it; speaker names and corrections happen in Review.</p>
+          <p class="rec-side-text rec-live-foot">
+            Rough draft, not saved. The full transcript after you stop replaces it; speaker names and corrections happen in Review.{video ? ` ${VIDEO_NOT_ANALYSED}` : ''}
+          </p>
         </>
       )}
+      {video && shown.length === 0 ? <p class="rec-side-text rec-live-foot">{VIDEO_NOT_ANALYSED}</p> : null}
     </section>
   );
 }
@@ -466,9 +461,11 @@ interface RecordFooterProps {
   lostAtMs: number | null;
   formats: TrackFormat[];
   now: () => Date;
+  /** 2.0: the video variants of both sides (§18.1, §18.6); null without video. */
+  video?: VideoFooter | null;
 }
 
-export function RecordFooter({ phase, status, lastCheckpointAt, lostAtMs, formats, now }: RecordFooterProps): JSX.Element {
+export function RecordFooter({ phase, status, lastCheckpointAt, lostAtMs, formats, now, video = null }: RecordFooterProps): JSX.Element {
   const [, setTick] = useState(0);
   useEffect(() => {
     if (phase !== 'recording') {
@@ -481,8 +478,8 @@ export function RecordFooter({ phase, status, lastCheckpointAt, lostAtMs, format
       clearInterval(timer);
     };
   }, [phase]);
-  const left = recordStatusLine(phase, status, lastCheckpointAt, lostAtMs, now().getTime());
-  const right = recordStorageLine(status, formats);
+  const audioLeft = recordStatusLine(phase, status, lastCheckpointAt, lostAtMs, now().getTime());
+  const { left, right } = withVideo(phase, audioLeft, status, formats, video, recordStorageLine(status, formats));
   return (
     <footer class="app-footer">
       <span class="footer-engine">

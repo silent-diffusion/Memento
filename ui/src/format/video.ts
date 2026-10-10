@@ -3,6 +3,23 @@
 // bitrate a quality setting asks the encoder for (ENGINE-NOTES.md §M.3, the busy-content ceilings).
 import type { PipCorner, VideoFrameRate, VideoQuality, VideoRole, VideoSettings, VideoSource } from '../bridge/types';
 
+/** Settings › Recording › Video defaults of a new install (BRIDGE.md additions, Settings). */
+export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
+  defaultSource: 'screenAndCamera',
+  resolution: 'display',
+  frameRate: 30,
+  quality: 'balanced',
+  defaultCameraId: null,
+  pipCorner: 'bottomRight',
+  hardwareEncoder: true,
+  includePointer: true,
+};
+
+/** The recording block's video fields, with the defaults where a host before 2.0 sends none. */
+export function videoSettingsOf(recording: { captureVideo?: boolean; video?: VideoSettings } | null | undefined): { captureVideo: boolean; video: VideoSettings } {
+  return { captureVideo: recording?.captureVideo ?? false, video: recording?.video ?? DEFAULT_VIDEO_SETTINGS };
+}
+
 /** "2560 × 1440". */
 export function formatResolution(width: number, height: number): string {
   return `${Math.round(width)} × ${Math.round(height)}`;

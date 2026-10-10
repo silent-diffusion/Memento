@@ -1,7 +1,7 @@
 // The Recording session footer (DESIGN.md §8, §17): what is being saved on the left, free space and
 // the time left at this quality on the right.
 import type { FooterStatusPayload } from '../bridge/types';
-import { estimateWording, type TrackFormat } from './estimate';
+import { estimateWording, recordingBytesPerSecond, type TrackFormat } from './estimate';
 import { statusLine, type EngineLine, type StorageLine } from './footer';
 import { formatFreeSpace } from './storage';
 
@@ -62,4 +62,58 @@ export function recordStorageLine(status: FooterStatusPayload | null, tracks: re
   const low = status?.storage.lowSpace === true;
   const lead = low ? `Low disk space · ${freeText}` : freeText;
   return { text: estimate === null ? lead : `${lead} · ${estimate}`, low };
+}
+
+/** 2.0 video (DESIGN.md §18.1, §18.6): what the session's video adds to both sides of the footer. */
+export interface VideoFooter {
+  /** videoFooterLine: "video and audio in sync", "Video paused · Display 2 disconnected · audio recording", … */
+  line: { tone: 'ok' | 'accent'; text: string } | null;
+  /** What the video tracks write per second (their targets), on top of the audio. */
+  bytesPerSecond: number;
+  /** "(screen 30 fps + camera)". */
+  note: string | null;
+}
+
+/** "about 9 hours at this quality (screen 30 fps + camera)", at the audio and video rates together. */
+export function videoEstimateWording(freeBytes: number, audioBytesPerSecond: number, video: VideoFooter): string | null {
+  const rate = audioBytesPerSecond + video.bytesPerSecond;
+  if (!(rate > 0) || !Number.isFinite(freeBytes) || freeBytes < 0) {
+    return null;
+  }
+  const hours = Math.floor(freeBytes / rate / 3600);
+  const base = hours < 1 ? 'under an hour at this quality' : `about ${hours} ${hours === 1 ? 'hour' : 'hours'} at this quality`;
+  return video.note === null ? base : `${base} ${video.note}`;
+}
+
+/**
+ * The footer with video: a problem (accent) replaces the saving line, a quiet "video and audio in
+ * sync" is appended to it; the right side estimates at video rates and, when space is low, says how
+ * much video still fits ("Low disk space · about 25 min of video").
+ */
+export function withVideo(
+  phase: RecordPhase,
+  left: EngineLine,
+  status: FooterStatusPayload | null,
+  formats: readonly TrackFormat[],
+  video: VideoFooter | null,
+  right: StorageLine,
+): { left: EngineLine; right: StorageLine } {
+  if (video === null || video.bytesPerSecond <= 0) {
+    return { left, right };
+  }
+  let nextLeft = left;
+  if (phase === 'recording' && video.line !== null && left.strong === undefined && left.tone === 'ok') {
+    nextLeft = video.line.tone === 'ok' ? { ...left, text: `${left.text} · ${video.line.text}` } : { tone: 'accent', text: video.line.text };
+  }
+  const free = status?.storage.freeBytes ?? null;
+  if (free === null) {
+    return { left: nextLeft, right };
+  }
+  const audio = recordingBytesPerSecond(formats);
+  if (status?.storage.lowSpace === true) {
+    const minutes = Math.floor(free / (audio + video.bytesPerSecond) / 60);
+    return { left: nextLeft, right: { text: `Low disk space · ${minutes < 1 ? 'under a min' : `about ${minutes} min`} of video`, low: true } };
+  }
+  const estimate = videoEstimateWording(free, audio, video);
+  return { left: nextLeft, right: { text: estimate === null ? right.text : `${formatFreeSpace(free)} free · ${estimate}`, low: false } };
 }

@@ -197,7 +197,7 @@ export function thumbnailSvg(source: VideoSource, nowMs: number): string {
     return svgUrl(
       `<defs><radialGradient id="g" cx="${50 + Number(sway) / 2}%" cy="44%" r="60%"><stop offset="0.28" stop-color="#8C7B6A"/><stop offset="0.3" stop-color="#4A443D"/></radialGradient></defs>` +
         `<rect width="160" height="90" fill="url(#g)"/><ellipse cx="${80 + Number(sway)}" cy="92" rx="34" ry="22" fill="#5C5248"/>` +
-        `<text x="6" y="85" font-family="monospace" font-size="7" fill="#C9C5BC">${clock(nowMs)}</text>`,
+        `<text x="154" y="9" text-anchor="end" font-family="monospace" font-size="4" fill="#86827A">${clock(nowMs)}</text>`,
     );
   }
   if (source.excluded) {
@@ -208,14 +208,14 @@ export function thumbnailSvg(source: VideoSource, nowMs: number): string {
       `<rect width="160" height="90" fill="#3A3733"/><rect x="13" y="14" width="134" height="65" rx="3" fill="#4A463F"/>` +
         `<rect x="18" y="20" width="${40 + (source.name.length % 5) * 8}" height="5" rx="1" fill="#57534C"/>` +
         `<rect x="${20 + slide}" y="44" width="22" height="12" rx="2" fill="#6A655C"/>` +
-        `<text x="6" y="86" font-family="monospace" font-size="7" fill="#C9C5BC">${clock(nowMs)}</text>`,
+        `<text x="154" y="9" text-anchor="end" font-family="monospace" font-size="4" fill="#86827A">${clock(nowMs)}</text>`,
     );
   }
   return svgUrl(
     `<rect width="160" height="90" fill="#2A2824"/><rect x="16" y="12" width="128" height="62" rx="3" fill="#3A3733"/>` +
       `<rect x="16" y="12" width="64" height="5" rx="1" fill="#57534C"/>` +
       `<rect x="${22 + slide}" y="${source.primary ? 40 : 52}" width="26" height="14" rx="2" fill="#4A463F"/>` +
-      `<text x="6" y="86" font-family="monospace" font-size="7" fill="#C9C5BC">${source.name} · ${clock(nowMs)}</text>`,
+      `<text x="154" y="9" text-anchor="end" font-family="monospace" font-size="4" fill="#86827A">${clock(nowMs)}</text>`,
   );
 }
 
