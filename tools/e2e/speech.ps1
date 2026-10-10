@@ -9,17 +9,45 @@
 
 .PARAMETER Script
   'first' (default) or 'second': another made-up meeting with the same two voices and other words, for the
-  known-voices study (ENGINE-NOTES.md §N): the same people in a later recording.
+  known-voices study (ENGINE-NOTES.md §N): the same people in a later recording. 'chapters': about seven
+  minutes on three subjects in turn (the budget, hiring, the website), with a pause between them, for
+  suggested chapters.
 
 .EXAMPLE
   powershell -File tools/e2e/speech.ps1 -Path artifacts/e2e-fixtures/two-voices.wav
 #>
-param([Parameter(Mandatory = $true)] [string] $Path, [ValidateSet('first', 'second')] [string] $Script = 'first')
+param([Parameter(Mandatory = $true)] [string] $Path, [ValidateSet('first', 'second', 'chapters')] [string] $Script = 'first')
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Speech
 
-$lines = if ($Script -eq 'second') { @(
+$subjects = @(
+  @('budget', 'invoices', 'spending', 'forecast', 'accounts', 'quarter'),
+  @('hiring', 'candidates', 'interviews', 'recruiter', 'onboarding', 'salaries'),
+  @('website', 'homepage', 'navigation', 'design', 'colours', 'search')
+)
+$templates = @(
+  'Let us look at the {0} again, because the {1} changed since last week.',
+  'I checked the {0} this morning and the {1} look better than we expected.',
+  'The {0} depends on the {1}, so we should settle that first.',
+  'Can you send me the numbers for the {0} and the {1} before Friday?',
+  'We agreed the {0} stays as it is, and the {1} gets a second look.',
+  'My worry about the {0} is the {1}; it slipped twice already.',
+  'If the {0} holds, the {1} can wait until the next meeting.',
+  'Fine, I will write down the {0} and the {1} in the notes.'
+)
+
+$lines = if ($Script -eq 'chapters') {
+  $all = @()
+  for ($s = 0; $s -lt $subjects.Count; $s++) {
+    $words = $subjects[$s]
+    for ($i = 0; $i -lt 26; $i++) {
+      $all += ($templates[$i % $templates.Count] -f $words[$i % $words.Count], $words[($i + 2) % $words.Count])
+    }
+    if ($s -lt $subjects.Count - 1) { $all += '-' }
+  }
+  $all
+} elseif ($Script -eq 'second') { @(
   'Hello again. Today we look at the export dialog and the folder names.',
   'I tried the new folder names yesterday and they sort by date, which helps.',
   'Good. What about the manifest file? Does it list every track and its hash?',
@@ -50,8 +78,13 @@ $synth.SetOutputToWaveFile([System.IO.Path]::GetFullPath($Path), $format)
 for ($i = 0; $i -lt $lines.Count; $i++) {
   $synth.SelectVoice($(if ($i % 2 -eq 0) { $first } else { $second }))
   $prompt = New-Object System.Speech.Synthesis.PromptBuilder
-  $prompt.AppendText($lines[$i])
-  $prompt.AppendBreak([TimeSpan]::FromMilliseconds(900))
+  if ($lines[$i] -eq '-') {
+    # A subject change: a longer pause.
+    $prompt.AppendBreak([TimeSpan]::FromMilliseconds(4000))
+  } else {
+    $prompt.AppendText($lines[$i])
+    $prompt.AppendBreak([TimeSpan]::FromMilliseconds(900))
+  }
   $synth.Speak($prompt)
 }
 $synth.SetOutputToNull()
