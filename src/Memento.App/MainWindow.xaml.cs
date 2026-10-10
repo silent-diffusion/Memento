@@ -126,7 +126,6 @@ internal sealed partial class MainWindow : Window
             e.Cancel = true;
             Hide();
             LogHiddenToTray();
-            _tray.OnHidden();
             return;
         }
 

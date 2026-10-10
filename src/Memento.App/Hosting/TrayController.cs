@@ -40,7 +40,6 @@ internal sealed partial class TrayController(
     private Action? _show;
     private Action? _quitApp;
     private Dispatcher? _dispatcher;
-    private bool _toldStillRunning;
     private TrayView? _shown;
 
     /// <summary>
@@ -62,19 +61,6 @@ internal sealed partial class TrayController(
         _quitApp = quit;
         settings.Changed += OnSettingsChanged;
         Apply();
-    }
-
-    /// <summary>The window was hidden by a close: says once per run where Memento went.</summary>
-    public void OnHidden()
-    {
-        if (_icon is null || _toldStillRunning)
-        {
-            return;
-        }
-
-        _toldStillRunning = true;
-        var recording = TrayView.For(recordings.Current, System.Globalization.CultureInfo.CurrentCulture).IsRecording;
-        _icon.ShowBalloonTip(5000, TrayView.StillRunningTitle, recording ? TrayView.StillRecordingBody : TrayView.StillRunningBody, Forms.ToolTipIcon.None);
     }
 
     /// <summary>Windows is signing out or shutting down: the window must close, not hide.</summary>

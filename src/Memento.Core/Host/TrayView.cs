@@ -16,13 +16,6 @@ public sealed record TrayView(string Tooltip, string? StatusLine, string OpenLab
 {
     public const int MaxTooltipLength = 127;
 
-    /// <summary>Shown once per run, the first time closing the window leaves Memento in the tray.</summary>
-    public const string StillRunningTitle = "Memento is still running";
-
-    public const string StillRunningBody = "It keeps recording and processing here. Open it or quit from this icon.";
-
-    public const string StillRecordingBody = "The recording continues and is saved as it records. Open Memento from this icon to stop it.";
-
     /// <summary>The view for <paramref name="current"/> (<c>recording.current</c>; <c>null</c> when nothing records).</summary>
     public static TrayView For(RecordingStatePayload? current, IFormatProvider? culture = null)
     {
