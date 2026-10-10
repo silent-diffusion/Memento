@@ -1,13 +1,21 @@
 // The Recording section (DESIGN.md §11). General and Storage and history moved to sections-m3.tsx in M3.
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import type { RecordingSettings, RecordingType, StorageCodec } from '../../bridge/types';
+import type { RecordingSettings, RecordingType, StorageCodec, VideoListSourcesResult } from '../../bridge/types';
 import { Segmented, Toggle } from '../../components/Controls';
 import { SelectMenu } from '../../components/Menus';
 import { CHOOSABLE_TYPES, isBuiltInType, typeName } from '../../format/recording';
 import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
+import { VideoDefaultsGroup } from './VideoSettings';
+
+type RecordingMode = 'audio' | 'video';
+
+const MODE_OPTIONS: readonly { value: RecordingMode; label: string }[] = [
+  { value: 'audio', label: 'Audio only' },
+  { value: 'video', label: 'Audio + video' },
+];
 
 function InlineMessage({ message }: { message: string | null }): JSX.Element | null {
   return message === null ? null : (
@@ -42,6 +50,28 @@ export function RecordingSection(): JSX.Element {
   const settings = store.settings.value;
   const sources = store.sources.value;
   const [error, setError] = useState<string | null>(null);
+  // 2.0 video: the primary display (for "Match display") and the cameras, read when the section opens.
+  const [videoSources, setVideoSources] = useState<VideoListSourcesResult | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    bridge
+      .call('video.listSources')
+      .then((result) => {
+        if (live) {
+          setVideoSources(result);
+        }
+      })
+      .catch(() => {
+        // Without an answer the rows still work: no figures beside "Match display" and no cameras listed.
+        if (live) {
+          setVideoSources({ displays: [], windows: [], cameras: [] });
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [bridge]);
 
   useEffect(() => {
     // sources.list re-enumerates each call, so the list is fresh whenever the section opens.
@@ -72,6 +102,16 @@ export function RecordingSection(): JSX.Element {
   return (
     <>
       <SettingsGroup label="Defaults">
+        <SettingsRow label="Recording mode" description="You can change this before each recording.">
+          <Segmented<RecordingMode>
+            label="Recording mode"
+            value={recording.captureVideo ? 'video' : 'audio'}
+            options={MODE_OPTIONS}
+            onChange={(mode) => {
+              save({ captureVideo: mode === 'video' });
+            }}
+          />
+        </SettingsRow>
         <SettingsRow label="Recording type" description="Decides which details and processing are offered.">
           <SelectMenu<RecordingType>
             label="Recording type"
@@ -199,6 +239,14 @@ export function RecordingSection(): JSX.Element {
           />
         </SettingsRow>
       </SettingsGroup>
+      {/* 2.0 video (§18.5): shown with Audio only too, at full strength: they are the defaults whenever video is chosen. */}
+      <VideoDefaultsGroup
+        video={recording.video}
+        sources={videoSources}
+        save={(video) => {
+          save({ video });
+        }}
+      />
     </>
   );
 }
