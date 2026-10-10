@@ -11,7 +11,8 @@ namespace Memento.Core.Storage;
 /// <c>project.json</c>, an indexer, a scanner) neither blocks the write nor sees a torn file: it keeps the old document
 /// until it closes. Where that is unsupported (FAT, exFAT, some network shares, older Windows) it falls back to
 /// <see cref="File.Move(string, string, bool)"/>. Either way, a reader that does not share delete is waited out for
-/// about two seconds, with jitter, before the write fails.
+/// about two seconds of waits between tries, with jitter, before the write fails; the waits are counted, not the clock,
+/// so a machine too busy to wake the retry loop on time still gets every try.
 /// </summary>
 public static class AtomicReplace
 {
@@ -31,18 +32,29 @@ public static class AtomicReplace
         ReplaceAsync(source, destination, OperatingSystem.IsWindows() ? PosixRename.Replace : null, DefaultBudget, cancellationToken);
 
     /// <param name="posixRename">Returns 0 or a Win32 error code; <c>null</c> to use <see cref="File.Move(string, string, bool)"/> only.</param>
-    /// <param name="budget">How long to keep retrying a locked file.</param>
+    /// <param name="budget">How long to keep retrying a locked file, counted in the waits between tries (see below).</param>
+    /// <param name="delay">Waits between tries (tests replace it to stand for a starved machine).</param>
+    /// <remarks>
+    /// The budget is the sum of the waits this method asks for, not the time on the clock. On a machine saturated by
+    /// other work a 5 ms wait can come back after a second or more (the thread pool is starved), so a clock-based budget
+    /// gave up after two or three tries and dropped a write that a brief lock (a scanner reading the new file) would
+    /// have let through moments later. Counting the waits gives every write the same number of tries however slowly the
+    /// machine runs; a lock that really stays costs about the budget on a normal machine, as before.
+    /// </remarks>
     internal static async Task ReplaceAsync(
         string source,
         string destination,
         Func<string, string, int>? posixRename,
         TimeSpan budget,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<int, CancellationToken, Task>? delay = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
         ArgumentException.ThrowIfNullOrEmpty(destination);
 
+        delay ??= static (ms, ct) => Task.Delay(ms, ct);
         var started = Stopwatch.GetTimestamp();
+        var waited = TimeSpan.Zero;
         for (var attempt = 1; ; attempt++)
         {
             Exception failure;
@@ -78,14 +90,14 @@ public static class AtomicReplace
                 }
             }
 
-            var elapsed = Stopwatch.GetElapsedTime(started);
-            if (elapsed >= budget)
+            if (waited >= budget)
             {
-                throw GaveUp(destination, elapsed, failure);
+                throw GaveUp(destination, Stopwatch.GetElapsedTime(started), failure);
             }
 
-            var delay = Math.Min(Delay(attempt), (int)Math.Ceiling((budget - elapsed).TotalMilliseconds));
-            await Task.Delay(delay, cancellationToken);
+            var wait = Math.Max(1, Math.Min(Delay(attempt), (int)Math.Ceiling((budget - waited).TotalMilliseconds)));
+            waited += TimeSpan.FromMilliseconds(wait);
+            await delay(wait, cancellationToken);
         }
     }
 
