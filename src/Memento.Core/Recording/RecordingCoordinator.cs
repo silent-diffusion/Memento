@@ -10,6 +10,7 @@ using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Settings;
 using Memento.Core.Status;
+using Memento.Core.Video;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Recording;
@@ -19,7 +20,8 @@ namespace Memento.Core.Recording;
 /// (start, every checkpoint, every state change), watches free space, turns engine events into bridge events, and on
 /// stop hands the project to <see cref="ProjectFinalizationService"/>. One session at a time; a second
 /// <c>recording.start</c> is refused. Nothing here runs on a capture thread: engine events arrive through the
-/// session's dispatcher.
+/// session's dispatcher. Video tracks (2.0) run beside the audio session through <see cref="VideoRecording"/>, on its
+/// timeline, and never keep the audio from starting, pausing, checkpointing or stopping.
 /// </summary>
 public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 {
@@ -43,6 +45,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     private readonly TimeProvider _time;
     private readonly ILogger<RecordingCoordinator> _logger;
     private readonly LibraryOpener? _opener;
+    private readonly IVideoCapture _video;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConcurrentDictionary<string, Finalizing> _finalizing = new(StringComparer.Ordinal);
     private ActiveRecording? _active;
@@ -63,9 +66,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         RecordingCoordinatorOptions options,
         TimeProvider time,
         ILogger<RecordingCoordinator> logger,
-        LibraryOpener? opener = null)
+        LibraryOpener? opener = null,
+        IVideoCapture? video = null)
     {
         _opener = opener;
+        _video = video ?? new UnavailableVideoCapture();
         _engine = engine;
         _sources = sources;
         _store = store;
@@ -126,12 +131,16 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     running.SessionId);
             }
 
-            var sourceIds = (parameters.SourceIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
+            var requested = (parameters.SourceIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
+            var videoIds = requested.Where(VideoSourceIds.IsVideo).ToList();
+            var sourceIds = requested.Where(id => !VideoSourceIds.IsVideo(id)).ToList();
             if (sourceIds.Count == 0)
             {
                 throw new BridgeException(
                     DomainErrorCodes.RecordingNoSources,
-                    "Choose at least one audio source to record. Nothing was started.");
+                    videoIds.Count > 0
+                        ? "Choose at least one audio source to record; video is recorded beside the audio, never on its own. Nothing was started."
+                        : "Choose at least one audio source to record. Nothing was started.");
             }
 
             var type = ValidateType(parameters.Type);
@@ -148,6 +157,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             var folder = _store.GetProjectFolder(manifest.Id);
             var plan = new RecordingPlan(folder, sources, TimeSpan.FromSeconds(_settings.Current.Recording.CheckpointSeconds));
             IRecordingSession session;
+            var startedQpc = VideoClock.Now;
             try
             {
                 session = await _engine.StartAsync(plan, cancellationToken);
@@ -166,13 +176,23 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 throw DiskFullAtStart(_freeSpace.GetFreeBytes(_library.Root));
             }
 
-            var active = new ActiveRecording(session, manifest.Id, title, plan.CheckpointInterval);
+            var active = new ActiveRecording(session, manifest.Id, title, plan.CheckpointInterval)
+            {
+                Video = new VideoRecording(_video, session, manifest.Id, folder, session.TimelineOriginQpc ?? startedQpc, _settings.Current.Video, _publisher, _logger),
+            };
             Subscribe(active);
             Volatile.Write(ref _active, active);
+            if (videoIds.Count > 0)
+            {
+                // Video fails first and alone: a source that cannot start is reported and the audio goes on (DESIGN.md §18.6).
+                await active.Video.StartInitialAsync(videoIds, CancellationToken.None);
+            }
 
             var tracks = session.Tracks;
             await WriteStateFileAsync(active, "recording", tracks, null);
-            await _catalog.SaveAsync(manifest with { Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList() }, cancellationToken);
+            await _catalog.SaveAsync(
+                manifest with { Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList(), HasVideo = active.Video.HasAny },
+                cancellationToken);
             await _store.AppendHistoryAsync(
                 manifest.Id,
                 new HistoryEntry(
@@ -180,7 +200,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     "recorded",
                     "started",
                     "Recording started",
-                    $"{HumanFormat.Count(tracks.Count, "audio track", "audio tracks")}: {string.Join(", ", tracks.Select(t => t.Source.Name))} · engine {_engine.Name}"),
+                    $"{HumanFormat.Count(tracks.Count, "audio track", "audio tracks")}: {string.Join(", ", tracks.Select(t => t.Source.Name))}"
+                        + VideoHistoryPart(active.Video.Statuses())
+                        + $" · engine {_engine.Name}"),
                 cancellationToken);
             await RememberSelectionAsync(sourceIds, type, cancellationToken);
 
@@ -244,12 +266,60 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         }
     }
 
+    /// <summary>
+    /// <c>recording.setVideoSource</c> (2.0): starts the role's track, switches it to another source (the track
+    /// continues), or with <c>null</c> ends it. The audio tracks are never touched.
+    /// </summary>
+    public async Task<IReadOnlyList<VideoTrackStatus>> SetVideoSourceAsync(string sessionId, string role, string? sourceId, CancellationToken cancellationToken)
+    {
+        if (role is not (VideoTrack.RoleScreen or VideoTrack.RoleCamera))
+        {
+            throw new BridgeException(BridgeErrorCodes.InvalidParams, $"A video role is 'screen' or 'camera', not '{role}'.", role);
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var active = Require(sessionId);
+            if (sourceId is not null && !_video.IsAvailable)
+            {
+                throw new BridgeException(DomainErrorCodes.VideoUnavailable, UnavailableVideoCapture.Message);
+            }
+
+            var statuses = await active.Video.SetSourceAsync(role, sourceId, cancellationToken);
+            await SaveVideoStateAsync(active);
+            return statuses;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary><c>recording.setPip</c> (2.0): the camera inset's state from now on; both tracks are always recorded.</summary>
+    public async Task SetPipAsync(string sessionId, bool enabled, string? corner, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var active = Require(sessionId);
+            active.Video.SetPip(enabled, corner);
+            await _catalog.UpdateAsync(active.RecordingId, m => m with { VideoPip = active.Video.PipChanges }, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task PauseAsync(string sessionId, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            await Require(sessionId).Session.PauseAsync(cancellationToken);
+            var active = Require(sessionId);
+            await active.Session.PauseAsync(cancellationToken);
+            active.Video.Pause();
         }
         finally
         {
@@ -262,7 +332,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            await Require(sessionId).Session.ResumeAsync(cancellationToken);
+            var active = Require(sessionId);
+            await active.Session.ResumeAsync(cancellationToken);
+            active.Video.Resume();
         }
         finally
         {
@@ -307,7 +379,8 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         {
             var active = Require(sessionId);
             var result = await active.Session.StopAsync(CancellationToken.None);
-            if (!await CompleteLockedAsync(active, result, result.StoppedBy, result.ElapsedMs))
+            var video = await active.Video.StopAllAsync();
+            if (!await CompleteLockedAsync(active, result, result.StoppedBy, result.ElapsedMs, video))
             {
                 var folder = _store.GetProjectFolder(active.RecordingId);
                 throw new BridgeException(
@@ -338,6 +411,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         try
         {
             active.Session.CheckpointAsync(CancellationToken.None).Wait(timeout);
+            _ = active.Video.Checkpoint(flush: true);
         }
 #pragma warning disable CA1031 // The process is going down; a failed flush must not mask the crash.
         catch (Exception ex)
@@ -360,6 +434,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             try
             {
                 var result = await active.Session.StopAsync(CancellationToken.None);
+                await active.Video.StopAllAsync();
                 await WriteStateFileAsync(active, "stopped", result.Tracks, active.LastCheckpointAt);
                 LogStoppedAtShutdown(active.RecordingId, result.ElapsedMs);
             }
@@ -371,6 +446,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             }
 
             await active.Session.DisposeAsync();
+            await active.Video.DisposeAsync();
         }
 
         try
@@ -559,7 +635,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         }
 
         active.LastCheckpointAt = e.At;
-        await WriteStateFileAsync(active, StateName(active.Session.State), e.Tracks, e.At);
+        await WriteStateFileAsync(active, StateName(active.Session.State), e.Tracks, e.At, flushVideo: true);
         UpdateBoard(active);
         _footer.Publish(force: false);
     }
@@ -605,10 +681,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             }
 
             var result = await active.Session.StopAsync(CancellationToken.None);
+            var video = await active.Video.StopAllAsync();
             var at = atMs ?? result.ElapsedMs;
             LogHostStopped(active.RecordingId, reason.ToString(), at, detail);
             _publisher.PublishStoppedByHost(new StoppedByHostPayload(active.SessionId, active.RecordingId, ReasonName(reason), at, HostStopMessage(reason, at)));
-            await CompleteLockedAsync(active, result, reason, at);
+            await CompleteLockedAsync(active, result, reason, at, video);
         }
 #pragma warning disable CA1031 // This runs from an event; a failure here must be logged, not crash the host.
         catch (Exception ex)
@@ -642,7 +719,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     /// be written (its drive went away): the session is over and the page is told, the files and
     /// <c>recording.state.json</c> stay as they are, and recovery finishes the recording at the next launch.
     /// </summary>
-    private async Task<bool> CompleteLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs)
+    private async Task<bool> CompleteLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs, IReadOnlyList<VideoTrack> video)
     {
         if (active.Completed)
         {
@@ -654,7 +731,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         await active.StopLoopsAsync();
         try
         {
-            await RecordStopLockedAsync(active, result, reason, atMs);
+            await RecordStopLockedAsync(active, result, reason, atMs, video);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectNotFoundException)
@@ -665,13 +742,15 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             _footer.Publish(force: true);
             _publisher.PublishRecordingState(BuildPayload(active, "stopped", result.Tracks, result.ElapsedMs));
             _ = Task.Run(() => active.Session.DisposeAsync().AsTask(), CancellationToken.None);
+            _ = Task.Run(() => active.Video.DisposeAsync().AsTask(), CancellationToken.None);
             return false;
         }
     }
 
-    private async Task RecordStopLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs)
+    private async Task RecordStopLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs, IReadOnlyList<VideoTrack> video)
     {
         var tracks = result.Tracks;
+        var pip = active.Video.PipChanges;
         var pauses = result.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList();
         await _catalog.UpdateAsync(
             active.RecordingId,
@@ -680,6 +759,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList(),
                 Pauses = pauses,
                 DurationMs = result.ElapsedMs,
+                VideoTracks = video,
+                HasVideo = video.Count > 0,
+                VideoPip = pip,
                 State = ProjectStates.Finalizing,
                 Stages = ProjectFinalizationService.WithStored(m.Stages, StageStates.Active, 0, "Saving tracks"),
             },
@@ -695,7 +777,8 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         };
         var detail = $"{HumanFormat.Count(tracks.Count, "track", "tracks")}"
             + (pauses.Count > 0 ? $" · paused {HumanFormat.Count(pauses.Count, "time", "times")}" : string.Empty)
-            + string.Concat(tracks.Where(t => t.EndedAtMs is not null).Select(t => $" · {t.Source.Name} ended at {HumanFormat.Clock(t.EndedAtMs!.Value)}"));
+            + string.Concat(tracks.Where(t => t.EndedAtMs is not null).Select(t => $" · {t.Source.Name} ended at {HumanFormat.Clock(t.EndedAtMs!.Value)}"))
+            + VideoStopHistoryPart(video);
         await _store.AppendHistoryAsync(
             active.RecordingId,
             new HistoryEntry(result.StoppedAt, "recorded", reason is null ? "completed" : "info", summary, detail),
@@ -721,6 +804,64 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
         // Not awaited here: this can run on the session's own event thread, which disposing waits for.
         _ = Task.Run(() => active.Session.DisposeAsync().AsTask(), CancellationToken.None);
+        _ = Task.Run(() => active.Video.DisposeAsync().AsTask(), CancellationToken.None);
+    }
+
+    /// <summary>" · screen video: Display 1" for the "Recording started" History line.</summary>
+    private static string VideoHistoryPart(IReadOnlyList<VideoTrackStatus> video) =>
+        video.Count == 0 ? string.Empty : " · video: " + string.Join(", ", video.Select(v => $"{v.Role} ({v.SourceName})"));
+
+    /// <summary>" · 1 video track (screen 20:31, ended at 0:58:12)" for the "Recorded" History line.</summary>
+    private static string VideoStopHistoryPart(IReadOnlyList<VideoTrack> video) =>
+        video.Count == 0
+            ? string.Empty
+            : " · " + HumanFormat.Count(video.Count, "video track", "video tracks") + " ("
+                + string.Join(", ", video.Select(v => $"{v.Role} {HumanFormat.Clock(v.DurationMs)}" + (v.EndedEarlyAtMs is { } ended && v.EndReason != "disabled" ? $", ended at {HumanFormat.Clock(ended)}" : string.Empty)))
+                + ")";
+
+    /// <summary>After a video track started, switched or ended: the manifest, the state file and the page follow.</summary>
+    private async Task SaveVideoStateAsync(ActiveRecording active)
+    {
+        try
+        {
+            await _catalog.UpdateAsync(active.RecordingId, m => m with { HasVideo = m.HasVideo || active.Video.HasAny, VideoPip = active.Video.PipChanges }, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LogManifestWriteFailed(ex, active.RecordingId);
+        }
+
+        var tracks = active.Session.Tracks;
+        await WriteStateFileAsync(active, StateName(active.Session.State), tracks, active.LastCheckpointAt, flushVideo: true);
+        _publisher.PublishRecordingState(BuildPayload(active, StateName(active.Session.State), tracks, active.Session.ElapsedMs));
+        _publisher.PublishRecordingVideoStatus(new RecordingVideoStatusPayload(active.SessionId, active.Video.Statuses()));
+    }
+
+    /// <summary>The library drive is nearly full: the video tracks stop now; the audio keeps recording until the floor.</summary>
+    private async Task StopVideoForLowDiskAsync(ActiveRecording active, long freeBytes)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(_active, active) || !active.Video.IsRecording)
+            {
+                return;
+            }
+
+            LogVideoStoppedForSpace(active.RecordingId, freeBytes);
+            await active.Video.StopForLowDiskAsync(freeBytes);
+            await SaveVideoStateAsync(active);
+        }
+#pragma warning disable CA1031 // This runs from the disk watch; a failure here must be logged, not crash the host.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogHostStopFailed(ex, active.RecordingId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     /// <summary>The stored recording is safe; later stages are best effort and must not turn it into a failure.</summary>
@@ -790,6 +931,10 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 if (active.Session.State == RecordingSessionState.Recording && !active.Completed)
                 {
                     _publisher.PublishRecordingState(BuildPayload(active, "recording", active.Session.Tracks, active.Session.ElapsedMs));
+                    if (active.Video.HasAny)
+                    {
+                        _publisher.PublishRecordingVideoStatus(new RecordingVideoStatusPayload(active.SessionId, active.Video.Statuses()));
+                    }
                 }
             }
         }
@@ -836,6 +981,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             return;
         }
 
+        if (bytes < _options.VideoStopFloorBytes && active.Video.IsRecording)
+        {
+            _ = StopVideoForLowDiskAsync(active, bytes);
+        }
+
         var threshold = _settings.Current.Recording.LowSpaceThresholdBytes;
         if (bytes < threshold)
         {
@@ -856,11 +1006,13 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         }
     }
 
-    private async Task WriteStateFileAsync(ActiveRecording active, string state, IReadOnlyList<SessionTrack> tracks, DateTimeOffset? lastCheckpointAt)
+    private async Task WriteStateFileAsync(ActiveRecording active, string state, IReadOnlyList<SessionTrack> tracks, DateTimeOffset? lastCheckpointAt, bool flushVideo = false)
     {
         await active.StateFileGate.WaitAsync();
         try
         {
+            // The video files are flushed first, so every part the state file names is on disk up to its entry.
+            var video = active.Video.Checkpoint(flushVideo);
             await _store.WriteRecordingStateAsync(
                 new RecordingStateDocument
                 {
@@ -874,6 +1026,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     FlushIntervalMs = _engine.FlushInterval is { } flush ? (int)flush.TotalMilliseconds : null,
                     Tracks = tracks.Select(SessionTrackMapper.ToState).ToList(),
                     Pauses = active.Session.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList(),
+                    VideoTracks = video,
                 },
                 CancellationToken.None);
         }
@@ -900,7 +1053,8 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             elapsedMs,
             tracks.Select(SessionTrackMapper.ToContract).ToList(),
             active.LastCheckpointAt ?? active.Session.LastCheckpointAt,
-            Volatile.Read(ref active.HighlightsCount));
+            Volatile.Read(ref active.HighlightsCount),
+            active.Video.Statuses());
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} started (session {SessionId}, {Tracks} tracks, engine {Engine})")]
     private partial void LogStarted(string recordingId, string sessionId, int tracks, string engine);
@@ -947,6 +1101,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     [LoggerMessage(Level = LogLevel.Warning, Message = "The source selection could not be remembered in settings")]
     private partial void LogRememberFailed(Exception exception);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Recording {RecordingId}: only {FreeBytes} bytes free; the video tracks stop so the audio can go on")]
+    private partial void LogVideoStoppedForSpace(string recordingId, long freeBytes);
+
     [LoggerMessage(Level = LogLevel.Error, Message = "Flushing the recording before the crash exit failed")]
     private partial void LogCrashFlushFailed(Exception exception);
 
@@ -986,6 +1143,9 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         public bool LowSpaceRaised { get; set; }
 
         public bool Completed { get; set; }
+
+        /// <summary>2.0: the session's video tracks (none until a video source is chosen).</summary>
+        public required VideoRecording Video { get; init; }
 
         public async Task StopLoopsAsync()
         {

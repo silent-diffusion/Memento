@@ -12,6 +12,12 @@ public sealed record LibraryStorageSettings
     /// <summary><c>null</c>: no age is set, so <c>storage.reclaim</c> needs recording ids.</summary>
     public int? ReclaimOlderThanDays { get; init; }
 
+    /// <summary>
+    /// 2.0, Settings › Storage and history › Remove video older than: recordings older than this many days lose their
+    /// video files (audio, transcript and documents are kept); <c>null</c> for never, the default.
+    /// </summary>
+    public int? RemoveVideoOlderThanDays { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -19,5 +25,7 @@ public sealed record LibraryStorageSettings
     public string? Validate() =>
         ReclaimOlderThanDays is < MinDays or > MaxDays
             ? $"Recordings older than {ReclaimOlderThanDays} days is out of range. Choose {MinDays} to {MaxDays} days, or none."
-            : null;
+            : RemoveVideoOlderThanDays is < MinDays or > MaxDays
+                ? $"Removing video older than {RemoveVideoOlderThanDays} days is out of range. Choose {MinDays} to {MaxDays} days, or never."
+                : null;
 }

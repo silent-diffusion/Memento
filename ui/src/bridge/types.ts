@@ -126,6 +126,19 @@ export const ERROR_CODES = [
   // 2.0 Review
   'voices.notFound',
   'voices.newerVersion',
+  // 2.0 video
+  'video.sourceNotFound',
+  'video.protectedContent',
+  'video.captureBlocked',
+  'video.cameraPrivacy',
+  'video.cameraInUse',
+  'video.encoderUnavailable',
+  'video.diskFull',
+  'video.sourceLost',
+  'video.encoderFailed',
+  'video.writeFailed',
+  'video.unavailable',
+  'video.nothingToRemove',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -156,7 +169,7 @@ export type RecordingType = BuiltInRecordingType | (string & Record<never, never
  * out of rows, like `stored`); `optimize` converts the lossless files to the smaller AAC/MP3 choice,
  * after every other stage.
  */
-export type StageName = 'stored' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize';
+export type StageName = 'stored' | 'video' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize';
 
 export type StageState = 'done' | 'active' | 'queued' | 'failed';
 
@@ -201,6 +214,8 @@ export interface RecordingSummary {
    * query words itself.
    */
   matchSnippet: string | null;
+  /** 2.0: the recording's video (present or removed); null for an audio recording. Missing from a 1.x host. */
+  video?: VideoSummary | null;
 }
 
 /** `imported` (M3): the one track of a recording made with library.importMedia (`sourceId: 'imported'`). */
@@ -335,6 +350,12 @@ export interface Project {
   sizeBytes: number;
   /** 2.0: "Keep only the mix" removed the separate track files; null while they are kept. */
   mixOnly: MixOnlyInfo | null;
+  /** 2.0 video: null for an audio recording. Missing from a 1.x host. */
+  video?: VideoSummary | null;
+  /** 2.0 video: the camera inset as last set while recording; null without a camera track. */
+  pip?: PipState | null;
+  /** 2.0 video: each video track with its URL and timeline offset; [] for an audio recording. */
+  videoTracks?: VideoTrackInfo[];
 }
 
 /** 2.0: when the separate track files were removed, how many, and their size. */
@@ -868,6 +889,8 @@ export interface SettingsSnapshot {
   storage: StorageReclaimSettings;
   /** M4 */
   documents: DocumentsSettings;
+  /** 2.0: Settings › Recording › Video defaults. Missing from a 1.x host. */
+  video?: VideoSettings;
 }
 
 /**
@@ -896,6 +919,8 @@ export interface SettingsSetParams {
   storage?: Partial<StorageReclaimSettings> | null;
   /** M4: merged field by field. */
   documents?: Partial<DocumentsSettings> | null;
+  /** 2.0: Settings › Recording › Video defaults; merged field by field. */
+  video?: Partial<VideoSettings> | null;
 }
 
 /** settings.set's `ai` block: each field optional, `share` merged field by field; never `providers`. */
@@ -1033,7 +1058,8 @@ export interface TopicsResult {
 
 export interface SourcesListResult {
   audio: AudioSource[];
-  videoAvailable: false;
+  /** 2.0: display capture works here; video.listSources lists what can be chosen. */
+  videoAvailable: boolean;
 }
 
 export interface RecordingStartParams {
@@ -1086,6 +1112,8 @@ export interface RecordingStatePayload {
   tracks: Track[];
   lastCheckpointAt: string | null;
   highlightsCount: number;
+  /** 2.0: the session's video tracks ([] without video). Missing from a 1.x host. */
+  videoTracks?: VideoTrackStatus[];
 }
 
 export interface RecordingCurrentResult {
@@ -1105,6 +1133,9 @@ export interface RecoveredRecording {
   lastCheckpointAt: string | null;
   recoveredDurationMs: number;
   mayBeMissingMs: number;
+  /** 2.0: video tracks that kept their frames, of those being recorded (0 and 0 for audio). */
+  videoTracksIntact?: number;
+  videoTracksTotal?: number;
 }
 
 export interface RecoveryListResult {
@@ -1343,6 +1374,8 @@ export interface ExportSelection {
   documents: { on: boolean; documentIds: string[]; format: DocumentExportFormat };
   details: { on: boolean };
   attachments: { on: boolean };
+  /** 2.0: the Video row; left out, it is off. */
+  video?: ExportVideoChoice;
 }
 
 /** The components of an export, named as the keys of ExportSelection. */
@@ -1395,6 +1428,11 @@ export interface LibraryUsage {
   separateTracksRecordings: number;
   /** 2.0: recordings that already keep only their mix. */
   mixOnlyRecordings: number;
+  /** 2.0 video: every video file, the recordings that have one, and what "Remove video older than" would free now. */
+  videoBytes?: number;
+  videoRecordings?: number;
+  videoOlderThanBytes?: number;
+  videoOlderThanRecordings?: number;
 }
 
 /** 2.0: storage.keepOnlyMix; null = every stored recording that still has separate tracks. */
@@ -1661,6 +1699,181 @@ export interface AiSettings extends AiSettingsInput {
 export interface StorageReclaimSettings {
   /** null: never. */
   reclaimOlderThanDays: number | null;
+  /** 2.0: remove the video of recordings older than this many days; null: never. Missing from a 1.x host. */
+  removeVideoOlderThanDays?: number | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 2.0 video (docs/BRIDGE.md, Video (2.0))
+// ---------------------------------------------------------------------------------------------
+
+export type VideoSourceKind = 'display' | 'window' | 'camera';
+export type VideoRole = 'screen' | 'camera';
+export type PipCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+
+export interface VideoSource {
+  /** 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>'; stable while Memento runs. */
+  id: string;
+  kind: VideoSourceKind;
+  name: string;
+  /** "2560 × 1440 · 60 Hz · primary", "Zoom · 1600 × 900", "This app is excluded from capture". */
+  detail: string;
+  width: number;
+  height: number;
+  refreshRate: number;
+  primary: boolean;
+  /** Listed, not selectable: Memento's own windows and windows that keep themselves out of captures. */
+  excluded: boolean;
+  protected: boolean;
+  processName: string | null;
+}
+
+export interface VideoSourcesResult {
+  displays: VideoSource[];
+  windows: VideoSource[];
+  cameras: VideoSource[];
+}
+
+export interface VideoThumbnailParams {
+  sourceId: string;
+  /** 16–640; 320 when left out. */
+  width?: number;
+}
+
+export interface VideoThumbnailResult {
+  /** data:image/jpeg;base64,… */
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+export type VideoTrackState = 'recording' | 'paused' | 'waiting' | 'ended' | 'stopped';
+
+export interface VideoTrackStatus {
+  /** 'screen' | 'camera'; 'screen-2' when the role was turned off and on again. */
+  trackId: string;
+  role: VideoRole;
+  state: VideoTrackState;
+  sourceId: string;
+  sourceName: string;
+  /** The §18.6 sentence while waiting or after it ended. */
+  reason: string | null;
+  encoder: string;
+  hardware: boolean;
+  width: number;
+  height: number;
+  frameRate: number;
+  targetBitsPerSecond: number;
+  actualBitsPerSecond: number;
+  framesWritten: number;
+  framesDropped: number;
+  bytesWritten: number;
+  durationMs: number;
+  startOffsetMs: number;
+}
+
+export interface PipState {
+  enabled: boolean;
+  corner: PipCorner;
+}
+
+export interface VideoSettings {
+  /** Recording mode Audio + video; false (Audio only) by default. */
+  recordVideo: boolean;
+  defaultSource: 'screen' | 'window' | 'camera' | 'screenAndCamera';
+  resolution: 'display' | '1080p' | '720p';
+  frameRate: 24 | 30 | 60;
+  quality: 'smaller' | 'balanced' | 'best';
+  defaultDisplayId: string | null;
+  defaultCameraId: string | null;
+  pipCorner: PipCorner;
+  hardwareEncoder: boolean;
+  includePointer: boolean;
+}
+
+export interface VideoSummary {
+  state: 'present' | 'removed';
+  layout: 'screen' | 'camera' | 'screenAndCamera';
+  width: number;
+  height: number;
+  frameRate: number;
+  durationMs: number;
+  /** The video files on disk; 0 once removed. */
+  sizeBytes: number;
+  removedAt: string | null;
+  bytesFreed: number | null;
+}
+
+export interface VideoTrackInfo {
+  id: string;
+  role: VideoRole;
+  sourceKind: VideoSourceKind;
+  name: string;
+  /** https://library.memento/<id>/tracks/screen.mp4 once stored; null while recording or once removed. */
+  url: string | null;
+  width: number;
+  height: number;
+  frameRate: number;
+  encoder: string;
+  hardware: boolean;
+  /** Video time = mix time − startOffsetMs / 1000 (the file starts at 0). */
+  startOffsetMs: number;
+  durationMs: number;
+  sizeBytes: number;
+  framesWritten: number;
+  framesDropped: number;
+  endedEarlyAtMs: number | null;
+  endReason: 'sourceLost' | 'protectedContent' | 'diskFull' | 'error' | 'disabled' | null;
+  sha256: string | null;
+}
+
+export interface ExportVideoChoice {
+  on: boolean;
+  /** mp4 re-encodes (and can burn the inset in); original copies the recorded frames. */
+  format: 'mp4' | 'original';
+  layout: 'oneFile' | 'twoFiles';
+}
+
+export interface RecordingSetVideoSourceParams {
+  sessionId: string;
+  role: VideoRole;
+  /** null ends the role's track. */
+  sourceId: string | null;
+}
+
+export interface VideoTracksResult {
+  videoTracks: VideoTrackStatus[];
+}
+
+export interface RecordingSetPipParams {
+  sessionId: string;
+  enabled: boolean;
+  /** Left out, the corner stays. */
+  corner?: PipCorner;
+}
+
+export interface VideoOpenPrivacySettingsParams {
+  which: 'camera' | 'screenCapture';
+}
+
+export interface VideoRemoveResult {
+  freedBytes: number;
+}
+
+export interface RecordingVideoStatusPayload {
+  sessionId: string;
+  videoTracks: VideoTrackStatus[];
+}
+
+export interface RecordingVideoProblemPayload {
+  sessionId: string;
+  /** The track, or the role for a source that could not start. */
+  trackId: string;
+  role: VideoRole;
+  state: 'recording' | 'waiting' | 'ended' | 'notStarted';
+  code: ErrorCode;
+  message: string;
+  atMs: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2394,6 +2607,12 @@ export interface BridgeMethods {
   'storage.reclaim': { params: StorageReclaimParams; result: JobResult };
   /** 2.0 */
   'storage.keepOnlyMix': { params: StorageKeepOnlyMixParams; result: JobResult };
+  'video.listSources': { params: EmptyParams; result: VideoSourcesResult };
+  'video.thumbnail': { params: VideoThumbnailParams; result: VideoThumbnailResult };
+  'recording.setVideoSource': { params: RecordingSetVideoSourceParams; result: VideoTracksResult };
+  'recording.setPip': { params: RecordingSetPipParams; result: EmptyResult };
+  'video.openPrivacySettings': { params: VideoOpenPrivacySettingsParams; result: EmptyResult };
+  'video.remove': { params: RecordingIdParams; result: VideoRemoveResult };
   'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
   'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
   'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
@@ -2480,6 +2699,9 @@ export interface BridgeEvents {
   'updates.progress': UpdateStatus;
   // 2.0
   'app.openScreen': AppOpenScreenPayload;
+  'recording.videoStatus': RecordingVideoStatusPayload;
+  'recording.videoProblem': RecordingVideoProblemPayload;
+  'video.sourcesChanged': EmptyResult;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -2625,6 +2847,13 @@ export const METHOD_NAMES = [
   'transcript.setSegmentsSpeaker',
   // 2.0 storage
   'storage.keepOnlyMix',
+  // 2.0 video
+  'video.listSources',
+  'video.thumbnail',
+  'recording.setVideoSource',
+  'recording.setPip',
+  'video.openPrivacySettings',
+  'video.remove',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -2650,4 +2879,7 @@ export const EVENT_NAMES = [
   'styles.changed',
   'updates.progress',
   'app.openScreen',
+  'recording.videoStatus',
+  'recording.videoProblem',
+  'video.sourcesChanged',
 ] as const satisfies readonly EventName[];

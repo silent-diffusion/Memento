@@ -141,6 +141,7 @@ describe('processing card columns', () => {
   it('names every stage column', () => {
     expect(CARD_STAGE_NAMES).toEqual({
       stored: 'Stored',
+      video: 'Video',
       transcript: 'Transcribing',
       speakers: 'Speakers',
       topics: 'Topics',

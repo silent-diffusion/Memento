@@ -27,4 +27,7 @@ public sealed record SettingsSnapshot(
 
     /// <summary>Settings › Documents (M4).</summary>
     public DocumentsSettingsSnapshot Documents { get; init; } = new(null, null);
+
+    /// <summary>Settings › Recording › Video defaults (2.0).</summary>
+    public VideoSettingsSnapshot Video { get; init; } = new(false, "screen", "display", 30, "balanced", null, null, "bottomRight", true, true);
 }

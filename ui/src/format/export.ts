@@ -106,7 +106,7 @@ export const EXPORT_COMPONENTS: readonly ExportComponent[] = ['audioMixed', 'tra
 
 /** Is this component ticked in the selection? */
 export function isOn(selection: ExportSelection, component: ExportComponent): boolean {
-  return selection[component].on;
+  return selection[component]?.on ?? false;
 }
 
 export interface ExportSummary {

@@ -15,7 +15,8 @@ namespace Memento.Core.Library;
 public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
 {
     public const string DatabaseFileName = "library.db";
-    public const int SchemaVersion = 2;
+    /// <summary>3 (2.0): the <c>video</c> column (the Library's video summary as JSON).</summary>
+    public const int SchemaVersion = 3;
 
     private const int SqliteCorrupt = 11;
     private const int SqliteNotADatabase = 26;
@@ -34,7 +35,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             state TEXT NOT NULL,
             isProcessing INTEGER NOT NULL,
             sizeBytes INTEGER NOT NULL,
-            modifiedAt TEXT NOT NULL);
+            modifiedAt TEXT NOT NULL,
+            video TEXT);
         CREATE INDEX IF NOT EXISTS ix_recordings_createdAtUtc ON recordings (createdAtUtc);
         CREATE TABLE IF NOT EXISTS people (
             recordingId TEXT NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
@@ -58,7 +60,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         """;
 
     private const string SelectColumns =
-        "r.id, r.title, r.type, r.createdAt, r.durationMs, r.hasVideo, r.state, r.sizeBytes";
+        "r.id, r.title, r.type, r.createdAt, r.durationMs, r.hasVideo, r.state, r.sizeBytes, r.video";
 
     private readonly ILibraryLocation _library;
     private readonly IProjectStore _store;
@@ -106,7 +108,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             await EnsureInitializedLockedAsync(cancellationToken);
             await using var connection = await OpenAsync(cancellationToken);
             await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
-            await UpsertCoreAsync(connection, transaction, manifest, SizeOf(manifest.Id), cancellationToken);
+            await UpsertCoreAsync(connection, transaction, manifest, SizeOf(manifest.Id), VideoJson(manifest), cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         finally
@@ -336,7 +338,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             try
             {
                 var manifest = await _store.LoadAsync(id, cancellationToken);
-                await UpsertCoreAsync(connection, transaction, manifest, SizeOf(manifest.Id), cancellationToken);
+                await UpsertCoreAsync(connection, transaction, manifest, SizeOf(manifest.Id), VideoJson(manifest), cancellationToken);
                 if (_transcripts is not null && await LoadTranscriptQuietlyAsync(id, cancellationToken) is { } transcript)
                 {
                     await SetTranscriptCoreAsync(connection, transaction, id, transcript.IndexText(), transcript.RenamedSpeakers(), cancellationToken);
@@ -354,7 +356,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         return count;
     }
 
-    private static async Task UpsertCoreAsync(SqliteConnection connection, SqliteTransaction transaction, ProjectManifest manifest, long sizeBytes, CancellationToken cancellationToken)
+    private static async Task UpsertCoreAsync(SqliteConnection connection, SqliteTransaction transaction, ProjectManifest manifest, long sizeBytes, string? videoJson, CancellationToken cancellationToken)
     {
         await DeleteRowsAsync(connection, transaction, manifest.Id, cancellationToken);
         var people = manifest.Details.Participants;
@@ -362,8 +364,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         {
             insert.Transaction = transaction;
             insert.CommandText = """
-                INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt)
-                VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt);
+                INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt, video)
+                VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt, $video);
                 INSERT INTO recordings_fts (id, title, people, transcript) VALUES (
                     $id,
                     $title,
@@ -383,6 +385,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             insert.Parameters.AddWithValue("$sizeBytes", sizeBytes);
             insert.Parameters.AddWithValue("$modifiedAt", manifest.ModifiedAt.ToString("o", CultureInfo.InvariantCulture));
             insert.Parameters.AddWithValue("$people", string.Join(' ', people));
+            insert.Parameters.AddWithValue("$video", (object?)videoJson ?? DBNull.Value);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -441,7 +444,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
                 reader.GetInt64(4),
                 reader.GetInt64(5) != 0,
                 reader.GetString(6),
-                reader.GetInt64(7)));
+                reader.GetInt64(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8)));
         }
 
         return rows;
@@ -510,7 +514,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         {
             IReadOnlyList<string> rowPeople = people.TryGetValue(row.Id, out var p) ? p : [];
             IReadOnlyList<StageStatus> rowStages = stages.TryGetValue(row.Id, out var s) ? s : [];
-            var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes);
+            var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes, Video.VideoMapper.FromJson(row.VideoJson));
             if (speakers.TryGetValue(row.Id, out var named))
             {
                 summary = summary with { People = rowPeople.Concat(named.Where(n => !rowPeople.Contains(n, StringComparer.OrdinalIgnoreCase))).ToList() };
@@ -585,6 +589,24 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         }
     }
 
+    /// <summary>2.0: the Library's video summary of <paramref name="manifest"/> (sizes read from its folder), as JSON.</summary>
+    private string? VideoJson(ProjectManifest manifest)
+    {
+        if (manifest.VideoTracks.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Video.VideoMapper.ToJson(Video.VideoMapper.Summarize(manifest, _store.GetProjectFolder(manifest.Id)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     private long SizeOf(string recordingId)
     {
         try
@@ -650,5 +672,5 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
     [LoggerMessage(Level = LogLevel.Warning, Message = "Project {RecordingId} was left out of the library index because its project.json could not be read")]
     private partial void LogSkipped(string recordingId);
 
-    private sealed record Row(string Id, string Title, string Type, DateTimeOffset CreatedAt, long DurationMs, bool HasVideo, string State, long SizeBytes);
+    private sealed record Row(string Id, string Title, string Type, DateTimeOffset CreatedAt, long DurationMs, bool HasVideo, string State, long SizeBytes, string? VideoJson);
 }

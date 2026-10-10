@@ -7,4 +7,7 @@ public sealed record LibraryStorageSettingsPatch
 {
     /// <summary>Whole days (1–3650), or JSON <c>null</c> for none; left out, it keeps its value.</summary>
     public JsonElement ReclaimOlderThanDays { get; init; }
+
+    /// <summary>2.0: whole days (1–3650), or JSON <c>null</c> for never; left out, it keeps its value.</summary>
+    public JsonElement RemoveVideoOlderThanDays { get; init; }
 }

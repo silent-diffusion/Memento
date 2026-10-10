@@ -33,6 +33,13 @@ public interface IRecordingSession : IAsyncDisposable
 
     DateTimeOffset? LastCheckpointAt { get; }
 
+    /// <summary>
+    /// 2.0: recording position 0 on the QPC clock in 100 ns units (Memento.Audio's <c>QpcClock</c>), so video tracks are
+    /// laid on the same timeline; <c>null</c> when the engine has no such clock (the coordinator then takes the time the
+    /// session started).
+    /// </summary>
+    long? TimelineOriginQpc => null;
+
     Task PauseAsync(CancellationToken cancellationToken);
 
     Task ResumeAsync(CancellationToken cancellationToken);

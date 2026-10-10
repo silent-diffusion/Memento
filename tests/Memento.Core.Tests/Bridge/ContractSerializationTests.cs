@@ -39,7 +39,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage,documents", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage,documents,video", Names(result));
         Assert.Equal(AppPaths.DefaultLibrary, result.GetProperty("libraryPath").GetString());
         Assert.Contains("\"theme\":\"system\"", json, StringComparison.Ordinal);
         Assert.Contains("\"listDensity\":\"comfortable\"", json, StringComparison.Ordinal);
@@ -55,7 +55,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(json);
         var result = document.RootElement.GetProperty("result");
-        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage,documents", Names(result));
+        Assert.Equal("theme,libraryPath,listDensity,recording,transcription,speakers,history,general,export,ai,storage,documents,video", Names(result));
         Assert.Equal("dark", result.GetProperty("theme").GetString());
     }
 
@@ -185,7 +185,7 @@ public sealed class ContractSerializationTests : IDisposable
             BridgeJsonContext.Default.LibraryListResult);
 
         Assert.Equal(
-            """{"recordings":[{"id":"20261006-100000-k3f9ab","title":"Q3 planning sync","type":"meeting","createdAt":"2026-10-06T10:00:00+01:00","durationMs":3734000,"participantCount":5,"hasVideo":false,"stages":[{"stage":"transcript","state":"active","percent":64,"label":"64% \u00B7 local GPU"},{"stage":"speakers","state":"queued","percent":null,"label":"Queued"}],"people":["Avery","Rowan"],"isProcessing":true,"state":"ready","sizeBytes":123456789,"matchSnippet":null}],"totalDurationMs":3734000,"totalCount":1}""",
+            """{"recordings":[{"id":"20261006-100000-k3f9ab","title":"Q3 planning sync","type":"meeting","createdAt":"2026-10-06T10:00:00+01:00","durationMs":3734000,"participantCount":5,"hasVideo":false,"stages":[{"stage":"transcript","state":"active","percent":64,"label":"64% \u00B7 local GPU"},{"stage":"speakers","state":"queued","percent":null,"label":"Queued"}],"people":["Avery","Rowan"],"isProcessing":true,"state":"ready","sizeBytes":123456789,"matchSnippet":null,"video":null}],"totalDurationMs":3734000,"totalCount":1}""",
             json);
     }
 
@@ -208,7 +208,8 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(project, BridgeJsonContext.Default.Project));
         var root = document.RootElement;
-        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly", Names(root));
+        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly,video,pip,videoTracks", Names(root));
+        Assert.Equal("[]", root.GetProperty("videoTracks").GetRawText());
         Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda,whoSpoke", Names(root.GetProperty("details")));
         Assert.Equal("""{"count":null,"names":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         Assert.Equal("""{"source":null,"parsedLocally":false,"items":[]}""", root.GetProperty("details").GetProperty("agenda").GetRawText());
@@ -248,7 +249,7 @@ public sealed class ContractSerializationTests : IDisposable
     {
         var track = new Track("mic", "mic:x", "microphone", "Mic", "tracks/mic.wav", 48000, 1, 1500, null, 250, null);
         Assert.Equal(
-            """{"event":"recording.state","payload":{"sessionId":"s1","recordingId":"r1","state":"recording","startedAt":"2026-10-06T10:00:00+01:00","elapsedMs":1500,"tracks":[{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.wav","sampleRate":48000,"channels":1,"durationMs":1500,"sha256":null,"startOffsetMs":250,"endedEarlyAtMs":null}],"lastCheckpointAt":null,"highlightsCount":2}}""",
+            """{"event":"recording.state","payload":{"sessionId":"s1","recordingId":"r1","state":"recording","startedAt":"2026-10-06T10:00:00+01:00","elapsedMs":1500,"tracks":[{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.wav","sampleRate":48000,"channels":1,"durationMs":1500,"sha256":null,"startOffsetMs":250,"endedEarlyAtMs":null}],"lastCheckpointAt":null,"highlightsCount":2,"videoTracks":[]}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.RecordingState, new RecordingStatePayload("s1", "r1", "recording", At, 1500, [track], null, 2), BridgeJsonContext.Default.BridgeEventEnvelopeRecordingStatePayload));
         Assert.Equal(
             """{"event":"recording.levels","payload":{"sessionId":"s1","levels":[{"sourceId":"mic:x","rms":0.25,"peak":0.5}]}}""",
@@ -283,7 +284,7 @@ public sealed class ContractSerializationTests : IDisposable
             BridgeJsonContext.Default.RecoveryListResult);
 
         Assert.Equal(
-            """{"items":[{"recordingId":"r1","title":"Sync","startedAt":"2026-10-06T10:00:00+01:00","tracksIntact":2,"tracksTotal":3,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","recoveredDurationMs":60000,"mayBeMissingMs":30000}]}""",
+            """{"items":[{"recordingId":"r1","title":"Sync","startedAt":"2026-10-06T10:00:00+01:00","tracksIntact":2,"tracksTotal":3,"lastCheckpointAt":"2026-10-06T10:00:00+01:00","recoveredDurationMs":60000,"mayBeMissingMs":30000,"videoTracksIntact":0,"videoTracksTotal":0}]}""",
             json);
     }
 

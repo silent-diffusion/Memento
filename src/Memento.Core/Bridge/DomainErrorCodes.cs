@@ -197,4 +197,42 @@ public static class DomainErrorCodes
 
     /// <summary><c>voices/known.json</c> was written by a newer Memento; it was left as it is and nothing was changed.</summary>
     public const string VoicesNewerVersion = "voices.newerVersion";
+
+    // 2.0: video (BRIDGE.md "Video (2.0)"). Video fails first and alone: none of these stops audio.
+
+    /// <summary>The display, window or camera is not there (any more); <c>detail</c> is the source id.</summary>
+    public const string VideoSourceNotFound = "video.sourceNotFound";
+
+    /// <summary>The window keeps itself out of captures (protected content); it is refused rather than recorded black.</summary>
+    public const string VideoProtectedContent = "video.protectedContent";
+
+    /// <summary>Windows privacy settings block screen capture for Memento.</summary>
+    public const string VideoCaptureBlocked = "video.captureBlocked";
+
+    /// <summary>A camera privacy switch is off; the message names which.</summary>
+    public const string VideoCameraPrivacy = "video.cameraPrivacy";
+
+    /// <summary>Another app holds the camera; named when Windows records which.</summary>
+    public const string VideoCameraInUse = "video.cameraInUse";
+
+    /// <summary>No H.264 encoder could be opened, on the graphics card or in software.</summary>
+    public const string VideoEncoderUnavailable = "video.encoderUnavailable";
+
+    /// <summary>The disk is (nearly) full: video stopped first; audio continues.</summary>
+    public const string VideoDiskFull = "video.diskFull";
+
+    /// <summary>A captured display was disconnected (the track waits) or a captured window or camera went away (the track ended).</summary>
+    public const string VideoSourceLost = "video.sourceLost";
+
+    /// <summary>The hardware encoder failed mid-recording; the track continues with the software encoder in a new part.</summary>
+    public const string VideoEncoderFailed = "video.encoderFailed";
+
+    /// <summary>A video file could not be written (folder gone, access denied); the track ended, everything before it is kept.</summary>
+    public const string VideoWriteFailed = "video.writeFailed";
+
+    /// <summary>Video capture is not available on this PC, in this Windows session or in this copy of Memento.</summary>
+    public const string VideoUnavailable = "video.unavailable";
+
+    /// <summary><c>video.remove</c> for a recording without video files (none recorded, or already removed).</summary>
+    public const string VideoNothingToRemove = "video.nothingToRemove";
 }

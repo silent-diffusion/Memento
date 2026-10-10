@@ -253,6 +253,8 @@ public sealed class BridgeRouterTests
             "voices.list", "voices.setSuggest", "voices.forget", "voices.forgetAll", "voices.remember", "voices.revert",
             "voices.matches", "voices.decline", "voices.acceptMatch", "annotations.suggestChapters", "annotations.dismissSuggestion",
             "annotations.restoreSuggestion", "transcript.setSegmentsSpeaker",
+            // 2.0 video.
+            "video.listSources", "video.thumbnail", "recording.setVideoSource", "recording.setPip", "video.openPrivacySettings", "video.remove",
         ];
 
         Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));

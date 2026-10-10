@@ -1,4 +1,4 @@
 namespace Memento.Core.Bridge.Contracts;
 
-/// <summary>Result of <c>sources.list</c>. Video capture is not in 1.0, so <paramref name="VideoAvailable"/> is false.</summary>
+/// <summary>Result of <c>sources.list</c>. <paramref name="VideoAvailable"/> (2.0): display, window or camera capture works on this PC (<c>video.listSources</c> lists them).</summary>
 public sealed record SourcesListResult(IReadOnlyList<AudioSource> Audio, bool VideoAvailable);

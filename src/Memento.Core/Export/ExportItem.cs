@@ -7,4 +7,8 @@ namespace Memento.Core.Export;
 /// <param name="EstimatedBytes">Exact for copies and text; an estimate for converted audio.</param>
 /// <param name="WriteAsync">Writes the whole file at the path it is given.</param>
 /// <param name="DocumentId">Documents row (M4): the document the file is.</param>
-public sealed record ExportItem(string Component, string Name, string? Folder, long EstimatedBytes, Func<string, CancellationToken, Task> WriteAsync, string? DocumentId = null);
+public sealed record ExportItem(string Component, string Name, string? Folder, long EstimatedBytes, Func<string, CancellationToken, Task> WriteAsync, string? DocumentId = null)
+{
+    /// <summary>2.0: writes the file and reports how far it is (0..1), for long files such as a composed video.</summary>
+    public Func<string, IProgress<double>, CancellationToken, Task>? WriteWithProgressAsync { get; init; }
+}

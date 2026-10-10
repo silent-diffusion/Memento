@@ -5,7 +5,7 @@ namespace Memento.Core.Projects;
 /// <summary>Turns stored project data into bridge contracts.</summary>
 public static class ProjectMapper
 {
-    public static RecordingSummary ToSummary(ProjectManifest manifest, long sizeBytes)
+    public static RecordingSummary ToSummary(ProjectManifest manifest, long sizeBytes, VideoSummary? video = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         return BuildSummary(
@@ -18,7 +18,8 @@ public static class ProjectMapper
             manifest.Details.Participants,
             manifest.Stages,
             manifest.State,
-            sizeBytes);
+            sizeBytes,
+            video);
     }
 
     /// <summary>Builds a summary, applying the Library's stage visibility rule (see <see cref="VisibleStages"/>).</summary>
@@ -32,7 +33,8 @@ public static class ProjectMapper
         IReadOnlyList<string> people,
         IReadOnlyList<StageStatus> stages,
         string state,
-        long sizeBytes) =>
+        long sizeBytes,
+        VideoSummary? video = null) =>
         new(
             id,
             title,
@@ -45,7 +47,8 @@ public static class ProjectMapper
             people,
             IsProcessing(stages),
             state,
-            sizeBytes);
+            sizeBytes,
+            Video: video);
 
     /// <summary>
     /// Row and card pills: a finished <c>stored</c>, <c>topics</c> or <c>optimize</c> stage is left out, so a recording with no

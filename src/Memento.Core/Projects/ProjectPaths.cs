@@ -102,6 +102,24 @@ public static class ProjectPaths
             return "peaks";
         }
 
+        for (var i = 0; i < manifest.VideoTracks.Count; i++)
+        {
+            // 2.0: video tracks are read, hashed, served and deleted by these names.
+            var video = manifest.VideoTracks[i];
+            if (!IsSafeRelative(video.File))
+            {
+                return $"videoTracks[{i}].file";
+            }
+
+            for (var p = 0; p < video.Parts.Count; p++)
+            {
+                if (!IsSafeRelative(video.Parts[p].File))
+                {
+                    return $"videoTracks[{i}].parts[{p}].file";
+                }
+            }
+        }
+
         for (var i = 0; i < manifest.Attachments.Count; i++)
         {
             // Attachments are kept in attachments/; AttachmentService only touches files there (ResolveIn).
@@ -123,6 +141,17 @@ public static class ProjectPaths
             if (!IsSafeRelative(state.Tracks[i].File))
             {
                 return $"tracks[{i}].file";
+            }
+        }
+
+        for (var i = 0; i < state.VideoTracks.Count; i++)
+        {
+            for (var p = 0; p < state.VideoTracks[i].Parts.Count; p++)
+            {
+                if (!IsSafeRelative(state.VideoTracks[i].Parts[p].File))
+                {
+                    return $"videoTracks[{i}].parts[{p}].file";
+                }
             }
         }
 

@@ -48,6 +48,9 @@ public sealed record ProjectManifest
     /// <summary>"Remove video, keep audio" deleted the video files (2.0); <c>null</c> while they are kept.</summary>
     public ProjectVideoRemoved? VideoRemoved { get; init; }
 
+    /// <summary>Where the camera inset was over the recording (<c>recording.setPip</c>), in time order; empty without a camera.</summary>
+    public IReadOnlyList<ProjectPipChange> VideoPip { get; set; } = [];
+
     /// <summary>Pauses, so transcript timings stay continuous across the gap.</summary>
     public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];
 

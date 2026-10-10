@@ -44,6 +44,14 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ProjectFinalizationService>();
         services.AddSingleton<OptimizeStage>();
         services.AddSingleton<IProcessingStage>(sp => sp.GetRequiredService<OptimizeStage>());
+
+        // 2.0 video: Memento.Video replaces these (AddMementoVideo); without it nothing records or reads video.
+        services.TryAddSingleton<Video.IVideoCapture, Video.UnavailableVideoCapture>();
+        services.TryAddSingleton<Video.IVideoFiles, Video.UnavailableVideoFiles>();
+        services.AddSingleton<VideoStage>();
+        services.AddSingleton<IProcessingStage>(sp => sp.GetRequiredService<VideoStage>());
+        services.AddSingleton<Video.VideoRemovalService>();
+        services.AddSingleton<Video.VideoSourceWatch>();
         services.AddSingleton<StageStatusWriter>();
         services.AddSingleton<ProcessingOrchestrator>();
         services.AddSingleton<RecordingCoordinator>();

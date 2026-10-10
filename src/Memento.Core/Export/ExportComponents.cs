@@ -10,6 +10,9 @@ public static class ExportComponents
     public const string Details = "details";
     public const string Attachments = "attachments";
 
+    /// <summary>2.0: the Video row.</summary>
+    public const string Video = "video";
+
     /// <summary>The row's name in the dialog, for messages.</summary>
     public static string Label(string component) => component switch
     {
@@ -18,6 +21,7 @@ public static class ExportComponents
         Transcript => "Transcript",
         Documents => "Documents",
         Details => "Recording details",
+        Video => "Video",
         _ => "Attachments",
     };
 }

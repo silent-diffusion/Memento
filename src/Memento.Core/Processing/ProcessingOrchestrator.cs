@@ -153,7 +153,7 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         }
 
         var manifest = await _store.LoadAsync(recordingId, cancellationToken);
-        foreach (var stage in applicable)
+        foreach (var stage in applicable.Where(s => s.AppliesTo(manifest)))
         {
             // A stage already done (a recovered recording queued again) stays done.
             if (StageList.Find(manifest.Stages, stage.Name) is { State: StageStates.Done })

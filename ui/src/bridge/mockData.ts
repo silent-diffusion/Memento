@@ -391,6 +391,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
   }
   const wording: Record<StageStatus['stage'], { done: string; failed: string; active: string; detail: string }> = {
     stored: { done: 'Stored', failed: 'Storing failed', active: 'Storing', detail: 'Lossless FLAC tracks on this PC' },
+    video: { done: 'Video checked', failed: 'Video failed', active: 'Checking the video', detail: 'On this PC' },
     transcript: { done: 'Transcribed locally', failed: 'Transcription failed', active: 'Transcribing locally', detail: 'Local engine · GPU · English' },
     speakers: { done: 'Speakers identified', failed: 'Speaker identification failed', active: 'Identifying speakers', detail: 'Local engine · CPU' },
     topics: { done: 'Topics found locally', failed: 'Topics could not be saved', active: 'Finding topics', detail: 'On this PC' },

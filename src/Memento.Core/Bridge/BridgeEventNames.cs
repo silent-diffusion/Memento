@@ -34,4 +34,9 @@ public static class BridgeEventNames
 
     // 2.0: the tray's Record item.
     public const string AppOpenScreen = "app.openScreen";
+
+    // 2.0: video (BRIDGE.md "Video (2.0)").
+    public const string RecordingVideoStatus = "recording.videoStatus";
+    public const string RecordingVideoProblem = "recording.videoProblem";
+    public const string VideoSourcesChanged = "video.sourcesChanged";
 }

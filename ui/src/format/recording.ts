@@ -81,6 +81,7 @@ export type PipelineStage = StageName;
 
 const DONE_NAMES: Record<PipelineStage, string> = {
   stored: 'Stored',
+  video: 'Video',
   transcript: 'Transcript',
   speakers: 'Speakers',
   topics: 'Topics',
@@ -90,6 +91,7 @@ const DONE_NAMES: Record<PipelineStage, string> = {
 
 const ACTIVE_NAMES: Record<PipelineStage, string> = {
   stored: 'Storing',
+  video: 'Video',
   transcript: 'Transcribing',
   speakers: 'Speakers',
   topics: 'Topics',
@@ -100,6 +102,7 @@ const ACTIVE_NAMES: Record<PipelineStage, string> = {
 /** The processing card's column names (DESIGN.md §4). */
 export const CARD_STAGE_NAMES: Record<PipelineStage, string> = {
   stored: 'Stored',
+  video: 'Video',
   transcript: 'Transcribing',
   speakers: 'Speakers',
   topics: 'Topics',
