@@ -10,19 +10,20 @@ This guide covers version 1.0.0.
 2. [Your first recording](#your-first-recording)
 3. [Choosing what to record](#choosing-what-to-record)
 4. [During the recording](#during-the-recording)
-5. [Review and the transcript](#review-and-the-transcript)
-6. [Speakers](#speakers)
-7. [Agenda and attachments](#agenda-and-attachments)
-8. [Importing audio or video](#importing-audio-or-video)
-9. [Documents](#documents)
-10. [Export](#export)
-11. [Settings](#settings)
-12. [Updates](#updates)
-13. [Where your data lives, and how to back it up](#where-your-data-lives-and-how-to-back-it-up)
-14. [When something goes wrong](#when-something-goes-wrong)
-15. [Privacy](#privacy)
-16. [Keyboard](#keyboard)
-17. [Known limitations](#known-limitations)
+5. [Recording video](#recording-video)
+6. [Review and the transcript](#review-and-the-transcript)
+7. [Speakers](#speakers)
+8. [Agenda and attachments](#agenda-and-attachments)
+9. [Importing audio or video](#importing-audio-or-video)
+10. [Documents](#documents)
+11. [Export](#export)
+12. [Settings](#settings)
+13. [Updates](#updates)
+14. [Where your data lives, and how to back it up](#where-your-data-lives-and-how-to-back-it-up)
+15. [When something goes wrong](#when-something-goes-wrong)
+16. [Privacy](#privacy)
+17. [Keyboard](#keyboard)
+18. [Known limitations](#known-limitations)
 
 ## Install
 
@@ -73,6 +74,21 @@ The laptop microphone also hears your speakers. That is fine: both tracks are ke
 Transcription and other work never slow a recording down: while you record, they wait (if **Pause when the PC is busy** is on, which it is by default).
 
 **Live transcript.** With **Live transcript while recording** on (Settings › Transcription; off by default), the Live transcript card shows a rough draft a few seconds behind the recording, made on this PC by the Small model (or Base). It is a draft: it is not saved, it has no speakers, and the full transcript made after you stop replaces it. It uses the processor unless you let it use the graphics card, never takes more than a quarter of the processor threads, and steps aside while Memento transcribes another recording or when a document needs the graphics card; the card says so. If neither Small nor Base is installed, the card says to install one.
+
+## Recording video
+
+Memento can record a display, one window or a camera beside the audio. Video is always one more track in step with the sound, never the recording itself: if it stops, the audio carries on.
+
+- **Turn it on** in the **Video** section of the Record screen (or make Audio + video the default in Settings › Recording › Video defaults). **Screen** captures a whole display: everything shown on it, other windows and notifications included; your other displays are not captured. **Window** captures one window even when others cover it; if it is minimised the video pauses and continues when it comes back. **Camera** records a webcam. With a screen and a camera, **Screen + camera** shows the camera as a small picture in a corner you choose; both are kept as separate tracks, so you can move the picture later in Review.
+- **You can change what is captured while recording**: pick another display or window and the same track continues. Turning a source off ends its track; turning it on again starts a new one from that moment.
+- Memento's own window is listed but cannot be chosen, and windows that keep themselves out of recordings (protected video players, some password managers) are refused rather than recorded as black.
+- The **Encoder** card shows whether the graphics card or the processor encodes, the resolution, the frame rate with any dropped frames, the bitrate and how much video has been written. If the graphics card's encoder fails, recording continues with the processor's and a banner says so.
+- **When something goes wrong** the video stops first and alone: a disconnected display pauses its video (switch to another display or wait for it), a closed window or unplugged camera ends its track with everything before it kept, a camera another app holds or Windows' camera privacy switch is named with the fix, and when the disk runs low (below 1 GB) the video stops so the audio can keep going.
+- **Space**: screen recordings are mostly still, so they usually take 0.6 to 2.3 GB per hour at 1080p or 1440p; busy video can take up to about 5 GB per hour at Balanced. Settings › Recording › Video defaults sets the resolution (match the display, 1080p or 720p), frame rate (24, 30 or 60) and quality (Smaller, Balanced, Best).
+- After you stop, the **Video** stage checks the files (and joins them if the encoder changed while recording). It never holds the transcript back. In Review the video plays above the waveform in step with the transcript; clicking a line seeks the video too.
+- **Remove video, keep audio** (Review, or Settings › Storage and history › Remove video older than) deletes the video files to free space after asking; the audio, transcript and documents stay, and the recording's History says when and how much was freed. It cannot be undone.
+
+Video is never transcribed, analysed or sent anywhere: only the audio tracks are transcribed.
 
 ## Review and the transcript
 
@@ -145,6 +161,7 @@ The **document viewer** then shows the result on paper. Click a timestamp to hea
 In Review, choose **Export**. Tick what you need:
 
 - the mixed audio, or each track, as FLAC, WAV or MP3;
+- the video (when the recording has it) as **One file**, the screen with the camera picture where it was while recording and the mixed sound, or **Two files**, screen and camera each at their own size with the sound in the screen file. **MP4** encodes the picture again (about a third of real time or faster on a typical PC); **Original container** copies the recorded frames untouched in seconds, but cannot place the camera picture on the screen, so the camera comes as its own file;
 - the transcript as JSON, Markdown, plain text or SRT subtitles (several at once);
 - the recording's documents as Word, PDF or Markdown;
 - the recording details, and the attachments.
@@ -160,13 +177,13 @@ The files go into a folder named after the recording, with a `manifest.json` tha
 Open Settings with the gear at the top right. Every change is saved at once.
 
 - **General**: theme (follows Windows by default), list density, **Start Memento with Windows** (only for an installed Memento; it starts minimised, or only in the tray), **Keep running in the tray when closed** (off by default: with it on, closing the window leaves Memento in the notification area with Open, New recording and Quit, and a recording in progress shows on the icon and its tooltip; Quit ends Memento, and a recording in progress stops with everything so far kept), where the library lives (moving it copies and checks every file before removing the old copy), language, **Updates**, and **About** (version, library location and the licenses of the components inside Memento).
-- **Recording**: the default sources and recording type, how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), **Keep only the mix** (off by default: after processing, each source's own track file is removed and only the mix is kept; speakers can then no longer be identified per track and tracks can no longer be exported for that recording, and its History says so), and the free-space warning level (10 GB by default).
+- **Recording**: the default sources and recording type, **Video defaults** (record video by default, the default source and camera, resolution, frame rate, quality, the camera picture's corner, the graphics card's encoder and the mouse pointer), how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), **Keep only the mix** (off by default: after processing, each source's own track file is removed and only the mix is kept; speakers can then no longer be identified per track and tracks can no longer be exported for that recording, and its History says so), and the free-space warning level (10 GB by default).
 - **Transcription**: transcribe automatically or by hand, **Live transcript while recording** (and whether it may use the graphics card), pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark. Under **Engine**, a line says how much of the graphics card's memory is free and which programs use the rest; when the model needs more than is free, it says so and what to close. **Check again** reads the card again.
 - **Speakers**: identify speakers, the expected number, remember speakers by voice and the known voices, and the speaker models.
 - **AI and privacy**: the local models, with **Use this model** beside each installed one and a line that says which model writes documents, where it runs (graphics card or processor) and why (when only one is installed it is used, whatever the card has free), and beneath it the graphics card's free memory, who uses the rest and **Check again**; **Allow external AI services** (off by default) with what may be shared (Audio and Video are listed as never sent), **Ask before every send** and **Keep a record of what was sent**; the default provider; and your Claude and ChatGPT keys, which are encrypted for your Windows account and never shown again.
 - **Documents**: the default template and style, **Manage templates and styles**, and version history for transcripts and documents.
 - **Export**: the default folder and what to include.
-- **Storage and history**: how much space the library uses, its largest recordings, how much the separate tracks take, making older recordings smaller, **Keep only the mix for existing recordings** (asks first, says how much it frees, cannot be undone), and rebuilding the library list.
+- **Storage and history**: how much space the library uses, its largest recordings, how much the separate tracks take, making older recordings smaller, **Keep only the mix for existing recordings** (asks first, says how much it frees, cannot be undone), **Remove video older than** (Never by default; it says how much it would free now), and rebuilding the library list.
 
 ## Updates
 
@@ -188,7 +205,7 @@ Memento checks this project's GitHub releases for a newer version when it starts
 
 Type `%LOCALAPPDATA%\Memento` in the File Explorer address bar to open the folder.
 
-Inside the library, each recording is a folder under `projects` with its tracks (`tracks\*.flac`), the mix, the transcript, details, attachments and its history. The folders are complete on their own: `library.db` is only an index, rebuilt from them when needed.
+Inside the library, each recording is a folder under `projects` with its tracks (`tracks\*.flac`, and `tracks\screen.mp4` and `camera.mp4` for video), the mix, the transcript, details, attachments and its history. The folders are complete on their own: `library.db` is only an index, rebuilt from them when needed.
 
 **To back up**, close Memento and copy the whole library folder to another drive or a backup service. **To restore**, copy it back (or to a new PC) and, if it is not in the default place, choose that folder in Settings › General › Library location. Models can always be downloaded again; keys cannot be moved to another PC and must be entered again.
 
@@ -196,7 +213,7 @@ The default library is deliberately not in Documents, because Documents is often
 
 ## When something goes wrong
 
-- **Memento or Windows closed during a recording** (a crash, a power cut): at the next start Memento repairs the recording and shows **Recovered an interrupted recording**, with how much was saved, how many tracks are intact and what may be missing (at most a second or so after the last save). It never asks whether to keep it.
+- **Memento or Windows closed during a recording** (a crash, a power cut): at the next start Memento repairs the recording and shows **Recovered an interrupted recording**, with how much was saved, how many tracks are intact (video tracks included: every part of the video written before the crash plays) and what may be missing (at most a second or so after the last save). It never asks whether to keep it.
 - **Memento closed while saving, transcribing or exporting**: saving and transcription continue where they stopped at the next start. A half-finished export is removed and History says so; export again from Review.
 - **A device stopped**: only its track ends; the time is shown and the others continue.
 - **The library's drive is not connected** (for example a USB drive): Memento says which folder and drive it is looking for and does not record until it is back. Plug the drive in and choose **Try again**, or choose another location in Settings › General.
@@ -225,7 +242,9 @@ Everything can be reached with Tab and Shift+Tab; the focused control has a visi
 ## Known limitations
 
 - The live transcript is a rough draft from the Small model: it has no speakers, runs 10–20 seconds behind, and where a 10-second window cuts a sentence it can guess the rest wrongly. The full transcript after you stop gets it right.
-- **No video capture**; importing a video file uses its sound.
+- Importing a video file uses its sound only.
+- Video was tried on a PC without a camera: camera recording, its thumbnail and the camera privacy messages follow Windows' documented behaviour but have not been tried with a real camera. The exact name of Windows' screen-capture privacy page has not been checked on a PC where it is turned off.
+- Exporting video as MP4 encodes on the processor (about 70 frames per second for 1080p on the reference laptop, so an hour of 30 fps takes around 25 minutes); Original container takes seconds.
 - **Generated documents are drafts.** The local model is good for a first draft with citations and review; check what it wrote against the transcript before you send it on. Claude and ChatGPT have so far been tried only against a test server, not with a real key.
 - In a 4-hour recording made while another program kept the processor at 100% the whole time, the microphone track ended about 0.7 seconds out of step with the others. This was not seen without that outside load.
 - There is no button to stop a transcription that is running; it pauses by itself while you record or the PC is busy, and continues where it stopped.
