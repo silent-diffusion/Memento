@@ -820,3 +820,20 @@ general: {                                  // M3 block, two read-only fields ad
 | Event | Payload | Notes |
 |---|---|---|
 | `app.openScreen` | `{ screen: 'record' }` | The tray's Record item, after the host has shown the window: the page opens the Recording session, rejoining the session in progress (recording or paused) or ready to record. |
+
+## Keep only the mix (2.0)
+
+`recording.storage.keepOnlyMix` (Settings › Recording, off by default) now does what it says: the `optimize` stage runs when the codec is AAC or MP3 **or** this is on, after every other stage. With a smaller codec only the mix is converted; then the mix is checked against the SHA-256 in `project.json` and, only if it matches, every separate track file is removed. The manifest records it first (`project.json` `mixOnly: { at, trackIds, bytesFreed }`, an optional field within schema 3; the tracks stay listed without a hash, `integrity.files` keeps only the mix), then the files go, then History gets an `optimize` `completed` line "Kept only the mix · removed 2 separate tracks (812 MB)" whose detail says what is no longer possible. A missing or mismatched mix keeps every track with an `optimize` `info` line "Kept the separate tracks" saying why and "Nothing was removed". A recording that keeps only its mix is transcribed again from the mix as one track (`mix`).
+
+Settings saved before 2.0 never turn it on: `settings.json` schema 2 starts `recording.storage.keepOnlyMix` off and `transcription.timing` at `after` when the file is schema 1, because both were stored while they did nothing.
+
+```ts
+interface Project { /* … */ mixOnly: { at: string; tracks: number; bytesFreed: number } | null }   // null while the tracks are kept
+interface LibraryUsage { /* … */ separateTracksBytes: number; separateTracksRecordings: number; mixOnlyRecordings: number }
+```
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `storage.keepOnlyMix` | `{ recordingIds: string[] \| null }` | `{ jobId }` | Settings › Storage and history › Keep only the mix for existing recordings, after the page's confirmation (size, what is kept, cannot be undone). `null`: every stored recording that still has separate tracks and a mix. Each recording goes through the stage step above (mix checked first); busy ones are skipped. Progress and the final message through `storage.reclaimProgress` ("2 recordings keep only the mix; 1.2 GB freed. Transcripts, speakers and the mixes were not changed."). `storage.nothingToReclaim` for `[]` or when no recording has separate tracks; `project.notFound` for an unknown id; `library.busy` during a move or another reclaim. |
+
+`export.estimate` lists `tracks` as unavailable with the reason "Only the mix was kept", and the Export dialog leaves the Individual tracks row out; Review's People pane offers Reduce but not Identify speakers again (there is nothing per track to listen to); `library.usage` counts what separate tracks use.

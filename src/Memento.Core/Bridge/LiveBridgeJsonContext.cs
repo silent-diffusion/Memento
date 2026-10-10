@@ -13,6 +13,8 @@ namespace Memento.Core.Bridge;
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(BridgeEventEnvelope<AppOpenScreenPayload>))]
 [JsonSerializable(typeof(BridgeEventEnvelope<LiveTranscriptPayload>))]
+[JsonSerializable(typeof(StorageKeepOnlyMixParams))]
+[JsonSerializable(typeof(JobIdResult))]
 public sealed partial class LiveBridgeJsonContext : JsonSerializerContext
 {
 }

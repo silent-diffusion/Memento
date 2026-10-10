@@ -8,6 +8,7 @@ import type {
   Chapter,
   Highlight,
   HistoryEntry,
+  MixOnlyInfo,
   RecordingDetails,
   RecordingSummary,
   StageStatus,
@@ -54,6 +55,8 @@ export interface MockProject {
   highlights: Highlight[];
   topics: Topic[];
   history: HistoryEntry[];
+  /** 2.0: set once "Keep only the mix" removed the separate tracks. */
+  mixOnly?: MixOnlyInfo | null;
 }
 
 const s = (h: number, m: number, sec: number): number => ((h * 60 + m) * 60 + sec) * 1000;

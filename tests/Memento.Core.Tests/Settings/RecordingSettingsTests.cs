@@ -29,7 +29,7 @@ public sealed class RecordingSettingsTests : IDisposable
         Assert.Equal(10, recording.LowSpaceGb);
         Assert.Equal(10L * 1024 * 1024 * 1024, recording.LowSpaceThresholdBytes);
         Assert.Null(recording.Validate());
-        Assert.Equal(1, AppSettings.CurrentSchemaVersion);
+        Assert.Equal(2, AppSettings.CurrentSchemaVersion);
     }
 
     [Fact]

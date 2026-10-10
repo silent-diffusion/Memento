@@ -9,7 +9,8 @@ namespace Memento.Core.Settings;
 /// </summary>
 public sealed record AppSettings
 {
-    public const int CurrentSchemaVersion = 1;
+    /// <summary>2 (2.0): keep-only-the-mix and the live transcript saved by 1.x do not carry over (<see cref="JsonSettingsStore"/>).</summary>
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 

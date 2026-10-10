@@ -333,6 +333,15 @@ export interface Project {
   history: HistoryEntry[];
   integrity: ProjectIntegrity;
   sizeBytes: number;
+  /** 2.0: "Keep only the mix" removed the separate track files; null while they are kept. */
+  mixOnly: MixOnlyInfo | null;
+}
+
+/** 2.0: when the separate track files were removed, how many, and their size. */
+export interface MixOnlyInfo {
+  at: string;
+  tracks: number;
+  bytesFreed: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1379,6 +1388,16 @@ export interface LibraryUsage {
   freeBytes: number;
   count: number;
   largest: LibraryUsageLargest | null;
+  /** 2.0: separate track files that "Keep only the mix" would remove, and in how many recordings. */
+  separateTracksBytes: number;
+  separateTracksRecordings: number;
+  /** 2.0: recordings that already keep only their mix. */
+  mixOnlyRecordings: number;
+}
+
+/** 2.0: storage.keepOnlyMix; null = every stored recording that still has separate tracks. */
+export interface StorageKeepOnlyMixParams {
+  recordingIds: string[] | null;
 }
 
 export interface AgendaImportFileParams {
@@ -2371,6 +2390,8 @@ export interface BridgeMethods {
   'library.rebuildIndex': { params: EmptyParams; result: LibraryRebuildIndexResult };
   'library.move': { params: LibraryMoveParams; result: JobResult };
   'storage.reclaim': { params: StorageReclaimParams; result: JobResult };
+  /** 2.0 */
+  'storage.keepOnlyMix': { params: StorageKeepOnlyMixParams; result: JobResult };
   'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
   'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
   'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
@@ -2600,6 +2621,8 @@ export const METHOD_NAMES = [
   'annotations.dismissSuggestion',
   'annotations.restoreSuggestion',
   'transcript.setSegmentsSpeaker',
+  // 2.0 storage
+  'storage.keepOnlyMix',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [

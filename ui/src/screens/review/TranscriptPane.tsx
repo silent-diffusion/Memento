@@ -772,7 +772,8 @@ export function TranscriptPane({
     body = <p class="tx-loading">Reading the transcript…</p>;
   } else if (transcript === null) {
     const tracks = project.tracks.length;
-    const audio = `${tracks} ${tracks === 1 ? 'track' : 'tracks'}, ${formatDuration(project.summary.durationMs)}, stored on this PC`;
+    const kept = project.mixOnly !== null ? 'the mix only' : `${tracks} ${tracks === 1 ? 'track' : 'tracks'}`;
+    const audio = `${kept}, ${formatDuration(project.summary.durationMs)}, stored on this PC`;
     if (status === 'queued') {
       body = (
         <ProgressCard

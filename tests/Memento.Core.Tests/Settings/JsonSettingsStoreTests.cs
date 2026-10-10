@@ -55,7 +55,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(SettingsPath));
         var root = document.RootElement;
 
-        Assert.Equal(1, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(AppSettings.CurrentSchemaVersion, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("light", root.GetProperty("theme").GetString());
         Assert.Equal("comfortable", root.GetProperty("listDensity").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("libraryPath").ValueKind);

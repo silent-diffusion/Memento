@@ -245,6 +245,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     history: project.history,
     integrity: { algorithm: 'sha256', computedAt: null },
     sizeBytes: estimateSizeBytes(project.summary, project.trackSources.length),
+    mixOnly: project.mixOnly ?? null,
     };
   };
 

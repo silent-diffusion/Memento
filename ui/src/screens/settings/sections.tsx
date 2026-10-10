@@ -161,6 +161,19 @@ export function RecordingSection(): JSX.Element {
             </SettingsRow>
           </>
         ) : null}
+        <SettingsRow
+          label="Keep only the mix"
+          description="After processing, removes each source's own track file and keeps the mix; speakers can't be identified per track again and tracks can't be exported for those recordings."
+        >
+          <OnOff on={storage.keepOnlyMix} />
+          <Toggle
+            label="Keep only the mix"
+            checked={storage.keepOnlyMix}
+            onChange={(keepOnlyMix) => {
+              save({ storage: { ...storage, keepOnlyMix } });
+            }}
+          />
+        </SettingsRow>
         <SettingsRow label="Save a checkpoint every" description="How much could be lost if the PC shuts down abruptly.">
           <SelectMenu<string>
             label="Save a checkpoint every"

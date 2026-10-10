@@ -58,7 +58,8 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             var tracks = stored ? manifest.Tracks.Where(t => t.Sha256 is not null && File.Exists(Full(folder, t.File))).ToList() : [];
             if (tracks.Count == 0)
             {
-                unavailable.Add(new(ExportComponents.Tracks, "Not saved yet"));
+                // 2.0: "Keep only the mix" removed them; otherwise they are not stored yet.
+                unavailable.Add(new(ExportComponents.Tracks, manifest.MixOnly is not null ? "Only the mix was kept" : "Not saved yet"));
             }
 
             foreach (var track in tracks)

@@ -85,6 +85,9 @@ public static class BridgeMethodNames
     public const string LibraryRebuildIndex = "library.rebuildIndex";
     public const string LibraryMove = "library.move";
     public const string StorageReclaim = "storage.reclaim";
+
+    /// <summary>2.0: Settings › Storage and history › Keep only the mix for existing recordings.</summary>
+    public const string StorageKeepOnlyMix = "storage.keepOnlyMix";
     public const string AiSetKey = "ai.setKey";
     public const string AiClearKey = "ai.clearKey";
     public const string AppSetStartup = "app.setStartup";

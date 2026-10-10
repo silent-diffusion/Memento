@@ -247,7 +247,7 @@ public sealed class BridgeRouterTests
             "agenda.apply", "agenda.discard", "agenda.importDropped", "agenda.importFile", "agenda.parseText", "agenda.setCovered",
             "ai.clearKey", "ai.setKey", "app.setStartup", "attachments.add", "attachments.list", "attachments.open", "attachments.remove",
             "export.cancel", "export.estimate", "export.openFolder", "export.run", "library.importMedia", "library.move",
-            "library.rebuildIndex", "library.usage", "project.changeType", "storage.reclaim",
+            "library.rebuildIndex", "library.usage", "project.changeType", "storage.keepOnlyMix", "storage.reclaim",
             "updates.apply", "updates.check", "updates.status",
             // 2.0 Review: known voices, suggested chapters, selection mode.
             "voices.list", "voices.setSuggest", "voices.forget", "voices.forgetAll", "voices.remember", "voices.revert",
