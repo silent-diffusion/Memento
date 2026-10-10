@@ -362,3 +362,58 @@ export function UndoIcon(props: IconProps): JSX.Element {
     </Stroke>
   );
 }
+
+// ---------------------------------------------------------------------------------------------
+// 2.0 video (renders RecordVideo, ReviewVideo, ProcessingVideo)
+// ---------------------------------------------------------------------------------------------
+
+/** The camera glyph as decoration beside a label ("Screen + camera" lane, Camera inset button). */
+export function CameraIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke strokeWidth={2} {...props}>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="M16 10l5-3v10l-5-3z" />
+    </Stroke>
+  );
+}
+
+/** The crossed camera: a recording whose video was removed (meta line, grid strip); named unless decorative. */
+export function VideoRemovedIcon({ size, decorative = false }: { size: number; decorative?: boolean }): JSX.Element {
+  return (
+    <svg
+      role={decorative ? undefined : 'img'}
+      aria-label={decorative ? undefined : 'Video removed'}
+      aria-hidden={decorative ? 'true' : undefined}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+      style={{ flex: 'none' }}
+    >
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="M16 10l5-3v10l-5-3z M3 3l18 18" />
+    </svg>
+  );
+}
+
+/** Review's Fullscreen: four outward corners. */
+export function FullscreenIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke strokeWidth={2} {...props}>
+      <path d="M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5" />
+    </Stroke>
+  );
+}
+
+/** Review's Exit fullscreen: four inward corners. */
+export function ExitFullscreenIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke strokeWidth={2} {...props}>
+      <path d="M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5" />
+    </Stroke>
+  );
+}
