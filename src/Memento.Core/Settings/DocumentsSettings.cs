@@ -10,6 +10,12 @@ public sealed record DocumentsSettings
 
     public string? DefaultStyleId { get; set; }
 
+    /// <summary>
+    /// 2.0, Settings › Documents › Agenda photos and scans: the text recognition tried first (<see cref="OcrEngines"/>);
+    /// <c>null</c> is Windows OCR. The other engine is the fallback when the chosen one cannot run.
+    /// </summary>
+    public string? OcrEngine { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

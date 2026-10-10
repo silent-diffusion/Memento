@@ -122,6 +122,107 @@ internal sealed class GrayImage
         return new GrayImage(width, height, pixels);
     }
 
+    /// <summary>
+    /// Evens out the paper (Tesseract, ENGINE-NOTES.md §P): the background brightness is estimated per
+    /// <paramref name="tile"/>-pixel tile (its 90th percentile, then the brightest of each tile's neighbours, so a tile
+    /// full of ink takes its paper from around it) and interpolated between tile centres, and every pixel is divided by
+    /// it. Warm or grey paper, a shadow, or a photo of a page placed on a white PDF page all become white paper with dark
+    /// ink, which Tesseract's global threshold and page layout analysis need.
+    /// </summary>
+    public GrayImage NormalizeBackground(int tile, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(tile, 4);
+        var columns = (Width + tile - 1) / tile;
+        var rows = (Height + tile - 1) / tile;
+        var level = new double[columns * rows];
+        var histogram = new int[256];
+        for (var ty = 0; ty < rows; ty++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            for (var tx = 0; tx < columns; tx++)
+            {
+                Array.Clear(histogram);
+                var x0 = tx * tile;
+                var y0 = ty * tile;
+                var x1 = Math.Min(Width, x0 + tile);
+                var y1 = Math.Min(Height, y0 + tile);
+                for (var y = y0; y < y1; y++)
+                {
+                    var row = y * Width;
+                    for (var x = x0; x < x1; x++)
+                    {
+                        histogram[Pixels[row + x]]++;
+                    }
+                }
+
+                var wanted = (x1 - x0) * (y1 - y0) * 0.9;
+                var seen = 0;
+                var value = 255;
+                for (var v = 0; v < 256; v++)
+                {
+                    seen += histogram[v];
+                    if (seen >= wanted)
+                    {
+                        value = v;
+                        break;
+                    }
+                }
+
+                level[(ty * columns) + tx] = value;
+            }
+        }
+
+        var background = new double[level.Length];
+        for (var ty = 0; ty < rows; ty++)
+        {
+            for (var tx = 0; tx < columns; tx++)
+            {
+                var brightest = 0.0;
+                for (var dy = -1; dy <= 1; dy++)
+                {
+                    for (var dx = -1; dx <= 1; dx++)
+                    {
+                        var nx = tx + dx;
+                        var ny = ty + dy;
+                        if (nx >= 0 && ny >= 0 && nx < columns && ny < rows)
+                        {
+                            brightest = Math.Max(brightest, level[(ny * columns) + nx]);
+                        }
+                    }
+                }
+
+                background[(ty * columns) + tx] = Math.Max(1, brightest);
+            }
+        }
+
+        var pixels = new byte[Pixels.Length];
+        for (var y = 0; y < Height; y++)
+        {
+            if ((y & 127) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            var gy = Math.Clamp(((y + 0.5) / tile) - 0.5, 0, rows - 1);
+            var ty0 = (int)gy;
+            var ty1 = Math.Min(rows - 1, ty0 + 1);
+            var fy = gy - ty0;
+            for (var x = 0; x < Width; x++)
+            {
+                var gx = Math.Clamp(((x + 0.5) / tile) - 0.5, 0, columns - 1);
+                var tx0 = (int)gx;
+                var tx1 = Math.Min(columns - 1, tx0 + 1);
+                var fx = gx - tx0;
+                var top = background[(ty0 * columns) + tx0] + ((background[(ty0 * columns) + tx1] - background[(ty0 * columns) + tx0]) * fx);
+                var bottom = background[(ty1 * columns) + tx0] + ((background[(ty1 * columns) + tx1] - background[(ty1 * columns) + tx0]) * fx);
+                var paper = top + ((bottom - top) * fy);
+                pixels[(y * Width) + x] = (byte)Math.Clamp(Math.Round(Pixels[(y * Width) + x] * 255.0 / paper), 0, 255);
+            }
+        }
+
+        return new GrayImage(Width, Height, pixels);
+    }
+
     private byte Sample(double x, double y)
     {
         if (x < -0.5 || y < -0.5 || x > Width - 0.5 || y > Height - 0.5)

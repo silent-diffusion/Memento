@@ -11,4 +11,7 @@ public static class WorkerJobKinds
 
     /// <summary>2.0: the live transcript while recording (<see cref="WorkerJob.Live"/>); stays loaded for <c>audio</c> lines.</summary>
     public const string Live = "live";
+
+    /// <summary>2.0: Tesseract text recognition (<see cref="WorkerJob.Ocr"/>); stays loaded for <c>recognize</c> lines.</summary>
+    public const string Ocr = "ocr";
 }

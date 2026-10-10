@@ -16,6 +16,9 @@ public static class WorkerMessageTypes
     /// <summary>2.0: one window for the live transcript (<see cref="WorkerCommand.Audio"/>).</summary>
     public const string Audio = "audio";
 
+    /// <summary>2.0: one image for Tesseract (<see cref="WorkerCommand.Image"/>).</summary>
+    public const string Recognize = "recognize";
+
     // Worker → host.
     public const string Ready = "ready";
     public const string Device = "device";
@@ -30,6 +33,9 @@ public static class WorkerMessageTypes
 
     /// <summary>2.0: the live transcript heard one <c>audio</c> window (<see cref="WorkerReply.Window"/>, <see cref="WorkerReply.Segments"/>).</summary>
     public const string Heard = "heard";
+
+    /// <summary>2.0: Tesseract read one <c>recognize</c> image (<see cref="WorkerReply.Ocr"/>).</summary>
+    public const string Recognized = "recognized";
     public const string Result = "result";
     public const string Error = "error";
     public const string Cancelled = "cancelled";

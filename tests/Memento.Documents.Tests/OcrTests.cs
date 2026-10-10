@@ -78,7 +78,7 @@ public sealed class OcrTests
         var error = await Assert.ThrowsAsync<AgendaImportException>(() => Agendas.ImportAsync(Agendas.Fixture("ocr-small.png"), "photo.png", importer));
 
         Assert.Equal(AgendaErrorCodes.OcrUnavailable, error.Code);
-        Assert.Contains("Settings › Engines", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Settings › Documents", error.Message, StringComparison.Ordinal);
         Assert.Contains("Nothing was imported", error.Message, StringComparison.Ordinal);
     }
 
