@@ -20,6 +20,7 @@ internal sealed class FrameConverter : IDisposable
     private ID3D11VideoProcessor? _processor;
     private int _inputWidth;
     private int _inputHeight;
+    private bool _inputIsYuv;
 
     public FrameConverter(VideoDevice device, int outputWidth, int outputHeight)
     {
@@ -51,6 +52,16 @@ internal sealed class FrameConverter : IDisposable
         var input = InputView(source);
         var output = OutputView(target, subresource);
         var video = _device.VideoContext;
+        var yuv = source.Description.Format == Format.NV12;
+        if (yuv != _inputIsYuv)
+        {
+            // Cameras deliver BT.709-ish limited-range YCbCr; displays and windows full-range RGB.
+            video.VideoProcessorSetStreamColorSpace(_processor!, 0, yuv
+                ? new VideoProcessorColorSpace { YCbCr_Matrix = 1, Nominal_Range = (uint)VideoProcessorNominalRange.Range_16_235 }
+                : new VideoProcessorColorSpace { RGB_Range = 0 });
+            _inputIsYuv = yuv;
+        }
+
         var dest = Fit(sourceWidth, sourceHeight, _outputWidth, _outputHeight);
         video.VideoProcessorSetStreamSourceRect(_processor!, 0, true, new RawRect(0, 0, sourceWidth, sourceHeight));
         video.VideoProcessorSetStreamDestRect(_processor!, 0, true, dest);
@@ -99,6 +110,7 @@ internal sealed class FrameConverter : IDisposable
         video.VideoProcessorSetOutputBackgroundColor(_processor, false, new VideoColor { Rgba = new VideoColorRgba { R = 0, G = 0, B = 0, A = 1 } });
         _inputWidth = width;
         _inputHeight = height;
+        _inputIsYuv = false;
     }
 
     private ID3D11VideoProcessorInputView InputView(ID3D11Texture2D source)

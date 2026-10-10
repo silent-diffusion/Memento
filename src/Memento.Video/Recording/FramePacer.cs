@@ -44,14 +44,27 @@ internal sealed class FramePacer
     /// <summary>Time (100 ns from the origin) of the last frame written; -1 before the first.</summary>
     public long LastWrittenTicks { get; private set; } = -1;
 
-    /// <summary>The slot <paramref name="qpc"/> falls in (for a source switched on mid-recording).</summary>
-    public static long SlotAt(long originQpc, int frameRate, long qpc) => Math.Max(0, (qpc - originQpc) / (10_000_000L / frameRate));
+    /// <summary>The first slot due at or after <paramref name="qpc"/> (where a source switched on mid-recording starts).</summary>
+    public static long SlotAt(long originQpc, int frameRate, long qpc)
+    {
+        var period = 10_000_000L / frameRate;
+        return Math.Max(0, (qpc - originQpc + period - 1) / period);
+    }
 
     /// <summary>
     /// Continues the track after a recording pause: the next slot is due now and follows the last one, so the paused
     /// time is left out of the video exactly as it is left out of the audio tracks (ARCHITECTURE.md §5, step 4).
     /// </summary>
-    public void Rebase(long nowQpc) => _originQpc = nowQpc - (_nextSlot * _periodTicks);
+    public void Rebase(long nowQpc)
+    {
+        // Slots that passed while paused are not part of the track: continue right after the last frame written.
+        if (LastWrittenTicks >= 0)
+        {
+            _nextSlot = (LastWrittenTicks / _periodTicks) + 1;
+        }
+
+        _originQpc = nowQpc - (_nextSlot * _periodTicks);
+    }
 
     /// <summary>
     /// Handles every slot due at <paramref name="nowQpc"/>: writes the newest one (if the source has a picture and is
