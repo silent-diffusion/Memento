@@ -15,7 +15,7 @@ public static class BridgeEventNames
     public const string TranscriptChanged = "transcript.changed";
     public const string ModelsProgress = "models.progress";
 
-    /// <summary>Optional live draft; this build never sends it (BRIDGE.md M2).</summary>
+    /// <summary>The provisional live draft while recording, when Settings turns it on (BRIDGE.md, Live transcript (2.0)).</summary>
     public const string RecordingLiveTranscript = "recording.liveTranscript";
 
     public const string ExportProgress = "export.progress";
@@ -31,4 +31,7 @@ public static class BridgeEventNames
 
     // H1.
     public const string UpdatesProgress = "updates.progress";
+
+    // 2.0: the tray's Record item.
+    public const string AppOpenScreen = "app.openScreen";
 }

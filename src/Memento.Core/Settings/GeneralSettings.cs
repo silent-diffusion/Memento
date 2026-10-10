@@ -10,10 +10,10 @@ public sealed record GeneralSettings
 
     public static IReadOnlyList<string> Languages { get; } = [English];
 
-    /// <summary>Mirrors the Windows startup entry; <c>app.setStartup</c> changes both.</summary>
+    /// <summary>Mirrors the Windows startup entry; <c>app.setStartup</c> changes both. Only an installed copy registers (2.0). Off by default.</summary>
     public bool StartWithWindows { get; init; }
 
-    /// <summary>Stored; applied in M5.</summary>
+    /// <summary>Closing the window keeps Memento running in the notification area (2.0). Off by default.</summary>
     public bool KeepRunningInTray { get; init; }
 
     public string Language { get; set; } = English;

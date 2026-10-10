@@ -206,14 +206,28 @@ export function GeneralSectionM3(): JSX.Element {
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup label="Startup">
-        <SettingsRow label="Start Memento with Windows" description="Opens minimised so recording is one click away.">
+        <SettingsRow
+          label="Start Memento with Windows"
+          description={
+            !general.startWithWindowsAvailable
+              ? (general.startWithWindowsNote ?? 'Start with Windows works only for an installed Memento.')
+              : general.keepRunningInTray
+                ? 'Starts in the tray when you sign in, so recording is one click away.'
+                : 'Opens minimised when you sign in, so recording is one click away.'
+          }
+          {...(general.startWithWindowsAvailable ? {} : { note: 'Installed copies only' })}
+        >
           <OnOff on={general.startWithWindows} />
-          <Toggle label="Start Memento with Windows" checked={general.startWithWindows} onChange={setStartup} />
+          <Toggle
+            label="Start Memento with Windows"
+            checked={general.startWithWindows}
+            disabled={!general.startWithWindowsAvailable && !general.startWithWindows}
+            onChange={setStartup}
+          />
         </SettingsRow>
         <SettingsRow
           label="Keep running in the tray when closed"
-          description="Lets scheduled transcription finish in the background."
-          note="Applied in a later version"
+          description="Closing the window leaves Memento in the notification area with Open, Record and Quit. Recording and transcription carry on; Quit ends it."
           below={<InlineMessage message={startupError} />}
         >
           <Toggle

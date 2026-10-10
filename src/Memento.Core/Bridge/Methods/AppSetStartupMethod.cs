@@ -25,11 +25,18 @@ public sealed class AppSetStartupMethod(IStartupRegistration startup, ISettingsS
     /// <summary>Changes the entry, turning a refusal into a specific error.</summary>
     internal static void Apply(IStartupRegistration startup, bool enabled)
     {
+        if (enabled && !startup.IsAvailable)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.AppStartupRefused,
+                (startup.UnavailableReason ?? "Start with Windows is not available for this copy of Memento.") + " Nothing was changed; install Memento with its installer and turn it on there.");
+        }
+
         try
         {
             startup.SetEnabled(enabled);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or PlatformNotSupportedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or PlatformNotSupportedException or InvalidOperationException)
         {
             throw new BridgeException(
                 DomainErrorCodes.AppStartupRefused,

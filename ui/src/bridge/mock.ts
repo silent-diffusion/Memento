@@ -372,7 +372,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         const heard = newest ? words.slice(0, Math.max(2, Math.round(words.length * Math.min(1, (seconds - start) / 6)))).join(' ') : text;
         return { start, end: Math.min(seconds, start + 5.5), text: heard };
       });
-      emit('recording.liveTranscript', { sessionId, segments });
+      emit('recording.liveTranscript', { sessionId, segments, state: 'listening', engine: 'Local · CPU · Small', note: null });
     }, 1500);
   };
 

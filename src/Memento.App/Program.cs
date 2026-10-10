@@ -8,6 +8,7 @@ using Memento.Core;
 using Memento.Core.Bridge;
 using Memento.Core.Engines;
 using Memento.Core.Host;
+using Memento.Core.Maintenance;
 using Memento.Core.Recording;
 using Memento.Core.Recording.Simulation;
 using Memento.Core.Settings;
@@ -61,6 +62,13 @@ internal static class Program
             using var guard = options.IsScreenshotRun ? null : SingleInstanceGuard.Acquire();
             if (guard is { IsFirstInstance: false })
             {
+                if (options.StartInBackground)
+                {
+                    // The startup entry found Memento already running: nothing to bring forward.
+                    Log.Information("Memento is already running; the startup launch exits");
+                    return 0;
+                }
+
                 var signalled = SingleInstanceGuard.SignalFirstInstance();
                 Log.Information("Memento is already running; {Outcome}", signalled ? "asked it to come forward" : "it is still starting");
                 return 0;
@@ -98,9 +106,17 @@ internal static class Program
 
         var window = host.Services.GetRequiredService<MainWindow>();
         guard?.ListenForActivation(() => window.Dispatcher.BeginInvoke(window.BringToFront));
+        var tray = host.Services.GetRequiredService<TrayController>();
+        if (!options.IsScreenshotRun)
+        {
+            tray.Attach(window.Dispatcher, window.BringToFront, window.Close);
+            application.SessionEnding += (_, _) => tray.QuitForSessionEnd();
+        }
+
         Log.Debug("Main window created");
 
         var exitCode = application.Run(window);
+        tray.Dispose();
 
         // Stop on the pool: the WPF context is gone and must not receive continuations.
         Task.Run(() => host.StopAsync(TimeSpan.FromSeconds(5))).GetAwaiter().GetResult();
@@ -182,6 +198,17 @@ internal static class Program
             services.GetRequiredService<IAppInfo>().Version,
             services.GetRequiredService<ILogger<VelopackUpdateClient>>()));
         builder.Services.AddHostedService<UpdateLoop>();
+
+        // 2.0: the tray icon, and the startup entry for an installed copy only (it starts Velopack's launcher with
+        // --background, so Memento opens minimised or only in the tray).
+        builder.Services.AddSingleton<TrayController>();
+        builder.Services.AddSingleton<IStartupRegistration>(_ => new InstalledStartupRegistration(
+            new RegistryStartupRegistration(
+                RegistryStartupRegistration.RunKeyPath,
+                RegistryStartupRegistration.ValueName,
+                () => InstalledLayout.StartupProgram(AppContext.BaseDirectory),
+                "--background"),
+            () => InstalledLayout.StartupProgram(AppContext.BaseDirectory) is not null));
         builder.Services.AddSingleton<MainWindow>();
         return builder.Build();
     }

@@ -113,7 +113,7 @@ export const DEFAULT_EXPORT_SELECTION: ExportSelection = {
 /** The M3 blocks of the preview's settings (defaults from the README: local first, AI off, nothing written outside). */
 export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export' | 'ai' | 'storage'> {
   return {
-    general: { startWithWindows: false, keepRunningInTray: true, language: 'en', autoUpdate: true },
+    general: { startWithWindows: false, keepRunningInTray: false, language: 'en', autoUpdate: true, startWithWindowsAvailable: true, startWithWindowsNote: null },
     export: {
       saveCopiesOutside: false,
       defaultFolder: 'D:\\Exports',

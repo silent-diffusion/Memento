@@ -19,7 +19,9 @@ namespace Memento.App;
 /// <c>--update-feed=&lt;url|folder|off&gt;</c> (hidden, tests) checks a local Velopack feed instead of the GitHub
 /// releases, or turns update checks off for the run;
 /// <c>--model-mirror=&lt;http://127.0.0.1:port/&gt;</c> (hidden, tests) downloads models from a mirror on this PC,
-/// still checked against the published sizes and SHA-256.
+/// still checked against the published sizes and SHA-256;
+/// <c>--background</c> is what the Windows startup entry passes (2.0): start minimised, or only in the tray when
+/// "Keep running in the tray" is on.
 /// </summary>
 internal sealed record CommandLineOptions(
     string? ScreenshotPath,
@@ -28,7 +30,8 @@ internal sealed record CommandLineOptions(
     string? FreeSpaceOverride = null,
     long? RolloverBytes = null,
     string? UpdateFeed = null,
-    Uri? ModelMirror = null)
+    Uri? ModelMirror = null,
+    bool StartInBackground = false)
 {
     /// <summary>Smallest rollover a test may ask for: one second of int24 stereo at 48 kHz.</summary>
     public const long MinRolloverBytes = 288_000;
@@ -55,6 +58,7 @@ internal sealed record CommandLineOptions(
         long? rollover = null;
         string? updateFeed = null;
         Uri? modelMirror = null;
+        var background = false;
         for (var i = 0; i < args.Count; i++)
         {
             var (name, inline) = Split(args[i]);
@@ -117,13 +121,16 @@ internal sealed record CommandLineOptions(
                     }
 
                     break;
+                case "--background":
+                    background = true;
+                    break;
                 default:
                     // Unknown switches are ignored (Velopack and Windows may pass their own).
                     break;
             }
         }
 
-        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed, modelMirror);
+        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed, modelMirror, background);
     }
 
     /// <summary><c>--name=value</c> → (<c>--name</c>, <c>value</c>); anything else → (argument, null).</summary>

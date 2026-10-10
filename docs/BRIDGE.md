@@ -795,3 +795,28 @@ Accepting a suggested chapter is `annotations.addChapter` with `origin: 'local'`
 ## Error codes (Review 2.0)
 
 `voices.notFound` (a `voices.*` method named a known voice or an enrolment change Memento does not have; `detail` is the id), `voices.newerVersion` (`voices/known.json` was written by a newer Memento; it is left as it is and nothing changed; Forget all still deletes it).
+---
+
+# 2.0 — Live transcript, tray and keep only the mix
+
+Decided with the 2.0 build of these deferred items (ROADMAP.md 2.0.0). Contracts: `LiveBridgeJsonContext` (host) and `ui/src/bridge/types.ts`; strict JSON pinned by `TrayAndStartupTests`, `LiveTranscriptContractTests` and `KeepOnlyMixTests`.
+
+## Tray and Start with Windows (2.0)
+
+Settings › General. Both off by default; nothing new leaves the PC.
+
+```ts
+general: {                                  // M3 block, two read-only fields added
+  startWithWindows: boolean; keepRunningInTray: boolean; language: 'en'; autoUpdate: boolean;
+  startWithWindowsAvailable: boolean;       // read only: only an installed copy (Velopack's install folder) may start with Windows
+  startWithWindowsNote: string | null;      // read only: why not, as a sentence; null when available
+}
+```
+
+`settings.set` accepts the two read-only fields (so the UI can send the whole block back) and ignores them. With `keepRunningInTray` on, the host shows a notification-area icon with Open Memento, New recording (Show the recording while one is in progress) and Quit Memento; closing the window hides it, and recording and processing go on. While a recording is in progress the icon carries an accent dot, and its tooltip and the first menu line give the recording's time and say it is saved as it records (DESIGN.md §17 wording; `Memento.Core.Host.TrayView`). Quit while recording stops the recording as closing Memento always has (everything so far is kept and finalized at the next start). Starting Memento again (the single-instance guard) shows the hidden window. Signing out of Windows closes Memento even with the option on.
+
+`app.setStartup { startWithWindows: true }` (and `settings.set` with `general.startWithWindows: true`) on a copy that was not installed answers `app.startupRefused` with `startWithWindowsNote` followed by "Nothing was changed; install Memento with its installer and turn it on there."; turning it off always works. An installed copy registers the current user's `Run` value `Memento` = `"<install>\Memento.exe" --background` (Velopack's launcher, which survives updates). `--background` starts Memento minimised, or only in the tray when `keepRunningInTray` is on; a second `--background` start while Memento runs does nothing.
+
+| Event | Payload | Notes |
+|---|---|---|
+| `app.openScreen` | `{ screen: 'record' }` | The tray's Record item, after the host has shown the window: the page opens the Recording session, rejoining the session in progress (recording or paused) or ready to record. |
