@@ -537,7 +537,7 @@ describe('preview host models and engine (M2)', () => {
       language: 'auto',
       lowConfidenceThreshold: 0.5,
     });
-    expect(settings.speakers).toEqual({ identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'nemo-titanet-small' });
+    expect(settings.speakers).toEqual({ identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'nemo-titanet-small', rememberVoices: false });
     expect(settings.history).toEqual({ keepVersions: true, keepDays: 90 });
     const next = host.call('settings.set', {
       transcription: { timing: 'during', lowConfidenceThreshold: 0.6, language: 'de' },

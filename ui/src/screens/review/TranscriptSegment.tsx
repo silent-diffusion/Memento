@@ -39,6 +39,14 @@ export interface SegmentHandlers {
   renameHighlight: (highlight: Highlight, note: string) => void;
   /** Arrow keys between segments: the list moves focus. */
   moveFocus: (index: number, direction: 1 | -1) => void;
+  /** 2.0 selection mode: Ctrl+click toggles a line, Shift+click adds the range from the last one (both start it). */
+  select?: (segment: TranscriptSegment, how: 'toggle' | 'range') => void;
+  /** Ctrl+A on a line: every line shown. */
+  selectAll?: () => void;
+  /** Shift+↑/↓: the selection grows or shrinks by a line. */
+  extend?: (segment: TranscriptSegment, direction: 1 | -1) => void;
+  /** Right-click, Shift+F10 or the context-menu key: the line's menu at that point. */
+  contextMenu?: (segment: TranscriptSegment, at: { x: number; y: number }) => void;
 }
 
 interface SegmentProps {
@@ -59,6 +67,8 @@ interface SegmentProps {
   saving: boolean;
   highlights: readonly Highlight[];
   handlers: SegmentHandlers;
+  /** 2.0: in selection mode, whether this line is selected; null (or absent) outside it. */
+  selected?: boolean | null;
 }
 
 const AUTHORS: Record<Highlight['origin'], string> = { user: 'You', local: 'Suggested', ai: 'AI' };
@@ -69,7 +79,12 @@ function SegmentText({
   query,
   currentOccurrence,
   onEdit,
-}: Pick<SegmentProps, 'segment' | 'threshold' | 'query' | 'currentOccurrence'> & { onEdit: (caret: number | undefined) => void }): JSX.Element {
+  onSelect,
+}: Pick<SegmentProps, 'segment' | 'threshold' | 'query' | 'currentOccurrence'> & {
+  onEdit: (caret: number | undefined) => void;
+  /** Selection mode's click (2.0): returns true when the click selected instead of editing. */
+  onSelect?: (event: MouseEvent) => boolean;
+}): JSX.Element {
   const low = lowConfidenceRanges(segment.text, segment.words, threshold);
   const matches = queryRanges(segment.text, query);
   const runs = textRuns(segment.text, low, matches, currentOccurrence);
@@ -81,7 +96,7 @@ function SegmentText({
         // A click on the words edits them; dragging over them selects as usual.
         event.stopPropagation();
         const el = event.currentTarget;
-        if (isSelectingIn(el)) {
+        if (onSelect?.(event) === true || isSelectingIn(el)) {
           return;
         }
         onEdit(caretOffsetAt(el, event.clientX, event.clientY) ?? undefined);
@@ -468,9 +483,28 @@ function SegmentRow({
   saving,
   highlights,
   handlers,
+  selected = null,
 }: SegmentProps): JSX.Element {
   const lastEnter = useRef(0);
-  const classes = ['segm', current ? 'now' : '', editing !== null ? 'segm--editing' : ''].filter((c) => c !== '').join(' ');
+  const selecting = selected !== null;
+  const classes = ['segm', current ? 'now' : '', editing !== null ? 'segm--editing' : '', selecting ? 'segm--selecting' : '', selected === true ? 'segm--selected' : '']
+    .filter((c) => c !== '')
+    .join(' ');
+  /** Ctrl+click toggles, Shift+click takes the range; in selection mode a plain click toggles. True when it selected. */
+  const selectClick = (event: MouseEvent): boolean => {
+    if (handlers.select === undefined || editing !== null) {
+      return false;
+    }
+    if (event.shiftKey) {
+      handlers.select(segment, 'range');
+      return true;
+    }
+    if (event.ctrlKey || event.metaKey || selecting) {
+      handlers.select(segment, 'toggle');
+      return true;
+    }
+    return false;
+  };
   return (
     <div
       class={classes}
@@ -481,9 +515,21 @@ function SegmentRow({
       aria-current={current ? 'true' : undefined}
       data-index={index}
       data-segment-id={segment.id}
-      onClick={() => {
-        if (editing === null) {
+      onClick={(event) => {
+        if (editing === null && !selectClick(event)) {
           handlers.seek(segment);
+        }
+      }}
+      onMouseDown={(event) => {
+        // Shift+click selects lines, not the words between two clicks.
+        if (event.shiftKey && handlers.select !== undefined && editing === null) {
+          event.preventDefault();
+        }
+      }}
+      onContextMenu={(event) => {
+        if (handlers.contextMenu !== undefined && editing === null) {
+          event.preventDefault();
+          handlers.contextMenu(segment, { x: event.clientX, y: event.clientY });
         }
       }}
       onDblClick={(event) => {
@@ -494,6 +540,28 @@ function SegmentRow({
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) {
+          return;
+        }
+        // 2.0 selection mode and the line's context menu.
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && handlers.selectAll !== undefined) {
+          event.preventDefault();
+          handlers.selectAll();
+          return;
+        }
+        if (event.key === ' ' && selecting && handlers.select !== undefined) {
+          event.preventDefault();
+          handlers.select(segment, 'toggle');
+          return;
+        }
+        if (event.shiftKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && handlers.extend !== undefined) {
+          event.preventDefault();
+          handlers.extend(segment, event.key === 'ArrowDown' ? 1 : -1);
+          return;
+        }
+        if ((event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) && handlers.contextMenu !== undefined) {
+          event.preventDefault();
+          const box = event.currentTarget.getBoundingClientRect();
+          handlers.contextMenu(segment, { x: box.left + 24, y: box.top + Math.min(box.height, 40) });
           return;
         }
         if (event.key === 'F2') {
@@ -516,6 +584,21 @@ function SegmentRow({
         }
       }}
     >
+      {selecting ? (
+        <input
+          class="chk segm-check"
+          type="checkbox"
+          tabIndex={-1}
+          checked={selected}
+          aria-label={`Select the line at ${formatDuration(segment.start * 1000)}`}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onChange={() => {
+            handlers.select?.(segment, 'toggle');
+          }}
+        />
+      ) : null}
       <span class="segm-side">
         {/* Speakers not identified (a dictation, or the stage has not run): the timecode alone. */}
         {speaker === null && speakers.length === 0 ? null : (
@@ -556,6 +639,7 @@ function SegmentRow({
             onEdit={(at) => {
               handlers.startEdit(segment, at);
             }}
+            onSelect={selectClick}
           />
         ) : (
           <SegmentEditor value={editing} caret={caret} saving={saving} onDraft={handlers.draft} onSave={handlers.save} onCancel={handlers.cancel} />

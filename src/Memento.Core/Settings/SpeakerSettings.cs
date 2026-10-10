@@ -15,8 +15,17 @@ public sealed record SpeakerSettings
     /// <summary>How many speakers to look for; <c>null</c> finds out automatically.</summary>
     public int? ExpectedSpeakers { get; init; }
 
-    /// <summary>Remember renamed speakers across recordings by voice. Stored; not applied in this version.</summary>
+    /// <summary>
+    /// The 1.x "Remember renamed speakers" switch, stored but never applied. Superseded by <see cref="RememberVoices"/> in
+    /// 2.0, which starts off whatever this says (voice profiles need their own consent); kept so the file round-trips.
+    /// </summary>
     public bool RememberRenamed { get; init; }
+
+    /// <summary>
+    /// 2.0, Settings › Speakers › "Remember speakers by voice" (off by default): a name confirmed in Review is learned as a
+    /// voice signature in <c>&lt;library&gt;\voices\known.json</c>, and later recordings suggest it.
+    /// </summary>
+    public bool RememberVoices { get; init; }
 
     public string EmbeddingModelId { get; init; } = DefaultEmbeddingModelId;
 

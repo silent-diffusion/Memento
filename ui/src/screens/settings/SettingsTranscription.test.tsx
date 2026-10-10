@@ -169,7 +169,9 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
   it('saves Speakers and lists the segmentation model apart from the voice models', async () => {
     await open('speakers');
     await until(() => container.querySelectorAll('.model-card').length === 3);
-    expect(container.textContent).toContain('Stored for a later version');
+    // 2.0: Remember speakers by voice replaced the stored-for-later switch; it starts off.
+    expect(container.textContent).toContain('Remember speakers by voice');
+    expect(container.textContent).not.toContain('Stored for a later version');
     // Segmentation is needed, not a choice: no radio.
     const segmentation = container.querySelector('[data-model-id="pyannote-segmentation-3-0"]');
     expect(segmentation?.querySelector('input[type="radio"]')).toBeNull();
@@ -186,7 +188,7 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     // With speakers off the segmentation model is not needed any more.
     await until(() => segmentation?.querySelector('.model-needed') === null);
     expect(button('Remove Speech segmentation (pyannote 3.0)').disabled).toBe(false);
-    expect((await bridge.call('settings.get')).speakers).toEqual({ identify: false, expectedSpeakers: 4, rememberRenamed: true, embeddingModelId: 'nemo-titanet-small' });
+    expect((await bridge.call('settings.get')).speakers).toEqual({ identify: false, expectedSpeakers: 4, rememberRenamed: true, embeddingModelId: 'nemo-titanet-small', rememberVoices: false });
   });
 
   it('saves version history in Documents', async () => {

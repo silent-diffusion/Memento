@@ -137,6 +137,24 @@ public static partial class TopicExtractor
         return lower.EndsWith("'s", StringComparison.Ordinal) ? lower[..^2] : lower;
     }
 
+    /// <summary>
+    /// The words of <paramref name="text"/> that can mark a subject, as the topics count them (normalized, stop words and
+    /// numbers left out), each with its spelling; <c>null</c> stands for a word left out, so two words around it are not a phrase.
+    /// Shared with <see cref="ChapterSuggester"/>.
+    /// </summary>
+    internal static IEnumerable<(string Word, string Raw)?> Words(string text)
+    {
+        foreach (Match match in WordPattern().Matches(text ?? string.Empty))
+        {
+            var raw = match.Value.TrimEnd('\'', '-');
+            var word = Normalize(raw);
+            yield return word.Length < 3 || StopWords.Contains(word) || word.All(char.IsDigit) ? null : (word, raw);
+        }
+    }
+
+    /// <summary>A term as a title: a proper noun's or acronym's own spelling kept, first letter capitalised.</summary>
+    internal static string LabelOf(string term, Dictionary<string, Dictionary<string, int>> surface) => Label(term, surface);
+
     private static string Label(string term, Dictionary<string, Dictionary<string, int>> surface)
     {
         var words = term.Split(' ').Select(w =>

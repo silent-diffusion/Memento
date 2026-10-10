@@ -42,6 +42,10 @@ interface OutlineProps {
   speakerFilter?: SpeakerFilterProps;
   /** Shown under the People label: Who spoke, Reduce, Identify speakers again (PeopleWhoSpoke). */
   peopleExtra?: JSX.Element | null;
+  /** 2.0: shown under a speaker's row (the known-voice match prompt). */
+  speakerExtra?: (speaker: Speaker) => JSX.Element | null;
+  /** 2.0: shown under the Chapters list (suggested chapters). */
+  chaptersExtra?: JSX.Element | null;
 }
 
 /** The People list's part in the transcript filter (DESIGN.md §9, after 1.2.0). */
@@ -213,17 +217,20 @@ function SpeakerList({
   onRename,
   onMerge,
   filter,
+  extra,
 }: {
   speakers: Speaker[];
   onRename: OutlineProps['onRenameSpeaker'];
   onMerge: OutlineProps['onMergeSpeakers'];
   filter?: SpeakerFilterProps | undefined;
+  extra?: OutlineProps['speakerExtra'];
 }): JSX.Element {
   const [renaming, setRenaming] = useState<string | null>(null);
   return (
     <>
       {speakers.map((speaker) => (
-        <div key={speaker.id} class={filter?.selected.includes(speaker.id) === true ? 'person person--filtered' : 'person'} data-speaker-id={speaker.id}>
+        <Fragment key={speaker.id}>
+        <div class={filter?.selected.includes(speaker.id) === true ? 'person person--filtered' : 'person'} data-speaker-id={speaker.id}>
           <span class="person-dot" aria-hidden="true" style={{ background: speakerColourVar(speaker.color) }} />
           {renaming === speaker.id ? (
             <InlineInput
@@ -269,6 +276,8 @@ function SpeakerList({
             </>
           )}
         </div>
+        {extra?.(speaker) ?? null}
+        </Fragment>
       ))}
     </>
   );
@@ -320,6 +329,8 @@ export function OutlinePane({
   onMergeSpeakers,
   speakerFilter,
   peopleExtra = null,
+  speakerExtra,
+  chaptersExtra = null,
 }: OutlineProps): JSX.Element {
   const [newChapterAt, setNewChapterAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
@@ -390,6 +401,7 @@ export function OutlinePane({
           ))}
           {insertAt === chapters.length ? newChapterRow : null}
         </div>
+        {chaptersExtra}
       </div>
 
       <div class="outline-group">
@@ -448,7 +460,7 @@ export function OutlinePane({
         {peopleExtra}
         <div class="outline-list">
           {hasSpeakers ? (
-            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} />
+            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} extra={speakerExtra} />
           ) : people.length === 0 ? (
             <p class="outline-empty">No participants listed. Add them with Edit details.</p>
           ) : null}

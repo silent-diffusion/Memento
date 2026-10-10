@@ -8,6 +8,7 @@ Memento records meetings, transcribes them and writes documents from them, all o
 |---|---|---|
 | Recordings (tracks, mix) | `<library>\projects\<id>\tracks\`, `mix.*` | The most sensitive data; must never leave the PC. |
 | Transcripts, annotations, agendas, attachments | the same project folder | Full text of what was said, names of people. |
+| Known voices (2.0, opt-in) | `<library>\voices\known.json` | Voice signatures (192 numbers from the voice model per confirmation, at most 10 per name, never audio) under the names the user confirmed, and which recordings confirmed or declined them. A signature can tell whether a later recording contains that person, so it is personal data: it is written only while Settings › Speakers › "Remember speakers by voice" is on (off by default) and only when the user names a speaker in Review, never leaves the PC, is not exported, moves with the library, and is deleted by Forget / Forget all in Settings (and a recording's confirmations with the recording). Plain JSON like the transcripts, not encrypted at rest. |
 | Documents and generation records | `<library>\projects\<id>\documents\` | Summaries, decisions, action items; the record may keep the exact payload sent to an AI provider. |
 | AI provider keys | `%LOCALAPPDATA%\Memento\secrets.bin` (DPAPI, current user) | Billing and account access at the provider. |
 | Settings, logs, crash reports | `%LOCALAPPDATA%\Memento\` | Must never contain content or keys. |
@@ -30,7 +31,7 @@ Memento records meetings, transcribes them and writes documents from them, all o
 - **Keys are encrypted** with Windows DPAPI (current-user scope) and are never written to settings, logs, exports, crash reports, project folders or bridge responses (the interface only learns that a key is saved).
 - **Logs contain no content**: no transcript, document or agenda text, no participant names, no keys. Logs contain file paths, ids, counts, codes and timings. File paths can contain a recording's title when the user exports it (the export folder is named after it).
 - **Downloads are verified**: every model file is checked against the SHA-256 in the catalog built into the app before it is used; a partial file is never loaded.
-- **User data is only deleted through the designed flows** (Delete recording, remove attachment, remove model, the storage options the user chose, library move after verification), never outside the folders they own.
+- **User data is only deleted through the designed flows** (Delete recording, remove attachment, remove model, forget a known voice, the storage options the user chose, library move after verification), never outside the folders they own.
 
 ## 4. How it is built to keep those promises
 

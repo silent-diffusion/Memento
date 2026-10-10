@@ -13,4 +13,7 @@ public sealed record SpeakersSettingsPatch
     public bool? RememberRenamed { get; init; }
 
     public string? EmbeddingModelId { get; init; }
+
+    /// <summary>2.0: "Remember speakers by voice".</summary>
+    public bool? RememberVoices { get; init; }
 }

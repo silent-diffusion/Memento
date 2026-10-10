@@ -290,16 +290,9 @@ public sealed partial class SpeakersStage(
                         : string.Empty,
                     "talk time: " + (speakers.Count == 0 ? "none" : shares),
                 }.Where(p => p.Length > 0)));
-        if (current.RememberRenamed)
-        {
-            await _history.AppendAsync(
-                recordingId,
-                Name,
-                "info",
-                "Renamed speakers are not remembered yet",
-                "\"Remember renamed speakers\" is saved in Settings but not applied in this version; rename the speakers here.");
-        }
 
+        // 2.0: known voices are matched in Review (voices.matches) from the voices.json written above; the 1.x
+        // "Remember renamed speakers" switch is superseded by "Remember speakers by voice", so it says nothing here.
         LogCompleted(recordingId, speakers.Count, saved?.Version ?? 0);
     }
 

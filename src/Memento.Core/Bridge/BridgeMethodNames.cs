@@ -129,4 +129,19 @@ public static class BridgeMethodNames
     public const string UpdatesStatus = "updates.status";
     public const string UpdatesCheck = "updates.check";
     public const string UpdatesApply = "updates.apply";
+
+    // 2.0 Review: known voices, suggested chapters, selection mode.
+    public const string VoicesList = "voices.list";
+    public const string VoicesSetSuggest = "voices.setSuggest";
+    public const string VoicesForget = "voices.forget";
+    public const string VoicesForgetAll = "voices.forgetAll";
+    public const string VoicesRemember = "voices.remember";
+    public const string VoicesRevert = "voices.revert";
+    public const string VoicesMatches = "voices.matches";
+    public const string VoicesDecline = "voices.decline";
+    public const string VoicesAcceptMatch = "voices.acceptMatch";
+    public const string AnnotationsSuggestChapters = "annotations.suggestChapters";
+    public const string AnnotationsDismissSuggestion = "annotations.dismissSuggestion";
+    public const string AnnotationsRestoreSuggestion = "annotations.restoreSuggestion";
+    public const string TranscriptSetSegmentsSpeaker = "transcript.setSegmentsSpeaker";
 }

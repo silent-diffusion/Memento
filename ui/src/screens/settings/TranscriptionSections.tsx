@@ -12,6 +12,7 @@ import { formatSize } from '../../format/storage';
 import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { GpuMemoryLine, useCheckAgain } from './GpuMemoryLine';
+import { KnownVoices } from './KnownVoices';
 import { ModelCards, useModels } from './ModelCards';
 import { DocumentDefaultsRows } from './sections-m4';
 import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
@@ -280,19 +281,21 @@ export function SpeakersSection(): JSX.Element {
           />
         </SettingsRow>
         <SettingsRow
-          label="Remember renamed speakers"
-          description="Suggests names in future recordings based on voice."
-          note="Stored for a later version"
+          label="Remember speakers by voice"
+          description="When you name a speaker in Review, Memento learns that voice and suggests the name when it hears the voice in later recordings; it never names anyone by itself. Voice profiles are signatures, not audio, stay on this PC and can be deleted below at any time."
           below={<InlineMessage message={error} />}
         >
+          <OnOff on={sp.rememberVoices} />
           <Toggle
-            label="Remember renamed speakers"
-            checked={sp.rememberRenamed}
-            onChange={(rememberRenamed) => {
-              save({ rememberRenamed });
+            label="Remember speakers by voice"
+            checked={sp.rememberVoices}
+            onChange={(rememberVoices) => {
+              save({ rememberVoices });
             }}
           />
         </SettingsRow>
+        {/* 2.0: the voices learned so far, each with Suggest and Forget (DESIGN.md §19). */}
+        <KnownVoices />
       </SettingsGroup>
       <SettingsGroup label="Speaker models">
         <SettingsRow

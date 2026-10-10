@@ -48,7 +48,8 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
                 speakers.Identify,
                 ExpectedSpeakersElement(speakers.ExpectedSpeakers),
                 speakers.RememberRenamed,
-                speakers.EmbeddingModelId),
+                speakers.EmbeddingModelId,
+                speakers.RememberVoices),
             new HistorySettingsSnapshot(settings.History.KeepVersions, settings.History.KeepDays));
         return M3SettingsBlocks.Complete(snapshot, settings, extras);
     }

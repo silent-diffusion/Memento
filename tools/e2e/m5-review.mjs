@@ -6,12 +6,16 @@
 // transcript is exported as Markdown and text without timestamps and speakers. Every step is checked against the
 // project's files on disk (or the clipboard, or the exported files) and saves a screenshot.
 //
-//   node tools/e2e/m5-review.mjs --audio <wav> --models <dir> [--data <dir>] [--out <dir>] [--port 9783]
+//   node tools/e2e/m5-review.mjs --audio <wav> --models <dir> [--chapters-audio <wav>] [--part all|1.x|2.0] [--data <dir>] [--out <dir>] [--port 9783]
 //
 // --audio is imported with "Import audio or video" (Windows' own picker, answered by answer-dialog.ps1). A synthetic
 // two-voice WAV is made by `powershell -File tools/e2e/speech.ps1 -Path artifacts/e2e-fixtures/two-voices.wav`.
 // --models is a models folder (whisper and sherpa-onnx are copied; the run downloads nothing). The app runs with
 // LOCALAPPDATA pointed at --data (default artifacts/e2e-data-m5), so the real library is never touched.
+//
+// 2.0 (--part 2.0 runs only this; all runs it after the 1.x steps): known voices, the match prompt, selecting lines and
+// suggested chapters (review20 below). --chapters-audio is a seven-minute three-subject WAV:
+// `powershell -File tools/e2e/speech.ps1 -Path artifacts/e2e-fixtures/three-subjects.wav -Script chapters`.
 
 import { execFileSync, spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,6 +27,8 @@ const dataRoot = resolve(option(args, '--data', join(repoRoot, 'artifacts', 'e2e
 const out = resolve(option(args, '--out', join(repoRoot, 'artifacts', 'e2e', 'm5-review')));
 const audio = resolve(option(args, '--audio', join(repoRoot, 'artifacts', 'e2e-fixtures', 'two-voices.wav')));
 const models = option(args, '--models', null);
+const chaptersAudio = resolve(option(args, '--chapters-audio', join(repoRoot, 'artifacts', 'e2e-fixtures', 'three-subjects.wav')));
+const part = option(args, '--part', 'all');
 const run = new Run({ name: 'M5 Review editing and Undo', dataRoot, out, port: Number(option(args, '--port', '9783')) });
 
 /** Answers Windows' file picker titled `title` with `path`. */
@@ -42,6 +48,141 @@ const page = () => run.page;
 const undoLabel = () => page().eval(`document.querySelector('.undo-btn')?.getAttribute('aria-label') ?? null`);
 const status = () => page().eval(`document.querySelector('.undo-status')?.textContent ?? ''`);
 
+/**
+ * 2.0 Review (DESIGN.md §19), through the real UI: Remember speakers by voice turned on in Settings, a speaker named
+ * in Review (the voice is learned into voices/known.json), the same audio imported again and the match prompt
+ * accepted (the speaker is named and the voice refined), a suggested chapter accepted on a seven-minute three-subject
+ * recording, and two lines selected (Ctrl+click) and given a speaker from the selection bar, with Undo.
+ */
+async function review20({ audio, chaptersAudio }) {
+  const known = () => (existsSync(join(run.memento, 'Library', 'voices', 'known.json')) ? readJson(join(run.memento, 'Library', 'voices', 'known.json')) : null);
+  const waitDone = async (count, what) => {
+    await run.until(() => run.projectIds().length >= count, what, 60_000);
+    const id = run.projectIds().find((p) => !seen.has(p));
+    seen.add(id);
+    await run.until(() => {
+      const stages = run.manifest(id).stages;
+      return stages.length > 2 && stages.every((s) => s.state === 'done' || s.state === 'failed');
+    }, `${what} to be transcribed`, 15 * 60_000, 1000);
+    run.check(`${what}: every stage done`, run.manifest(id).stages.every((s) => s.state === 'done'), run.manifest(id).stages.map((s) => `${s.stage}:${s.state}`).join(', '));
+    return id;
+  };
+  const importFile = async (file, _count, what) => {
+    const count = run.projectIds().length + 1;
+    await page().click({ name: 'Library' }).catch(() => null);
+    await sleep(800);
+    const answered = answerDialog('Import audio or video', file);
+    if (await page().locate({ name: 'Import audio or video' })) {
+      await page().click({ name: 'Import audio or video' });
+    } else {
+      await page().click({ name: 'More library actions' });
+      await page().click({ name: 'Import audio or video…' });
+    }
+    await answered;
+    return waitDone(count, what);
+  };
+  const openReview = async (id) => {
+    await page().eval(`location.hash = '#/review/${id}'`);
+    await page().waitFor(`!!document.querySelector('.review-panes') && document.querySelectorAll('.segm').length > 1`, 'Review with the transcript', 60_000);
+  };
+  const clickWith = async (selector, modifiers) => {
+    const at = await page().locate(selector);
+    if (!at) throw new Error(`no ${selector}`);
+    const mask = (modifiers.includes('ctrl') ? 2 : 0) | (modifiers.includes('shift') ? 8 : 0);
+    await page().send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+    await page().send('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1, modifiers: mask });
+    await page().send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1, modifiers: mask });
+  };
+  const seen = new Set(run.projectIds());
+
+  // 1. Settings › Speakers: Remember speakers by voice is off; turn it on.
+  await page().click({ name: 'Settings' });
+  await page().click({ name: 'Speakers', role: 'tab' }).catch(() => page().click({ name: 'Speakers' }));
+  await page().waitFor(`!!document.querySelector('[role="switch"][aria-label="Remember speakers by voice"]')`, 'the Remember switch');
+  run.check('Remember speakers by voice starts off', (await page().eval(`document.querySelector('[role="switch"][aria-label="Remember speakers by voice"]').getAttribute('aria-checked')`)) === 'false');
+  await page().click({ selector: '[role="switch"][aria-label="Remember speakers by voice"]' });
+  await run.until(() => JSON.parse(readFileSync(join(run.memento, 'settings.json'), 'utf8')).speakers?.rememberVoices === true, 'rememberVoices in settings.json');
+  await run.shot('20-remember-on');
+
+  // 2. Import the two voices; name the first line's speaker in People.
+  await page().click({ name: 'Library' });
+  const first = await importFile(audio, 1, 'the first import');
+  await openReview(first);
+  const t1 = transcriptOf(first);
+  const speaker = t1.speakers.find((s) => s.id === t1.segments[0].speaker) ?? t1.speakers[0];
+  await page().click({ name: `Rename ${speaker.name}` });
+  await page().waitFor(`document.activeElement?.classList.contains('person-input')`, 'the rename field');
+  await page().eval(`document.activeElement.select()`);
+  await page().type('Avery Quinn');
+  await page().key('Enter');
+  await run.until(() => known()?.voices?.some((v) => v.name === 'Avery Quinn'), 'Avery Quinn in voices/known.json');
+  const learned = known().voices.find((v) => v.name === 'Avery Quinn');
+  run.check('naming a speaker learned the voice (signature, never audio)', learned.samples.length === 1 && learned.samples[0].embedding.length > 100 && learned.recordings[0] === first, `${learned.samples[0].embedding.length} numbers, ${learned.samples[0].seconds} s of speech`);
+  await run.shot('20-named');
+
+  // 3. The same audio again: the prompt under the unnamed speaker; Use name.
+  const second = await importFile(audio, 2, 'the same audio imported again');
+  await openReview(second);
+  await page().waitFor(`!!document.querySelector('.voice-match')`, 'the match prompt', 30_000);
+  const prompt = await page().text('.voice-match');
+  run.check('the prompt says who it sounds like', prompt.includes('Sounds like Avery Quinn') && prompt.includes('1 past recording'), prompt);
+  await run.shot('20-match-prompt');
+  await page().click({ selector: '.voice-match .btn.p' });
+  await run.until(() => transcriptOf(second).speakers.some((s) => s.name === 'Avery Quinn' && s.renamed), 'Avery Quinn named in the second recording');
+  run.check('Use name named the speaker', true);
+  await run.until(() => known().voices.find((v) => v.name === 'Avery Quinn')?.recordings.length === 2, 'the voice refined');
+  run.check('the known voice now has two confirmations', known().voices.find((v) => v.name === 'Avery Quinn').samples.length === 2);
+  run.check('the step is undoable', (await undoLabel()) === 'Undo use the name Avery Quinn', await undoLabel());
+  await page().waitFor(`!document.querySelector('.voice-match')`, 'the prompt gone');
+  await run.shot('20-match-accepted');
+
+  // 4. Select two lines with Ctrl+click and give them the other speaker from the bar; then Undo.
+  const t2 = transcriptOf(second);
+  const target = t2.speakers.find((s) => s.name !== 'Avery Quinn') ?? t2.speakers[0];
+  const lines = t2.segments.slice(0, 4).filter((s) => s.speaker !== target.id).slice(0, 2);
+  if (lines.length < 2) {
+    run.check('two lines by Avery Quinn to move', false, 'the first lines are already the other speaker’s');
+  } else {
+    await clickWith(`[data-segment-id="${lines[0].id}"] .segm-side`, ['ctrl']);
+    await clickWith(`[data-segment-id="${lines[1].id}"] .segm-side`, ['ctrl']);
+    await page().waitFor(`(document.querySelector('.sel-count')?.textContent ?? '').startsWith('2 lines selected')`, 'two lines selected');
+    await run.shot('20-two-selected');
+    await page().click({ name: 'Assign speaker…' });
+    await page().waitFor(`!!document.querySelector('.speaker-menu')`, 'the speaker menu');
+    await page().eval(`[...document.querySelectorAll('.speaker-menu [role="option"]')].find((o) => o.textContent.trim() === ${JSON.stringify(target.name)}).click()`);
+    await sleep(300);
+    if (await page().eval(`!!document.querySelector('.speaker-menu--choices')`)) {
+      await run.shot('20-assign-choices');
+      await page().click({ selector: '.speaker-menu--choices [data-choice="lines"]' });
+    }
+    await run.until(() => lines.every((l) => transcriptOf(second).segments.find((s) => s.id === l.id)?.speaker === target.id), 'both lines given to the other speaker');
+    run.check('the two selected lines moved in one step', (await undoLabel()) === `Undo move 2 lines to ${target.name}`, await undoLabel());
+    await run.shot('20-assigned');
+    await page().click({ name: `Undo move 2 lines to ${target.name}` });
+    await run.until(() => lines.every((l) => transcriptOf(second).segments.find((s) => s.id === l.id)?.speaker === l.speaker), 'the lines back after Undo');
+    run.check('Undo gave the lines back', true);
+    await page().key('Escape');
+    await page().waitFor(`!document.querySelector('.sel-bar')`, 'Esc to leave selection mode');
+  }
+
+  // 5. Suggested chapters on a seven-minute, three-subject recording: accept one.
+  await page().click({ name: 'Library' });
+  const third = await importFile(chaptersAudio, 3, 'the three-subject recording');
+  await openReview(third);
+  await page().waitFor(`document.querySelectorAll('.sug-chapter').length > 0`, 'suggested chapters', 30_000);
+  const suggested = await page().eval(`[...document.querySelectorAll('.sug-chapter')].map((r) => r.querySelector('.chap-at').textContent + ' ' + r.querySelector('.sug-chapter-title').firstChild.textContent)`);
+  run.log('suggested chapters', suggested.join(' | '));
+  run.check('a subject change is suggested', suggested.length >= 2, suggested.join(' | '));
+  await run.shot('20-suggested-chapters');
+  const before = annotationsOf(third).chapters?.length ?? 0;
+  await page().click({ selector: '.sug-chapter:nth-child(2) .sug-icon-btn--ok' });
+  await run.until(() => (annotationsOf(third).chapters?.length ?? 0) === before + 1, 'the accepted chapter in annotations.json');
+  const accepted = annotationsOf(third).chapters.at(-1);
+  run.check('the accepted suggestion is an ordinary chapter (origin local)', accepted.origin === 'local', `${accepted.atMs} ms "${accepted.title}"`);
+  await run.shot('20-chapter-accepted');
+}
+
+
 try {
   rmSync(dataRoot, { recursive: true, force: true });
   if (models) {
@@ -51,6 +192,9 @@ try {
   }
   await run.start(['--simulate-audio', '--update-feed=off']);
   await run.hasText('Your library is empty');
+  if (part === '2.0') {
+    await review20({ audio, chaptersAudio });
+  } else {
 
   // 1. Import the speech and wait for the transcript and speakers.
   const answered = answerDialog('Import audio or video', audio);
@@ -277,6 +421,8 @@ try {
   run.check('voices.json is kept beside the transcript', existsSync(join(run.folder(id), 'voices.json')));
   await page().waitFor(`[...document.querySelectorAll('.person[data-speaker-id]')].length === 2`, 'two people in the People list', 10_000).catch(() => null);
   await run.shot('identified-again');
+  if (part === 'all') await review20({ audio, chaptersAudio });
+  }
   await run.shot('done');
   await run.app.close();
 } catch (error) {

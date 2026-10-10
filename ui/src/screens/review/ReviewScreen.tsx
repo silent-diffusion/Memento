@@ -38,6 +38,7 @@ import { useTranscriptView } from './TranscriptFilter';
 import { asOfWording } from '../../format/history';
 import { restoreTranscriptVersion, useHistoryLinks } from './historyVersions';
 import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptVersionView';
+import { useReview20Wiring } from './Review20';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -241,6 +242,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     };
   }, [undo, scope]);
   const depsRef = useRef<ReviewActionDeps | null>(null);
+  const rememberVoices = store.settings.value?.speakers.rememberVoices ?? false;
   depsRef.current = {
     bridge,
     recordingId,
@@ -252,6 +254,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     setProject: (p) => {
       setProject(p);
     },
+    rememberVoices,
   };
   const actions = useMemo(
     () =>
@@ -327,6 +330,28 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
       }
     });
   };
+
+  // 2.0 (DESIGN.md §19): known-voice match prompts, suggested chapters, selection mode and the line context menu.
+  const review20 = useReview20Wiring({
+    bridge,
+    recordingId,
+    undo,
+    api: transcriptApi,
+    actions,
+    project,
+    transcript,
+    patch,
+    rememberVoices,
+    seek: player.seek,
+    onError: warn,
+    copyLines: (segmentIds, format) => {
+      void copyTranscript(bridge, store, { recordingId, format, options: readTranscriptText(), segmentIds }).then((done) => {
+        if (done !== null) {
+          undo.announce(done);
+        }
+      });
+    },
+  });
 
   const jump = (match: TranscriptSearchMatch): void => {
     player.seek(match.start * 1000);
@@ -520,6 +545,8 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               onMergeSpeakers={(from, into) => {
                 actions.mergeSpeakers(from, into).catch(fail(`${from.name} was not merged into ${into.name}`));
               }}
+              speakerExtra={review20.speakerExtra}
+              chaptersExtra={review20.chaptersExtra}
               peopleExtra={
                 <PeopleWhoSpoke
                   whoSpoke={project.details.whoSpoke}
@@ -598,6 +625,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   onCopyVisible={() => {
                     copy(readCopyFormat());
                   }}
+                  lineActions={review20.lineActions}
                 />
                 )}
               </div>

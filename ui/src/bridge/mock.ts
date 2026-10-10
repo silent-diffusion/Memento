@@ -10,6 +10,7 @@ import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
 import { createMockClipboard } from './mockClipboard';
+import { createMockReview } from './mockReview';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { linkHistory } from './mockHistory';
 import { localModelsInstalled } from './mockLocalModel';
@@ -140,7 +141,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       keepWordTimestamps: true,
       lowConfidenceThreshold: 0.5,
     },
-    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet },
+    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet, rememberVoices: false },
     history: { keepVersions: true, keepDays: 90 },
     ...defaultM3Settings(),
     documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate' },
@@ -587,6 +588,9 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     busy: () => options.clipboardBusy ?? false,
   });
 
+  // 2.0 Review: known voices, suggested chapters, several lines to one speaker.
+  const review = createMockReview({ find, transcription, settings: () => settings, now });
+
   const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
 
   /** Like the host: each field present (not null) replaces the stored one; the others keep their value. */
@@ -958,6 +962,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     ...m3.handlers,
     ...m4.handlers,
     ...clipboard.handlers,
+    ...review.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {
