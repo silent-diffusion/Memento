@@ -854,3 +854,69 @@ interface LibraryUsage { /* … */ separateTracksBytes: number; separateTracksRe
 | `storage.keepOnlyMix` | `{ recordingIds: string[] \| null }` | `{ jobId }` | Settings › Storage and history › Keep only the mix for existing recordings, after the page's confirmation (size, what is kept, cannot be undone). `null`: every stored recording that still has separate tracks and a mix. Each recording goes through the stage step above (mix checked first); busy ones are skipped. Progress and the final message through `storage.reclaimProgress` ("2 recordings keep only the mix; 1.2 GB freed. Transcripts, speakers and the mixes were not changed."). `storage.nothingToReclaim` for `[]` or when no recording has separate tracks; `project.notFound` for an unknown id; `library.busy` during a move or another reclaim. |
 
 `export.estimate` lists `tracks` as unavailable with the reason "Only the mix was kept", and the Export dialog leaves the Individual tracks row out; Review's People pane offers Reduce but not Identify speakers again (there is nothing per track to listen to); `library.usage` counts what separate tracks use.
+
+# Video (2.0, proposed)
+
+Proposed with the 2.0 video spike (ENGINE-NOTES.md §M, ARCHITECTURE.md §5.x). Nothing below is implemented in the host or the UI yet: no constant in `BridgeEventNames` or `DomainErrorCodes`, no type in `ui/src/bridge/types.ts`, so `ContractDocumentationTests` is unaffected (it checks that every host code and event is documented, not the reverse). The capture library behind it (`src/Memento.Video`) exists and is tested; the methods are wired when the Recording screen's VIDEO section is built. Video never leaves the PC: none of these methods sends anything anywhere, and no frame or thumbnail is ever given to an AI provider.
+
+## Shared types (2.0, proposed)
+
+```ts
+type VideoSourceKind = 'display' | 'window' | 'camera';
+interface VideoSource {
+  id: string;                 // 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>' (VideoSourceId)
+  kind: VideoSourceKind;
+  name: string;               // "Display 1", the window title, the camera's name
+  detail: string;             // "2560 × 1440 · 60 Hz · primary", "Zoom · 1600 × 900", "This app is excluded from capture"
+  width: number; height: number; refreshRate: number;
+  primary: boolean;
+  excluded: boolean;          // Memento's own windows and windows that keep themselves out of captures: listed, not selectable
+}
+interface VideoTrackStatus {      // DESIGN.md §18.1 Encoder card and footer (VideoSessionStatus)
+  trackId: string;                // 'screen' | 'camera'
+  state: 'recording' | 'paused' | 'waiting' | 'ended' | 'stopped';
+  sourceName: string;
+  reason: string | null;          // the §18.6 sentence while waiting or after it ended
+  encoder: string;                // "NVIDIA H.264 Encoder MFT"
+  hardware: boolean;              // "Hardware · GPU" or "Software · CPU"
+  width: number; height: number; frameRate: number;
+  targetBitsPerSecond: number; actualBitsPerSecond: number;
+  framesWritten: number; framesDropped: number;
+  bytesWritten: number; durationMs: number;
+}
+interface VideoSettings {         // Settings › Recording › Video defaults (§18.5)
+  defaultSource: 'screen' | 'window' | 'camera' | 'screenAndCamera';
+  resolution: 'display' | '1080p' | '720p';
+  frameRate: 24 | 30 | 60;
+  quality: 'smaller' | 'balanced' | 'best';
+  defaultCameraId: string | null;
+  pipCorner: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+  hardwareEncoder: boolean;
+  includePointer: boolean;
+}
+```
+
+## Methods (2.0, proposed)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `video.listSources` | `{}` | `{ displays: VideoSource[], windows: VideoSource[], cameras: VideoSource[] }` | Re-enumerates without opening anything (no camera light, no capture border). `sources.list` answers `videoAvailable: true` from 2.0. |
+| `video.thumbnail` | `{ sourceId, width }` | `{ dataUrl }` | One still for the picker tile and the 72 × 42 row thumbnail; a camera is opened for it only while the Recording screen shows it. |
+| `recording.setVideoSource` | `{ sessionId, role: 'screen' \| 'camera', sourceId: string \| null }` | `{ videoTracks: VideoTrackStatus[] }` | Starts, switches ("You can change this while recording; the track continues", §18.2) or ends the role's track. Errors below. |
+| `recording.setPip` | `{ sessionId, enabled, corner }` | `{}` | Only the live preview and Review draw the inset; both tracks are always recorded. |
+| `video.openPrivacySettings` | `{ which: 'camera' \| 'screenCapture' }` | `{}` | Opens Windows Settings at the camera or screen-capture privacy page. |
+| `video.remove` | `{ recordingId }` | `{ freedBytes }` | The §18.6 Remove video dialog's action: a stage that deletes the video files, keeps audio, transcript and documents, and writes History. |
+
+`recording.start` takes video source ids in `sourceIds` like audio ones; a video source that cannot start never keeps the audio from starting (it is reported with `recording.videoProblem` instead).
+
+## Events (2.0, proposed)
+
+| Event | Payload | Notes |
+|---|---|---|
+| `recording.videoStatus` | `{ sessionId, videoTracks: VideoTrackStatus[] }` | Once a second while recording, beside `recording.state`. |
+| `recording.videoProblem` | `{ sessionId, trackId, state, code, message, atMs }` | The §18.6 toast, banner or card: display disconnected (waiting), window closed (ended), hardware encoder failed (continues in software), low disk with video, camera in use or privacy off. |
+| `video.sourcesChanged` | `{}` | A display, window or camera came or went while the picker is open. |
+
+## Error codes (2.0, proposed)
+
+`video.sourceNotFound` (the display, window or camera is not there), `video.protectedContent` (the window keeps itself out of captures), `video.captureBlocked` (Windows privacy settings block screen capture), `video.cameraPrivacy` (a camera privacy switch is off; the message names which), `video.cameraInUse` (another app holds the camera; named when Windows records which), `video.encoderUnavailable` (no H.264 encoder opened), `video.diskFull` (video stopped first; audio continues).
