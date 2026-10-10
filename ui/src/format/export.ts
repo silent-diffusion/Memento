@@ -1,6 +1,6 @@
 // Export wording and the folder an export is written to (DESIGN.md §15, BRIDGE.md M3). The host
 // names the subfolder the same way; the dialog only previews it.
-import type { AudioExportFormat, DocumentExportFormat, ExportComponent, ExportEstimate, ExportSelection, TranscriptExportFormat } from '../bridge/types';
+import type { AudioExportFormat, DocumentExportFormat, ExportComponent, ExportEstimate, ExportSelection, ExportVideoChoice, TranscriptExportFormat } from '../bridge/types';
 
 // Characters Windows does not allow in a file name, and control characters.
 // eslint-disable-next-line no-control-regex
@@ -101,10 +101,15 @@ export function everythingOn(selection: ExportSelection): ExportSelection {
     documents: { ...selection.documents, on: true, documentIds: [] },
     details: { on: true },
     attachments: { on: true },
+    // 2.0 video: the chosen layout and format, so the row's size is the one it would write.
+    video: { ...(selection.video ?? DEFAULT_VIDEO_EXPORT), on: true },
   };
 }
 
-export const EXPORT_COMPONENTS: readonly ExportComponent[] = ['audioMixed', 'tracks', 'transcript', 'documents', 'details', 'attachments'];
+/** 2.0 video: what an export selection without a video choice means. */
+export const DEFAULT_VIDEO_EXPORT: ExportVideoChoice = { on: false, format: 'mp4', layout: 'oneFile' };
+
+export const EXPORT_COMPONENTS: readonly ExportComponent[] = ['audioMixed', 'tracks', 'video', 'transcript', 'documents', 'details', 'attachments'];
 
 /** Is this component ticked in the selection? */
 export function isOn(selection: ExportSelection, component: ExportComponent): boolean {

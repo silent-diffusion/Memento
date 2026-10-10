@@ -5,6 +5,7 @@ import type {
   LibraryListResult,
   LibraryProcessingResult,
   RecordingSummary,
+  StageFailure,
   StageStatus,
 } from './types';
 
@@ -96,14 +97,15 @@ export interface MockPipeline {
  * The most recent recording that is still processing, and how many others are. The card's `stages`
  * are the whole pipeline; `meta` is the row, which leaves finished stored and optimize stages out.
  */
-export function processingOf(recordings: readonly MockPipeline[]): LibraryProcessingResult {
-  const processing = recordings.filter((r) => r.summary.isProcessing).sort((a, b) => byNewest(a.summary, b.summary));
+export function processingOf(recordings: readonly MockPipeline[], failureOf: (recordingId: string) => StageFailure | null = () => null): LibraryProcessingResult {
+  // 2.0 video: a recording whose video stage failed stays current until a remedy is chosen (BRIDGE.md additions).
+  const processing = recordings.filter((r) => r.summary.isProcessing || failureOf(r.summary.id) !== null).sort((a, b) => byNewest(a.summary, b.summary));
   const [current] = processing;
   if (current === undefined) {
     return { current: null, othersCount: 0 };
   }
   return {
-    current: { recordingId: current.summary.id, title: current.summary.title, meta: current.summary, stages: current.stages },
+    current: { recordingId: current.summary.id, title: current.summary.title, meta: current.summary, stages: current.stages, failure: failureOf(current.summary.id) },
     othersCount: processing.length - 1,
   };
 }

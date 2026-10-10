@@ -67,6 +67,7 @@ describe('§17 copy', () => {
       lastCheckpointAt: null,
       recoveredDurationMs: (3600 + 2 * 60 + 14) * 1000,
       mayBeMissingMs: 20_000,
+      videoTracks: [],
     });
     record(copy.title, copy.lead + copy.rest);
     expect(copy.title).toBe('Recovered an interrupted recording');
@@ -85,6 +86,7 @@ describe('§17 copy', () => {
       lastCheckpointAt: null,
       recoveredDurationMs: 61_000,
       mayBeMissingMs: 0,
+      videoTracks: [],
     });
     expect(copy.rest).toBe(' was saved up to 1:01 before the recording was interrupted. 2 of 3 tracks are intact.');
   });

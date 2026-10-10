@@ -46,8 +46,14 @@ export function mergeSettings(before: SettingsSnapshot, patch: SettingsSetParams
             // M4: a null default provider clears it.
             defaultProviderId: 'defaultProviderId' in patch.ai ? (patch.ai.defaultProviderId ?? null) : before.ai.defaultProviderId,
           },
+    // Field by field; a null age clears it (Never), for making smaller and (2.0) for removing video.
     storage:
-      patch.storage != null && 'reclaimOlderThanDays' in patch.storage ? { reclaimOlderThanDays: patch.storage.reclaimOlderThanDays ?? null } : before.storage,
+      patch.storage == null
+        ? before.storage
+        : {
+            reclaimOlderThanDays: 'reclaimOlderThanDays' in patch.storage ? (patch.storage.reclaimOlderThanDays ?? null) : before.storage.reclaimOlderThanDays,
+            removeVideoOlderThanDays: 'removeVideoOlderThanDays' in patch.storage ? (patch.storage.removeVideoOlderThanDays ?? null) : before.storage.removeVideoOlderThanDays,
+          },
     // M4
     documents: { ...before.documents, ...definedFields(patch.documents) },
   };
