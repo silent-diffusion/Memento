@@ -174,8 +174,30 @@ try {
     log('live unavailable', summary.liveCard);
   }
 
-  const left = seconds * 1000 - (Date.now() - startedAt);
-  if (left > 0) await sleep(left);
+  // How far behind the recording the draft runs: every 2 s, the recorded time against the newest line's start.
+  const lags = [];
+  const seen = new Set();
+  while (Date.now() - startedAt < seconds * 1000) {
+    const sample = await page.eval(`(() => {
+      const clock = /(\\d\\d):(\\d\\d):(\\d\\d)/.exec(document.querySelector('[aria-label="Recording"]')?.innerText ?? '');
+      const at = [...document.querySelectorAll('[aria-label="Live transcript"] .rec-live-at')].map((e) => e.innerText);
+      const toS = (t) => { const m = /(\\d\\d):(\\d\\d):(\\d\\d)/.exec(t); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : null; };
+      return { elapsed: clock ? toS(clock[0]) : null, newest: at.length ? toS(at[at.length - 1]) : null, state: document.querySelector('[aria-label="Live transcript"] .pill')?.className ?? null };
+    })()`);
+    if (liveModel && sample.elapsed !== null && sample.newest !== null) {
+      lags.push(sample.elapsed - sample.newest);
+      seen.add(Math.floor(sample.newest / 10));
+    }
+    await sleep(2000);
+  }
+  if (liveModel) {
+    const sorted = [...lags].sort((a, b) => a - b);
+    summary.lag = { samples: lags.length, medianSeconds: sorted[Math.floor(sorted.length / 2)] ?? null, maxSeconds: sorted.at(-1) ?? null, windowsWithLines: seen.size, windowsRecorded: Math.floor(seconds / 10) };
+    log('lag', JSON.stringify(summary.lag));
+    // Every window but the first and the one still being heard should have produced lines (the speech loops without gaps).
+    check(summary.lag.windowsWithLines >= summary.lag.windowsRecorded - 2, `the draft keeps up (${summary.lag.windowsWithLines} of ${summary.lag.windowsRecorded} windows with lines)`);
+    check(summary.lag.maxSeconds <= 30, `the newest line is never more than 30 s behind (${summary.lag.maxSeconds} s)`);
+  }
   const cpuEnd = cpuTimes();
   summary.cpu = cpuBetween(cpuStart, cpuEnd, Date.now() - startedAt, threads);
   log('cpu while recording', JSON.stringify(summary.cpu));

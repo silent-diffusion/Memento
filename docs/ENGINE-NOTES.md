@@ -398,7 +398,7 @@ What this decided (`VoiceMatcher`):
 
 Design: ARCHITECTURE.md §5.9. Measured on the reference laptop (16 processor threads, RTX 3060 Laptop) while other agents' builds and test runs loaded it, so every time below is contended and on the slow side.
 
-**Small and Base were not on this PC**, and downloading one was not done in this run (it needs the product owner's go-ahead: 466 MB from huggingface.co). So the Small model itself was not measured; what was measured:
+**First pass, without Small.** Small and Base were not on this PC at first, so the first measurements stood in for the engine:
 
 | Check | How | Result |
 |---|---|---|
@@ -406,8 +406,21 @@ Design: ARCHITECTURE.md §5.9. Measured on the reference laptop (16 processor th
 | Capture under a live engine's load | The same recording while `TranscriptionCheck live` ran the live worker at the same time with Turbo on the processor, 4 threads (the cap), back to back for 153 s | Every one of the four tracks exactly as long as the recording (61,840 ms of 61,840 ms), no gaps, finalize and the full pass normal. The worker held 24.6 % of the PC (601 s of processor time over 153 s, about 3.9 threads): the thread cap holds. |
 | The live worker's windows | `TranscriptionCheck live <wav> --model-file … --threads 4` (the job the app sends, windows read by `LiveMixReader`) | Turbo on the processor: 35–48 s per 10 s window, so far too slow for live use, which is why the live transcript never uses it. The text of each window was right ("Good morning. Let us start with the library screen and the row height.", …). |
 
-What to expect from Small (not measured here): its encoder does about an eighth of large-v3-turbo's work (12 layers of width 768 against 32 of 1280), so on the same 4 threads a 10 s window should take a few seconds; the worker then works about a quarter of the time at most, around 6 % of a 16-thread PC on average and 25 % while it hears a window. The window skip (`LiveWindows`) keeps a slow PC from queueing work: the draft gets coarser, never later. To measure it: put `ggml-small.bin` in `--models` and run `node tools/e2e/m7-live.mjs --models <dir>` (the run then also checks that live lines appear and are replaced after Stop), and `TranscriptionCheck live <wav> --model-file ggml-small.bin`.
+**With Small (follow-up).** `whisper-small` was then installed the way the product does it: Settings › Transcription › Install in the published build on a private data root (downloaded from Hugging Face, SHA-256 checked, 487,601,967 bytes), and kept under `artifacts/` for reuse. The same 4-track simulated recording (microphone looping the two-voice WAV, nothing played), 3 minutes, live on, on the processor:
+
+| | As first built | With the fix below |
+|---|---|---|
+| One 10 s window, `TranscriptionCheck live --threads 4` | 9.4–10.5 s (97 % of the audio time) | 3.2–4.1 s (37 %) |
+| Live worker, 3-minute recording (`m7-live.mjs`) | 665 s of processor time = **22.8 %** of the 16-thread PC, busy all the time | 223 s = **7.7 %** of the PC |
+| Memento itself (capture, writers, mix reading) | 0.9 % | 0.7 % |
+| Windows with lines | 12 of 18 (6 skipped to catch up) | 17 of 18 (none skipped; the 18th was still being heard) |
+| Newest line behind the recording (median / max, sampled every 2 s) | 30 s / 46 s | 14 s / 23 s |
+| Tracks against the recording | all four exactly as long | all four exactly as long |
+
+**The fix:** Whisper's encoder always works on 30 s of audio, so a 10 s window cost as much as 30 s. The live job now sets the encoder's audio context to 640 frames (12.8 s; 1,500 is 30 s) and turns off the retries at higher temperatures (`WithAudioContextSize`, `WithTemperatureInc(0)`; the full pass is unchanged). 512 frames (10.2 s) was a little faster but made the model repeat a sentence cut at the window's end ("…at 68 pixels, and the row height should be at 68 pixels"); 640 heard the fixture word for word as the full context did.
+
+What the draft looks like: the lines follow the speech closely ("Next, the dark theme. Do we ship it in this release or the next one?"); where a window cuts a sentence, the model sometimes completes it from its own guess ("the colors are done in the dark theme" for "the colors are done and the contrast checks…"), which the full pass after Stop gets right (42 lines, replacing the draft). The newest line runs 10–20 s behind: a window is heard only once it is complete on disk (up to 10 s plus the writers' 1 s flush), then takes about 3.5 s. The window skip (`LiveWindows`) keeps a slower PC from queueing work: the draft gets coarser, never later.
 
 - **The mix reader** costs nothing measurable: file lengths every 500 ms, and one 10 s read of each track per window (4 × 0.5–1 MB).
 - **Never saved**: the e2e run checks the project folder after Stop for a draft and finds none; `LiveTranscriptTests` check the same with the scripted worker.
-- **Not verified**: the Small and Base models (not on this PC); the live transcript on the graphics card on real hardware (unit tests only: on the card when allowed and free, gives way to a full pass or a document); real WASAPI devices while live runs (the simulated engine was used, as the product owner asked for no sound).
+- **Not verified**: Base (Small was measured; Base is only the fallback); the live transcript on the graphics card on real hardware (unit tests only: on the card when allowed and free, gives way to a full pass or a document); yielding to a full pass with the real model in the app (a recording holds the full pass back while "Pause when the PC is busy" is on, the default; unit tests cover a running pass); real WASAPI devices while live runs (the simulated engine was used, as the product owner asked for no sound); Base and a 2-thread PC.
