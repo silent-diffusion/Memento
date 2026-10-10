@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Display, window and camera capture and H.264 encoding (2.0, ENGINE-NOTES.md §M). Windows.Graphics.Capture comes
+      from the Windows SDK projection of the same target the app uses (10.0.19041); Direct3D 11 and Media Foundation
+      come through Vortice (MIT, SharpGen bindings). Windows 11 only features (turning the capture border off) are
+      reached through their COM interfaces and skipped where Windows does not have them.
+    -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>Memento.Video</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Vortice.Direct3D11" />
+    <PackageReference Include="Vortice.MediaFoundation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- QpcClock: video frames are stamped on the audio timeline's clock. -->
+    <ProjectReference Include="..\Memento.Audio\Memento.Audio.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Memento.Video.Tests" />
+    <InternalsVisibleTo Include="VideoCheck" />
+  </ItemGroup>
+
+</Project>

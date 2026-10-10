@@ -31,6 +31,10 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | Microsoft.Windows.SDK.NET projection: `Windows.Media.Ocr`, `Windows.Graphics.Imaging` (from the `net8.0-windows10.0.19041.0` target of Memento.Documents) | MIT | Windows text recognition and image decoding for agenda photos; the OCR languages are part of Windows |
 | Microsoft.Windows.SDK.NET projection: `Windows.Data.Pdf` (same target, M3) | MIT | Renders the pages of a scanned PDF agenda (no text layer) for text recognition; the renderer is part of Windows |
 | System.Security.Cryptography.ProtectedData (8.0.0, M3) | MIT | Windows DPAPI (current-user scope) for the AI provider keys in `secrets.bin` |
+| Vortice.Direct3D11, Vortice.DXGI, Vortice.DirectX, Vortice.MediaFoundation (3.8.3, 2.0, `Memento.Video`) | MIT | Direct3D 11 device, GPU colour conversion and scaling (video processor), Media Foundation sink writer (H.264, fragmented MP4), source reader (camera, remux) and encoder enumeration |
+| Vortice.Mathematics (2.1.0, Vortice dependency) | MIT | Vector and rectangle types used by the Vortice bindings |
+| SharpGen.Runtime, SharpGen.Runtime.COM (2.4.2-beta, Vortice dependencies) | MIT | COM interop runtime of the Vortice bindings. A pre-release version: it is the one every Vortice 3.8 package depends on (SharpGen 2.x has only ever been published as pre-release); the product owner should accept it or pin an older Vortice. |
+| Microsoft.Windows.SDK.NET projection: `Windows.Graphics.Capture`, `Windows.Graphics.DirectX.Direct3D11` (same 10.0.19041 target, 2.0) | MIT | Display and window capture; the capture engine is part of Windows |
 
 Shipped in the `worker\` folder beside the app (`Memento.Worker.exe`, M2; published self-contained there with its own copy of the .NET runtime, MIT):
 
