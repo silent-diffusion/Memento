@@ -46,7 +46,8 @@ public sealed partial class VideoSourceWatch(IVideoCapture capture, BridgeEventP
     internal static string Key(Bridge.Contracts.VideoSourcesResult sources) =>
         string.Join('\n', sources.Displays.Concat(sources.Windows).Concat(sources.Cameras).Select(s => s.Id + "|" + s.Name + "|" + s.Excluded).Order(StringComparer.Ordinal));
 
-    private void Tick()
+    /// <summary>One look at the sources (the timer calls it; tests call it directly).</summary>
+    internal void Tick()
     {
         if (Interlocked.Exchange(ref _ticking, 1) == 1)
         {
