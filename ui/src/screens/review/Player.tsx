@@ -227,6 +227,8 @@ interface PlayerStripProps {
   search: SearchApi | null;
   onJump: (match: TranscriptSearchMatch) => void;
   skip: SkipSilencesState;
+  /** 2.0: the video area above the waveform (ReviewVideo.tsx); null without video. */
+  video?: JSX.Element | null;
 }
 
 /** The Skip silences chip: on or off, and whether there is a transcript to find the silences in. */
@@ -403,18 +405,34 @@ function TranscriptSearchField({ search, onJump }: { search: SearchApi | null; o
   );
 }
 
-export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump, skip }: PlayerStripProps): JSX.Element {
+export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump, skip, video = null }: PlayerStripProps): JSX.Element {
   const skipping = skip.available && skip.on;
   const landedAt = player.durationMs > 0 && player.skipped !== null ? Math.min(1, player.skipped.atMs / player.durationMs) : 0;
+  // Where playback landed after a jump; visual only (the chip's pressed state says it is on).
+  const caption =
+    skipping && player.skipped !== null ? (
+      <span key={player.skipped.id} class="mono player-skipped" aria-hidden="true" style={{ left: `clamp(72px, calc(32px + ${landedAt} * (100% - 64px)), calc(100% - 72px))` }}>
+        {skippedCaption(player.skipped.seconds)}
+      </span>
+    ) : null;
+  const wave = <Waveform player={player} peaks={peaks} skipped={skipping ? skip.gaps : null} />;
   return (
-    <div class="player">
-      {/* Where playback landed after a jump; visual only (the chip's pressed state says it is on). */}
-      {skipping && player.skipped !== null ? (
-        <span key={player.skipped.id} class="mono player-skipped" aria-hidden="true" style={{ left: `clamp(72px, calc(32px + ${landedAt} * (100% - 64px)), calc(100% - 72px))` }}>
-          {skippedCaption(player.skipped.seconds)}
-        </span>
-      ) : null}
-      <Waveform player={player} peaks={peaks} skipped={skipping ? skip.gaps : null} />
+    <div class={video === null ? 'player' : 'player player--video'}>
+      {video === null ? (
+        <>
+          {caption}
+          {wave}
+        </>
+      ) : (
+        <>
+          {video}
+          {/* With video above it, the caption sits just above the waveform. */}
+          <div class="player-wave-anchor">
+            {caption}
+            {wave}
+          </div>
+        </>
+      )}
       <Scrubber player={player} />
       <div class="player-controls">
         <button

@@ -104,7 +104,8 @@ describe('Review and transcript (against the browser-preview host)', () => {
   it('shows the header meta, outline, the transcript and the details facts', async () => {
     await open();
     expect(container.querySelector('.spoke-title')?.textContent).toBe('Design review: library screen');
-    expect(container.querySelector('.spoke-meta')?.textContent).toBe('Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · audio + video');
+    // 2.0: this recording has video, so the line ends with its sources and size (ReviewVideo.test.tsx).
+    expect(container.querySelector('.spoke-meta')?.textContent).toBe('Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · screen + camera · 1.8 GB video');
     expect(chapters()).toEqual([
       '0:00Opening and goals',
       '6:30Walkthrough of mockups',
@@ -122,7 +123,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     // The preview host's peaks.json (a blob URL) is fetched and drawn as 160 bars.
     await until(() => container.querySelectorAll('.wave-bar').length === 160);
     const facts = [...container.querySelectorAll('.facts dt')].map((dt) => dt.textContent);
-    expect(facts).toEqual(['Type', 'Recorded', 'Duration', 'Platform', 'Tracks', 'Purpose']);
+    expect(facts).toEqual(['Type', 'Recorded', 'Duration', 'Platform', 'Tracks', 'Video', 'Purpose']);
     expect(container.querySelector('.fact-mono')?.textContent).toBe('1:10:02');
     expect(container.querySelector('.detail-caption')?.textContent).toBe('agenda.docx · parsed locally · Replace');
     // People are the transcript's speakers with talk-time shares, then the participant they do not name.
@@ -144,7 +145,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     const details = panes?.querySelector(':scope > .review-details');
     expect([outline, centre, details].every((pane) => pane !== null && pane !== undefined)).toBe(true);
     // The centre column is the pinned player strip, then the transcript's own scrolling area.
-    expect([...(centre?.children ?? [])].map((c) => c.className)).toEqual(['player', 'review-scroll']);
+    expect([...(centre?.children ?? [])].map((c) => c.className)).toEqual(['player player--video', 'review-scroll']);
     const scroller = centre?.querySelector(':scope > .review-scroll');
     expect(scroller?.querySelector('.segm-list')).not.toBeNull();
     expect(scroller?.querySelector('.player')).toBeNull();

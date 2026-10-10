@@ -16,6 +16,7 @@ import { activeChapterIndex, chapterInsertIndex, historyTone } from '../../forma
 import { typeName } from '../../format/recording';
 import { speakerColourVar, talkShare, versionReasonText } from '../../format/transcript';
 import { calendarDaysBetween, formatClock, formatShortDate, parseIso } from '../../format/when';
+import { detailsRemovedRow, detailsVideoRow, NEVER_SENT_NOTE, videoTrackNames } from './videoCopy';
 
 // ---------------------------------------------------------------------------------------------
 // Outline
@@ -46,6 +47,8 @@ interface OutlineProps {
   speakerExtra?: (speaker: Speaker) => JSX.Element | null;
   /** 2.0: shown under the Chapters list (suggested chapters). */
   chaptersExtra?: JSX.Element | null;
+  /** 2.0 video: the Video block after Chapters (ReviewVideo.tsx); null without video. */
+  videoBlock?: JSX.Element | null;
 }
 
 /** The People list's part in the transcript filter (DESIGN.md §9, after 1.2.0). */
@@ -331,6 +334,7 @@ export function OutlinePane({
   peopleExtra = null,
   speakerExtra,
   chaptersExtra = null,
+  videoBlock = null,
 }: OutlineProps): JSX.Element {
   const [newChapterAt, setNewChapterAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState<number | null>(null);
@@ -403,6 +407,8 @@ export function OutlinePane({
         </div>
         {chaptersExtra}
       </div>
+
+      {videoBlock}
 
       <div class="outline-group">
         <div class="outline-head">
@@ -724,6 +730,11 @@ export function DetailsPane({
 }: DetailsPaneProps): JSX.Element {
   const { details, summary, tracks } = project;
   const agenda = details.agenda;
+  // 2.0 video: the video tracks lead the Tracks row; the Video row and the never-sent note follow.
+  const video = project.video;
+  const videoNames = video === null ? [] : videoTrackNames(video.tracks);
+  const trackNames = [...videoNames, ...tracks.map((t) => t.name)];
+  const videoRow = video === null ? null : video.removed !== null ? detailsRemovedRow(video.removed, now) : detailsVideoRow(video);
   return (
     <aside class="review-details" aria-label="Recording details">
       <div
@@ -772,12 +783,19 @@ export function DetailsPane({
               <dd class={details.platform === '' ? 'fact-empty' : 'fact-strong'}>{details.platform === '' ? 'Not set' : details.platform}</dd>
               <dt>Tracks</dt>
               <dd class="fact-strong">
-                {tracks.length}
-                {tracks.length === 0 ? '' : <span class="fact-sub"> · {tracks.map((t) => t.name).join(', ')}</span>}
+                {trackNames.length}
+                {trackNames.length === 0 ? '' : <span class="fact-sub"> · {trackNames.join(', ')}</span>}
               </dd>
+              {videoRow === null ? null : (
+                <>
+                  <dt>Video</dt>
+                  <dd class="fact-strong">{videoRow}</dd>
+                </>
+              )}
               <dt>Purpose</dt>
               <dd class={details.purpose === '' ? 'fact-empty' : ''}>{details.purpose === '' ? 'Not set' : details.purpose}</dd>
             </dl>
+            {video === null ? null : <p class="vid-note">{NEVER_SENT_NOTE}</p>}
             <div class="detail-group">
               <span class="lbl">Participants</span>
               {details.participants.length === 0 ? (
