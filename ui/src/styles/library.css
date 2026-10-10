@@ -138,12 +138,14 @@
   flex: 2 1 420px;
 }
 
+/* Equal columns, except that a column never gets narrower than its one-line name and status
+   ("Video · Encoding 42% · GPU"); when they cannot all fit, the card wraps the stages under the title. */
 .proc-stage {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: 7px;
-  min-width: 0;
+  min-width: max-content;
 }
 
 .proc-stage-line {
@@ -151,6 +153,7 @@
   justify-content: space-between;
   gap: 8px;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .proc-stage-name {
@@ -160,6 +163,35 @@
 .proc-stage-status {
   color: var(--text-3);
   text-align: right;
+  white-space: nowrap;
+}
+
+/* §18.6: the video stage failed. renders/ErrorStatesVideo, "Processing card · video stage failed". */
+.proc-card--failed {
+  padding: 18px 22px;
+  gap: 24px;
+}
+
+.proc-info--failed {
+  flex: 1 1 220px;
+}
+
+.proc-label--failed {
+  color: var(--danger);
+}
+
+.proc-dot--failed {
+  background: var(--danger);
+}
+
+.proc-title--failed {
+  font-size: 17px;
+}
+
+.proc-remedies {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .proc-stage-status--failed {
@@ -356,6 +388,13 @@
   overflow: hidden;
 }
 
+/* The crossed camera of a removed video (renders/ProcessingVideo, Board prep row). */
+.row-meta-removed {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-3);
+}
+
 .row-pills {
   display: flex;
   align-items: center;
@@ -459,6 +498,68 @@
   padding: 0 20px;
   box-sizing: border-box;
   width: 100%;
+}
+
+/* §18.7: a recording with video. The schematic's colours are the render's own (a dark picture in both
+   themes), not tokens. */
+.video-strip {
+  display: block;
+  position: relative;
+  height: 96px;
+  width: 100%;
+  flex: none;
+  background: #2a2824;
+}
+
+.video-strip-win {
+  position: absolute;
+  inset: 12px 12px 24px;
+  border-radius: 6px;
+  background: #3a3733;
+}
+
+.video-strip-cam {
+  position: absolute;
+  right: 18px;
+  bottom: 30px;
+  width: 48px;
+  height: 30px;
+  border-radius: 4px;
+  background: #57534c;
+}
+
+/* A camera-only recording: the camera picture fills the schematic's place. */
+.video-strip-cam--solo {
+  inset: 12px auto 24px 50%;
+  width: 96px;
+  height: auto;
+  transform: translateX(-50%);
+  border-radius: 6px;
+}
+
+.video-strip-pill {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+}
+
+.video-strip-caption {
+  position: absolute;
+  left: 12px;
+  bottom: 6px;
+  font-size: 11px;
+  color: #c9c5bc;
+}
+
+.video-strip--removed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in-xs);
+  font-size: 12px;
+  color: var(--text-3);
 }
 
 .wb {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatSize } from './storage';
 import { formatSpan, formatTimecode } from './duration';
-import { deleteCopy, joinList, lowSpaceCopy, recoveryCopy, sourceLostCopy, stoppedByHostCopy } from './messages';
+import { deleteCopy, joinList, lowSpaceCopy, recoveredVideoSentence, recoveryCopy, sourceLostCopy, stoppedByHostCopy } from './messages';
 
 const GIB = 1024 ** 3;
 const MIB = 1024 ** 2;
@@ -89,6 +89,45 @@ describe('§17 copy', () => {
       videoTracks: [],
     });
     expect(copy.rest).toBe(' was saved up to 1:01 before the recording was interrupted. 2 of 3 tracks are intact.');
+  });
+
+  it('recovery with video: one sentence says how much video came back (DESIGN.md §18.6)', () => {
+    const copy = recoveryCopy({
+      recordingId: 'r',
+      title: 'Weekly 1:1 with Sam',
+      startedAt: '',
+      tracksIntact: 2,
+      tracksTotal: 2,
+      lastCheckpointAt: null,
+      recoveredDurationMs: (28 * 60 + 48) * 1000,
+      mayBeMissingMs: 20_000,
+      videoTracks: [{ trackId: 'camera', sourceName: 'Integrated camera', recoveredDurationMs: (28 * 60 + 48) * 1000 }],
+    });
+    record(copy.title, copy.lead + copy.rest);
+    expect(copy.lead + copy.rest).toBe(
+      'Weekly 1:1 with Sam was saved up to 28:48 before the recording was interrupted. All 2 tracks are intact. The camera video was recovered up to 28:48. The last 20 seconds may be missing.',
+    );
+  });
+
+  it.each([
+    [[], ''],
+    [[{ trackId: 'screen', recoveredDurationMs: 3_723_000 }], 'The screen video was recovered up to 1:02:03.'],
+    [
+      [
+        { trackId: 'camera', recoveredDurationMs: 1_728_000 },
+        { trackId: 'screen', recoveredDurationMs: 1_728_400 },
+      ],
+      'The screen and camera video were recovered up to 28:48.',
+    ],
+    [
+      [
+        { trackId: 'screen', recoveredDurationMs: 1_728_000 },
+        { trackId: 'camera', recoveredDurationMs: 1_630_000 },
+      ],
+      'The screen video was recovered up to 28:48 and the camera video up to 27:10.',
+    ],
+  ] as const)('recovered video %j reads "%s"', (tracks, expected) => {
+    expect(recoveredVideoSentence(tracks.map((t) => ({ ...t, sourceName: 'Display 1' })))).toBe(expected);
   });
 
   it('source lost: the source, the time, and what is still recording', () => {

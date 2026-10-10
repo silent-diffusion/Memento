@@ -60,6 +60,17 @@ export function metaLine(recording: RecordingSummary, now: Date): string {
   return `${typeName(recording.type)} · ${peopleWording(recording.participantCount)} · ${formatWhen(parseIso(recording.createdAt), now)}`;
 }
 
+/** Remove video ran on the recording: its meta line gets the crossed camera and "· video removed". */
+export function isVideoRemoved(recording: RecordingSummary): boolean {
+  return recording.video !== null && recording.video.removedAt !== null;
+}
+
+/** A Library row's meta: "Presentation · 3 people · Sep 29 · video removed" after Remove video (DESIGN.md §18.7). */
+export function rowMetaLine(recording: RecordingSummary, now: Date): string {
+  const meta = metaLine(recording, now);
+  return isVideoRemoved(recording) ? `${meta} · video removed` : meta;
+}
+
 /** "10 recordings · 8 h 38 min · all on this PC". Reflects whatever the list currently shows. */
 export function summaryLine(count: number, totalDurationMs: number): string {
   const noun = count === 1 ? 'recording' : 'recordings';
@@ -130,6 +141,18 @@ export function stageName(stage: string): string {
  */
 const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'topics', 'optimize']);
 
+/**
+ * The sub-step of a running video stage, without the device: "Encoding 42%" from the host's
+ * "Encoding 42% · GPU", "Trimming", "Muxing camera inset"; "42%" without a label, null without either.
+ */
+export function videoSubStep(stage: StageStatus): string | null {
+  const step = stage.label?.split(' · ')[0]?.trim() ?? '';
+  if (step !== '') {
+    return step;
+  }
+  return stage.percent === null ? null : `${Math.round(stage.percent)}%`;
+}
+
 function pillFor(stage: StageStatus): Pill {
   const base = { stage: stage.stage };
   switch (stage.state) {
@@ -139,6 +162,11 @@ function pillFor(stage: StageStatus): Pill {
       // A stage waiting for a busy PC is not running; it reads as waiting, with its reason in the card.
       if (stage.label !== null && /^paused\b/i.test(stage.label)) {
         return { ...base, kind: 'queued', label: `${named(DONE_NAMES, stage.stage)} paused` };
+      }
+      // The video stage names its sub-step, without the device: "Video · Encoding 42%" (DESIGN.md §18.7).
+      if (stage.stage === 'video') {
+        const step = videoSubStep(stage);
+        return { ...base, kind: 'active', label: step === null ? 'Video' : `Video · ${step}` };
       }
       return {
         ...base,
@@ -190,7 +218,35 @@ export function stagePills(stages: readonly StageStatus[]): Pill[] {
   if (anyFailed && !stages.some((s) => s.stage === 'stored')) {
     rest.unshift({ kind: 'done', label: named(DONE_NAMES, 'stored'), stage: 'stored' });
   }
-  return [...failed, ...rest];
+  return [...failed, ...videoAfterTranscript(rest)];
+}
+
+/**
+ * The video stage runs beside transcription, not before it (DESIGN.md §18.7), so its pill follows
+ * the Transcript pill: "Transcript · Video · Minutes" (renders/ProcessingVideo).
+ */
+function videoAfterTranscript(pills: Pill[]): Pill[] {
+  const video = pills.find((p) => p.stage === 'video');
+  const others = pills.filter((p) => p.stage !== 'video');
+  const transcriptAt = others.findIndex((p) => p.stage === 'transcript');
+  if (video === undefined || transcriptAt < 0) {
+    return pills;
+  }
+  return [...others.slice(0, transcriptAt + 1), video, ...others.slice(transcriptAt + 1)];
+}
+
+/**
+ * A grid card's pills. A card with a video strip shows the running sub-step on the strip
+ * ("Encoding 42%"), so its running video pill reads just "Video" (renders/ProcessingVideo, Grid cards).
+ */
+export function cardPills(stages: readonly StageStatus[], hasStrip: boolean): Pill[] {
+  const pills = stagePills(stages);
+  return hasStrip ? pills.map((p) => (p.stage === 'video' && p.kind === 'active' ? { ...p, label: 'Video' } : p)) : pills;
+}
+
+/** The running video stage, for the card strip's pill; null when it is not running (or paused). */
+export function runningVideoStage(stages: readonly StageStatus[]): StageStatus | null {
+  return stages.find((s) => s.stage === 'video' && pillFor(s).kind === 'active') ?? null;
 }
 
 /** Right-hand status of a processing card column: the host's label, else a plain fallback. */

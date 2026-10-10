@@ -135,7 +135,10 @@ describe('Library, populated (against the browser-preview host)', () => {
     expect(container.querySelector('[aria-label="Grid view"]')?.getAttribute('aria-pressed')).toBe('true');
     expect(container.querySelectorAll('.lib-card')).toHaveLength(14);
     expect(container.querySelector('.proc-card')).toBeNull();
-    expect(container.querySelectorAll('.lib-card .wb').length).toBe(14 * 48);
+    // Audio recordings keep the waveform; the ones with video (or a removed video) show the video strip.
+    const strips = container.querySelectorAll('.lib-card .video-strip').length;
+    expect(strips).toBe(4);
+    expect(container.querySelectorAll('.lib-card .wb').length).toBe((14 - strips) * 48);
   });
 
   it('sorts from the sort menu', async () => {
