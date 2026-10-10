@@ -1,6 +1,6 @@
 // Export wording and the folder an export is written to (DESIGN.md §15, BRIDGE.md M3). The host
 // names the subfolder the same way; the dialog only previews it.
-import type { AudioExportFormat, DocumentExportFormat, ExportComponent, ExportEstimate, ExportSelection, ExportVideoChoice, TranscriptExportFormat } from '../bridge/types';
+import type { AudioExportFormat, DocumentExportFormat, ExportComponent, ExportEstimate, ExportSelection, ExportVideoChoice, TranscriptExportFormat, VideoExportFormat, VideoExportLayout } from '../bridge/types';
 
 // Characters Windows does not allow in a file name, and control characters.
 // eslint-disable-next-line no-control-regex
@@ -102,7 +102,7 @@ export function everythingOn(selection: ExportSelection): ExportSelection {
     details: { on: true },
     attachments: { on: true },
     // 2.0 video: the chosen layout and format, so the row's size is the one it would write.
-    video: { ...(selection.video ?? DEFAULT_VIDEO_EXPORT), on: true },
+    video: { ...validVideoChoice(selection.video), on: true },
   };
 }
 
@@ -157,3 +157,25 @@ export function summarise(estimate: ExportEstimate, selection: ExportSelection):
 export function fileCount(files: number): string {
   return `${files} ${files === 1 ? 'file' : 'files'}`;
 }
+
+/**
+ * 2.0 video: a choice the host accepts. "Original container" copies each recorded track as it is, so
+ * it only exists as two files (BRIDGE.md: `oneFile` with `original` answers `bridge.invalidParams`);
+ * a missing choice is off, as MP4 in one file.
+ */
+export function validVideoChoice(choice: ExportVideoChoice | null | undefined): ExportVideoChoice {
+  const base = choice ?? DEFAULT_VIDEO_EXPORT;
+  return base.format === 'original' && base.layout === 'oneFile' ? { ...base, layout: 'twoFiles' } : base;
+}
+
+/** Choosing a format: "Original container" brings two files with it. */
+export function withVideoFormat(choice: ExportVideoChoice, format: VideoExportFormat): ExportVideoChoice {
+  return format === 'original' ? { ...choice, format, layout: 'twoFiles' } : { ...choice, format };
+}
+
+/** Choosing a layout: one file is composed (the camera inset is burned in), so it is always MP4. */
+export function withVideoLayout(choice: ExportVideoChoice, layout: VideoExportLayout): ExportVideoChoice {
+  return layout === 'oneFile' ? { ...choice, layout, format: 'mp4' } : { ...choice, layout };
+}
+
+export const VIDEO_FORMAT_LABELS: Record<VideoExportFormat, string> = { mp4: 'MP4', original: 'Original container' };
