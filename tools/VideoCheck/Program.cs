@@ -20,7 +20,7 @@ internal static class Program
     {
         if (args.Length == 0)
         {
-            Console.WriteLine("VideoCheck probe | capture | record | synthetic | sync | crash | recover | inspect   (see Checks.cs for options)");
+            Console.WriteLine("VideoCheck probe | capture | record | synthetic | sync | window | crash | recover | inspect   (see Checks.cs for options)");
             return 1;
         }
 
@@ -34,6 +34,7 @@ internal static class Program
                 "record" => Checks.Record(options, synthetic: false).GetAwaiter().GetResult(),
                 "synthetic" => Checks.Record(options, synthetic: true).GetAwaiter().GetResult(),
                 "sync" => SyncCheck.Run(options),
+                "window" => WindowCheck.Run(options),
                 "crash" => Checks.Crash(options).GetAwaiter().GetResult(),
                 "recover" => Checks.Recover(options).GetAwaiter().GetResult(),
                 "inspect" => Checks.Inspect(options),

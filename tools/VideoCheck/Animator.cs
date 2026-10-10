@@ -16,6 +16,9 @@ internal sealed class Animator : IDisposable
     /// <summary>Paints so far.</summary>
     public long Frames => _form?.Frames ?? 0;
 
+    /// <summary>The window, for checks that move or close it (call it through Invoke).</summary>
+    public Form? Form => _form;
+
     public Animator(Rectangle bounds)
     {
         using var ready = new ManualResetEventSlim();
