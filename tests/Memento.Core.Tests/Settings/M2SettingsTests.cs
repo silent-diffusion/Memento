@@ -25,7 +25,7 @@ public sealed class M2SettingsTests : IDisposable
         var settings = await _host.ResultAsync("settings.get");
 
         Assert.Equal(
-            """{"auto":true,"timing":"after","pauseWhenBusy":true,"modelId":"whisper-small","cpuFallbackModelId":"whisper-small","language":"auto","keepWordTimestamps":true,"lowConfidenceThreshold":0.5}""",
+            """{"auto":true,"timing":"after","pauseWhenBusy":true,"modelId":"whisper-small","cpuFallbackModelId":"whisper-small","language":"auto","keepWordTimestamps":true,"lowConfidenceThreshold":0.5,"liveOnGpu":false}""",
             settings.GetProperty("transcription").GetRawText());
         Assert.Equal("""{"identify":true,"expectedSpeakers":"auto","rememberRenamed":false,"embeddingModelId":"nemo-titanet-small","rememberVoices":false}""", settings.GetProperty("speakers").GetRawText());
         Assert.Equal("""{"keepVersions":true,"keepDays":90}""", settings.GetProperty("history").GetRawText());

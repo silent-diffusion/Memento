@@ -140,6 +140,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       language: 'auto',
       keepWordTimestamps: true,
       lowConfidenceThreshold: 0.5,
+      liveOnGpu: false,
     },
     speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet, rememberVoices: false },
     history: { keepVersions: true, keepDays: 90 },

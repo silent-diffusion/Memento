@@ -379,7 +379,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await mount();
     await until(() => container.querySelectorAll('.src').length === 5);
     const card = (): Element | null => container.querySelector('[aria-label="Live transcript"]');
-    expect(card()?.textContent).toContain('Words appear here a few seconds behind the recording.');
+    expect(card()?.textContent).toContain('A rough draft appears here a few seconds behind the recording');
     await act(async () => {
       button('Start recording').click();
       await Promise.resolve();
@@ -389,8 +389,9 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(lines[0]?.querySelector('.rec-live-at')?.textContent).toBe('00:00:00');
     expect(lines.at(-1)?.querySelector('.rec-live-more')?.textContent).toBe(' …');
     expect(lines[0]?.querySelector('.rec-live-more')).toBeNull();
-    expect(card()?.querySelector('.pill')?.textContent).toBe('Local · GPU');
-    expect(card()?.textContent).toContain('Rough draft. Speaker names and corrections happen in Review.');
+    expect(card()?.querySelector('.pill')?.textContent).toBe('Local · CPU · Small');
+    expect(card()?.querySelector('[data-provisional="true"]')).not.toBeNull();
+    expect(card()?.textContent).toContain('Rough draft, not saved. The full transcript after you stop replaces it');
   });
 
   it('takes who spoke before recording starts, adds those names as participants, and saves both with the recording', async () => {
@@ -455,7 +456,10 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(card?.textContent).toContain('Live transcription is off.');
     expect(card?.querySelector('.pill')).toBeNull();
     expect(liveTranscriptCopy('during', 'recording', 2_000)).toBe('Listening. Words appear here a few seconds behind the recording.');
-    expect(liveTranscriptCopy('during', 'recording', LIVE_DRAFT_GRACE_MS)).toMatch(/^Live transcription is not available in this version of Memento\./);
+    expect(liveTranscriptCopy('during', 'recording', LIVE_DRAFT_GRACE_MS)).toMatch(/^Loading the live transcript model on this PC\./);
+    const unavailable = { sessionId: 's', segments: [], state: 'unavailable' as const, engine: null, note: 'The live transcript needs the Small or Base transcription model.' };
+    expect(liveTranscriptCopy('during', 'recording', 60_000, unavailable)).toBe('The live transcript needs the Small or Base transcription model.');
+    expect(liveTranscriptCopy('during', 'ready', 0)).toMatch(/^A rough draft appears here/);
     expect(liveTranscriptCopy('after', 'recording', 60_000)).toMatch(/^Live transcription is off\./);
   });
 });

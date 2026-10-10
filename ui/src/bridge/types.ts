@@ -829,6 +829,8 @@ export interface TranscriptionSettings {
   keepWordTimestamps: boolean;
   /** 0.5 */
   lowConfidenceThreshold: number;
+  /** 2.0: the live transcript (timing during) may use the graphics card; false = the processor. Default false. */
+  liveOnGpu: boolean;
 }
 
 export interface SpeakerSettings {

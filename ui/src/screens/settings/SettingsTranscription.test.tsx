@@ -88,16 +88,18 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     const call = vi.spyOn(bridge, 'call');
 
     await click(button('Transcribe automatically'));
-    await click(button('During recording'));
+    await click(button('Live transcript while recording'));
+    await until(() => container.textContent.includes('Use the graphics card for the live transcript'));
+    await click(button('Use the graphics card for the live transcript'));
     await choose('Mark words as uncertain below', '60% confidence');
     await choose('Language', 'German');
     await until(() => store.settings.value?.transcription.language === 'de');
     const sets = call.mock.calls.filter(([method]) => method === 'settings.set').map(([, params]) => params as { transcription?: Record<string, unknown> });
-    expect(sets).toHaveLength(4);
+    expect(sets).toHaveLength(5);
     // The host merges the M2 blocks field by field, so each change sends just its field.
-    expect(sets.map((s) => s.transcription)).toEqual([{ auto: false }, { timing: 'during' }, { lowConfidenceThreshold: 0.6 }, { language: 'de' }]);
+    expect(sets.map((s) => s.transcription)).toEqual([{ auto: false }, { timing: 'during' }, { liveOnGpu: true }, { lowConfidenceThreshold: 0.6 }, { language: 'de' }]);
     expect(await bridge.call('settings.get')).toMatchObject({
-      transcription: { auto: false, timing: 'during', lowConfidenceThreshold: 0.6, language: 'de' },
+      transcription: { auto: false, timing: 'during', liveOnGpu: true, lowConfidenceThreshold: 0.6, language: 'de' },
     });
   });
 

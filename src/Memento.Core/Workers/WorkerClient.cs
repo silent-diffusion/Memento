@@ -57,10 +57,43 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
         {
             // One job on the graphics card at a time (ARCHITECTURE.md §6); the gate opens only once the previous worker has
             // exited and let go of its video memory. The worker also takes a machine-wide lock (WorkerRuntimes.GpuLockName).
+            // Whoever holds the card only for a draft (the live transcript, 2.0) lets go when told.
             LogWaitingForGpu();
+            GpuWanted?.Invoke(this, EventArgs.Empty);
             await _gpu.WaitAsync(cancellationToken);
         }
 
+        return await StartAsync(job, onReply, gpu, cancellationToken);
+    }
+
+    /// <summary>
+    /// As <see cref="OpenAsync"/>, but a job that needs the graphics card while another job holds it is not queued:
+    /// <c>null</c> comes back at once (2.0: the live transcript never waits for, or ahead of, a full pass).
+    /// </summary>
+    public async Task<WorkerSession?> TryOpenAsync(WorkerJob job, Func<WorkerReply, Task>? onReply, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        cancellationToken.ThrowIfCancellationRequested();
+        var gpu = job.UsesGpu;
+        if (gpu && !_gpu.Wait(0, CancellationToken.None))
+        {
+            return null;
+        }
+
+        return await StartAsync(job, onReply, gpu, cancellationToken);
+    }
+
+    /// <summary>
+    /// Raised (on the caller's thread) when a job must wait for the graphics card because another job holds it. The live
+    /// transcript (2.0) ends its card session then, so a full pass or a document never waits behind a draft.
+    /// </summary>
+    public event EventHandler? GpuWanted;
+
+    /// <summary>A job holds the graphics card now.</summary>
+    public bool IsGpuBusy => _gpu.CurrentCount == 0;
+
+    private async Task<WorkerSession> StartAsync(WorkerJob job, Func<WorkerReply, Task>? onReply, bool gpu, CancellationToken cancellationToken)
+    {
         IWorkerProcess process;
         try
         {

@@ -13,6 +13,9 @@ public static class WorkerMessageTypes
     /// <summary>No more prompts: the local model job that stays loaded unloads and ends with its <c>result</c>.</summary>
     public const string End = "end";
 
+    /// <summary>2.0: one window for the live transcript (<see cref="WorkerCommand.Audio"/>).</summary>
+    public const string Audio = "audio";
+
     // Worker → host.
     public const string Ready = "ready";
     public const string Device = "device";
@@ -24,6 +27,9 @@ public static class WorkerMessageTypes
 
     /// <summary>A local model job that stays loaded answered one <c>prompts</c> line (<see cref="WorkerReply.Llm"/>: the outputs).</summary>
     public const string Batch = "batch";
+
+    /// <summary>2.0: the live transcript heard one <c>audio</c> window (<see cref="WorkerReply.Window"/>, <see cref="WorkerReply.Segments"/>).</summary>
+    public const string Heard = "heard";
     public const string Result = "result";
     public const string Error = "error";
     public const string Cancelled = "cancelled";

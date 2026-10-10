@@ -2,7 +2,7 @@
 // the stage, highlights, live transcript and agenda, and the footer.
 import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { AgendaItem, AudioSource, FooterStatusPayload, Highlight, LiveTranscriptSegment, RecordingDetails, TranscriptionTiming } from '../../bridge/types';
+import type { AgendaItem, AudioSource, FooterStatusPayload, Highlight, RecordingDetails, RecordingLiveTranscriptPayload, TranscriptionTiming } from '../../bridge/types';
 import { Toggle } from '../../components/Controls';
 import { CheckIcon, FlagIcon, PauseIcon, PlayIcon, StopIcon } from '../../components/icons';
 import { agendaMarks, PASTED_SOURCE } from '../../format/agenda';
@@ -338,55 +338,60 @@ export const LIVE_DRAFT_GRACE_MS = 8_000;
 const LIVE_LINES = 4;
 
 interface LiveTranscriptCardProps {
-  engine: FooterStatusPayload['engine'] | null;
-  /** The draft for this session, or null when none has arrived. */
-  segments: readonly LiveTranscriptSegment[] | null;
-  /** Settings › Transcription › Timing; null until settings are read. */
+  /** The draft for this session (2.0: with its state, engine and note), or null when none has arrived. */
+  live: RecordingLiveTranscriptPayload | null;
+  /** Settings › Transcription › Live transcript while recording ('during'); null until settings are read. */
   timing: TranscriptionTiming | null;
   phase: RecordPhase;
   elapsedMs: number;
 }
 
-/** What the card says when there is no draft to show (DESIGN.md §8). */
-export function liveTranscriptCopy(timing: TranscriptionTiming | null, phase: RecordPhase, elapsedMs: number): string {
-  const live = phase === 'recording' || phase === 'paused';
+/** What the card says when there is no draft to show (DESIGN.md §8, §17). */
+export function liveTranscriptCopy(timing: TranscriptionTiming | null, phase: RecordPhase, elapsedMs: number, live: RecordingLiveTranscriptPayload | null = null): string {
+  const recording = phase === 'recording' || phase === 'paused';
   if (timing !== 'during') {
-    return 'Live transcription is off. The full transcript is made on this PC after you stop. For a rough draft here while recording, set Timing to During recording in Settings › Transcription.';
+    return 'Live transcription is off. The full transcript is made on this PC after you stop. For a rough draft here while recording, turn on Live transcript while recording in Settings › Transcription.';
   }
-  if (!live) {
-    return 'Words appear here a few seconds behind the recording. Turn this off in Settings if you prefer to transcribe afterwards.';
+  if (!recording) {
+    return 'A rough draft appears here a few seconds behind the recording, made on this PC. The full transcript after you stop replaces it.';
   }
-  if (elapsedMs < LIVE_DRAFT_GRACE_MS) {
-    return 'Listening. Words appear here a few seconds behind the recording.';
+  if (live !== null && live.note !== null) {
+    return live.note;
   }
-  return 'Live transcription is not available in this version of Memento. Every track is kept in full, and the transcript is made on this PC after you stop.';
+  if (live?.state === 'starting' || (live === null && elapsedMs >= LIVE_DRAFT_GRACE_MS)) {
+    return 'Loading the live transcript model on this PC. Words appear here a few seconds behind the recording.';
+  }
+  return 'Listening. Words appear here a few seconds behind the recording.';
 }
 
-export function LiveTranscriptCard({ engine, segments, timing, phase, elapsedMs }: LiveTranscriptCardProps): JSX.Element {
-  const device = engine?.detail.device ?? engine?.device ?? null;
-  const shown = (segments ?? []).slice(-LIVE_LINES);
+export function LiveTranscriptCard({ live, timing, phase, elapsedMs }: LiveTranscriptCardProps): JSX.Element {
+  const on = timing === 'during';
+  const shown = on ? (live?.segments ?? []).slice(-LIVE_LINES) : [];
+  const recording = phase === 'recording' || phase === 'paused';
+  const note = live?.note ?? null;
   return (
     <section class="rec-card rec-side-card" aria-label="Live transcript">
       <div class="rec-card-head">
         <span class="lbl">Live transcript</span>
-        {engine?.ready === true && timing === 'during' ? <span class="pill done">{device === null ? 'Local' : `Local · ${device}`}</span> : null}
+        {on && live?.engine != null ? <span class={live.state === 'listening' ? 'pill done' : 'pill queued'}>{live.engine}</span> : null}
       </div>
       {shown.length === 0 ? (
-        <p class="rec-side-text">{liveTranscriptCopy(timing, phase, elapsedMs)}</p>
+        <p class="rec-side-text">{liveTranscriptCopy(timing, phase, elapsedMs, live)}</p>
       ) : (
         <>
-          <ol class="rec-live" aria-live="off">
+          <ol class="rec-live rec-live--draft" aria-label="Provisional lines" aria-live="off" data-provisional="true">
             {shown.map((segment, i) => (
               <li key={`${segment.start}-${i}`} class="rec-live-line">
                 <span class="mono rec-live-at">{formatTimecode(segment.start * 1000)}</span>
                 <span class="rec-live-text">
                   {segment.text}
-                  {i === shown.length - 1 && (phase === 'recording' || phase === 'paused') ? <span class="rec-live-more"> …</span> : null}
+                  {i === shown.length - 1 && recording && live?.state === 'listening' ? <span class="rec-live-more"> …</span> : null}
                 </span>
               </li>
             ))}
           </ol>
-          <p class="rec-side-text rec-live-foot">Rough draft. Speaker names and corrections happen in Review.</p>
+          {note === null ? null : <p class="rec-side-text rec-live-note">{note}</p>}
+          <p class="rec-side-text rec-live-foot">Rough draft, not saved. The full transcript after you stop replaces it; speaker names and corrections happen in Review.</p>
         </>
       )}
     </section>
