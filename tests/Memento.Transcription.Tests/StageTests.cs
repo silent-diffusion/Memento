@@ -516,7 +516,8 @@ public sealed class StageTests : IDisposable
         Assert.Equal(-1, Assert.Single(Jobs(WorkerJobKinds.Diarize)).Diarize!.NumClusters);
         Assert.Equal(2, (await TranscriptAsync(id)).Speakers.Count);
         var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
-        Assert.Contains(history, h => h.Stage == "speakers" && h.Summary == "Renamed speakers are not remembered yet");
+        // 2.0: the 1.x switch is superseded by "Remember speakers by voice" and no longer adds a History line.
+        Assert.DoesNotContain(history, h => h.Stage == "speakers" && h.Summary == "Renamed speakers are not remembered yet");
         Assert.Contains(history, h => h.Stage == "speakers" && h.Event == "started" && h.Detail!.EndsWith(" · 3 expected (Settings)", StringComparison.Ordinal));
     }
 

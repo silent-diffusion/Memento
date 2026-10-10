@@ -249,6 +249,10 @@ public sealed class BridgeRouterTests
             "export.cancel", "export.estimate", "export.openFolder", "export.run", "library.importMedia", "library.move",
             "library.rebuildIndex", "library.usage", "project.changeType", "storage.reclaim",
             "updates.apply", "updates.check", "updates.status",
+            // 2.0 Review: known voices, suggested chapters, selection mode.
+            "voices.list", "voices.setSuggest", "voices.forget", "voices.forgetAll", "voices.remember", "voices.revert",
+            "voices.matches", "voices.decline", "voices.acceptMatch", "annotations.suggestChapters", "annotations.dismissSuggestion",
+            "annotations.restoreSuggestion", "transcript.setSegmentsSpeaker",
         ];
 
         Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));

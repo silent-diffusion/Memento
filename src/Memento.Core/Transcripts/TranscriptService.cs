@@ -33,6 +33,9 @@ public sealed partial class TranscriptService(
     /// <summary>At most this many speakers in one <c>transcript.restoreSpeakers</c>.</summary>
     public const int MaxRestores = 500;
 
+    /// <summary>At most this many lines in one <c>transcript.setSegmentsSpeaker</c>.</summary>
+    public const int MaxSelectedLines = 100_000;
+
     private readonly ILogger<TranscriptService> _logger = logger;
 
     private TranscriptStore Transcripts => writer.Store;
@@ -129,6 +132,52 @@ public sealed partial class TranscriptService(
             cancellationToken);
         await HistoryAsync(recordingId, "Speaker changed", string.Create(CultureInfo.InvariantCulture, $"Line at {HumanFormat.Clock((long)(changed!.Start * 1000))}"), cancellationToken);
         return new SegmentSpeakersResult(changed, saved!.Speakers);
+    }
+
+    /// <summary>
+    /// <c>transcript.setSegmentsSpeaker</c> (2.0, selection mode): several lines to one speaker (a new one with
+    /// <paramref name="newSpeakerName"/>, or none with both <c>null</c>) in one write. Every line must exist, or nothing changes.
+    /// </summary>
+    public async Task<SegmentsSpeakersResult> SetSegmentsSpeakerAsync(string recordingId, IReadOnlyList<string> segmentIds, string? speakerId, string? newSpeakerName, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(segmentIds);
+        if (segmentIds.Count is 0 or > MaxSelectedLines)
+        {
+            throw Invalid($"Choose 1 to {MaxSelectedLines} lines.");
+        }
+
+        var name = newSpeakerName is null ? null : ValidateSpeakerName(newSpeakerName);
+        var wanted = segmentIds.ToHashSet(StringComparer.Ordinal);
+        List<TranscriptSegment> changed = [];
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                foreach (var segmentId in wanted)
+                {
+                    FindSegment(t, segmentId);
+                }
+
+                var speakers = t.Speakers.ToList();
+                string? target = null;
+                if (name is not null)
+                {
+                    target = TranscriptSpeakers.IdFor(TranscriptSpeakers.NextNumber(speakers));
+                    speakers.Add(new Speaker(target, name, Renamed: true, TranscriptSpeakers.ColorFor(speakers.Count), 0));
+                }
+                else if (speakerId is not null)
+                {
+                    target = FindSpeaker(t, speakerId).Id;
+                }
+
+                var segments = t.Segments.Select(s => wanted.Contains(s.Id) ? s with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0 } : s).ToList();
+                changed = segments.Where(s => wanted.Contains(s.Id)).ToList();
+                return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
+            },
+            cancellationToken);
+        await HistoryAsync(recordingId, "Speaker changed", HumanFormat.Count(changed.Count, "line", "lines"), cancellationToken);
+        return new SegmentsSpeakersResult(changed, saved!.Speakers);
     }
 
     public async Task<IReadOnlyList<Speaker>> RenameSpeakerAsync(string recordingId, string speakerId, string name, CancellationToken cancellationToken)

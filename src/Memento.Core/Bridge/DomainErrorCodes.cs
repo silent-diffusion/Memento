@@ -189,4 +189,12 @@ public static class DomainErrorCodes
 
     /// <summary>Windows did not let Memento write the clipboard (another program holds it open); nothing was copied. After 1.2.0.</summary>
     public const string ClipboardUnavailable = "clipboard.unavailable";
+
+    // 2.0: known voices (BRIDGE.md "Review: known voices, suggested chapters, selection (2.0)").
+
+    /// <summary>A <c>voices.*</c> method named a known voice (or an enrolment change) Memento does not have; <c>detail</c> is the id.</summary>
+    public const string VoicesNotFound = "voices.notFound";
+
+    /// <summary><c>voices/known.json</c> was written by a newer Memento; it was left as it is and nothing was changed.</summary>
+    public const string VoicesNewerVersion = "voices.newerVersion";
 }

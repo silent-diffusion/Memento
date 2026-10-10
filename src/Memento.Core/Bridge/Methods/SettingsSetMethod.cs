@@ -121,6 +121,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             Identify = patch.Identify ?? current.Identify,
             ExpectedSpeakers = expected,
             RememberRenamed = patch.RememberRenamed ?? current.RememberRenamed,
+            RememberVoices = patch.RememberVoices ?? current.RememberVoices,
             EmbeddingModelId = patch.EmbeddingModelId ?? current.EmbeddingModelId,
         };
     }

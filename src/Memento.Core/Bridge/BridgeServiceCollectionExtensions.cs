@@ -81,6 +81,9 @@ public static class BridgeServiceCollectionExtensions
 
         services.AddMementoM3();
 
+        // 2.0 Review: known voices, suggested chapters, selection mode.
+        services.AddMementoReview();
+
         // Self-update (H1): the app replaces the client with Velopack; tests and build folders keep "cannot update".
         services.AddSingleton<IBridgeHandler, UpdatesStatusMethod>();
         services.AddSingleton<IBridgeHandler, UpdatesCheckMethod>();
