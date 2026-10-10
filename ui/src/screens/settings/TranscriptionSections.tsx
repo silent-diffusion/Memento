@@ -30,7 +30,7 @@ export const THRESHOLDS = [0.4, 0.5, 0.6, 0.7] as const;
 
 /** 2.0: what the live transcript costs (measured: docs/ENGINE-NOTES.md §O). */
 export const LIVE_COST =
-  'A rough draft on the Recording screen, a few seconds behind, from the Small model on the processor: it uses about LIVE_CPU of the processor while you record. Recording is never slowed; the full transcript is still made after you stop and replaces it.';
+  'A rough draft on the Recording screen, a few seconds behind, from the Small model on the processor: it uses at most a quarter of the processor's threads, only while it hears each 10-second window, and gives way to recording and to any full transcription; the full transcript is still made after you stop and replaces it.';
 
 export const LIVE_GPU =
   'Lighter on the processor. It gives way at once to any transcription or document that needs the card and carries on from the processor.';
