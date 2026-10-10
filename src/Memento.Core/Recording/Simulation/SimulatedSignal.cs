@@ -17,7 +17,10 @@ internal sealed class SimulatedSignal
     private uint _noise;
     private long _frame;
 
-    public SimulatedSignal(string kind, PcmFormat format, int variant, int seed)
+    private readonly float[]? _speech;
+    private readonly int _speechRate;
+
+    public SimulatedSignal(string kind, PcmFormat format, int variant, int seed, float[]? speech = null, int speechRate = 16_000)
     {
         _kind = kind;
         _format = format;
@@ -28,6 +31,8 @@ internal sealed class SimulatedSignal
             _ => 330 + (variant * 20),
         };
         _noise = (uint)(seed * 2654435761u) | 1u;
+        _speech = kind == "microphone" && speech is { Length: > 0 } ? speech : null;
+        _speechRate = speechRate;
     }
 
     /// <summary>Writes <paramref name="frames"/> frames into <paramref name="pcm"/>; returns RMS and peak (0..1).</summary>
@@ -60,6 +65,15 @@ internal sealed class SimulatedSignal
         var noise = NextNoise() * 0.01;
         switch (_kind)
         {
+            case "microphone" when _speech is { } clip:
+            {
+                // A speech clip in a loop (linear interpolation from its own rate).
+                var position = (t * _speechRate) % clip.Length;
+                var index = (int)position;
+                var next = clip[(index + 1) % clip.Length];
+                return clip[index] + ((next - clip[index]) * (position - index)) + (noise * 0.1);
+            }
+
             case "microphone":
             {
                 // Phrases of 2.5 s with 0.8 s gaps; syllables at about 4 per second; a voiced tone with harmonics.

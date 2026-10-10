@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Threading.Channels;
 using Memento.Core;
 using Memento.Core.Audio;
 using Memento.Core.Bridge;
@@ -209,6 +210,70 @@ internal sealed class Check : IAsyncDisposable
         await Processing.WhenIdleAsync();
         Console.WriteLine($"retry took {stopwatch.Elapsed.TotalSeconds:0.0} s");
         return await ShowAsync(id);
+    }
+
+    /// <summary>
+    /// The live transcript's worker (2.0) on one WAV: the model is loaded once, then each 10-second window of the file (read
+    /// and mixed by <see cref="LiveMixReader"/>, as the app reads a recording in progress) is sent at recording pace, one
+    /// window every 10 s, or back to back with <paramref name="paced"/> false. Prints each window's time, the lines heard,
+    /// and the worker's processor time per window and over the run (ENGINE-NOTES.md §O).
+    /// </summary>
+    public async Task<int> LiveAsync(string wav, string modelFile, int threads, int windows, bool paced, bool gpu)
+    {
+        var full = Path.GetFullPath(wav);
+        var source = new LiveTrackSource("mix", Path.GetDirectoryName(full)!, Path.GetFileName(full), 0, null);
+        var covered = LiveMixReader.CoveredUntilMs(source);
+        var job = new LiveJob(Path.GetFullPath(modelFile), Path.GetFileNameWithoutExtension(modelFile), gpu ? [WorkerRuntimes.Vulkan, WorkerRuntimes.Cpu] : [WorkerRuntimes.Cpu], -1, null, "en", TranscriptionDefaults.Prompt, threads);
+        var heard = Channel.CreateUnbounded<WorkerReply>();
+        var workers = _services.GetRequiredService<WorkerClient>();
+        var load = Stopwatch.StartNew();
+        await using var session = await workers.OpenAsync(new WorkerJob(WorkerJobKinds.Live, Live: job), reply =>
+        {
+            heard.Writer.TryWrite(reply);
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+        WorkerReply device;
+        do
+        {
+            device = await heard.Reader.ReadAsync();
+        }
+        while (device.Type != WorkerMessageTypes.Device);
+        Console.WriteLine($"model {Path.GetFileName(modelFile)} loaded on {device.Device?.Device} in {load.Elapsed.TotalSeconds:0.0} s, {threads} threads");
+        var cpuAtStart = workers.RunningCpuTime;
+        var run = Stopwatch.StartNew();
+        var busy = TimeSpan.Zero;
+        var count = (int)Math.Min(windows, covered / LiveWindows.WindowMs);
+        for (var w = 0; w < count; w++)
+        {
+            var mix = LiveMixReader.Read([source], w * LiveWindows.WindowMs, (w + 1) * LiveWindows.WindowMs);
+            var cpuBefore = workers.RunningCpuTime;
+            var window = Stopwatch.StartNew();
+            await session.SendAsync(new WorkerCommand(WorkerMessageTypes.Audio, Audio: new LiveAudio(w, w * 10.0, LiveAudio.Encode(mix.Samples))));
+            WorkerReply reply;
+            do
+            {
+                reply = await heard.Reader.ReadAsync();
+            }
+            while (reply.Type != WorkerMessageTypes.Heard);
+            busy += window.Elapsed;
+            var cpu = workers.RunningCpuTime - cpuBefore;
+            Console.WriteLine($"window {w}: {window.Elapsed.TotalSeconds:0.00} s, worker CPU {cpu.TotalSeconds:0.00} s, {reply.Segments?.Count ?? 0} lines: {string.Join(" | ", (reply.Segments ?? []).Select(s => s.Text))}");
+            if (paced)
+            {
+                var next = TimeSpan.FromSeconds(10 * (w + 1)) - run.Elapsed;
+                if (next > TimeSpan.Zero)
+                {
+                    await Task.Delay(next);
+                }
+            }
+        }
+
+        var total = workers.RunningCpuTime - cpuAtStart;
+        Console.WriteLine($"{count} windows in {run.Elapsed.TotalSeconds:0.0} s; engine busy {busy.TotalSeconds:0.0} s ({100 * busy.TotalSeconds / Math.Max(1, count * 10.0):0}% of the audio time)");
+        Console.WriteLine($"worker CPU {total.TotalSeconds:0.0} s over {run.Elapsed.TotalSeconds:0.0} s = {100 * total.TotalSeconds / run.Elapsed.TotalSeconds / Environment.ProcessorCount:0.0}% of all {Environment.ProcessorCount} processor threads");
+        await session.SendAsync(new WorkerCommand(WorkerMessageTypes.End));
+        await session.Completion;
+        return 0;
     }
 
     /// <summary>The worker's speaker job on one audio file, with its turns and voices saved for offline comparison.</summary>
