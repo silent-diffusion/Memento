@@ -274,3 +274,29 @@ What this decided:
 - Grouping 114 voices takes milliseconds, so the diarizer's output (turns and voice embeddings per track, about 250 KB for 92 minutes) is kept in `voices.json`, and identifying speakers again with another count or other names regroups without listening again (5–10 minutes for these files on the CPU).
 - A speaker heard only in turns under half a second had no voice embedding and could never be joined, so a count could not be reached; such a speaker now gets an embedding from all its turns.
 - **Through the real stage** (`TranscriptionCheck identify` on a private copy of the 55:40 meeting, the published worker): the first pass listened for 305.7 s of processor time and found 48 voices; Auto gives **3 speakers** (57.6, 21.2, 21.2 %), and setting Who spoke to 4 regroups from voices.json in 0.3 s into **4 speakers** (57.6, 21.2, 15.9, 5.4 %), History reading "48 voices heard, grouped into 4 speakers (4 expected, this recording)". With other builds loading the PC the pass paused for "PC is busy" four times, and a one-track pass starts its track again after each pause (speakers.partial.json keeps whole tracks only), so it took 75 minutes of wall time; not changed here.
+
+## N. Known voices and suggested chapters, October 2026 (2.0)
+
+Measured on private copies of the owner's two meetings (92 min, one track, 4 people named by the owner on 1,110 of 1,505 lines; 56 min, one track, 4 participants listed, no names given) and on the synthetic two-voice fixtures, with `tools/TranscriptionCheck` (`diarize` once per file, sherpa-onnx 1.13.8, pyannote 3.0 + TitaNet small, threshold 0.8, CPU: 726 s for the 92-minute file, 316 s for the 56-minute one; then `voicematch`, `voicepair` and `chapters` offline). The people are only labels here (A1–A4 by talk time, B1–B3 by the app's Auto grouping).
+
+**Do the two meetings share people?** By voice, no: every B speaker against every A person enrolled from the owner's names is at most **0.38** alike (whole speakers; 0.13–0.38), and 72 thirty-second pieces of B against A's people at most **0.39** (median 0.37). No participant name of one meeting is said in the other's transcript. So the meetings give impostor tries, not a real cross-recording match; the genuine tries below are within one session or synthetic.
+
+| Tries | n | Cosine with the right voice | Cosine with the best wrong voice |
+|---|---|---|---|
+| A, independent embeddings: each diarizer cluster of a named person (10 s or more) against that person enrolled from their *other* clusters, same session | 12 | min 0.45, median 0.76, max 0.89 | min 0.29, median 0.50, max 0.76 |
+| A, 30 s pieces of each person's second half against their first half (shares cluster embeddings, so optimistic) | 55 | min 0.82, median 0.89 | median 0.36, max 0.77 |
+| A, different named people, early halves | 6 pairs | — | 0.21–0.71 (the 0.71 pair: a person with 23 s of speech) |
+| B pieces against A's people (different meetings, nobody shared) | 72 | — | max 0.39 |
+| Synthetic: the same two Windows voices in two different made-up meetings (`speech.ps1 -Script second`) | 2 | **0.963, 0.975** | 0.25–0.28 (the other voice) |
+| The same audio imported twice (the e2e) | — | 1.000 | — |
+
+On the independent same-session tries a margin decides more than the threshold: with no margin, 4 of 12 clusters are more alike to another person than to their own other clusters (people in one room on one channel sound alike to the voice model), so a suggestion there would name the wrong person; with a margin of **0.10** none is wrong and 7 of 12 are right, and the threshold (0.50–0.65) changes nothing. Across meetings no stranger came within 0.21 of 0.60.
+
+What this decided (`VoiceMatcher`):
+
+- **Suggest at cosine 0.60 or more, with 0.10 over any other known voice**, one speaker per voice. 0.60 is 0.21 above the highest stranger measured across meetings and below the same-session median (0.76) and both synthetic cross-recording tries (0.96–0.98); the margin is what keeps two alike people apart. Nothing is applied by itself: a wrong suggestion costs a "Not {name}" click.
+- **0.50 for a name the recording expects** (Who spoke or participants): still 0.11 above any stranger measured, and the margin still applies.
+- **10 s of voiced speech** to enrol or be suggested (the 0.71 different-person pair above involved a 23-s speaker; shorter voices are noisier).
+- **The signature is the mean of the newest 10 confirmations** (a capped running mean), so one odd recording moves it a tenth and old ones stop counting. Not measured: real cross-recording tries of the same person (different days, microphones, rooms); the owner's two meetings share nobody. The thresholds should be revisited with such a pair; `voicematch` takes any named transcript and saved speaker job.
+
+**Suggested chapters** (`ChapterSuggester`, `TranscriptionCheck chapters`), on the same two meetings (they have no chapters of their own to compare with, so only shape is reported): 10 chapters for the 92-minute meeting (3.6–18.4 min long, 7 of 9 starts after a pause of 2–46 s or with a new speaker; 5 titled with a topic's label) and 6 for the 56-minute one (2.3–29.3 min; every start with a new speaker; 5 titled with a topic), in 90–100 ms each. Before tuning, a cutoff of the mean depth less half a deviation and one chapter per five minutes gave 12 and 11, with 0.3- and 1.9-minute chapters at the very end and filler titles ("Blah blah", "Bye-bye"); so dips must be deeper than average, there is about one chapter per ten minutes at most, none within half the spacing of either end, fillers and greetings never title a chapter, a verb form ("figuring") counts less unless it is a topic, and no title repeats an earlier one (ignoring a plural "s"). Keyword titles stay rough ("Lose", "Hoping"); they are dotted until accepted and can be renamed. A title written by the local model ("Improve titles") is not built in this version.

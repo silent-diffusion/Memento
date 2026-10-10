@@ -303,7 +303,7 @@ transcription: {
   keepWordTimestamps: boolean;           // true
   lowConfidenceThreshold: number;        // 0.5
 }
-speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string }
+speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string; rememberVoices: boolean }   // rememberVoices: 2.0, see "Review (2.0)"
 history: { keepVersions: boolean; keepDays: number }     // true, 90
 ```
 
@@ -752,3 +752,46 @@ interface DocumentVersionResult { document: DocumentContent; html: string }   //
 How a line finds its copy (`Memento.Core.History.HistoryLinker`): every stored copy (the current content, and each kept version while Settings › Documents › version history is on, as `transcript.versions` and `documents.versions` list them) was current from the write that defined it (its `lastChange.at`) until a write replaced it (a kept version's id is the UTC moment it was replaced). A History line is written just after its write, so it belongs to the copy current at its time; for a document, the copy written last before the line, within two minutes. Of the lines inside one copy only the last opens it: the earlier ones were changed again before a copy was kept (the transcript before speakers were identified, the first lines of a run of edits, which keeps one version). Lines whose copy was removed after the version-history days have `versionId: null`. Retention is unchanged. Restoring from the banner goes through `transcript.restoreVersion` / `documents.restoreVersion`; the version that restore keeps of the replaced content (the id new in `transcript.versions` / `documents.versions`) is what Undo restores, and Redo restores the opened version again. Without version history nothing is kept, so only `current` links open.
 
 The document viewer's route takes the version to open: `#/document/<recordingId>/<documentId>?version=<versionId>`.
+
+
+---
+
+# Review (2.0): known voices, suggested chapters, selection mode
+
+The deferred Review features of DESIGN.md §19, additive. The JSON is pinned by `ReviewContractSerializationTests`; parameters are read strictly (an unknown or missing field is `bridge.invalidParams`). Measurements and the thresholds: ENGINE-NOTES.md §N.
+
+## Shared types (Review 2.0)
+
+```ts
+interface KnownVoiceInfo { id: string; name: string; recordings: number; lastConfirmedAt: string; suggest: boolean }   // never the signature
+interface KnownVoicesResult { remember: boolean; voices: KnownVoiceInfo[] }        // remember: Settings › Speakers › rememberVoices; voices by name
+interface VoiceRememberResult { remembered: boolean; changeId: string | null; voice: KnownVoiceInfo | null; reason: string | null }
+interface VoiceMatch { speakerId: string; voiceId: string; name: string; similarity: number /* cosine 0..1 */; recordings: number }
+interface ChapterSuggestion { id: string /* "sc" + atMs */; atMs: number; title: string; basis: string /* "The subject changes · 4 s pause · new speaker" */ }
+```
+
+`SettingsSnapshot.speakers` gains `rememberVoices` (default `false`; `settings.set` merges it like the other fields). The 1.x `rememberRenamed` stays in the snapshot for compatibility; it was never applied, is not shown any more and does not turn remembering on.
+
+## Methods (Review 2.0)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `voices.list` | `{}` | `KnownVoicesResult` | Settings › Known voices. |
+| `voices.setSuggest` | `{ voiceId, suggest }` | `KnownVoicesResult` | "Suggest this voice". A voice that is off is kept but never suggested (it still counts as the second best, so it can stop another voice's suggestion). |
+| `voices.forget` | `{ voiceId }` | `KnownVoicesResult` | Removes the voice's signatures at once; not undoable, and no Undo of an earlier enrolment brings it back. |
+| `voices.forgetAll` | `{}` | `KnownVoicesResult` | Deletes `voices/known.json` (also one written by a newer Memento). |
+| `voices.remember` | `{ recordingId, speakerId }` | `VoiceRememberResult` | Review calls it after a rename while `rememberVoices` is on. Enrols the named speaker's voice (the mix of the voices.json voices of the lines it has now) under its name, or refines the known voice with that name and voice model; the speaker's earlier confirmation in this recording (under another name) moves to this one, and a voice left without confirmations is forgotten. Nothing changes, with `reason` saying why, when the setting is off, the speaker has no name, the recording has no voices.json, or there is under 10 s of voiced speech. `transcript.none`, `transcript.speakerNotFound`, `project.notFound`. |
+| `voices.revert` | `{ changeId }` | `{}` | Undo of a `voices.remember` or `voices.acceptMatch` enrolment: the voices it touched go back as they were (keeping their Suggest switch and declines). The journal lives in memory for this run of Memento (200 changes); a change it no longer has, or one whose voice was forgotten since, answers `voices.notFound`. |
+| `voices.matches` | `{ recordingId }` | `{ matches: VoiceMatch[] }` | The match prompts: unnamed speakers whose voice (10 s or more) matches a known voice at cosine 0.60 or more (0.50 when the name is one of the recording's Who spoke names or participants) and 0.10 more than any other known voice of the same model, one speaker per voice and one voice per speaker. Voices switched off, declined in this recording or already naming a speaker here are not offered. Empty while `rememberVoices` is off, without a transcript or without voices.json. |
+| `voices.acceptMatch` | `{ recordingId, speakerId, voiceId }` | `{ speakers, changeId }` | "Use name": `transcript.renameSpeaker` to the voice's name, then `voices.remember` (`changeId` null when nothing was learned). Undo: `transcript.restoreSpeaker` with the old name, then `voices.revert`. |
+| `voices.decline` | `{ recordingId, voiceId, declined }` | `{ matches: VoiceMatch[] }` | "Not {name}": the voice is not suggested in this recording again; `declined: false` is its Undo. Answers the recording's matches after the change. |
+| `annotations.suggestChapters` | `{ recordingId }` | `{ suggestions: ChapterSuggestion[] }` | Found on the PC, no model: subject changes (two minutes of words either side of each 30-second edge), moved to the nearby line after the longest pause or with a new speaker, about one per ten minutes at most, plus the first line. Suggestions within a minute of a chapter (an accepted suggestion is a chapter) or of a dismissed one are left out. Empty for recordings under six minutes, without a complete transcript, or when nothing changes enough. Reads only. |
+| `annotations.dismissSuggestion` | `{ recordingId, atMs }` | `{ suggestions }` | Keeps `atMs` in annotations.json (`dismissedSuggestions`, an optional field read by schema v1; an older Memento keeps it as an unknown field), at most 200. A negative time is `bridge.invalidParams`. |
+| `annotations.restoreSuggestion` | `{ recordingId, atMs }` | `{ suggestions }` | The Undo of a dismiss. |
+| `transcript.setSegmentsSpeaker` | `{ recordingId, segmentIds, speakerId: string \| null, newSpeakerName?: string }` | `{ segments, speakers }` | Selection mode: 1–100,000 lines to one speaker (a new one with `newSpeakerName`, which counts as named) in one write; `segments` are those lines as they are now, in transcript order. Every line must exist (`transcript.segmentNotFound`, `detail` its id) and the speaker too (`transcript.speakerNotFound`), or nothing changes. History: "Speaker changed" with the line count. Undo groups the lines by the speaker they had and sets each group back (and removes a speaker it created with `transcript.removeSpeaker`). |
+
+Accepting a suggested chapter is `annotations.addChapter` with `origin: 'local'`; Accept all is one per suggestion and one Undo step. Selection mode's Highlight is `annotations.addHighlight` per line without one (with its `segmentId`), Remove highlights `annotations.removeHighlight`, Mark as chapter start `annotations.addChapter` at the first selected line titled with its first words, and Copy `transcript.copy` with the lines' `segmentIds`; each action is one Undo step.
+
+## Error codes (Review 2.0)
+
+`voices.notFound` (a `voices.*` method named a known voice or an enrolment change Memento does not have; `detail` is the id), `voices.newerVersion` (`voices/known.json` was written by a newer Memento; it is left as it is and nothing changed; Forget all still deletes it).
