@@ -79,6 +79,11 @@ public sealed record DocumentTemplate
                 {
                     problems.Add($"The module type \"{module.Type}\" is not in the catalog.");
                 }
+
+                if (module.Email?.Validate() is { } email)
+                {
+                    problems.Add(email);
+                }
             }
         }
 

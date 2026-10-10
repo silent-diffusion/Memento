@@ -1,5 +1,6 @@
 using System.Text;
 using Memento.Documents.Model;
+using Memento.Documents.Model.Blocks;
 using Memento.Documents.Model.Modules;
 using Memento.Documents.Styling;
 using Memento.Documents.Templates;
@@ -110,6 +111,52 @@ public sealed class DocumentHtmlRenderer
             .Append("</title>\n<style>\n").Append(PageRules(document, style)).Append(PaperCss.Stylesheet).Append(PaperCss.PrintStylesheet)
             .Append("</style>\n</head>\n<body>\n").Append(body).Append("</body>\n</html>\n");
         return page.ToString();
+    }
+
+    /// <summary>
+    /// One module as a complete HTML page for the clipboard (2.0, <c>documents.copyModule</c>): its blocks in the
+    /// document's style, without the document's title, the module's heading or timestamps (the people an email goes to
+    /// do not have the recording), so a Follow-up email pastes into Outlook or Word as the email itself.
+    /// </summary>
+    public string RenderModuleHtml(Document document, ModuleBlock module, DocumentStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(style);
+        var body = new StringBuilder();
+        var writer = new BlockHtmlWriter(body, PaperMode.Print);
+        Open(body, document, style, PaperMode.Print);
+        body.Append("<section class=\"paper-module size-").Append(module.TextSize.Name()).Append("\" data-id=\"").Append(HtmlText.Escape(module.Id))
+            .Append("\" data-module=\"").Append(HtmlText.Escape(module.Type)).Append("\">\n");
+        foreach (var block in module.Blocks)
+        {
+            writer.Write(WithoutTimestamps(block));
+        }
+
+        body.Append("</section>\n</article>\n");
+        var title = string.IsNullOrWhiteSpace(module.Title) ? _catalog.Find(module.Type)?.DisplayName ?? module.Type : module.Title;
+        var page = new StringBuilder();
+        page.Append("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>").Append(HtmlText.Escape(title))
+            .Append("</title>\n<style>\n").Append(PaperCss.Stylesheet).Append(PaperCss.PrintStylesheet)
+            .Append("</style>\n</head>\n<body>\n").Append(body).Append("</body>\n</html>\n");
+        return page.ToString();
+    }
+
+    /// <summary>The block with its timestamp runs left out (lists, tables and pairs included).</summary>
+    internal static Block WithoutTimestamps(Block block)
+    {
+        static IReadOnlyList<Run> Strip(IReadOnlyList<Run> runs) => runs.Where(r => r.Kind != RunKind.Timestamp).ToList();
+        static IReadOnlyList<ListItem> Items(IReadOnlyList<ListItem> items) => items.Select(i => i with { Runs = Strip(i.Runs), Items = Items(i.Items) }).ToList();
+        return block switch
+        {
+            ParagraphBlock p => p with { Runs = Strip(p.Runs) },
+            HeadingBlock h => h with { Runs = Strip(h.Runs) },
+            ListBlock l => l with { Items = Items(l.Items) },
+            LabelValueBlock lv => lv with { Pairs = lv.Pairs.Select(p => p with { Runs = Strip(p.Runs) }).ToList() },
+            TableBlock t => t with { Rows = t.Rows.Select(r => r with { Cells = r.Cells.Select(c => c with { Runs = Strip(c.Runs) }).ToList() }).ToList() },
+            QuoteBlock q => q with { T = null, Runs = Strip(q.Runs) },
+            _ => block,
+        };
     }
 
     /// <summary>The <c>@page</c> rules: paper size, margins, running header and page numbers.</summary>

@@ -81,6 +81,20 @@ public sealed partial class GenerationService(
             warnings.Add("The transcript is not among the inputs, so the generated sections cannot cite it.");
         }
 
+        // 2.0: the sheet's inputs, what is held back and every request as the provider will receive it.
+        var status = prepared.Status;
+        var input = new PipelineInput(
+            prepared.Template,
+            prepared.Material,
+            prepared.Payload,
+            prepared.Selection,
+            preview,
+            prepared.Facts,
+            status.ChunkTokens,
+            status.MapOutputTokens,
+            Bounded: !status.IsCloud,
+            VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize);
+        var inputs = PayloadPreview.Inputs(prepared.Ticked, prepared.Selection, prepared.Payload, status.IsCloud);
         return new GenerationPreviewResult(
             prepared.Payload.RenderPreview(preview),
             Encoding.UTF8.GetByteCount(prepared.Payload.Text),
@@ -88,8 +102,13 @@ public sealed partial class GenerationService(
             M4Mapping.ToBridge(M4Mapping.Used(prepared.Selection, prepared.Payload)),
             warnings)
         {
-            ProviderId = prepared.Status.Id,
-            StaysOnPc = !prepared.Status.IsCloud,
+            ProviderId = status.Id,
+            StaysOnPc = !status.IsCloud,
+            Provider = new PreviewProviderInfo(status.Id, status.Name, status.IsCloud ? "cloud" : "local", status.ModelLabel ?? status.Model),
+            AskBeforeSend = settings.Current.Ai.AskBeforeSend,
+            Inputs = inputs,
+            Redactions = PayloadPreview.Redactions(inputs, prepared.Payload),
+            Passes = PayloadPreview.Passes(pipeline.MapRequests(input), preview, input.Bounded),
         };
     }
 
@@ -385,11 +404,14 @@ public sealed partial class GenerationService(
             DataModuleComposer.Purpose(material),
             DataModuleComposer.KnownPeople(material),
             DataModuleComposer.Agenda(material),
-            DataModuleComposer.QuoteCandidates(material));
+            DataModuleComposer.QuoteCandidates(material))
+        {
+            RecordedAt = material.Manifest.CreatedAt,
+        };
         var preview = new PreviewProvider(status);
         var chunks = payload.TranscriptLines.Count == 0 ? 0 : TranscriptChunker.Chunk(payload.TranscriptLines, new ChunkOptions(status.ChunkTokens, new ProviderTokenCounter(preview))).Count;
         var needsTranscript = stored.Modules().Any(m => catalog.Find(m.Type) is { IsAiGenerated: true } && m.Type is not (ModuleIds.MeetingPurpose));
-        return new Prepared(stored, material, payload, selection, status, facts, chunks, needsTranscript);
+        return new Prepared(stored, material, payload, selection, status, facts, chunks, needsTranscript) { Ticked = M4Mapping.Selection(stored.Inputs) };
     }
 
     private DocumentGenerationRecord Record(Job job, ProviderStatus status, PipelineOutcome outcome, DateTimeOffset started, long durationMs)
@@ -513,7 +535,11 @@ public sealed partial class GenerationService(
         ProviderStatus Status,
         GenerationFacts Facts,
         int Chunks,
-        bool NeedsTranscript);
+        bool NeedsTranscript)
+    {
+        /// <summary>The template's ticks before Settings' share switches narrowed them (the preview shows both).</summary>
+        public PayloadSelection Ticked { get; init; } = Selection;
+    }
 
     private sealed class Job(string id, string recordingId, string? documentId, Prepared prepared, DateTimeOffset created, GenerationProgressFeed events, GenerationOutputFeed output)
     {

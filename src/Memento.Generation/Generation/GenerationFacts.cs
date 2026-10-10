@@ -13,4 +13,7 @@ public sealed record GenerationFacts(
 {
     /// <summary>The agenda was part of the payload, so its coverage is checked against the transcript.</summary>
     public bool AgendaChecked { get; init; } = true;
+
+    /// <summary>2.0: when the recording was made (the Follow-up email's subject names the day).</summary>
+    public DateTimeOffset? RecordedAt { get; init; }
 }

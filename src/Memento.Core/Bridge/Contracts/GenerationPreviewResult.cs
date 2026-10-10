@@ -11,4 +11,19 @@ public sealed record GenerationPreviewResult(string PayloadText, long Bytes, int
 
     /// <summary>The local model reads it; nothing leaves the PC.</summary>
     public bool StaysOnPc { get; init; }
+
+    /// <summary>2.0: the provider and the model in effect.</summary>
+    public PreviewProviderInfo? Provider { get; init; }
+
+    /// <summary>2.0: Settings' "Ask before every send" (it holds cloud jobs only; the local model sends nothing).</summary>
+    public bool AskBeforeSend { get; init; }
+
+    /// <summary>2.0: every input of the checklist (and the template's instructions when it has some), ticked or not, with its size.</summary>
+    public IReadOnlyList<PreviewInput> Inputs { get; init; } = [];
+
+    /// <summary>2.0: what is held back or changed before sending, in sentences; empty when nothing is.</summary>
+    public IReadOnlyList<string> Redactions { get; init; } = [];
+
+    /// <summary>2.0: each request in pipeline order, as the provider will receive it.</summary>
+    public IReadOnlyList<PreviewPass> Passes { get; init; } = [];
 }

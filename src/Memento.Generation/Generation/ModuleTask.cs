@@ -24,7 +24,12 @@ public sealed record ModuleTask(string Family, IReadOnlyList<TemplateModule> Mod
     public string? PointsType => IsPoints ? Modules[0].Type : null;
 
     /// <summary>Points asked for per chunk: the meeting purpose is one line, so one; otherwise by length.</summary>
-    public int PointsPerChunk => PointsType == ModuleIds.MeetingPurpose ? 1 : PerChunk(Length);
+    public int PointsPerChunk => PointsType switch
+    {
+        ModuleIds.MeetingPurpose => 1,
+        ModuleIds.FollowUpEmail => RecapCap(Length),
+        _ => PerChunk(Length),
+    };
 
     /// <summary>The longest length any reading module asks for.</summary>
     public ModuleLength Length => Modules.Select(m => m.Length).OrderByDescending(Rank).First();
@@ -49,6 +54,26 @@ public sealed record ModuleTask(string Family, IReadOnlyList<TemplateModule> Mod
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Every family a module reads, its own (<see cref="FamilyOf"/>) first. The Follow-up email (2.0) also has a points pass
+    /// of its own for the recap, beside the shared decisions-and-actions pass.
+    /// </summary>
+    public static IReadOnlyList<string> FamiliesOf(TemplateModule module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        return module.Type == ModuleIds.FollowUpEmail
+            ? [Commitments, PointsPrefix + module.Id]
+            : FamilyOf(module) is { } family ? [family] : [];
+    }
+
+    /// <summary>The Follow-up email's recap, in statements: short 2, medium 3, long 5 (an email is read in a minute).</summary>
+    public static int RecapCap(ModuleLength length) => length switch
+    {
+        ModuleLength.Short => 2,
+        ModuleLength.Long => 5,
+        _ => 3,
+    };
 
     /// <summary>Points kept per module after reduction: short 3, medium 6, long 12 (decisions and actions are not capped below 20).</summary>
     public static int Cap(ModuleLength length) => length switch

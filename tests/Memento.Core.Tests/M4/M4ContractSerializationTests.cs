@@ -136,8 +136,37 @@ public sealed class M4ContractSerializationTests
             .Where(n => n.Split('.')[0] is "modules" or "templates" or "styles" or "providers" or "generation" or "documents")
             .ToList();
 
-        // 32 at M4, documents.copy and documents.getVersion after 1.2.0.
-        Assert.Equal(34, names.Count);
+        // 32 at M4, documents.copy and documents.getVersion after 1.2.0, documents.copyModule and generation.copyPreview in 2.0.
+        Assert.Equal(36, names.Count);
         Assert.Equal(names.Count, names.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void TheFollowUpEmailSettingsAndThePreviewSheetAreAdditive()
+    {
+        var module = new ModuleSettings("e1", "followUpEmail", "", "medium", "normal", false, null, null) { Email = new EmailModuleSettings("warm", "Dana") };
+        Assert.Equal(
+            """{"id":"e1","module":"followUpEmail","instructions":"","length":"medium","textSize":"normal","linkToTranscript":false,"customTitle":null,"customText":null,"email":{"tone":"warm","signOff":"Dana"}}""",
+            JsonSerializer.Serialize(module, M4BridgeJsonContext.Default.ModuleSettings));
+        Assert.DoesNotContain("email", JsonSerializer.Serialize(module with { Module = "decisions", Email = null }, M4BridgeJsonContext.Default.ModuleSettings), StringComparison.Ordinal);
+
+        var preview = new GenerationPreviewResult("text", 4, 1, Inputs, [])
+        {
+            ProviderId = "local",
+            StaysOnPc = true,
+            Provider = new PreviewProviderInfo("local", "Local model", "local", "Qwen3.5 4B"),
+            AskBeforeSend = true,
+            Inputs = [new PreviewInput("transcript", "Transcript", true, true, 120, 121, "3 segments", null)],
+            Redactions = ["Agenda is held back."],
+            Passes = [new PreviewPass("p1", "map", "Decisions and action items · segment 1 of 1", "Extract.", "[1] Ana: Hello.", 23, 23, 8, true)],
+        };
+        Assert.Equal(
+            """{"payloadText":"text","bytes":4,"chunks":1,"inputsUsed":{"transcript":true,"details":true,"participants":true,"agenda":true,"highlights":true,"attachments":false,"previousDocuments":false},"warnings":[],"providerId":"local","staysOnPc":true,"provider":{"id":"local","name":"Local model","kind":"local","modelLabel":"Qwen3.5 4B"},"askBeforeSend":true,"inputs":[{"key":"transcript","label":"Transcript","ticked":true,"included":true,"characters":120,"bytes":121,"summary":"3 segments","note":null}],"redactions":["Agenda is held back."],"passes":[{"id":"p1","step":"map","title":"Decisions and action items · segment 1 of 1","system":"Extract.","user":"[1] Ana: Hello.","characters":23,"bytes":23,"tokens":8,"exact":true}]}""",
+            Dot(JsonSerializer.Serialize(preview, M4BridgeJsonContext.Default.GenerationPreviewResult)));
+
+        var copy = JsonSerializer.Deserialize("""{"recordingId":"r1","template":{"id":"t","name":"T","builtIn":false,"recordingTypes":[],"rows":[],"inputs":null,"providerId":null,"styleId":"corporate","output":null,"modifiedAt":null},"passId":"p2"}""", M4BridgeJsonContext.Default.GenerationCopyPreviewParams)!;
+        Assert.Equal("p2", copy.PassId);
+        Assert.Equal("""{"characters":10,"passes":3}""", JsonSerializer.Serialize(new PreviewCopyResult(10, 3), M4BridgeJsonContext.Default.PreviewCopyResult));
+        Assert.Equal("m1", JsonSerializer.Deserialize("""{"recordingId":"r1","documentId":"d1","moduleId":"m1"}""", M4BridgeJsonContext.Default.DocumentModuleParams)!.ModuleId);
     }
 }

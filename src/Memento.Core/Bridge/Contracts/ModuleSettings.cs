@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memento.Core.Bridge.Contracts;
 
 /// <summary>One module card of a template (BRIDGE.md M4).</summary>
@@ -7,4 +9,9 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="TextSize"><c>smaller</c>, <c>normal</c> or <c>larger</c>.</param>
 /// <param name="CustomTitle">The heading; <c>null</c> uses the catalog name.</param>
 /// <param name="CustomText">Custom text modules only: the text placed as written.</param>
-public sealed record ModuleSettings(string Id, string Module, string Instructions, string Length, string TextSize, bool LinkToTranscript, string? CustomTitle, string? CustomText);
+public sealed record ModuleSettings(string Id, string Module, string Instructions, string Length, string TextSize, bool LinkToTranscript, string? CustomTitle, string? CustomText)
+{
+    /// <summary>2.0, Follow-up email modules only: tone and sign-off; left out (or <c>null</c>) for neutral with no name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EmailModuleSettings? Email { get; init; }
+}
