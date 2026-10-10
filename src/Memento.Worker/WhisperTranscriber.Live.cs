@@ -34,6 +34,11 @@ internal sealed partial class WhisperTranscriber
             .WithThreads(Math.Max(1, job.Threads))
             .WithPrompt(job.Prompt)
             .WithNoContext()
+            // Whisper's encoder always works on 30 s of audio; a 10 s window needs only its first third (50 frames a
+            // second, plus a margin), which cuts its work about two and a half times (ENGINE-NOTES.md §O).
+            .WithAudioContextSize(LiveAudioContext)
+            // No retries at higher temperatures: a window it is unsure of stays rough, as a draft may.
+            .WithTemperatureInc(0)
             .WithEncoderBeginHandler(_ => !cancellationToken.IsCancellationRequested)
             .WithLanguage(detect ? "auto" : job.Language)
             .Build();
@@ -101,6 +106,12 @@ internal sealed partial class WhisperTranscriber
         cancellationToken.ThrowIfCancellationRequested();
         return new WorkerReply { Type = WorkerMessageTypes.Result, Language = language };
     }
+
+    /// <summary>
+    /// Encoder frames for a 10-second live window: 50 a second plus a margin (the full 30 s is 1,500). 512 (10.2 s) made
+    /// the model repeat a sentence cut at the window's end; 640 (12.8 s) heard the speech fixture word for word like 1,500.
+    /// </summary>
+    internal const int LiveAudioContext = 640;
 
     /// <summary>What the engine writes for sounds that are not words: "[BLANK_AUDIO]", "(music)", "*laughs*".</summary>
     [GeneratedRegex(@"^\s*[\[\(\*♪].*[\]\)\*♪]\s*$", RegexOptions.CultureInvariant)]

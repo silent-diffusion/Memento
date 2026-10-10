@@ -224,7 +224,7 @@ Everything can be reached with Tab and Shift+Tab; the focused control has a visi
 
 ## Known limitations
 
-- The live transcript is a rough draft from a small model: it has no speakers and misses words the full transcript gets right. It was not measured with the Small model on real hardware for this release.
+- The live transcript is a rough draft from the Small model: it has no speakers, runs 10–20 seconds behind, and where a 10-second window cuts a sentence it can guess the rest wrongly. The full transcript after you stop gets it right.
 - **No video capture**; importing a video file uses its sound.
 - **Generated documents are drafts.** The local model is good for a first draft with citations and review; check what it wrote against the transcript before you send it on. Claude and ChatGPT have so far been tried only against a test server, not with a real key.
 - In a 4-hour recording made while another program kept the processor at 100% the whole time, the microphone track ended about 0.7 seconds out of step with the others. This was not seen without that outside load.
