@@ -30,8 +30,8 @@ public interface IVideoTrackRecorder : IAsyncDisposable
     /// <exception cref="VideoStartException">The new source could not start; the track keeps its old one.</exception>
     Task SwitchSourceAsync(string sourceId, CancellationToken cancellationToken);
 
-    /// <summary>Flushes the file to disk and returns the entry for <c>recording.state.json</c>.</summary>
-    VideoTrackCheckpoint Checkpoint();
+    /// <summary>Flushes the file to disk (when <paramref name="flush"/>) and returns the entry for <c>recording.state.json</c>.</summary>
+    VideoTrackCheckpoint Checkpoint(bool flush);
 
     /// <summary>What the Encoder card shows now.</summary>
     VideoTrackStatus Status();

@@ -310,12 +310,16 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
         await old.DisposeAsync().ConfigureAwait(false);
     }
 
-    /// <summary>Flushes the file to disk and returns the track's entry for <c>recording.state.json</c>.</summary>
-    public VideoTrackCheckpoint Checkpoint()
+    /// <summary>Flushes the file to disk (unless <paramref name="flush"/> is false) and returns the track's entry for <c>recording.state.json</c>.</summary>
+    public VideoTrackCheckpoint Checkpoint(bool flush = true)
     {
         lock (_gate)
         {
-            _writer?.Checkpoint();
+            if (flush)
+            {
+                _writer?.Checkpoint();
+            }
+
             return new VideoTrackCheckpoint(
                 _options.TrackId,
                 _options.Role,
@@ -357,7 +361,9 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
                 _pacer.FramesWritten,
                 _pacer.FramesDropped,
                 bytes + PreviousPartsBytes(),
-                durationMs);
+                durationMs,
+                _source.Id.ToString(),
+                (_parts.Select(p => p.FirstTicks).FirstOrDefault(t => t is not null) ?? 0) / QpcClock.TicksPerMillisecond);
         }
     }
 

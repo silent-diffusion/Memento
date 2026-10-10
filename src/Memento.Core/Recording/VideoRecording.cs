@@ -245,7 +245,7 @@ internal sealed partial class VideoRecording : IAsyncDisposable
             {
                 try
                 {
-                    entries.Add(flush ? recorder.Checkpoint() : ToCheckpoint(recorder));
+                    entries.Add(recorder.Checkpoint(flush));
                 }
 #pragma warning disable CA1031 // A video flush must never stop the audio checkpoint; the next one tries again.
                 catch (Exception ex)
