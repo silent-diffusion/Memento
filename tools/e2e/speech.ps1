@@ -7,15 +7,27 @@
 .PARAMETER Path
   Where to write the WAV (keep it under artifacts/, which git ignores).
 
+.PARAMETER Script
+  'first' (default) or 'second': another made-up meeting with the same two voices and other words, for the
+  known-voices study (ENGINE-NOTES.md §N): the same people in a later recording.
+
 .EXAMPLE
   powershell -File tools/e2e/speech.ps1 -Path artifacts/e2e-fixtures/two-voices.wav
 #>
-param([Parameter(Mandatory = $true)] [string] $Path)
+param([Parameter(Mandatory = $true)] [string] $Path, [ValidateSet('first', 'second')] [string] $Script = 'first')
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Speech
 
-$lines = @(
+$lines = if ($Script -eq 'second') { @(
+  'Hello again. Today we look at the export dialog and the folder names.',
+  'I tried the new folder names yesterday and they sort by date, which helps.',
+  'Good. What about the manifest file? Does it list every track and its hash?',
+  'It does. Each file has its size and checksum, and the mix is listed last.',
+  'Then we only need the release notes. Who can draft them this week?',
+  'I can draft the release notes on Thursday and send them round for comments.',
+  'Thank you. Let us stop here and meet again next Tuesday.'
+) } else { @(
   'Good morning. Let us start with the library screen and the row height.',
   'Thanks. I think the rows should stay at sixty eight pixels, they read well.',
   'Agreed. Next, the dark theme. Do we ship it in this release or the next one?',
@@ -23,7 +35,7 @@ $lines = @(
   'Good. Then the last item is the empty state for a new library.',
   'I will write the copy for the empty state by Friday and share it with everyone.',
   'Perfect. That is everything for today. Thank you both.'
-)
+) }
 
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
 $voices = @($synth.GetInstalledVoices() | Where-Object { $_.Enabled } | ForEach-Object { $_.VoiceInfo.Name })

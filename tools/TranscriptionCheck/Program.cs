@@ -17,6 +17,13 @@
 //                     [--counts auto,4] [--join none,0.7]
 //                                                     assign a saved speaker job to a transcript's lines with each count and
 //                                                     join similarity, and score it against the reference's renamed speakers
+//   TranscriptionCheck voicematch <diarize.json> --transcript <named transcript.json> [--b <diarize.json> --b-transcript <json>] [--piece 30]
+//                                                     the known-voices threshold study (ENGINE-NOTES.md §N): genuine and
+//                                                     impostor tries against people enrolled from the named transcript
+//   TranscriptionCheck chapters <transcript.json> [--annotations <annotations.json>] [--titles]
+//                                                     suggested chapters for a transcript and its topics (titles on request)
+//   TranscriptionCheck voicepair <diarize.json> <diarize.json>
+//                                                     the cosine of every voice of one saved speaker job with the other's
 using System.Globalization;
 using Memento.Tools.TranscriptionCheck;
 
@@ -59,6 +66,17 @@ switch (command)
             float.Parse(Option("--threshold") ?? "0.8", CultureInfo.InvariantCulture),
             int.Parse(Option("--count") ?? "-1", CultureInfo.InvariantCulture),
             Option("--out") ?? throw new ArgumentException("--out <json> is needed"));
+    case "chapters":
+        return VoiceStudy.Chapters(args[1], Option("--annotations"), args.Contains("--titles"));
+    case "voicepair":
+        return VoiceStudy.Pair(args[1], args[2]);
+    case "voicematch":
+        return VoiceStudy.Run(
+            args[1],
+            Option("--transcript") ?? throw new ArgumentException("--transcript <transcript.json> is needed (its named speakers are the reference)"),
+            Option("--b"),
+            Option("--b-transcript"),
+            double.Parse(Option("--piece") ?? "30", CultureInfo.InvariantCulture));
     default:
         Console.WriteLine("usage: TranscriptionCheck models | install <id>... | adopt <id> <file> | run <wav> [--model id] [--cpu] | killtest <wav> | show <id>   [--worker <exe>]");
         return 2;
