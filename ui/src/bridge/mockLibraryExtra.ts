@@ -90,6 +90,7 @@ export const M3_METHODS = [
   'library.rebuildIndex',
   'library.move',
   'storage.reclaim',
+  'storage.keepOnlyMix',
   'ai.setKey',
   'ai.clearKey',
   'app.setStartup',
@@ -113,7 +114,7 @@ export const DEFAULT_EXPORT_SELECTION: ExportSelection = {
 /** The M3 blocks of the preview's settings (defaults from the README: local first, AI off, nothing written outside). */
 export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export' | 'ai' | 'storage'> {
   return {
-    general: { startWithWindows: false, keepRunningInTray: true, language: 'en', autoUpdate: true },
+    general: { startWithWindows: false, keepRunningInTray: false, language: 'en', autoUpdate: true, startWithWindowsAvailable: true, startWithWindowsNote: null },
     export: {
       saveCopiesOutside: false,
       defaultFolder: 'D:\\Exports',
@@ -191,6 +192,17 @@ const PICKED_TOO_LARGE = { name: 'site-walkthrough.mov', sizeBytes: 240 * MB, co
  * The page never names a file (security audit SA-08): the picker methods refuse a path as the host does, so script in
  * the page cannot make the host read, copy or connect to a file of its choosing.
  */
+/** 2.0: a stored recording that still has its separate tracks (what library.usage counts and storage.keepOnlyMix removes). */
+function hasSeparateTracks(project: MockProject): boolean {
+  return (project.mixOnly ?? null) === null && (project.summary.state === 'ready' || project.summary.state === 'recovered') && project.trackSources.length > 0;
+}
+
+/** The preview's stand-in for the size of a recording's separate track files: everything but the mix. */
+function separateTrackBytes(project: MockProject): number {
+  const tracks = project.trackSources.length;
+  return Math.round((project.summary.sizeBytes * tracks) / (tracks + 1));
+}
+
 function refusePath(method: string, path: string | undefined): void {
   if (path !== undefined) {
     throw new MockHostError('bridge.invalidParams', `'${method}' does not take a path from the interface; the host shows its file picker. Nothing was read.`);
@@ -535,11 +547,61 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     'library.usage': () => {
       const listed = [...env.projects.values()].filter((p) => p.summary.state !== 'recording');
       const largest = listed.reduce<MockProject | null>((best, p) => (best === null || p.summary.sizeBytes > best.summary.sizeBytes ? p : best), null);
+      const withTracks = listed.filter(hasSeparateTracks);
       return {
         totalBytes: listed.reduce((sum, p) => sum + p.summary.sizeBytes, 0),
         freeBytes: env.freeBytes(),
         count: listed.length,
         largest: largest === null ? null : { recordingId: largest.summary.id, title: largest.summary.title, sizeBytes: largest.summary.sizeBytes },
+        separateTracksBytes: withTracks.reduce((sum, p) => sum + separateTrackBytes(p), 0),
+        separateTracksRecordings: withTracks.length,
+        mixOnlyRecordings: listed.filter((p) => (p.mixOnly ?? null) !== null).length,
+      };
+    },
+    // 2.0: as the host, a job reported through storage.reclaimProgress.
+    'storage.keepOnlyMix': (params) => {
+      if (params.recordingIds?.length === 0) {
+        throw new MockHostError('storage.nothingToReclaim', 'No recording was chosen, so no separate tracks were removed. Nothing was changed. Choose at least one recording.');
+      }
+      const chosen = [...env.projects.values()].filter((p) => (params.recordingIds === null || params.recordingIds.includes(p.summary.id)) && hasSeparateTracks(p));
+      if (chosen.length === 0) {
+        throw new MockHostError('storage.nothingToReclaim', 'Every recording already keeps only its mix, so there are no separate tracks to remove. Nothing was changed.');
+      }
+      let freed = 0;
+      let done = 0;
+      return {
+        jobId: runJob(
+          Math.max(120, env.stepMs * 3),
+          Math.max(10, Math.ceil(100 / chosen.length)),
+          (jobId, percent, state, message) => {
+            const reached = Math.min(chosen.length, Math.round((percent / 100) * chosen.length));
+            for (; done < reached; done++) {
+              const project = chosen[done];
+              if (project !== undefined) {
+                const saved = separateTrackBytes(project);
+                const tracks = project.trackSources.length;
+                freed += saved;
+                project.summary = { ...project.summary, sizeBytes: project.summary.sizeBytes - saved };
+                project.mixOnly = { at: at(), tracks, bytesFreed: saved };
+                project.history = [
+                  ...project.history,
+                  {
+                    at: at(),
+                    stage: 'optimize',
+                    event: 'completed',
+                    summary: `Kept only the mix · removed ${tracks} separate ${tracks === 1 ? 'track' : 'tracks'}`,
+                    detail: 'speakers can no longer be identified per track and tracks can no longer be exported for this recording · the transcript, the speakers and the mix are kept',
+                  },
+                ];
+              }
+            }
+            env.emit('storage.reclaimProgress', { jobId, percent, state, message, recordingsDone: done, bytesFreed: freed });
+          },
+          () => {
+            env.changed(...chosen.map((p) => p.summary.id));
+            return `${chosen.length} ${chosen.length === 1 ? 'recording keeps' : 'recordings keep'} only the mix. Transcripts, speakers and the mixes were not changed.`;
+          },
+        ),
       };
     },
     'library.rebuildIndex': () => {

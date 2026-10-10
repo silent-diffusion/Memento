@@ -71,6 +71,7 @@ public static class M3ServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, LibraryRebuildIndexMethod>();
         services.AddSingleton<IBridgeHandler, LibraryMoveMethod>();
         services.AddSingleton<IBridgeHandler, StorageReclaimMethod>();
+        services.AddSingleton<IBridgeHandler, StorageKeepOnlyMixMethod>();
         services.AddSingleton<IBridgeHandler, AiSetKeyMethod>();
         services.AddSingleton<IBridgeHandler, AiClearKeyMethod>();
         services.AddSingleton<IBridgeHandler, AppSetStartupMethod>();

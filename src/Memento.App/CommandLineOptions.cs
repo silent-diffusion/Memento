@@ -9,7 +9,7 @@ namespace Memento.App;
 /// Command-line switches for reviewers and CI:
 /// <c>--screenshot &lt;path&gt;</c> captures the page to a PNG once the UI reports ready, then exits 0;
 /// <c>--theme light|dark</c> forces the theme for this run only (nothing is saved);
-/// <c>--simulate-audio [lose-source=&lt;s&gt;,disk-full=&lt;s&gt;,speed=&lt;x&gt;]</c> (hidden) records from the simulated engine,
+/// <c>--simulate-audio [lose-source=&lt;s&gt;,disk-full=&lt;s&gt;,speed=&lt;x&gt;,speech=&lt;wav&gt;,mics=2]</c> (hidden) records from the simulated engine,
 /// optionally unplugging the system-audio source or filling the disk after that many seconds of a session, and
 /// producing audio <c>x</c> times faster than real time (long recordings in a short test);
 /// <c>--free-space-override=&lt;bytes|file&gt;</c> (hidden, tests) makes every drive report that many free bytes, or the
@@ -19,7 +19,9 @@ namespace Memento.App;
 /// <c>--update-feed=&lt;url|folder|off&gt;</c> (hidden, tests) checks a local Velopack feed instead of the GitHub
 /// releases, or turns update checks off for the run;
 /// <c>--model-mirror=&lt;http://127.0.0.1:port/&gt;</c> (hidden, tests) downloads models from a mirror on this PC,
-/// still checked against the published sizes and SHA-256.
+/// still checked against the published sizes and SHA-256;
+/// <c>--background</c> is what the Windows startup entry passes (2.0): start minimised, or only in the tray when
+/// "Keep running in the tray" is on.
 /// </summary>
 internal sealed record CommandLineOptions(
     string? ScreenshotPath,
@@ -28,7 +30,8 @@ internal sealed record CommandLineOptions(
     string? FreeSpaceOverride = null,
     long? RolloverBytes = null,
     string? UpdateFeed = null,
-    Uri? ModelMirror = null)
+    Uri? ModelMirror = null,
+    bool StartInBackground = false)
 {
     /// <summary>Smallest rollover a test may ask for: one second of int24 stereo at 48 kHz.</summary>
     public const long MinRolloverBytes = 288_000;
@@ -55,6 +58,7 @@ internal sealed record CommandLineOptions(
         long? rollover = null;
         string? updateFeed = null;
         Uri? modelMirror = null;
+        var background = false;
         for (var i = 0; i < args.Count; i++)
         {
             var (name, inline) = Split(args[i]);
@@ -117,13 +121,16 @@ internal sealed record CommandLineOptions(
                     }
 
                     break;
+                case "--background":
+                    background = true;
+                    break;
                 default:
                     // Unknown switches are ignored (Velopack and Windows may pass their own).
                     break;
             }
         }
 
-        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed, modelMirror);
+        return new CommandLineOptions(screenshot, theme, simulate, freeSpace, rollover, updateFeed, modelMirror, background);
     }
 
     /// <summary><c>--name=value</c> → (<c>--name</c>, <c>value</c>); anything else → (argument, null).</summary>
@@ -144,6 +151,13 @@ internal sealed record CommandLineOptions(
         foreach (var part in spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var pair = part.Split('=', 2);
+            if (pair.Length == 2 && pair[0] == "speech")
+            {
+                // 2.0 (tests): the microphone plays this WAV in a loop, so the live transcript has words to hear.
+                options = WithSpeech(options, pair[1]);
+                continue;
+            }
+
             if (pair.Length != 2 || !double.TryParse(pair[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) || seconds < 0)
             {
                 throw new ArgumentException($"--simulate-audio takes lose-source=<seconds>,disk-full=<seconds>, not '{part}'.", nameof(spec));
@@ -154,11 +168,37 @@ internal sealed record CommandLineOptions(
                 "lose-source" => options with { LoseSourceAfter = TimeSpan.FromSeconds(seconds) },
                 "disk-full" => options with { DiskFullAfter = TimeSpan.FromSeconds(seconds) },
                 "speed" when seconds is > 0 and <= 50 => options with { Speed = seconds },
+                "mics" when seconds is 1 or 2 => options with { SecondMicrophone = seconds == 2 },
                 _ => throw new ArgumentException($"--simulate-audio does not know '{part}'; use lose-source=<s>, disk-full=<s> or speed=<0.1–50>.", nameof(spec)),
             };
         }
 
         return options;
+    }
+
+    private static SimulatedEngineOptions WithSpeech(SimulatedEngineOptions options, string path)
+    {
+        try
+        {
+            using var reader = new Core.Audio.WavReader(Path.GetFullPath(path));
+            var channels = reader.Format.Channels;
+            var interleaved = new float[reader.TotalFrames * channels];
+            var frames = reader.ReadFrames(interleaved);
+            var mono = new float[frames];
+            for (var f = 0; f < frames; f++)
+            {
+                for (var c = 0; c < channels; c++)
+                {
+                    mono[f] += interleaved[(f * channels) + c] / channels;
+                }
+            }
+
+            return options with { SpeechSamples = mono, SpeechSampleRate = reader.Format.SampleRate };
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            throw new ArgumentException($"--simulate-audio speech= needs a readable WAV file: {ex.Message}", nameof(path), ex);
+        }
     }
 
     private static string ValueAfter(IReadOnlyList<string> args, ref int index, string error)

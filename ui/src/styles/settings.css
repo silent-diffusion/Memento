@@ -207,6 +207,21 @@
   color: var(--text-2);
 }
 
+/* 2.0: an inline confirmation under a row (Keep only the mix for existing recordings). */
+.settings-confirm {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.settings-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* Settings › General › About: the licenses from docs/THIRD-PARTY.md (H1). */
 .about-licenses {
   flex: 1 1 100%;

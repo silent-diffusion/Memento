@@ -151,7 +151,7 @@ public sealed class OptimizeStageTests : IDisposable
     }
 
     [Fact]
-    public async Task KeepOnlyMixIsStoredButSeparateTracksAreKept()
+    public async Task KeepOnlyMixWithASmallerFormatConvertsOnlyTheMixThenRemovesTheTracks()
     {
         var host = await StartAsync(new StorageSettings { Codec = StorageSettings.Aac, BitrateKbps = 160, KeepOnlyMix = true });
 
@@ -159,10 +159,16 @@ public sealed class OptimizeStageTests : IDisposable
         await host.Processing.WhenIdleAsync();
 
         var manifest = await host.Store.LoadAsync(recordingId, CancellationToken.None);
+        var folder = host.Store.GetProjectFolder(recordingId);
+        Assert.Equal("mix.m4a", manifest.Mix!.File);
+        Assert.Single(_aac.Calls); // the mix only: tracks about to be removed are not converted first
         Assert.Equal(2, manifest.Tracks.Count);
-        Assert.All(manifest.Tracks, t => Assert.Equal("aac", t.Codec));
-        var note = Assert.Single(await host.Store.ReadHistoryAsync(recordingId, CancellationToken.None), h => h.Stage == StageNames.Optimize && h.Event == "info");
-        Assert.Equal("Kept the separate tracks", note.Summary);
+        Assert.All(manifest.Tracks, t => Assert.False(File.Exists(Path.Combine(folder, t.File))));
+        Assert.Equal(["mic", "system"], manifest.MixOnly!.TrackIds);
+        Assert.Equal(["mix.m4a"], manifest.Integrity.Files.Keys);
+        var history = await host.Store.ReadHistoryAsync(recordingId, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == StageNames.Optimize && h.Event == "completed" && h.Summary.StartsWith("Saved smaller files", StringComparison.Ordinal));
+        Assert.Contains(history, h => h.Stage == StageNames.Optimize && h.Event == "completed" && h.Summary.StartsWith("Kept only the mix", StringComparison.Ordinal));
         Assert.True(host.Settings.Current.Recording.Storage.KeepOnlyMix);
     }
 

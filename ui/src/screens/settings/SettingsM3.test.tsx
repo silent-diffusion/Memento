@@ -62,11 +62,29 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     await until(() => h.callsOf('app.setStartup').length === 1);
     expect(h.callsOf('app.setStartup')[0]).toEqual({ startWithWindows: true });
     await until(() => button('Start Memento with Windows').getAttribute('aria-checked') === 'true');
-    expect(rowOf('Keep running in the tray when closed').textContent).toContain('Applied in a later version');
+    expect(rowOf('Keep running in the tray when closed').textContent).toContain('Closing the window leaves Memento in the notification area');
+    expect(rowOf('Start Memento with Windows').textContent).toContain('Opens minimised');
     await click(button('Keep running in the tray when closed'));
     await until(() => h.callsOf('settings.set').length === 1);
-    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general).toEqual({ startWithWindows: true, keepRunningInTray: false, language: 'en', autoUpdate: true });
+    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general).toEqual({ startWithWindows: true, keepRunningInTray: true, language: 'en', autoUpdate: true, startWithWindowsAvailable: true, startWithWindowsNote: null });
     expect(rowOf('Language').textContent).toContain('English');
+  });
+
+  it('General: Start with Windows is disabled with the reason when this copy is not installed (2.0)', async () => {
+    await open('general');
+    // Settings reads the host's settings again when it opens; the copy below must come after that answer.
+    await until(() => h.callsOf('settings.get').length > 0);
+    await settle(100);
+    const settings = h.store.settings.value;
+    if (settings === null) {
+      throw new Error('no settings');
+    }
+    const note = 'Start with Windows works only for an installed Memento, and this copy was not installed with the Memento installer.';
+    h.store.settings.value = { ...settings, general: { ...settings.general, startWithWindowsAvailable: false, startWithWindowsNote: note } };
+    await until(() => rowOf('Start Memento with Windows').textContent.includes('Installed copies only'));
+    expect(rowOf('Start Memento with Windows').textContent).toContain(note);
+    expect(button('Start Memento with Windows').hasAttribute('disabled')).toBe(true);
+    expect(h.callsOf('app.setStartup')).toEqual([]);
   });
 
   it('General: Updates checks by hand, the automatic toggle is stored, and About lists the bundled licenses', async () => {

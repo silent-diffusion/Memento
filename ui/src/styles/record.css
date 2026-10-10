@@ -523,6 +523,16 @@
   font-size: 12px;
 }
 
+/* 2.0: the live lines are provisional: secondary text, never the transcript's own colour. */
+.rec-live--draft .rec-live-text {
+  color: var(--text-2);
+}
+
+.rec-live-note {
+  font-size: 12px;
+  color: var(--accent-text);
+}
+
 .rec-agenda {
   gap: 12px;
 }

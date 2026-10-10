@@ -512,7 +512,8 @@ public sealed partial class ProjectService(
             annotations.Topics,
             history,
             new IntegrityInfo(manifest.Integrity.Algorithm, manifest.Integrity.ComputedAt),
-            store.GetSizeBytes(manifest.Id));
+            store.GetSizeBytes(manifest.Id),
+            manifest.MixOnly is { } mixOnly ? new MixOnlyInfo(mixOnly.At, mixOnly.TrackIds.Count, mixOnly.BytesFreed) : null);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} deleted through the Delete flow")]

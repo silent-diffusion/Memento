@@ -158,7 +158,7 @@ public sealed class M2ContractSerializationTests : IDisposable
             """{"event":"models.progress","payload":{"modelId":"whisper-small","percent":42,"bytesDone":204800000,"bytesTotal":487601967,"state":"downloading","message":null}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.ModelsProgress, new ModelsProgressPayload("whisper-small", 42, 204_800_000, 487_601_967, "downloading", null), BridgeJsonContext.Default.BridgeEventEnvelopeModelsProgressPayload));
         Assert.Equal(
-            """{"event":"recording.liveTranscript","payload":{"sessionId":"s1","segments":[{"start":0,"end":10,"text":"Rough draft."}]}}""",
+            """{"event":"recording.liveTranscript","payload":{"sessionId":"s1","segments":[{"start":0,"end":10,"text":"Rough draft."}],"state":"listening","engine":null,"note":null}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.RecordingLiveTranscript, new LiveTranscriptPayload("s1", [new LiveTranscriptSegment(0, 10, "Rough draft.")]), BridgeJsonContext.Default.BridgeEventEnvelopeLiveTranscriptPayload));
     }
 

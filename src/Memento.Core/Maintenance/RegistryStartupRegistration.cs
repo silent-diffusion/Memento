@@ -15,6 +15,7 @@ public sealed class RegistryStartupRegistration : Host.IStartupRegistration
     private readonly string _keyPath;
     private readonly string _valueName;
     private readonly Func<string?> _executable;
+    private readonly string? _arguments;
 
     public RegistryStartupRegistration()
         : this(RunKeyPath, ValueName, () => Environment.ProcessPath)
@@ -22,7 +23,8 @@ public sealed class RegistryStartupRegistration : Host.IStartupRegistration
     }
 
     /// <param name="keyPath">Below HKEY_CURRENT_USER; tests use a key of their own.</param>
-    public RegistryStartupRegistration(string keyPath, string valueName, Func<string?> executable)
+    /// <param name="arguments">Added after the quoted program (the app passes <c>--background</c>: start in the tray or minimised).</param>
+    public RegistryStartupRegistration(string keyPath, string valueName, Func<string?> executable, string? arguments = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(keyPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(valueName);
@@ -30,6 +32,7 @@ public sealed class RegistryStartupRegistration : Host.IStartupRegistration
         _keyPath = keyPath;
         _valueName = valueName;
         _executable = executable;
+        _arguments = string.IsNullOrWhiteSpace(arguments) ? null : arguments.Trim();
     }
 
     public bool IsEnabled
@@ -57,7 +60,7 @@ public sealed class RegistryStartupRegistration : Host.IStartupRegistration
         if (enabled)
         {
             var executable = _executable() ?? throw new IOException("Memento could not find its own program file to register.");
-            key.SetValue(_valueName, $"\"{executable}\"", RegistryValueKind.String);
+            key.SetValue(_valueName, _arguments is null ? $"\"{executable}\"" : $"\"{executable}\" {_arguments}", RegistryValueKind.String);
         }
         else
         {

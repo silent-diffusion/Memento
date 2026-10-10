@@ -51,10 +51,74 @@ public sealed partial class StorageReclaimService(
 
         var jobId = "r" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
         var busy = activity.Begin(LibraryActivity.Reclaim);
-        _running = Task.Run(() => RunAsync(jobId, ids, storage, busy), CancellationToken.None);
+        _running = Task.Run(() => RunAsync(jobId, ids, storage, (stage, id, token) => stage.RunAsync(id, token), MakeSmallerWords, busy), CancellationToken.None);
         LogStarted(jobId, ids.Count, storage.Codec);
         return jobId;
     }
+
+    /// <summary>
+    /// <c>storage.keepOnlyMix</c> (Settings › Storage and history, 2.0): removes the separate track files of the given
+    /// recordings, or of every stored recording that still has them, keeping each mix (checked against its SHA-256
+    /// first) in the format it has. Progress through <c>storage.reclaimProgress</c>, as a reclaim.
+    /// </summary>
+    public async Task<string> StartKeepOnlyMixAsync(StorageKeepOnlyMixParams parameters, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        activity.ThrowIfMoving();
+        var ids = await SelectWithTracksAsync(parameters.RecordingIds, cancellationToken);
+        if (IsBusy)
+        {
+            throw new BridgeException(DomainErrorCodes.LibraryBusy, "Recordings are already being made smaller. Nothing new was started; wait for that to finish.");
+        }
+
+        var jobId = "r" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+        var busy = activity.Begin(LibraryActivity.Reclaim);
+        var storage = settings.Current.Recording.Storage with { KeepOnlyMix = true };
+        _running = Task.Run(() => RunAsync(jobId, ids, storage, (stage, id, token) => stage.KeepOnlyTheMixAsync(id, token), KeepOnlyMixWords, busy), CancellationToken.None);
+        LogStarted(jobId, ids.Count, "mix only");
+        return jobId;
+    }
+
+    /// <summary>The stored recordings that still have a separate track file and a mix (what <c>library.usage</c> counts).</summary>
+    private async Task<List<string>> SelectWithTracksAsync(IReadOnlyList<string>? recordingIds, CancellationToken cancellationToken)
+    {
+        if (recordingIds is { Count: 0 })
+        {
+            throw NothingToReclaim("No recording was chosen, so no separate tracks were removed. Nothing was changed. Choose at least one recording.");
+        }
+
+        if (recordingIds?.FirstOrDefault(id => !store.Exists(id)) is { } missing)
+        {
+            throw ProjectService.NotFound(missing);
+        }
+
+        var selected = new List<string>();
+        foreach (var id in recordingIds?.Distinct(StringComparer.Ordinal) ?? store.ListIds())
+        {
+            try
+            {
+                var manifest = await store.LoadAsync(id, cancellationToken);
+                if (LibraryUsageService.SeparateTrackBytes(store.GetProjectFolder(id), manifest) > 0)
+                {
+                    selected.Add(id);
+                }
+            }
+            catch (Exception ex) when (ex is ProjectNotFoundException or ProjectSchemaException or IOException)
+            {
+                // Unreadable: nothing to remove.
+            }
+        }
+
+        return selected.Count > 0
+            ? selected
+            : throw NothingToReclaim("Every recording already keeps only its mix, so there are no separate tracks to remove. Nothing was changed.");
+    }
+
+    private static string MakeSmallerWords(int done, long freed) =>
+        string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Count(done, "recording", "recordings")} checked; {HumanFormat.Bytes(freed)} freed. Transcripts were not changed.");
+
+    private static string KeepOnlyMixWords(int done, long freed) =>
+        string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Count(done, "recording keeps", "recordings keep")} only the mix; {HumanFormat.Bytes(freed)} freed. Transcripts, speakers and the mixes were not changed.");
 
     public Task WhenIdleAsync() => _running;
 
@@ -131,7 +195,13 @@ public sealed partial class StorageReclaimService(
 
     private static BridgeException NothingToReclaim(string message) => new(DomainErrorCodes.StorageNothingToReclaim, message);
 
-    private async Task RunAsync(string jobId, List<string> ids, StorageSettings storage, IDisposable busy)
+    private async Task RunAsync(
+        string jobId,
+        List<string> ids,
+        StorageSettings storage,
+        Func<OptimizeStage, string, CancellationToken, Task> work,
+        Func<int, long, string> doneWords,
+        IDisposable busy)
     {
         using (busy)
         {
@@ -154,7 +224,7 @@ public sealed partial class StorageReclaimService(
                     }
 
                     var before = store.GetSizeBytes(id);
-                    await stage.RunAsync(id, token);
+                    await work(stage, id, token);
                     var after = store.GetSizeBytes(id);
                     freed += Math.Max(0, before - after);
                     done++;
@@ -162,9 +232,7 @@ public sealed partial class StorageReclaimService(
                     Publish(new StorageReclaimProgressPayload(jobId, Math.Min(99, percent), "running", null, done, freed), throttle, force: false);
                 }
 
-                var message = string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{HumanFormat.Count(done, "recording", "recordings")} checked; {HumanFormat.Bytes(freed)} freed. Transcripts were not changed.");
+                var message = doneWords(done, freed);
                 if (skipped.Count > 0)
                 {
                     message += $" {HumanFormat.Count(skipped.Count, "recording was", "recordings were")} busy and left as they are.";

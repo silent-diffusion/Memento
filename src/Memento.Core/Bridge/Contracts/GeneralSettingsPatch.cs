@@ -11,4 +11,10 @@ public sealed record GeneralSettingsPatch
     public string? Language { get; init; }
 
     public bool? AutoUpdate { get; init; }
+
+    /// <summary>Read only (2.0): accepted so the UI can send the whole block back, and ignored.</summary>
+    public bool? StartWithWindowsAvailable { get; init; }
+
+    /// <summary>Read only (2.0): accepted and ignored, as <see cref="StartWithWindowsAvailable"/>.</summary>
+    public string? StartWithWindowsNote { get; init; }
 }

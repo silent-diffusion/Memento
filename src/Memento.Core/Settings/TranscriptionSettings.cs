@@ -20,8 +20,18 @@ public sealed partial record TranscriptionSettings
     /// <summary>Transcribe automatically after recording.</summary>
     public bool Auto { get; init; } = true;
 
-    /// <summary><see cref="TimingAfter"/> or <see cref="TimingDuring"/> (the live draft; the full pass still runs after).</summary>
+    /// <summary>
+    /// <see cref="TimingAfter"/> or <see cref="TimingDuring"/> (2.0: Settings › Transcription › Live transcript while
+    /// recording; the provisional draft from the Small or Base model, never saved, while the full pass still runs after
+    /// and replaces it). Off by default.
+    /// </summary>
     public string Timing { get; init; } = TimingAfter;
+
+    /// <summary>2.0: the live transcript may run on the graphics card; it runs on the processor otherwise. Off by default.</summary>
+    public bool LiveOnGpu { get; init; }
+
+    [JsonIgnore]
+    public bool LiveDuringRecording => Timing == TimingDuring;
 
     /// <summary>Pause transcription while recording and while the PC is busy.</summary>
     public bool PauseWhenBusy { get; init; } = true;

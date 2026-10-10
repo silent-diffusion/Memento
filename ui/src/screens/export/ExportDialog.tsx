@@ -513,6 +513,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                     />
                   }
                 />
+                {(project?.mixOnly ?? null) !== null ? null : (
                 <ComponentRow
                   id="exp-tracks"
                   name="Individual tracks"
@@ -535,6 +536,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                     />
                   }
                 />
+                )}
                 <ComponentRow
                   id="exp-video"
                   name="Video"

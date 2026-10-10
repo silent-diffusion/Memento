@@ -555,6 +555,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   settingsDefault={expectedSetting === 'auto' ? null : expectedSetting}
                   identifying={identifying}
                   keepsVersions={historySettings?.keepVersions === true}
+                  mixOnly={project.mixOnly !== null}
                   onChange={(whoSpoke) => {
                     actions.setWhoSpoke(whoSpoke).catch(fail('Who spoke was not saved'));
                   }}

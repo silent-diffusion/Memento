@@ -69,6 +69,12 @@ public sealed record ProjectManifest
     /// <summary>The file a <c>library.importMedia</c> recording was made from (M3); <c>null</c> for recordings.</summary>
     public ProjectImportSource? ImportedFrom { get; init; }
 
+    /// <summary>
+    /// "Keep only the mix" removed the separate track files (2.0); <c>null</c> while they are kept. An optional field
+    /// within schema 3: older builds keep it through <see cref="ExtensionData"/>.
+    /// </summary>
+    public ProjectMixOnly? MixOnly { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

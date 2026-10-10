@@ -115,6 +115,21 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         }
     }
 
+    /// <summary>
+    /// A heavy stage (transcript, speakers) is running now, not waiting at the gate. The live transcript (2.0) yields to
+    /// it: it never competes with a full pass for the processor or the card.
+    /// </summary>
+    public bool IsHeavyStageRunning
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _running is { Stage: not null, Heavy: true };
+            }
+        }
+    }
+
     /// <summary>The stage running now for <paramref name="recordingId"/>, or <c>null</c>.</summary>
     public string? RunningStage(string recordingId)
     {

@@ -20,6 +20,9 @@ public sealed record WorkerReply
     /// <summary>Windows of <see cref="TrackId"/> finished so far (the resume point).</summary>
     public int? WindowsDone { get; init; }
 
+    /// <summary>2.0: a <c>heard</c> line's window (<see cref="LiveAudio.Window"/>).</summary>
+    public int? Window { get; init; }
+
     public IReadOnlyList<WorkerSegment>? Segments { get; init; }
 
     public WorkerTrackInfo? Track { get; init; }

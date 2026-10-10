@@ -43,7 +43,8 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
                 transcription.CpuFallbackModelId,
                 transcription.Language,
                 transcription.KeepWordTimestamps,
-                transcription.LowConfidenceThreshold),
+                transcription.LowConfidenceThreshold,
+                transcription.LiveOnGpu),
             new SpeakersSettingsSnapshot(
                 speakers.Identify,
                 ExpectedSpeakersElement(speakers.ExpectedSpeakers),

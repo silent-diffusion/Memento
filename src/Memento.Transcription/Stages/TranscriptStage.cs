@@ -94,6 +94,16 @@ public sealed partial class TranscriptStage(
             .Select(t => (Track: t, Path: Path.Combine(folder, t.File.Replace('/', Path.DirectorySeparatorChar))))
             .Where(t => File.Exists(t.Path))
             .ToList();
+        if (tracks.Count == 0 && manifest.MixOnly is not null && manifest.Mix is { } mix)
+        {
+            // "Keep only the mix" (2.0) removed the separate tracks: the mix is transcribed as one track.
+            var mixPath = Path.Combine(folder, mix.File.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(mixPath))
+            {
+                tracks.Add((new ProjectTrack { Id = "mix", SourceId = "mix", SourceKind = "mix", Name = "Mix", File = mix.File, Codec = mix.Codec, SampleRate = mix.SampleRate, Channels = mix.Channels, DurationMs = mix.DurationMs }, mixPath));
+            }
+        }
+
         if (tracks.Count == 0)
         {
             await FailAsync(

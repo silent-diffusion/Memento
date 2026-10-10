@@ -15,6 +15,10 @@ export function whoSpokeSummary(whoSpoke: WhoSpoke): string {
   return whoSpoke.names.length === 0 ? people : `${people} · ${whoSpoke.names.join(', ')}`;
 }
 
+/** 2.0: why Identify speakers again is not offered once only the mix is kept. */
+export const MIX_ONLY_SPEAKERS =
+  'Only the mix was kept for this recording, so its speakers cannot be identified again by listening to each track. Reduce and renaming still work.';
+
 /** The §17 sentence for Identify speakers again: what runs, how long, what is kept. */
 export function identifyAgainText(whoSpoke: WhoSpoke, keepsVersions: boolean): string {
   const count = effectiveCount(whoSpoke);
@@ -35,9 +39,11 @@ interface PeopleWhoSpokeProps {
   onChange: (next: WhoSpoke) => void;
   onReduce: (count: number) => void;
   onIdentifyAgain: () => void;
+  /** 2.0: "Keep only the mix" removed the separate tracks, so there is nothing to listen to again per track. */
+  mixOnly?: boolean;
 }
 
-export function PeopleWhoSpoke({ whoSpoke, participants, speakers, settingsDefault, identifying, keepsVersions, onChange, onReduce, onIdentifyAgain }: PeopleWhoSpokeProps): JSX.Element {
+export function PeopleWhoSpoke({ whoSpoke, participants, speakers, settingsDefault, identifying, keepsVersions, onChange, onReduce, onIdentifyAgain, mixOnly = false }: PeopleWhoSpokeProps): JSX.Element {
   const set = effectiveCount(whoSpoke) !== null || whoSpoke.names.length > 0;
   const [open, setOpen] = useState(false);
   // Changed here: offer to identify the speakers again with the new count and names.
@@ -99,10 +105,16 @@ export function PeopleWhoSpoke({ whoSpoke, participants, speakers, settingsDefau
               </p>
             </>
           ) : null}
-          <button class="btn link-btn people-identify" type="button" title={identifyAgainText(whoSpoke, keepsVersions)} onClick={onIdentifyAgain}>
-            Identify speakers again
-          </button>
-          <p class="people-who-hint">{identifyAgainText(whoSpoke, keepsVersions)}</p>
+          {mixOnly ? (
+            <p class="people-who-hint">{MIX_ONLY_SPEAKERS}</p>
+          ) : (
+            <>
+              <button class="btn link-btn people-identify" type="button" title={identifyAgainText(whoSpoke, keepsVersions)} onClick={onIdentifyAgain}>
+                Identify speakers again
+              </button>
+              <p class="people-who-hint">{identifyAgainText(whoSpoke, keepsVersions)}</p>
+            </>
+          )}
         </div>
       ) : null}
     </div>

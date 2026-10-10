@@ -202,7 +202,7 @@ public sealed class ImportAndLibraryTests : IDisposable
 
         var usage = await _m3.ResultAsync("library.usage", new { });
 
-        Assert.Equal("totalBytes,freeBytes,count,largest", string.Join(",", usage.EnumerateObject().Select(p => p.Name)));
+        Assert.Equal("totalBytes,freeBytes,count,largest,separateTracksBytes,separateTracksRecordings,mixOnlyRecordings", string.Join(",", usage.EnumerateObject().Select(p => p.Name)));
         Assert.Equal(2, usage.GetProperty("count").GetInt32());
         Assert.Equal(123_456_789, usage.GetProperty("freeBytes").GetInt64());
         Assert.Equal(longer, usage.GetProperty("largest").GetProperty("recordingId").GetString());

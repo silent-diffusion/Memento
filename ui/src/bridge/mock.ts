@@ -140,6 +140,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       language: 'auto',
       keepWordTimestamps: true,
       lowConfidenceThreshold: 0.5,
+      liveOnGpu: false,
     },
     speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet, rememberVoices: false },
     history: { keepVersions: true, keepDays: 90 },
@@ -245,6 +246,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     history: project.history,
     integrity: { algorithm: 'sha256', computedAt: null },
     sizeBytes: estimateSizeBytes(project.summary, project.trackSources.length),
+    mixOnly: project.mixOnly ?? null,
     };
   };
 
@@ -372,7 +374,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         const heard = newest ? words.slice(0, Math.max(2, Math.round(words.length * Math.min(1, (seconds - start) / 6)))).join(' ') : text;
         return { start, end: Math.min(seconds, start + 5.5), text: heard };
       });
-      emit('recording.liveTranscript', { sessionId, segments });
+      emit('recording.liveTranscript', { sessionId, segments, state: 'listening', engine: 'Local · CPU · Small', note: null });
     }, 1500);
   };
 

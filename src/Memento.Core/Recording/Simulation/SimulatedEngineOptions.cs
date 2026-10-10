@@ -26,4 +26,16 @@ public sealed record SimulatedEngineOptions
 
     /// <summary>Noise seed, so runs are reproducible.</summary>
     public int Seed { get; init; } = 1;
+
+    /// <summary>
+    /// 2.0 (tests): a speech clip, mono samples in −1..1, that the microphone plays in a loop instead of its voiced tone,
+    /// so the live transcript has words to hear (<c>--simulate-audio speech=&lt;wav&gt;</c>).
+    /// </summary>
+    public float[]? SpeechSamples { get; init; }
+
+    /// <summary>2.0 (tests): list a second microphone, so a session can record four tracks (<c>--simulate-audio mics=2</c>).</summary>
+    public bool SecondMicrophone { get; init; }
+
+    /// <summary>The sample rate of <see cref="SpeechSamples"/>.</summary>
+    public int SpeechSampleRate { get; init; } = 16_000;
 }

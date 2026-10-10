@@ -114,12 +114,39 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             normalized = normalized with { ListDensity = ListDensity.Comfortable };
         }
 
-        return normalized with
+        normalized = normalized with
         {
             Recording = NormalizeRecording(settings.Recording),
             Transcription = NormalizeTranscription(settings.Transcription),
             Speakers = NormalizeSpeakers(settings.Speakers),
             History = NormalizeHistory(settings.History),
+        };
+        return settings.SchemaVersion < 2 ? UpgradeToVersion2(normalized) : normalized;
+    }
+
+    /// <summary>
+    /// Schema 1 → 2 (2.0): "Keep only the mix" and "During recording" were stored before they did anything (the screens
+    /// said so). They now delete separate tracks and run a live transcript, so a value saved back then is not taken as
+    /// a choice of either: both start off, and the user turns them on knowing what they do. Written as v2 with the
+    /// next change of settings.
+    /// </summary>
+    private AppSettings UpgradeToVersion2(AppSettings settings)
+    {
+        var storage = settings.Recording.Storage;
+        if (storage.KeepOnlyMix)
+        {
+            LogNotCarriedOver("recording.storage.keepOnlyMix");
+        }
+
+        if (settings.Transcription.Timing == TranscriptionSettings.TimingDuring)
+        {
+            LogNotCarriedOver("transcription.timing");
+        }
+
+        return settings with
+        {
+            Recording = settings.Recording with { Storage = storage with { KeepOnlyMix = false } },
+            Transcription = settings.Transcription with { Timing = TranscriptionSettings.TimingAfter },
         };
     }
 
@@ -329,4 +356,8 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
     [LoggerMessage(Level = LogLevel.Warning,
         Message = "Settings field {Field} had unsupported value {Value}; using {Fallback}")]
     private partial void LogInvalidValue(string field, string value, string fallback);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Settings field {Field} was saved before 2.0, when it did nothing; it starts off (schema 1 to 2)")]
+    private partial void LogNotCarriedOver(string field);
 }

@@ -5,6 +5,10 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
+    <!-- Only for the notification-area icon (TrayController); WPF has none. Part of the Windows Desktop runtime. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- WFAC010: the per-monitor DPI setting in app.manifest is for WPF, which owns the window; keep it there. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>Memento.App</RootNamespace>
@@ -16,6 +20,12 @@
     <!-- LibraryImport source generation (SingleInstanceGuard) emits unsafe marshalling code. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Windows Forms is used by name in TrayController only; its implicit usings would clash with WPF's types. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />

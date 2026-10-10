@@ -72,6 +72,8 @@ The laptop microphone also hears your speakers. That is fine: both tracks are ke
 
 Transcription and other work never slow a recording down: while you record, they wait (if **Pause when the PC is busy** is on, which it is by default).
 
+**Live transcript.** With **Live transcript while recording** on (Settings › Transcription; off by default), the Live transcript card shows a rough draft a few seconds behind the recording, made on this PC by the Small model (or Base). It is a draft: it is not saved, it has no speakers, and the full transcript made after you stop replaces it. It uses the processor unless you let it use the graphics card, never takes more than a quarter of the processor threads, and steps aside while Memento transcribes another recording or when a document needs the graphics card; the card says so. If neither Small nor Base is installed, the card says to install one.
+
 ## Review and the transcript
 
 Review opens after you stop, or when you open a recording from the Library.
@@ -157,14 +159,14 @@ The files go into a folder named after the recording, with a `manifest.json` tha
 
 Open Settings with the gear at the top right. Every change is saved at once.
 
-- **General**: theme (follows Windows by default), list density, start with Windows, where the library lives (moving it copies and checks every file before removing the old copy), language, **Updates**, and **About** (version, library location and the licenses of the components inside Memento).
-- **Recording**: the default sources and recording type, how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), and the free-space warning level (10 GB by default).
-- **Transcription**: transcribe automatically or by hand, pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark. Under **Engine**, a line says how much of the graphics card's memory is free and which programs use the rest; when the model needs more than is free, it says so and what to close. **Check again** reads the card again.
+- **General**: theme (follows Windows by default), list density, **Start Memento with Windows** (only for an installed Memento; it starts minimised, or only in the tray), **Keep running in the tray when closed** (off by default: with it on, closing the window leaves Memento in the notification area with Open, New recording and Quit, and a recording in progress shows on the icon and its tooltip; Quit ends Memento, and a recording in progress stops with everything so far kept), where the library lives (moving it copies and checks every file before removing the old copy), language, **Updates**, and **About** (version, library location and the licenses of the components inside Memento).
+- **Recording**: the default sources and recording type, how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), **Keep only the mix** (off by default: after processing, each source's own track file is removed and only the mix is kept; speakers can then no longer be identified per track and tracks can no longer be exported for that recording, and its History says so), and the free-space warning level (10 GB by default).
+- **Transcription**: transcribe automatically or by hand, **Live transcript while recording** (and whether it may use the graphics card), pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark. Under **Engine**, a line says how much of the graphics card's memory is free and which programs use the rest; when the model needs more than is free, it says so and what to close. **Check again** reads the card again.
 - **Speakers**: identify speakers, the expected number, remember speakers by voice and the known voices, and the speaker models.
 - **AI and privacy**: the local models, with **Use this model** beside each installed one and a line that says which model writes documents, where it runs (graphics card or processor) and why (when only one is installed it is used, whatever the card has free), and beneath it the graphics card's free memory, who uses the rest and **Check again**; **Allow external AI services** (off by default) with what may be shared (Audio and Video are listed as never sent), **Ask before every send** and **Keep a record of what was sent**; the default provider; and your Claude and ChatGPT keys, which are encrypted for your Windows account and never shown again.
 - **Documents**: the default template and style, **Manage templates and styles**, and version history for transcripts and documents.
 - **Export**: the default folder and what to include.
-- **Storage and history**: how much space the library uses, its largest recordings, making older recordings smaller, and rebuilding the library list.
+- **Storage and history**: how much space the library uses, its largest recordings, how much the separate tracks take, making older recordings smaller, **Keep only the mix for existing recordings** (asks first, says how much it frees, cannot be undone), and rebuilding the library list.
 
 ## Updates
 
@@ -222,11 +224,10 @@ Everything can be reached with Tab and Shift+Tab; the focused control has a visi
 
 ## Known limitations
 
-- **No live transcript** while recording; the full transcript is made afterwards. A live transcript and video capture come in 2.0.
+- The live transcript is a rough draft from a small model: it has no speakers and misses words the full transcript gets right. It was not measured with the Small model on real hardware for this release.
 - **No video capture**; importing a video file uses its sound.
 - **Generated documents are drafts.** The local model is good for a first draft with citations and review; check what it wrote against the transcript before you send it on. Claude and ChatGPT have so far been tried only against a test server, not with a real key.
 - In a 4-hour recording made while another program kept the processor at 100% the whole time, the microphone track ended about 0.7 seconds out of step with the others. This was not seen without that outside load.
-- **Keep running in the tray** is stored but not applied yet; closing the window closes Memento.
 - There is no button to stop a transcription that is running; it pauses by itself while you record or the PC is busy, and continues where it stopped.
 - Memento's transcription always lets other programs go first. A pass on the graphics card does not pause when the processor is busy, but while other programs keep every processor core fully busy it can stand still at the same percentage; it carries on once they are done.
 - "Everything this PC plays" records the output device that was in use when the recording started. If you switch Windows to another output device mid-recording, sound sent to the new device is not on that track (an app source follows the app wherever it plays).

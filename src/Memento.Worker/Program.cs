@@ -90,6 +90,7 @@ try
             Diarization = new SherpaDiarizer(output).Run(diarize, cancel.Token),
         },
         WorkerJobKinds.Llm when job.Llm is { } llm => await new LlmJob(output).RunAsync(llm, commands.Reader, cancel.Token),
+        WorkerJobKinds.Live when job.Live is { } live => await new WhisperTranscriber(output).RunLiveAsync(live, commands.Reader, cancel.Token),
         _ => throw new WorkerFailure(WorkerErrorCodes.InvalidJob, $"Job kind '{job.Kind}' has no body or is not known."),
     };
     output.Send(result);

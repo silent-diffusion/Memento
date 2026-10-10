@@ -7,6 +7,8 @@
 //   TranscriptionCheck run <wav> [--model id] [--cpu] [--title t]
 //                                                     import the WAV as a recording and run transcript, speakers, topics
 //   TranscriptionCheck killtest <wav> [--model id]    kill the worker mid-pass, show the failure, retry on CPU
+//   TranscriptionCheck live <wav> --model-file <ggml> [--threads 4] [--windows 6] [--fast] [--gpu]
+//                                                     the live transcript's worker on 10 s windows of a WAV (2.0), with its CPU time
 //   TranscriptionCheck show <recordingId>             print a recording's transcript summary and History
 //   TranscriptionCheck diarize <audio> --segmentation <onnx> --embedding <onnx> [--threshold 0.8] [--count n] --out <json>
 //                                                     run the worker's speaker job on one file and save its turns and voices
@@ -44,6 +46,14 @@ switch (command)
         return await check.RunAsync(args[1], Option("--model"), args.Contains("--cpu"), Option("--title") ?? Path.GetFileNameWithoutExtension(args[1]));
     case "killtest":
         return await check.KillTestAsync(args[1], Option("--model"));
+    case "live":
+        return await check.LiveAsync(
+            args[1],
+            Option("--model-file") ?? throw new ArgumentException("--model-file <ggml file> is needed"),
+            int.Parse(Option("--threads") ?? "4", CultureInfo.InvariantCulture),
+            int.Parse(Option("--windows") ?? "6", CultureInfo.InvariantCulture),
+            !args.Contains("--fast"),
+            args.Contains("--gpu"));
     case "show":
         return await check.ShowAsync(args[1]);
     case "identify":

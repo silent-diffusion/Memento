@@ -24,7 +24,9 @@ internal static class M3SettingsBlocks
                 SafeStartup(extras) ?? general.StartWithWindows,
                 general.KeepRunningInTray,
                 general.Language,
-                general.AutoUpdate),
+                general.AutoUpdate,
+                extras?.Startup.IsAvailable ?? true,
+                extras?.Startup.UnavailableReason),
             Export = new ExportSettingsSnapshot(export.SaveCopiesOutside, export.DefaultFolder, export.AskWhereEachTime, export.CreateSubfolder, export.Defaults),
             Ai = new AiSettingsSnapshot(
                 ai.Enabled,

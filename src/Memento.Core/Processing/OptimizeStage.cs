@@ -17,7 +17,8 @@ namespace Memento.Core.Processing;
 /// when Settings › Recording asks for AAC or MP3, this stage runs after every other stage and writes the smaller
 /// files, decodes each one to prove it plays, updates the manifest and its hashes, appends a History line, and only
 /// then removes the FLAC files it replaced. Any failure keeps every FLAC file and removes the partial lossy ones.
-/// "Keep only the mix" is stored but not applied in this version; separate tracks are always kept.
+/// "Keep only the mix" (2.0) then removes the separate track files once the mix is checked (OptimizeStage.KeepOnlyMix.cs);
+/// with it on, only the mix is converted to the smaller format.
 /// </summary>
 public sealed partial class OptimizeStage(
     IProjectStore store,
@@ -38,11 +39,14 @@ public sealed partial class OptimizeStage(
     private readonly IReadOnlyList<IAudioEncoder> _encoders = encoders.ToList();
     private readonly ILogger<OptimizeStage> _logger = logger;
 
-    /// <summary>Whether a recording finished now would get this stage: the storage format is a lossy one.</summary>
+    /// <summary>
+    /// Whether a recording finished now would get this stage: the storage format is a lossy one, or "Keep only the mix"
+    /// is on (2.0).
+    /// </summary>
     public static bool AppliesTo(StorageSettings storage)
     {
         ArgumentNullException.ThrowIfNull(storage);
-        return storage.IsLossy;
+        return storage.IsLossy || storage.KeepOnlyMix;
     }
 
     /// <summary>The queued stage, as the processing card shows it.</summary>
@@ -76,13 +80,28 @@ public sealed partial class OptimizeStage(
     {
         var storage = settings.Current.Recording.Storage;
         var manifest = await store.LoadAsync(recordingId, cancellationToken);
-        if (!storage.IsLossy || manifest.Mix is null || manifest.State is not (ProjectStates.Ready or ProjectStates.Recovered))
+        if (!AppliesTo(storage) || manifest.Mix is null || manifest.State is not (ProjectStates.Ready or ProjectStates.Recovered))
         {
-            // Settings went back to FLAC, or the recording is not stored (failed): nothing to make smaller.
+            // Settings went back to FLAC with every track kept, or the recording is not stored (failed): nothing to do.
             await RemoveStageAsync(recordingId, cancellationToken);
             return;
         }
 
+        if (storage.IsLossy && !await MakeSmallerAsync(recordingId, manifest, storage, cancellationToken))
+        {
+            // Making smaller files failed: every lossless file is kept, the separate tracks too.
+            return;
+        }
+
+        if (storage.KeepOnlyMix)
+        {
+            await KeepOnlyTheMixAsync(recordingId, cancellationToken);
+        }
+    }
+
+    /// <summary>The lossy conversion; <c>false</c> when it failed (recorded as a failed stage, every FLAC file kept).</summary>
+    private async Task<bool> MakeSmallerAsync(string recordingId, ProjectManifest manifest, StorageSettings storage, CancellationToken cancellationToken)
+    {
         var encoder = _encoders.FirstOrDefault(e => !e.IsLossless && string.Equals(e.Codec, storage.Codec, StringComparison.Ordinal));
         if (encoder is null || verifier is null)
         {
@@ -97,14 +116,14 @@ public sealed partial class OptimizeStage(
                     "Kept as lossless FLAC",
                     $"This build has no {CodecName(storage.Codec)} encoder, so the recording stays as FLAC. Nothing was lost; the files are larger."),
                 cancellationToken);
-            return;
+            return true;
         }
 
         var folder = store.GetProjectFolder(recordingId);
         var bitrate = storage.BitrateKbps ?? StorageSettings.DefaultLossyBitrateKbps;
         var format = string.Create(CultureInfo.InvariantCulture, $"{CodecName(storage.Codec)} {bitrate} kbps")
             + (storage.DownmixMono ? ", tracks in mono" : string.Empty);
-        var work = PlanWork(folder, manifest, encoder);
+        var work = PlanWork(folder, manifest, encoder, tracksToo: !storage.KeepOnlyMix);
         if (work.Count == 0)
         {
             // Run again after it already converted everything (e.g. queued twice at launch): it stays done.
@@ -118,7 +137,7 @@ public sealed partial class OptimizeStage(
                 await RemoveStageAsync(recordingId, cancellationToken);
             }
 
-            return;
+            return true;
         }
 
         await SetStageAsync(recordingId, StageStates.Active, 0, "0% · making smaller", cancellationToken);
@@ -152,7 +171,7 @@ public sealed partial class OptimizeStage(
         {
             RemovePartial(folder, written);
             await RecordFailureAsync(recordingId, ex, cancellationToken);
-            return;
+            return false;
         }
 
         var computedAt = time.GetLocalNow();
@@ -198,23 +217,12 @@ public sealed partial class OptimizeStage(
                     "SHA-256 computed for every file",
                     string.Create(CultureInfo.InvariantCulture, $"took {stopwatch.Elapsed.TotalSeconds:0.0} s"))),
             CancellationToken.None);
-        if (storage.KeepOnlyMix)
-        {
-            await AppendQuietlyAsync(
-                recordingId,
-                new HistoryEntry(
-                    computedAt,
-                    StageNames.Optimize,
-                    "info",
-                    "Kept the separate tracks",
-                    "\"Keep only the mix\" is saved in Settings but not applied in this version: every source keeps its own track."),
-                CancellationToken.None);
-        }
 
         PublishProgress(manifest, StageStates.Done, null, "Done");
         await DeleteReplacedAsync(recordingId, folder, written);
         await catalog.TouchedAsync(recordingId, CancellationToken.None);
         LogOptimized(recordingId, written.Count, encoder.Codec, before, after, stopwatch.ElapsedMilliseconds);
+        return true;
     }
 
     /// <summary>Puts the stage in the manifest as queued (before the recording waits for its turn).</summary>
@@ -237,10 +245,10 @@ public sealed partial class OptimizeStage(
 
     private static string CodecName(string codec) => codec.ToUpperInvariant();
 
-    private static List<WorkItem> PlanWork(string folder, ProjectManifest manifest, IAudioEncoder encoder)
+    private static List<WorkItem> PlanWork(string folder, ProjectManifest manifest, IAudioEncoder encoder, bool tracksToo)
     {
         var work = new List<WorkItem>();
-        foreach (var track in manifest.Tracks)
+        foreach (var track in tracksToo ? manifest.Tracks : [])
         {
             // A track kept as WAV after a failed FLAC encode may span several RIFF parts; it stays as it is.
             var multiPartWav = track.Codec == PassThroughWavEncoder.WavCodec && CaptureParts.Find(folder, track.File).Count > 1;

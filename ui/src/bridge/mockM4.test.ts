@@ -47,7 +47,7 @@ describe('M4 contract names (BRIDGE.md, M4 sections)', () => {
     const m4 = METHOD_NAMES.indexOf('modules.list');
     expect(METHOD_NAMES.slice(m4, m4 + M4_METHODS.length)).toEqual([...M4_METHODS]);
     expect(METHOD_NAMES.slice(m4 + M4_METHODS.length, m4 + M4_METHODS.length + 5)).toEqual(['updates.status', 'updates.check', 'updates.apply', 'transcript.copy', 'documents.copy']);
-    expect(EVENT_NAMES.slice(-6)).toEqual(['generation.progress', 'generation.output', 'documents.changed', 'templates.changed', 'styles.changed', 'updates.progress']);
+    expect(EVENT_NAMES.slice(EVENT_NAMES.indexOf('generation.progress'), EVENT_NAMES.indexOf('generation.progress') + 6)).toEqual(['generation.progress', 'generation.output', 'documents.changed', 'templates.changed', 'styles.changed', 'updates.progress']);
     expect(ERROR_CODES.slice(ERROR_CODES.indexOf('ai.disabled'), ERROR_CODES.indexOf('library.unavailable'))).toEqual([
       'ai.disabled',
       'ai.providerNotReady',

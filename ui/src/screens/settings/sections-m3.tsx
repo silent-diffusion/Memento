@@ -206,14 +206,28 @@ export function GeneralSectionM3(): JSX.Element {
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup label="Startup">
-        <SettingsRow label="Start Memento with Windows" description="Opens minimised so recording is one click away.">
+        <SettingsRow
+          label="Start Memento with Windows"
+          description={
+            !general.startWithWindowsAvailable
+              ? (general.startWithWindowsNote ?? 'Start with Windows works only for an installed Memento.')
+              : general.keepRunningInTray
+                ? 'Starts in the tray when you sign in, so recording is one click away.'
+                : 'Opens minimised when you sign in, so recording is one click away.'
+          }
+          {...(general.startWithWindowsAvailable ? {} : { note: 'Installed copies only' })}
+        >
           <OnOff on={general.startWithWindows} />
-          <Toggle label="Start Memento with Windows" checked={general.startWithWindows} onChange={setStartup} />
+          <Toggle
+            label="Start Memento with Windows"
+            checked={general.startWithWindows}
+            disabled={!general.startWithWindowsAvailable && !general.startWithWindows}
+            onChange={setStartup}
+          />
         </SettingsRow>
         <SettingsRow
           label="Keep running in the tray when closed"
-          description="Lets scheduled transcription finish in the background."
-          note="Applied in a later version"
+          description="Closing the window leaves Memento in the notification area with Open, Record and Quit. Recording and transcription carry on; Quit ends it."
           below={<InlineMessage message={startupError} />}
         >
           <Toggle
@@ -605,6 +619,24 @@ export function ExportSection(): JSX.Element {
 const RECLAIM_DAYS = [30, 90, 180, 365] as const;
 const DEFAULT_RECLAIM_KBPS: Record<ReclaimCodec, number> = { aac: 160, mp3: 192 };
 
+const recordingsWord = (n: number): string => `${n} ${n === 1 ? 'recording' : 'recordings'}`;
+
+/** 2.0, Usage › Separate tracks: what "Keep only the mix" would free and what already keeps only its mix. */
+export function separateTracksText(usage: LibraryUsage | null): string {
+  if (usage === null) {
+    return 'Each source saved as its own file, beside the mix.';
+  }
+  const kept = usage.mixOnlyRecordings > 0 ? ` ${recordingsWord(usage.mixOnlyRecordings)} already ${usage.mixOnlyRecordings === 1 ? 'keeps' : 'keep'} only the mix.` : '';
+  return usage.separateTracksRecordings === 0
+    ? `No recording keeps separate tracks.${kept}`
+    : `In ${recordingsWord(usage.separateTracksRecordings)}, beside the mix.${kept}`;
+}
+
+/** 2.0: the confirmation for Keep only the mix (DESIGN.md §17: name it, the amount, what is kept, that it cannot be undone). */
+export function keepOnlyMixConfirmText(usage: LibraryUsage): string {
+  return `Remove the separate tracks of ${recordingsWord(usage.separateTracksRecordings)} (${formatSize(usage.separateTracksBytes)})? Each mix, transcript and the speakers found are kept, but speakers can no longer be identified per track and tracks can no longer be exported for them. This cannot be undone.`;
+}
+
 export function StorageSectionM3(): JSX.Element {
   const services = useServices();
   const { bridge, store } = services;
@@ -615,6 +647,8 @@ export function StorageSectionM3(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [rebuilding, setRebuilding] = useState(false);
+  const [confirmMixOnly, setConfirmMixOnly] = useState(false);
+  const [mixOnlyError, setMixOnlyError] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -662,6 +696,20 @@ export function StorageSectionM3(): JSX.Element {
       })
       .catch((e: unknown) => {
         setError(messageOf(e));
+      });
+  };
+
+  // 2.0: Keep only the mix for the recordings that still have separate tracks, after the inline confirmation.
+  const runKeepOnlyMix = (): void => {
+    setConfirmMixOnly(false);
+    setMixOnlyError(null);
+    bridge
+      .call('storage.keepOnlyMix', { recordingIds: null })
+      .then(({ jobId }) => {
+        jobsOf(store).reclaim.value = { jobId, percent: 0, state: 'running', message: null, recordingsDone: 0, bytesFreed: 0 };
+      })
+      .catch((e: unknown) => {
+        setMixOnlyError(messageOf(e));
       });
   };
 
@@ -725,6 +773,9 @@ export function StorageSectionM3(): JSX.Element {
           )}
           <span class="settings-value">{largest === null ? 'None yet' : formatSize(largest.sizeBytes)}</span>
         </SettingsRow>
+        <SettingsRow label="Separate tracks" description={separateTracksText(usage)}>
+          <span class="settings-value">{usage === null ? '…' : formatSize(usage.separateTracksBytes)}</span>
+        </SettingsRow>
       </SettingsGroup>
       <SettingsGroup label="Reclaim space">
         <SettingsRow
@@ -753,6 +804,45 @@ export function StorageSectionM3(): JSX.Element {
           />
           <button class="btn ghost small-btn" type="button" disabled={days === null || running} onClick={runReclaim}>
             {running ? 'Running…' : 'Run now'}
+          </button>
+        </SettingsRow>
+        <SettingsRow
+          label="Keep only the mix for existing recordings"
+          description="Removes each source's own track file from recordings that still have them; the mix, transcript and speakers are kept."
+          below={
+            <>
+              {confirmMixOnly && usage !== null ? (
+                <div class="settings-confirm" role="group" aria-label="Confirm keeping only the mix">
+                  <p class="settings-inline">{keepOnlyMixConfirmText(usage)}</p>
+                  <div class="settings-confirm-actions">
+                    <button
+                      class="btn g"
+                      type="button"
+                      onClick={() => {
+                        setConfirmMixOnly(false);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button class="btn d" type="button" onClick={runKeepOnlyMix}>
+                      Remove {formatSize(usage.separateTracksBytes)} of tracks
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <InlineMessage message={mixOnlyError} />
+            </>
+          }
+        >
+          <button
+            class="btn ghost small-btn"
+            type="button"
+            disabled={running || usage === null || usage.separateTracksRecordings === 0}
+            onClick={() => {
+              setConfirmMixOnly(true);
+            }}
+          >
+            Remove tracks…
           </button>
         </SettingsRow>
         <SettingsRow label="Remove video older than" description="Audio, transcript and documents are kept." note={LATER}>

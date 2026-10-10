@@ -23,7 +23,7 @@ public sealed class M3SettingsTests : IDisposable
     {
         var result = await _m3.ResultAsync("settings.get", new { });
 
-        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true}""", result.GetProperty("general").GetRawText());
+        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true,"startWithWindowsAvailable":true,"startWithWindowsNote":null}""", result.GetProperty("general").GetRawText());
         Assert.Equal(
             """{"saveCopiesOutside":false,"defaultFolder":null,"askWhereEachTime":true,"createSubfolder":true,"defaults":{"audioMixed":{"on":true,"format":"flac","bitrateKbps":null},"tracks":{"on":false,"format":"flac","bitrateKbps":null},"transcript":{"on":true,"formats":["json","markdown"],"options":{"timestamps":true,"speakers":true,"layout":"auto"}},"documents":{"on":false,"documentIds":[],"format":"docx"},"details":{"on":false},"attachments":{"on":false}}}""",
             result.GetProperty("export").GetRawText());

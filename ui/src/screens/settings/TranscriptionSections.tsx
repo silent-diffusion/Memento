@@ -4,7 +4,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { EngineStatusResult, HistorySettings, ModelInfo, SpeakerSettings, TranscriptionSettings, TranscriptionTiming } from '../../bridge/types';
-import { Segmented, Toggle } from '../../components/Controls';
+import { Toggle } from '../../components/Controls';
 import { SelectMenu } from '../../components/Menus';
 import { deviceWording } from '../../format/footer';
 import { TRANSCRIPTION_LANGUAGES } from '../../format/languages';
@@ -27,6 +27,13 @@ function InlineMessage({ message }: { message: string | null }): JSX.Element | n
 
 /** The threshold choices for marking low-confidence words. */
 export const THRESHOLDS = [0.4, 0.5, 0.6, 0.7] as const;
+
+/** 2.0: what the live transcript costs (measured: docs/ENGINE-NOTES.md §O). */
+export const LIVE_COST =
+  'A rough draft on the Recording screen, a few seconds behind, from the Small model on the processor: it uses at most a quarter of the processor threads, only while it hears each 10-second window, and gives way to recording and to any full transcription; the full transcript is still made after you stop and replaces it.';
+
+export const LIVE_GPU =
+  'Lighter on the processor. It gives way at once to any transcription or document that needs the card and carries on from the processor.';
 /** Auto, or 1–20 (the host's range); the menu offers the common counts and keeps any other saved one. */
 const EXPECTED_SPEAKERS: readonly string[] = ['auto', '1', '2', '3', '4', '5', '6', '7', '8', '10', '12', '15', '20'];
 const KEEP_DAYS = [30, 90, 365] as const;
@@ -129,19 +136,29 @@ export function TranscriptionSection(): JSX.Element {
             }}
           />
         </SettingsRow>
-        <SettingsRow label="Timing" description="Live transcription uses more of the GPU while recording. The full transcript is always made afterwards.">
-          <Segmented<TranscriptionTiming>
-            label="Timing"
-            value={t.timing}
-            options={[
-              { value: 'during', label: 'During recording' },
-              { value: 'after', label: 'After recording' },
-            ]}
-            onChange={(timing) => {
+        <SettingsRow label="Live transcript while recording" description={LIVE_COST}>
+          <OnOff on={t.timing === 'during'} />
+          <Toggle
+            label="Live transcript while recording"
+            checked={t.timing === 'during'}
+            onChange={(on) => {
+              const timing: TranscriptionTiming = on ? 'during' : 'after';
               save({ timing });
             }}
           />
         </SettingsRow>
+        {t.timing === 'during' ? (
+          <SettingsRow label="Use the graphics card for the live transcript" description={LIVE_GPU}>
+            <OnOff on={t.liveOnGpu} />
+            <Toggle
+              label="Use the graphics card for the live transcript"
+              checked={t.liveOnGpu}
+              onChange={(liveOnGpu) => {
+                save({ liveOnGpu });
+              }}
+            />
+          </SettingsRow>
+        ) : null}
         <SettingsRow label="Pause when the PC is busy" description="Recording is never paused, only transcription.">
           <OnOff on={t.pauseWhenBusy} />
           <Toggle

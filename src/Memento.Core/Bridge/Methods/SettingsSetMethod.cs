@@ -100,6 +100,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             Language = patch.Language ?? current.Language,
             KeepWordTimestamps = patch.KeepWordTimestamps ?? current.KeepWordTimestamps,
             LowConfidenceThreshold = patch.LowConfidenceThreshold ?? current.LowConfidenceThreshold,
+            LiveOnGpu = patch.LiveOnGpu ?? current.LiveOnGpu,
         };
 
     /// <summary>Settings › Speakers; <c>expectedSpeakers</c> is the string <c>auto</c> or a whole number.</summary>

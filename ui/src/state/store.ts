@@ -211,6 +211,13 @@ export function connectEvents(bridge: BridgeClient, store: AppStore, hooks: Even
     bridge.on('recording.liveTranscript', (payload) => {
       store.liveTranscript.value = payload;
     }),
+    // 2.0: the tray's Record item. A session in progress is rejoined; otherwise the screen opens ready to record.
+    bridge.on('app.openScreen', () => {
+      // `record` is the only screen the host opens.
+      const active = store.recording.value;
+      const live = active !== null && (active.state === 'recording' || active.state === 'paused');
+      store.route.value = { name: 'record', sessionId: live ? active.sessionId : null };
+    }),
     bridge.on('updates.progress', (payload) => {
       const wasReady = store.updates.value?.state === 'ready';
       store.updates.value = payload;

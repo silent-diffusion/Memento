@@ -89,9 +89,12 @@ public sealed class WavReader : IDisposable
         return total - (total % Format.BlockAlign);
     }
 
-    private void Decode(ReadOnlySpan<byte> bytes, Span<float> destination)
+    private void Decode(ReadOnlySpan<byte> bytes, Span<float> destination) => DecodeSamples(Format, bytes, destination);
+
+    /// <summary>Interleaved samples of <paramref name="format"/> to floats in −1..1 (also the live transcript's reader, 2.0).</summary>
+    internal static void DecodeSamples(PcmFormat format, ReadOnlySpan<byte> bytes, Span<float> destination)
     {
-        switch (Format.Encoding, Format.BitsPerSample)
+        switch (format.Encoding, format.BitsPerSample)
         {
             case (SampleEncoding.IeeeFloat, 32):
                 for (var i = 0; i < destination.Length; i++)
@@ -131,7 +134,7 @@ public sealed class WavReader : IDisposable
 
                 break;
             default:
-                throw new InvalidDataException($"Cannot decode {Format}.");
+                throw new InvalidDataException($"Cannot decode {format}.");
         }
     }
 }

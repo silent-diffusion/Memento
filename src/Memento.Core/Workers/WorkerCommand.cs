@@ -7,4 +7,5 @@ namespace Memento.Core.Workers;
 /// a local model job that stays loaded also takes <c>{"type":"prompts","llm":{…}}</c> and <c>{"type":"end"}</c>.
 /// </summary>
 /// <param name="Llm">With <c>prompts</c>: Memento.AI's prompt batch as raw JSON.</param>
-public sealed record WorkerCommand(string Type, WorkerJob? Job = null, JsonElement? Llm = null);
+/// <param name="Audio">2.0, with <c>audio</c>: one window for the live transcript.</param>
+public sealed record WorkerCommand(string Type, WorkerJob? Job = null, JsonElement? Llm = null, LiveAudio? Audio = null);

@@ -13,6 +13,7 @@ Every bundled dependency, its license, and why it is used. Builders add a row wh
 | Microsoft.Extensions.Hosting (with its Microsoft.Extensions.* dependencies) | MIT | Host composition and dependency injection |
 | Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Logging.Abstractions | MIT | Core service registration and logging interfaces |
 | Microsoft.Windows.SDK.NET projection (from the `net8.0-windows10.0.19041.0` target) | MIT | Windows theme API (`UISettings`) |
+| Windows Forms (part of the .NET 8 Windows Desktop runtime, bundled by the self-contained publish since 2.0) | MIT | The notification-area icon (Keep running in the tray) |
 | Serilog | Apache-2.0 | Logging |
 | Serilog.Extensions.Hosting | Apache-2.0 | Serilog behind `ILogger<T>` |
 | Serilog.Sinks.File | Apache-2.0 | Rolling log files |

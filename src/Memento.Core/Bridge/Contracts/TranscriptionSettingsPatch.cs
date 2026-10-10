@@ -18,4 +18,7 @@ public sealed record TranscriptionSettingsPatch
     public bool? KeepWordTimestamps { get; init; }
 
     public double? LowConfidenceThreshold { get; init; }
+
+    /// <summary>2.0: the live transcript may use the graphics card.</summary>
+    public bool? LiveOnGpu { get; init; }
 }

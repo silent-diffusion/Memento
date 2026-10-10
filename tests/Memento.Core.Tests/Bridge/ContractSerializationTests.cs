@@ -208,7 +208,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(project, BridgeJsonContext.Default.Project));
         var root = document.RootElement;
-        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes", Names(root));
+        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly", Names(root));
         Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda,whoSpoke", Names(root.GetProperty("details")));
         Assert.Equal("""{"count":null,"names":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         Assert.Equal("""{"source":null,"parsedLocally":false,"items":[]}""", root.GetProperty("details").GetProperty("agenda").GetRawText());

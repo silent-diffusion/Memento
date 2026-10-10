@@ -51,6 +51,7 @@ internal sealed partial class MainWindow : Window
     private readonly ILibraryLocation _library;
     private readonly ILogger<MainWindow> _logger;
     private readonly DroppedFiles _dropped;
+    private readonly TrayController _tray;
     private string? _mappedLibrary;
 
     public MainWindow(
@@ -63,9 +64,11 @@ internal sealed partial class MainWindow : Window
         ISettingsStore settings,
         DroppedFiles dropped,
         LibraryOpener opener,
+        TrayController tray,
         ILogger<MainWindow> logger)
     {
         ArgumentNullException.ThrowIfNull(opener);
+        _tray = tray;
         opener.Opened += (_, _) => Dispatcher.BeginInvoke(() => MapLibrary(_closed ? null : WebView.CoreWebView2));
         _theme = theme;
         _bridge = bridge;
@@ -103,9 +106,30 @@ internal sealed partial class MainWindow : Window
         else
         {
             FitToWorkArea();
+            if (options.StartInBackground)
+            {
+                // Started by the Windows startup entry: minimised, and hidden in the tray once the page has loaded
+                // when "Keep running in the tray" is on (WebView2 needs a shown window to start).
+                WindowState = WindowState.Minimized;
+                ShowActivated = false;
+            }
         }
 
         Loaded += OnLoaded;
+    }
+
+    /// <summary>With "Keep running in the tray" on, closing hides the window; recording and processing go on.</summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_options.IsScreenshotRun && _tray.KeepsRunning)
+        {
+            e.Cancel = true;
+            Hide();
+            LogHiddenToTray();
+            return;
+        }
+
+        base.OnClosing(e);
     }
 
     /// <summary>
@@ -153,6 +177,11 @@ internal sealed partial class MainWindow : Window
         if (_options.IsScreenshotRun)
         {
             await CaptureScreenshotAndExitAsync(_options.ScreenshotPath!);
+        }
+        else if (_options.StartInBackground && _tray.KeepsRunning)
+        {
+            Hide();
+            LogHiddenToTray();
         }
     }
 
@@ -397,6 +426,9 @@ internal sealed partial class MainWindow : Window
 
         Application.Current.Shutdown(exitCode);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The window was hidden; Memento keeps running in the tray")]
+    private partial void LogHiddenToTray();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Project folders in {Folder} served at https://library.memento/")]
     private partial void LogLibraryMapped(string folder);

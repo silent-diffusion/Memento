@@ -5,6 +5,7 @@ using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Host;
 using Memento.Core.Library;
+using Memento.Core.Maintenance;
 using Memento.Core.Projects;
 using Memento.Core.Secrets;
 using Memento.Core.Tests.Fakes;
@@ -140,6 +141,13 @@ internal sealed class M3Host : IDisposable
         public bool IsEnabled { get; private set; }
 
         public bool Refuse { get; set; }
+
+        /// <summary>2.0: false stands for a copy that was not installed.</summary>
+        public bool Available { get; set; } = true;
+
+        public bool IsAvailable => Available;
+
+        public string? UnavailableReason => Available ? null : InstalledStartupRegistration.NotInstalledReason;
 
         public void SetEnabled(bool enabled)
         {

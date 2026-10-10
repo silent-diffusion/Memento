@@ -97,6 +97,51 @@ public sealed class AtomicReplaceTests : IDisposable
     }
 
     [Fact]
+    public async Task AStarvedMachineStillGetsEveryTryOfTheBudget()
+    {
+        // Each wait comes back far later than asked (a saturated machine). The budget counts the waits asked for, so
+        // the brief lock (four failed tries, under 100 ms of waits) is still waited out; a clock-based budget gave up.
+        var (source, target) = await PairAsync("new", "old");
+        var calls = 0;
+        var budget = TimeSpan.FromMilliseconds(100);
+
+        await AtomicReplace.ReplaceAsync(
+            source,
+            target,
+            (from, to) => ++calls <= 4 ? ErrorSharingViolation : PosixRename.Replace(from, to),
+            budget,
+            CancellationToken.None,
+            async (ms, ct) => await Task.Delay(budget, ct));
+
+        Assert.Equal(5, calls);
+        Assert.Equal("new", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task GivesUpOnceTheWaitsAskedForReachTheBudget()
+    {
+        var (source, target) = await PairAsync("new", "old");
+        var waits = new List<int>();
+
+        await Assert.ThrowsAsync<IOException>(() => AtomicReplace.ReplaceAsync(
+            source,
+            target,
+            (_, _) => ErrorSharingViolation,
+            AtomicReplace.DefaultBudget,
+            CancellationToken.None,
+            (ms, _) =>
+            {
+                waits.Add(ms);
+                return Task.CompletedTask;
+            }));
+
+        Assert.Equal((int)AtomicReplace.DefaultBudget.TotalMilliseconds, waits.Sum());
+        Assert.InRange(waits.Count, 20, 60);
+        Assert.All(waits, w => Assert.InRange(w, 1, 100));
+        Assert.Equal("old", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
     public async Task GivesUpWithASpecificErrorWhenTheTargetStaysLocked()
     {
         var (source, target) = await PairAsync("new", "old");

@@ -333,6 +333,15 @@ export interface Project {
   history: HistoryEntry[];
   integrity: ProjectIntegrity;
   sizeBytes: number;
+  /** 2.0: "Keep only the mix" removed the separate track files; null while they are kept. */
+  mixOnly: MixOnlyInfo | null;
+}
+
+/** 2.0: when the separate track files were removed, how many, and their size. */
+export interface MixOnlyInfo {
+  at: string;
+  tracks: number;
+  bytesFreed: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -820,6 +829,8 @@ export interface TranscriptionSettings {
   keepWordTimestamps: boolean;
   /** 0.5 */
   lowConfidenceThreshold: number;
+  /** 2.0: the live transcript (timing during) may use the graphics card; false = the processor. Default false. */
+  liveOnGpu: boolean;
 }
 
 export interface SpeakerSettings {
@@ -1241,10 +1252,24 @@ export interface LiveTranscriptSegment {
   text: string;
 }
 
+/** 2.0: where the live draft stands (BRIDGE.md, Live transcript, tray and keep only the mix). */
+export type LiveTranscriptState = 'starting' | 'listening' | 'paused' | 'unavailable' | 'failed';
+
 export interface RecordingLiveTranscriptPayload {
   sessionId: string;
   /** The draft so far; each event replaces the last, and the full pass replaces it entirely. */
   segments: LiveTranscriptSegment[];
+  /** 2.0 (older hosts never sent the event). */
+  state: LiveTranscriptState;
+  /** "Local · CPU · Small"; null before the model is loaded. */
+  engine: string | null;
+  /** Why it is paused, unavailable or failed, as a sentence; null otherwise. */
+  note: string | null;
+}
+
+/** 2.0: the tray's Record item asks the page to open the Recording session. */
+export interface AppOpenScreenPayload {
+  screen: 'record';
 }
 
 export interface StorageLowSpacePayload {
@@ -1365,6 +1390,16 @@ export interface LibraryUsage {
   freeBytes: number;
   count: number;
   largest: LibraryUsageLargest | null;
+  /** 2.0: separate track files that "Keep only the mix" would remove, and in how many recordings. */
+  separateTracksBytes: number;
+  separateTracksRecordings: number;
+  /** 2.0: recordings that already keep only their mix. */
+  mixOnlyRecordings: number;
+}
+
+/** 2.0: storage.keepOnlyMix; null = every stored recording that still has separate tracks. */
+export interface StorageKeepOnlyMixParams {
+  recordingIds: string[] | null;
 }
 
 export interface AgendaImportFileParams {
@@ -1567,11 +1602,15 @@ export interface FooterExportStatus {
 
 export interface GeneralSettings {
   startWithWindows: boolean;
-  /** Stored now; applied in M5. */
+  /** 2.0: closing the window keeps Memento in the notification area. Default false. */
   keepRunningInTray: boolean;
   language: 'en';
   /** H1: check at start and daily and download in the background; off = only "Check now". Default true. */
   autoUpdate: boolean;
+  /** 2.0, read only (ignored by settings.set): only an installed copy may start with Windows. */
+  startWithWindowsAvailable: boolean;
+  /** 2.0, read only: why it is not available; null when it is. */
+  startWithWindowsNote: string | null;
 }
 
 export interface ExportSettings {
@@ -2353,6 +2392,8 @@ export interface BridgeMethods {
   'library.rebuildIndex': { params: EmptyParams; result: LibraryRebuildIndexResult };
   'library.move': { params: LibraryMoveParams; result: JobResult };
   'storage.reclaim': { params: StorageReclaimParams; result: JobResult };
+  /** 2.0 */
+  'storage.keepOnlyMix': { params: StorageKeepOnlyMixParams; result: JobResult };
   'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
   'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
   'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
@@ -2437,6 +2478,8 @@ export interface BridgeEvents {
   'styles.changed': EmptyResult;
   // H1
   'updates.progress': UpdateStatus;
+  // 2.0
+  'app.openScreen': AppOpenScreenPayload;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -2580,6 +2623,8 @@ export const METHOD_NAMES = [
   'annotations.dismissSuggestion',
   'annotations.restoreSuggestion',
   'transcript.setSegmentsSpeaker',
+  // 2.0 storage
+  'storage.keepOnlyMix',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -2604,4 +2649,5 @@ export const EVENT_NAMES = [
   'templates.changed',
   'styles.changed',
   'updates.progress',
+  'app.openScreen',
 ] as const satisfies readonly EventName[];
