@@ -375,7 +375,153 @@ async function clickAt(point) {
   await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
 }
 
+/** The Windows clipboard's text (Memento's own copy, just made). */
+function clipboardText() {
+  return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-Clipboard -Raw'], { encoding: 'utf8', windowsHide: true });
+}
+
+/**
+ * 2.0: the Follow-up email module and the full "Preview what will be sent" sheet. With external AI on and the fake
+ * key for Claude: the Builder gains a Follow-up email (warm, signed), the preview sheet for Claude shows the provider,
+ * "Ask before every send", the inputs and each request, searches them and copies one through the host clipboard, and
+ * nothing reaches the fake server. Then the local model writes the email and the viewer copies it on its own.
+ */
+async function emailAndPreviewSheet(recordingId) {
+  const sentBefore = fake.requests.length;
+  await openReview();
+  await page.click({ name: 'Create document' });
+  await page.waitFor(`!!document.querySelector('[data-card="m01"]')`, 'the Builder', 30_000);
+  await page.click({ selector: '.pal[data-module="followUpEmail"]' });
+  await page.waitFor(`!!document.querySelector('.mod-email')`, 'the Follow-up email card, expanded', 10_000);
+  await page.click({ name: 'Warm', within: '.mod-email' });
+  await page.click({ selector: '.mod-email input[type="text"]' });
+  await page.type('Dana');
+  await page.waitFor(`document.querySelector('.mod-email .seg.on')?.innerText === 'Warm' && document.querySelector('.mod-email input').value === 'Dana'`, 'tone and sign-off set');
+  await shot('builder-email-settings');
+
+  // The preview sheet for Claude.
+  await page.click({ name: 'Inputs and output' });
+  const claude = await page.eval(`(() => { const label = [...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Claude'); const radio = label?.querySelector('input[type=radio]'); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const r = radio.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, checked: radio.checked }; })()`);
+  check(claude !== null, 'Claude is offered for the preview');
+  if (!claude.checked) await clickAt(claude);
+  await page.click({ name: 'Preview exactly what will be sent' });
+  await page.waitFor(`!!document.querySelector('.preview-sheet .preview-inputs')`, 'the preview sheet for Claude', 60_000);
+  const sub = await page.eval(`document.querySelector('#preview-sub').innerText`);
+  check(/^Claude/.test(sub) && /Ask before every send on/.test(sub), `the sheet names Claude, its model and Ask before every send (${sub})`);
+  summary.previewSheet = {
+    sub,
+    inputs: await page.eval(`[...document.querySelectorAll('.preview-sheet .preview-input')].map((r) => r.innerText.replace(/\\s+/g, ' ').trim())`),
+    requests: await page.eval(`document.querySelectorAll('.preview-sheet .preview-nav .live-pass').length - 1`),
+  };
+  await shot('preview-sheet-claude-overview');
+  const recap = await page.eval(`[...document.querySelectorAll('.preview-sheet .live-pass')].find((b) => b.innerText.startsWith('Follow-up email · recap'))?.dataset.pass ?? null`);
+  check(recap !== null, 'the email has its own recap request');
+  await page.click({ selector: `.preview-sheet .live-pass[data-pass="${recap}"]` });
+  const request = await page.eval(`[...document.querySelectorAll('.preview-sheet .preview-pass .live-well')].map((w) => w.innerText)`);
+  check(request[0].includes('the recap of a follow-up email') && request[1].includes('<transcript'), 'the recap request shows its system prompt and transcript part');
+  await page.click({ selector: '#preview-search' });
+  await page.type('follow-up');
+  await page.waitFor(`/requests hold/.test(document.querySelector('.preview-count')?.innerText ?? '') && !!document.querySelector('.preview-mark')`, 'the search to narrow and mark', 10_000);
+  summary.previewSheet.search = await page.text('.preview-count');
+  await shot('preview-sheet-claude-search');
+  await page.click({ name: 'Copy this request', within: '.preview-sheet' });
+  await page.waitFor(`/Copied [\\d,]+ characters: this request/.test(document.querySelector('.preview-copied')?.innerText ?? '')`, 'the copy', 15_000);
+  const copied = clipboardText();
+  check(copied.startsWith('=== Follow-up email · recap'), 'the request is on the clipboard');
+  check(fake.requests.length === sentBefore, 'nothing was sent to Claude while previewing');
+  log('preview sheet for Claude', `${summary.previewSheet.requests} requests; ${summary.previewSheet.search}; one copied (${copied.length} characters); nothing sent`);
+  await page.click({ name: 'Done', within: '.preview-sheet' });
+  await page.waitFor(`!document.querySelector('.preview-sheet')`, 'the sheet to close', 10_000);
+
+  // The local model writes the email; the viewer copies it as an email.
+  const local = await page.eval(`(() => { const label = [...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Local model'); const radio = label?.querySelector('input[type=radio]'); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const r = radio.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  await clickAt(local);
+  const written = await generate('email-local');
+  check(written.ended === 'done', `the local model wrote the document with the email (${await builderStatus()})`);
+  const email = await page.waitFor(`document.querySelector('.doc-paper section[data-module="followUpEmail"]')?.innerText ?? ''`, 'the email in the viewer', 30_000);
+  check(/To/.test(email) && /Subject/.test(email) && /Warm regards,/.test(email) && /Dana/.test(email), 'the email has recipients, subject, a warm closing and the sign-off');
+  await shot('viewer-follow-up-email');
+  await page.click({ name: 'More actions' });
+  await page.click({ name: 'Copy the follow-up email', role: 'menuitem' });
+  await hasText('Copied the follow-up email', 15_000);
+  const text = clipboardText();
+  check(text.startsWith('To: ') && text.includes('Subject: Follow-up:') && /Warm regards,\s+Dana/.test(text), 'the email is on the clipboard as an email');
+  summary.email = { seconds: written.seconds, text: text.split(/\r?\n/).filter((l) => l.trim() !== '').slice(0, 30) };
+  check(fake.requests.length === sentBefore, 'nothing was sent to Claude by the local generation');
+  log('follow-up email', `written in ${written.seconds} s; copied (${text.length} characters)`);
+}
+
 let fake;
+
+/**
+ * --email-preview: only the step above, on the two readers imported from --play (nothing is played or recorded), or
+ * with --from-review on the recording of an earlier run in --data.
+ */
+if (flag('--email-preview')) {
+  try {
+    rmSync(out, { recursive: true, force: true });
+    mkdirSync(out, { recursive: true });
+    fake = await startFakeAnthropic();
+    process.env.MEMENTO_TEST_ANTHROPIC_URL = fake.url;
+    if (models) installModels(models);
+    if (flag('--from-review')) forgetEarlierDocuments();
+    page = await app.start();
+    let recordingId;
+    if (flag('--from-review')) {
+      [recordingId] = projectIds().filter((id) => existsSync(join(projectFolder(id), 'transcript.json')));
+      reviewTitle = manifestOf(recordingId).details.title;
+    } else {
+      check(play && existsSync(play), '--play names the speech file to import');
+      await home().catch(() => undefined);
+      const answered = answerDialog('Import audio or video', play);
+      if (await page.locate({ name: 'Import audio or video' })) {
+        await page.click({ name: 'Import audio or video' });
+      } else {
+        await page.click({ name: 'More library actions' });
+        await page.click({ name: 'Import audio or video…' });
+      }
+      await answered;
+      await page.waitFor(`document.querySelectorAll('.lib-item').length >= 1`, 'the imported recording', 60_000);
+      [recordingId] = projectIds();
+      reviewTitle = manifestOf(recordingId).details.title;
+      const stages = await waitProcessed(recordingId, 30);
+      check(stages.every((s) => s.state === 'done'), `the import was processed (${stages.map((s) => `${s.stage}:${s.state}`).join(', ')})`);
+      log('imported', `${play.split(/[\\/]/).pop()} as ${recordingId}`);
+    }
+    await openSettings('AI and privacy');
+    await page.waitFor(`!!document.querySelector('[aria-label="Allow external AI services"]') && document.body.innerText.includes('Claude (Anthropic)')`, 'AI and privacy', 20_000);
+    if ((await page.eval(`document.querySelector('[aria-label="Allow external AI services"]')?.getAttribute('aria-checked')`)) !== 'true') {
+      await page.click({ name: 'Allow external AI services' });
+    }
+    if (!(await page.eval(`!!document.querySelector('[aria-label="Claude (Anthropic) key stored"]')`))) {
+      await page.click({ name: 'Add a Claude (Anthropic) key' });
+      await page.waitFor(`!!document.querySelector('#ai-key-input')`, 'the key dialog');
+      await page.click({ selector: '#ai-key-input' });
+      await page.type(FAKE_KEY);
+      await page.click({ name: 'Save key' });
+      await page.waitFor(`!!document.querySelector('[aria-label="Claude (Anthropic) key stored"]')`, 'the masked key');
+    }
+    await emailAndPreviewSheet(recordingId);
+    summary.result = 'passed';
+    console.log(JSON.stringify(summary, null, 2));
+    await app.close();
+  } catch (error) {
+    summary.error = error.message;
+    console.error(error);
+    try {
+      await shot('failure');
+    } catch {
+      // The page is gone.
+    }
+    console.log(JSON.stringify(summary, null, 2));
+    await app.kill();
+    process.exitCode = 1;
+  } finally {
+    fake?.server.close();
+  }
+  process.exit();
+}
+
 try {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
@@ -509,12 +655,15 @@ try {
   await shot('builder-text-size');
 
   // Preview exactly what will be sent: for the local model, what it reads; nothing leaves the PC.
+  // 2.0: the full read-only sheet (an overview, then every request as the provider receives it).
   await page.click({ name: 'Preview exactly what will be sent' });
-  await page.waitFor(`!!document.querySelector('[role=dialog] textarea')`, 'the payload preview', 30_000);
-  const payload = await page.eval(`document.querySelector('[role=dialog] textarea').value`);
-  check(payload.includes('nothing leaves this PC') && payload.includes('<transcript>'), 'the preview shows the local model reads the transcript and nothing leaves the PC');
-  check(payload.includes('Audio and video are never sent'), 'the preview says audio and video are never sent');
-  summary.previewPills = await page.eval(`[...document.querySelectorAll('[role=dialog] .pill')].map((p) => p.innerText.trim())`);
+  await page.waitFor(`!!document.querySelector('.preview-sheet .preview-inputs')`, 'the payload preview', 60_000);
+  const overview = await page.eval(`document.querySelector('.preview-sheet').innerText`);
+  check(/nothing leaves it/.test(overview) && /Audio[\s\S]*Never sent/.test(overview), 'the preview shows nothing leaves the PC and audio and video are never sent');
+  summary.previewPills = await page.eval(`[...document.querySelectorAll('.preview-sheet .preview-input--sent th')].map((th) => th.firstChild.textContent.trim())`);
+  await page.click({ selector: '.preview-sheet .preview-nav .live-pass[data-pass="p1"]' });
+  const firstRequest = await page.eval(`[...document.querySelectorAll('.preview-sheet .preview-pass .live-well')].map((w) => w.innerText).join('\\n')`);
+  check(firstRequest.includes('<transcript'), 'the first request holds part of the transcript');
   await shot('builder-payload-preview');
   await page.click({ name: 'Done', within: '[role=dialog]' });
   // The Local provider card names the model that writes and where it runs (1.1.0), as Settings does.
@@ -725,6 +874,9 @@ try {
   check(third.ended === 'done', `"Switch to the local model" wrote the minutes (${await builderStatus()})`);
   await shot('viewer-after-switch');
   log('switched to the local model', `${third.seconds} s`);
+
+  // 12. (2.0) The Follow-up email module and the full preview sheet for Claude, against the fake server.
+  await emailAndPreviewSheet(recordingId);
 
   const history = historyOf(recordingId).filter((h) => h.stage === 'minutes');
   summary.history = history.map((h) => h.summary);

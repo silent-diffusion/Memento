@@ -4,7 +4,8 @@
     Memento.Worker.exe: one process per transcription, speaker or local language-model job (ARCHITECTURE.md §1, §8), so a
     native abort in whisper.cpp, onnxruntime or llama.cpp cannot take the app down and video memory is released when the job ends. The host
     launches it from the "worker" folder beside Memento.exe and speaks JSON lines over stdin/stdout (WorkerClient).
-    Whisper.net runs with the Vulkan and CPU runtimes only (no CUDA); sherpa-onnx does speaker identification.
+    Whisper.net runs with the Vulkan and CPU runtimes only (no CUDA); sherpa-onnx does speaker identification; Tesseract
+    (2.0, ocr jobs) reads agenda photos and scans when it is chosen in Settings › Documents.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
