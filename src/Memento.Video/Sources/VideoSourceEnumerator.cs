@@ -79,11 +79,18 @@ public static class VideoSourceEnumerator
         return result;
     }
 
-    /// <summary>Video capture devices Media Foundation sees (webcams, capture cards), by name and symbolic link.</summary>
-    public static IReadOnlyList<VideoSourceInfo> ListCameras()
+    /// <summary>
+    /// Cameras: the video capture devices Media Foundation sees (webcams, capture cards), then the DirectShow video input
+    /// devices it does not (virtual and software cameras such as the OBS Virtual Camera), each once
+    /// (<see cref="CameraListMerger"/>, ENGINE-NOTES.md §R).
+    /// </summary>
+    public static IReadOnlyList<VideoSourceInfo> ListCameras() => CameraListMerger.Merge(ListMediaFoundationCameras(), DirectShowDevices.List());
+
+    /// <summary>Video capture devices Media Foundation sees, by name and symbolic link.</summary>
+    internal static IReadOnlyList<CameraDevice> ListMediaFoundationCameras()
     {
         MediaFoundationRuntime.EnsureStarted();
-        var result = new List<VideoSourceInfo>();
+        var result = new List<CameraDevice>();
         try
         {
             using var attributes = MediaFactory.MFCreateAttributes(1);
@@ -95,7 +102,7 @@ public static class VideoSourceEnumerator
                 {
                     var name = device.GetString(CaptureDeviceAttributeKeys.FriendlyName);
                     var link = device.GetString(CaptureDeviceAttributeKeys.SourceTypeVidcapSymbolicLink);
-                    result.Add(new VideoSourceInfo(VideoSourceId.Camera(link), name, "Camera", 0, 0, 0, false, false));
+                    result.Add(new CameraDevice(name, link, link));
                 }
             }
         }

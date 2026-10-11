@@ -77,10 +77,23 @@ export function rolesLabel(roles: readonly VideoRole[]): string {
   return words === '' ? 'Video' : `${words.charAt(0).toLocaleUpperCase()}${words.slice(1)}`;
 }
 
-/** What a camera offers: "1080p" for a 1920 × 1080 camera. */
-export function cameraLabel(source: Pick<VideoSource, 'name' | 'height'>): string {
+/** The note after a camera reached through DirectShow (a virtual or software camera such as OBS's). */
+export const DIRECTSHOW_NOTE = 'via DirectShow';
+
+/**
+ * A camera's name with what it offers: "Logitech Brio · 1080p" for a 1920 × 1080 camera, and
+ * "OBS Virtual Camera · via DirectShow" for one the host reaches through DirectShow.
+ */
+export function cameraLabel(source: Pick<VideoSource, 'name' | 'height'> & { backend?: VideoSource['backend'] }): string {
   // A camera's size is not known without opening it: the host lists 0 (BRIDGE.md, VideoSource).
-  return source.height > 0 ? `${source.name} · ${heightLabel(source.height)}` : source.name;
+  const parts = [source.name];
+  if (source.height > 0) {
+    parts.push(heightLabel(source.height));
+  }
+  if (source.backend === 'dshow') {
+    parts.push(DIRECTSHOW_NOTE);
+  }
+  return parts.join(' · ');
 }
 
 /** Mean bitrate of busy 30 fps content at each height, at Balanced (ENGINE-NOTES.md §M.3). */

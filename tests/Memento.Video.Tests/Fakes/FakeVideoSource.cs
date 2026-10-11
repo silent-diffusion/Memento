@@ -54,9 +54,11 @@ internal sealed class FakeVideoSource(VideoSourceId id, string name) : IVideoSou
         return true;
     }
 
-    public void Lose(VideoErrorCode code, string message)
+    public void Lose(VideoErrorCode code, string message) => Lose(new VideoCaptureException(code, message));
+
+    public void Lose(VideoCaptureException error)
     {
-        Loss = new VideoCaptureException(code, message);
+        Loss = error;
         State = VideoSourceState.Lost;
         Lost?.Invoke(this, new VideoSourceLostEventArgs(Id, Loss, QpcClock.Now));
     }

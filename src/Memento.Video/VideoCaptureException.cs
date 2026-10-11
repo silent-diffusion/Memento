@@ -35,6 +35,12 @@ public sealed class VideoCaptureException : Exception
     /// <summary>The other app holding a camera, or the privacy switch that is off; <c>null</c> otherwise.</summary>
     public string? Detail { get; init; }
 
+    /// <summary>
+    /// The message again with the recording position (in milliseconds), for a source that knows better wording than the
+    /// session's generic one but not the time (a virtual camera whose app stopped); <c>null</c> otherwise.
+    /// </summary>
+    public Func<long, string>? AtPosition { get; init; }
+
     /// <summary>The HRESULT behind it, when Windows gave one.</summary>
     public int? HResultCode => InnerException?.HResult;
 }

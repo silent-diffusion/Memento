@@ -5,7 +5,8 @@ namespace Memento.Video.Sources;
 /// <summary>
 /// A stable id for a video source: <c>display:\\.\DISPLAY1</c> (the GDI device name survives re-plugging, a monitor
 /// handle does not), <c>window:&lt;hwnd hex&gt;</c> (a window lives only as long as it is open), or
-/// <c>camera:&lt;symbolic link&gt;</c>.
+/// <c>camera:&lt;symbolic link&gt;</c> (Media Foundation) or <c>camera:dshow:&lt;device path, filter CLSID or name&gt;</c>
+/// (DirectShow, <see cref="CameraListMerger.DirectShowKey"/>).
 /// </summary>
 public readonly record struct VideoSourceId(VideoSourceKind Kind, string Key)
 {
@@ -14,6 +15,12 @@ public readonly record struct VideoSourceId(VideoSourceKind Kind, string Key)
     public static VideoSourceId Window(IntPtr hwnd) => new(VideoSourceKind.Window, ((long)hwnd).ToString("X", CultureInfo.InvariantCulture));
 
     public static VideoSourceId Camera(string symbolicLink) => new(VideoSourceKind.Camera, symbolicLink);
+
+    /// <summary>How a camera id is opened; <c>null</c> for a display or a window.</summary>
+    public CameraBackend? Backend =>
+        Kind != VideoSourceKind.Camera ? null
+        : Key.StartsWith(CameraListMerger.DirectShowPrefix, StringComparison.Ordinal) ? CameraBackend.DirectShow
+        : CameraBackend.MediaFoundation;
 
     /// <summary>The window handle of a <see cref="VideoSourceKind.Window"/> id.</summary>
     public IntPtr WindowHandle =>

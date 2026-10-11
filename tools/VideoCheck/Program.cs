@@ -77,9 +77,19 @@ internal static class Program
             Console.WriteLine($"Window source: {source.Name} | {source.Detail} | excluded={source.IsExcluded}");
         }
 
+        foreach (var camera in VideoSourceEnumerator.ListMediaFoundationCameras())
+        {
+            Console.WriteLine($"Media Foundation camera: {camera.Name} | {camera.Key}");
+        }
+
+        foreach (var camera in DirectShowDevices.List())
+        {
+            Console.WriteLine($"DirectShow video input: {camera.Name} | {camera.Key} | path {camera.DevicePath ?? "none"}");
+        }
+
         foreach (var camera in VideoSourceEnumerator.ListCameras())
         {
-            Console.WriteLine($"Camera: {camera.Name} | {camera.Detail} | {camera.Id}");
+            Console.WriteLine($"Camera: {camera.Name} | {camera.Detail} | {camera.Backend} | {camera.Id}");
         }
 
         Console.WriteLine($"Camera privacy (this user, desktop apps): {CameraPrivacy.Read()}");

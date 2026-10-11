@@ -236,6 +236,11 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
     private VideoCaptureException Reword(VideoCaptureException error, long atMs)
     {
         var name = _source.Name;
+        if (error.AtPosition is { } atPosition)
+        {
+            return new VideoCaptureException(error.Code, atPosition(atMs), error) { Detail = error.Detail };
+        }
+
         return (error.Code, _source.Id.Kind) switch
         {
             (VideoErrorCode.SourceLost, VideoSourceKind.Display) => new VideoCaptureException(error.Code, VideoErrors.DisplayDisconnected(name, atMs), error),

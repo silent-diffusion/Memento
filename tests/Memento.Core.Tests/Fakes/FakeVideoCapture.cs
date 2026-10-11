@@ -15,6 +15,7 @@ internal sealed class FakeVideoCapture : IVideoCapture
     public const string Display2 = @"display:\\.\DISPLAY2";
     public const string Window = "window:1A2B3C";
     public const string Camera = "camera:usb-test-camera";
+    public const string VirtualCamera = "camera:dshow:clsid:{A3FCE0F5-3493-419F-958A-ABA1250EC20B}";
 
     private readonly object _gate = new();
 
@@ -30,11 +31,14 @@ internal sealed class FakeVideoCapture : IVideoCapture
 
     public VideoSourcesResult ListSources() => new(
         [
-            new VideoSource(Display1, "display", "Display 1", "1920 × 1080 · 60 Hz · primary", 1920, 1080, 60, true, false, false, null),
-            new VideoSource(Display2, "display", "Display 2", "1920 × 1080 · 60 Hz · right of Display 1", 1920, 1080, 60, false, false, false, null),
+            new VideoSource(Display1, "display", "Display 1", "1920 × 1080 · 60 Hz · primary", 1920, 1080, 60, true, false, false, null, null),
+            new VideoSource(Display2, "display", "Display 2", "1920 × 1080 · 60 Hz · right of Display 1", 1920, 1080, 60, false, false, false, null, null),
         ],
-        [new VideoSource(Window, "window", "Planning notes", "Notes · 1280 × 720", 1280, 720, 0, false, false, false, "Notes"), .. MoreWindows],
-        [new VideoSource(Camera, "camera", "Test camera", "Camera", 0, 0, 0, false, false, false, null)]);
+        [new VideoSource(Window, "window", "Planning notes", "Notes · 1280 × 720", 1280, 720, 0, false, false, false, "Notes", null), .. MoreWindows],
+        [
+            new VideoSource(Camera, "camera", "Test camera", "Camera", 0, 0, 0, false, false, false, null, "mf"),
+            new VideoSource(VirtualCamera, "camera", "OBS Virtual Camera", "Camera", 0, 0, 0, false, false, false, null, "dshow"),
+        ]);
 
     public Task<VideoThumbnailResult> ThumbnailAsync(string sourceId, int width, CancellationToken cancellationToken) =>
         Refuse.TryGetValue(sourceId, out var refused)

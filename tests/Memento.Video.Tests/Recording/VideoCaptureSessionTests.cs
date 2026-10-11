@@ -177,6 +177,30 @@ public sealed class VideoCaptureSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task AVirtualCameraWhoseAppStoppedEndsTheTrackInItsOwnWordsWithTheTime()
+    {
+        var (session, source, origin) = await Start(VideoSourceKind.Camera);
+        var problem = Watch(session);
+        Ticks(session, origin, 0, 5);
+
+        source.Lose(new VideoCaptureException(VideoErrorCode.SourceLost, VideoErrors.VirtualCameraStopped("OBS Virtual Camera", "OBS"))
+        {
+            Detail = "OBS",
+            AtPosition = atMs => VideoErrors.VirtualCameraStopped("OBS Virtual Camera", "OBS", atMs),
+        });
+        var e = await Next(problem);
+
+        Assert.Equal(VideoSessionState.Ended, e.State);
+        Assert.StartsWith("OBS Virtual Camera stopped at 0:0", e.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("Start the virtual camera in OBS again", e.Error.Message, StringComparison.Ordinal);
+        Assert.Equal("OBS", e.Error.Detail);
+        var track = await session.StopAsync(CancellationToken.None);
+        Assert.Equal("sourceLost", track.EndReason);
+        Assert.Equal(5, track.FramesWritten);
+        Assert.True(_writers.Writers[0].Finalized);
+    }
+
+    [Fact]
     public async Task ADisconnectedDisplayWaitsAndAnotherDisplayContinuesTheSameTrack()
     {
         var (session, source, origin) = await Start();

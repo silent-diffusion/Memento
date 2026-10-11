@@ -13,7 +13,7 @@ import {
   videoProblemCard,
   videoProblemToast,
 } from '../../format/videoProblems';
-import { DEFAULT_VIDEO_SETTINGS } from '../../format/video';
+import { cameraLabel, DEFAULT_VIDEO_SETTINGS } from '../../format/video';
 import { button, click, mountApp, press, settle, type, until, type Harness } from '../../testing/appHarness';
 import { encoderFacts } from './VideoCards';
 import { FrameHistory } from './TracksCard';
@@ -263,6 +263,23 @@ describe('Recording session with video (against the browser-preview host)', () =
     expect(document.querySelector('.rec-preview-cam--bottomRight')).not.toBeNull();
   });
 
+  it('a camera reached through DirectShow (the OBS Virtual Camera) says so in its row and in the camera list', async () => {
+    await open({ video: ['on', 'virtualcam'] });
+    expect(checked('Camera')).toBe(true);
+    expect(text('[data-row="camera"] .src-sub')).toBe('OBS Virtual Camera · via DirectShow');
+    const chip = button('Camera: OBS Virtual Camera');
+    expect(chip.textContent).toContain('OBS Virtual Camera');
+    await click(chip);
+    await until(() => document.querySelector('[role="listbox"] [role="option"]') !== null);
+    const options = [...document.querySelectorAll('[role="listbox"] [role="option"]')].map((o) => o.textContent.trim());
+    expect(options).toEqual(['OBS Virtual Camera · via DirectShow']);
+  });
+
+  it('a Media Foundation camera has no backend note', async () => {
+    await open({ video: ['on'] });
+    expect(text('[data-row="camera"] .src-sub')).not.toContain('DirectShow');
+  });
+
   it('turns rows on and off before recording: Window replaces Screen, and the inset corner moves', async () => {
     await open({ video: ['on'] });
     await click(toggle('Window'));
@@ -430,5 +447,15 @@ describe('Recording session with video (against the browser-preview host)', () =
       { sessionId, role: 'screen', sourceId: null },
       { sessionId, role: 'camera', sourceId: null },
     ]);
+  });
+});
+
+describe('camera labels (BRIDGE.md, VideoSource.backend)', () => {
+  it('names the camera, its height when known, and "via DirectShow" for a DirectShow camera', () => {
+    expect(cameraLabel({ name: 'Logitech Brio', height: 1080, backend: 'mf' })).toBe('Logitech Brio · 1080p');
+    expect(cameraLabel({ name: 'Integrated camera', height: 0, backend: 'mf' })).toBe('Integrated camera');
+    expect(cameraLabel({ name: 'OBS Virtual Camera', height: 0, backend: 'dshow' })).toBe('OBS Virtual Camera · via DirectShow');
+    expect(cameraLabel({ name: 'Capture card', height: 720, backend: 'dshow' })).toBe('Capture card · 720p · via DirectShow');
+    expect(cameraLabel({ name: 'Older host', height: 0 })).toBe('Older host');
   });
 });
