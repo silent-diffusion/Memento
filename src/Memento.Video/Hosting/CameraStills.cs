@@ -59,6 +59,25 @@ internal static class CameraStills
         }
     }
 
+    /// <summary>
+    /// Closes every camera held for thumbnails (the app is closing). A DirectShow camera's filter is third-party code in
+    /// this process: left running into process exit, the OBS Virtual Camera's kept Memento from exiting (ENGINE-NOTES.md §R).
+    /// </summary>
+    public static void ReleaseAll()
+    {
+        lock (Gate)
+        {
+            foreach (var open in Readers.Values)
+            {
+                open.Dispose();
+            }
+
+            Readers.Clear();
+            _sweeper?.Dispose();
+            _sweeper = null;
+        }
+    }
+
     private static void Sweep()
     {
         lock (Gate)

@@ -15,7 +15,7 @@ namespace Memento.Video.Hosting;
 /// thumbnails, and starts one <see cref="VideoCaptureSession"/> per track on a Direct3D device of its own (on the
 /// adapter that drives a captured display). Nothing here is called from an audio thread.
 /// </summary>
-public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) : IVideoCapture
+public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) : IVideoCapture, IDisposable
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(1, 1);
 
@@ -26,6 +26,9 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Func<Export.Nv12Frame?>> _recordingCameras = new(StringComparer.Ordinal);
 
     public bool IsAvailable => _supported.Value;
+
+    /// <summary>The app is closing: cameras held open for thumbnails are closed (DirectShow filters must not run into process exit).</summary>
+    public void Dispose() => CameraStills.ReleaseAll();
 
     public VideoSourcesResult ListSources()
     {
