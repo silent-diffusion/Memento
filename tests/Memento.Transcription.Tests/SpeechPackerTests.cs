@@ -131,15 +131,34 @@ public sealed class SpeechPackerTests
     }
 
     [Fact]
-    public void QuietSpeechIsSoundButNotSpeech()
+    public void QuietSpeechBesideLouderSpeechIsSoundButNotSpeech()
     {
+        var energy = new SpeechEnergy();
+        energy.Add(Enumerable.Range(0, 3 * Rate).Select(i => (float)(0.1 * Math.Sin(2 * Math.PI * 220 * i / Rate))).ToArray()); // about -23 dBFS
+        energy.Add(new float[2 * Rate]);
+        energy.Add(Enumerable.Range(0, 2 * Rate).Select(i => (float)(0.004 * Math.Sin(2 * Math.PI * 220 * i / Rate))).ToArray()); // about -51 dBFS
+        energy.Add(new float[2 * Rate]);
+
+        var speech = Assert.Single(energy.Regions());
+        Assert.InRange(speech.End, 2.99, 3.01);
+        Assert.Equal(2, energy.SoundRegions().Count);
+        Assert.InRange(energy.SoundRegions()[1].Start, 4.99, 5.01);
+    }
+
+    [Fact]
+    public void ATrackThatIsQuietThroughoutIsJudgedByItsOwnLevel()
+    {
+        // ENGINE-NOTES.md §Q: a quiet microphone's speech at -45 dBFS is speech on its own track (the fixed -40 dBFS bar
+        // of 1.3.0 made the whole track "silent" and it was never transcribed).
         var energy = new SpeechEnergy();
         energy.Add(new float[2 * Rate]);
         energy.Add(Enumerable.Range(0, 2 * Rate).Select(i => (float)(0.008 * Math.Sin(2 * Math.PI * 220 * i / Rate))).ToArray()); // about -45 dBFS
         energy.Add(new float[2 * Rate]);
 
-        Assert.Empty(energy.Regions());
+        var speech = Assert.Single(energy.Regions());
         var sound = Assert.Single(energy.SoundRegions());
+        Assert.InRange(speech.Start, 1.99, 2.01);
         Assert.InRange(sound.Start, 1.99, 2.01);
+        Assert.InRange(sound.End, 3.99, 4.01);
     }
 }

@@ -5,8 +5,9 @@ namespace Memento.Core.Audio;
 /// <summary>
 /// Builds the live transcript's audio (2.0) from what the track writers have already put on disk: each window is read
 /// from the growing capture WAVs (opened to read while they are written, every RIFF part followed), each track mixed to
-/// mono, resampled to 16 kHz with a box filter and placed on the recording timeline by its start offset, then the tracks
-/// are summed and scaled down only if the sum would clip. It never touches the capture or writer threads: writers flush
+/// mono, resampled to 16 kHz with a box filter, its speech brought to one loudness (<see cref="LoudnessNormalizer"/>, per
+/// track and window, so a quiet microphone is heard beside loud system audio) and placed on the recording timeline by
+/// its start offset, then the tracks are summed and scaled down only if the sum would clip. It never touches the capture or writer threads: writers flush
 /// once a second and at every checkpoint, and this reads behind them.
 /// </summary>
 public static class LiveMixReader
@@ -60,6 +61,10 @@ public static class LiveMixReader
             }
 
             var resampled = Resample(mono, rate, SampleRate);
+
+            // Each track's speech is brought to one loudness before the sum (ENGINE-NOTES.md §Q), so a quiet microphone
+            // is not buried under loud system audio; a track without speech in the window keeps its level.
+            LoudnessNormalizer.Normalize(resampled, SampleRate);
             var at = (int)((from - startMs) * SampleRate / 1000);
             var count = Math.Min(resampled.Length, length - at);
             for (var i = 0; i < count; i++)
