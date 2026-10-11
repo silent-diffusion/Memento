@@ -65,17 +65,42 @@ try {
   await run.page.click({ name: 'New recording' });
   await run.page.waitFor(`document.querySelectorAll('.rec-video-src').length === 3`, 'the VIDEO section', 30_000);
   run.check('the VIDEO section lists Screen, Window and Camera', (await text('.rec-video-list')).includes('Capture one window instead of a whole display'));
+  // Count the page's video.thumbnail answers: a still display gives the same picture every time, so the number of
+  // different pictures says how busy the display is, not how often the preview refreshes (this PC's primary display
+  // is often idle while Memento's window sits on another one).
+  await run.page.eval(`(() => {
+    window.__thumbs = { asked: new Map(), answered: [] };
+    const webview = window.chrome.webview;
+    const post = webview.postMessage.bind(webview);
+    webview.postMessage = (message) => {
+      try {
+        const m = typeof message === 'string' ? JSON.parse(message) : message;
+        if (m && m.method === 'video.thumbnail') window.__thumbs.asked.set(m.id, performance.now());
+      } catch { /* not a bridge call */ }
+      return post(message);
+    };
+    webview.addEventListener('message', (event) => {
+      const m = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      const at = m && window.__thumbs.asked.get(m.id);
+      if (at !== undefined && !m.error) window.__thumbs.answered.push({ at: performance.now(), ms: performance.now() - at });
+    });
+    return true;
+  })()`);
   await run.page.click({ role: 'switch', name: 'Screen' });
   const firstPreview = await run.page.waitFor(`document.querySelector('.rec-preview-main')?.src`, 'the live preview', 20_000);
   run.check('the live preview shows the host\'s JPEG thumbnail of the display', firstPreview.startsWith('data:image/jpeg'), `${firstPreview.length} characters`);
   const seen = new Set([firstPreview]);
+  const answeredBefore = await run.page.eval('window.__thumbs.answered.length');
   const watchStarted = Date.now();
   while (Date.now() - watchStarted < 3000) {
     seen.add(await run.page.eval(`document.querySelector('.rec-preview-main')?.src ?? ''`));
     await sleep(100);
   }
+  const answered = (await run.page.eval('window.__thumbs.answered')).slice(answeredBefore);
   measurements.previewPicturesIn3s = seen.size;
-  run.check('the preview refreshes about twice a second', seen.size >= 3, `${seen.size} different pictures in 3 s`);
+  measurements.previewAnswersIn3s = answered.length;
+  measurements.previewThumbnailMs = answered.map((a) => Math.round(a.ms));
+  run.check('the preview refreshes about twice a second', answered.length >= 4, `${answered.length} stills in 3 s (${measurements.previewThumbnailMs.join(', ')} ms each), ${seen.size} different`);
   run.check('the Screen row names the display and its size', /^Display \d+ · \d+ × \d+ · \d+ fps$/.test(await text('[data-row="screen"] .src-sub')), await text('[data-row="screen"] .src-sub'));
   run.check('the sub-line counts the screen with the audio tracks', /^screen \+ \d+ audio tracks?$/.test(await text('.rec-subline')), await text('.rec-subline'));
 
@@ -84,8 +109,12 @@ try {
   await run.page.waitFor(`document.querySelectorAll('.sheet--wide .rec-tile').length > 0`, 'the picker', 15_000);
   const displays = await run.page.eval(`[...document.querySelectorAll('.rec-tile')].map((t) => ({ name: t.querySelector('.rec-tile-name')?.textContent, chosen: t.getAttribute('aria-pressed') === 'true' }))`);
   run.check('the picker shows the displays with the one in use chosen', displays.length > 0 && displays.filter((d) => d.chosen).length === 1, displays.map((d) => d.name + (d.chosen ? ' (chosen)' : '')).join(', '));
-  await run.page.waitFor(`[...document.querySelectorAll('.rec-shot-img')].length > 0`, 'the tiles\' stills', 15_000);
-  run.check('every display tile has a still from the host', await run.page.eval(`[...document.querySelectorAll('.rec-tile')].every((t) => t.querySelector('.rec-shot-img')?.src?.startsWith('data:image/jpeg'))`));
+  // The tiles ask for their stills together and the host answers them one after another: wait for all of them.
+  const tilesStarted = Date.now();
+  const allStills = `[...document.querySelectorAll('.rec-tile')].every((t) => t.querySelector('.rec-shot-img')?.src?.startsWith('data:image/jpeg'))`;
+  await run.page.waitFor(allStills, 'the tiles\' stills', 15_000).catch(() => false);
+  measurements.tileStillsMs = Date.now() - tilesStarted;
+  run.check('every display tile has a still from the host', await run.page.eval(allStills), `${displays.length} tiles in ${measurements.tileStillsMs} ms`);
   await run.page.click({ role: 'tab', name: 'This window' });
   await run.page.waitFor(`document.querySelector('.rec-pick-search-input') !== null`, 'the window tab', 10_000);
   const own = await run.page.eval(`(() => { const t = [...document.querySelectorAll('.rec-tile')].find((x) => x.textContent.includes('This app is excluded from capture')); return t ? { disabled: t.getAttribute('aria-disabled'), name: t.querySelector('.rec-tile-name')?.textContent } : null; })()`);
