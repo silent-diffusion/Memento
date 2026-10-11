@@ -5,6 +5,8 @@
 //
 //   node tools/e2e/m3-flow.mjs --mp3 <audio file> --play <speech file> [--models <dir>] [--seconds 60]
 //                              [--data <dir>] [--out <dir>] [--port <n>]
+//   node tools/e2e/m3-flow.mjs --tesseract [--audio <file to import>] [--data <dir>] [--out <dir>] [--port <n>]
+//                              (2.0: only the Tesseract step, on a recording imported from --audio; plays and records nothing)
 //
 // --mp3 is the file imported with "Import audio or video" (a public-domain recording; the run used LibriVox's "After
 // Twenty Years", https://archive.org/download/short_story_048_1104_librivox/shortstory048_aftertwentyyears_kam2_64kb.mp3,
@@ -151,6 +153,103 @@ function listFiles(folder, prefix = '') {
     const full = join(folder, name);
     return statSync(full).isDirectory() ? listFiles(full, `${prefix}${name}/`) : [`${prefix}${name}`];
   });
+}
+
+/**
+ * 2.0: Tesseract for agenda photos. Settings › Documents offers Windows OCR only; Tesseract English is downloaded
+ * through its model card (from GitHub, checked against its SHA-256, into the private data root) and chosen; then an
+ * agenda photo is imported into the open recording's Details and read with Tesseract on this PC, its unsure words
+ * marked. Ends back in Review › Details with the agenda applied.
+ */
+async function tesseractAgenda(recordingId) {
+  await openSettings('Documents');
+  await page.waitFor(`!!document.querySelector('[data-model-id="tesseract-eng"]')`, 'the Tesseract card', 20_000);
+  const group = `[...document.querySelectorAll('.settings-group')].find((g) => g.textContent.includes('Agenda photos and scans'))`;
+  check(await page.eval(`${group}?.querySelector('.settings-value')?.innerText === 'Windows OCR' && !${group}?.querySelector('.seg-well')`), 'Windows OCR is the only choice before Tesseract is installed');
+  await shot('settings-ocr-windows-only');
+  const downloadStarted = Date.now();
+  await page.click({ selector: '[data-model-id="tesseract-eng"] button[aria-label^="Install Tesseract English"]' });
+  await page.waitFor(`!!document.querySelector('[data-model-id="tesseract-eng"] [role="progressbar"]') || /Installed/.test(document.querySelector('[data-model-id="tesseract-eng"]')?.innerText ?? '')`, 'the download to start', 30_000);
+  await shot('settings-ocr-downloading');
+  await page.waitFor(`/Installed/.test(document.querySelector('[data-model-id="tesseract-eng"] .model-facts')?.innerText ?? '') && !!${group}?.querySelector('.seg-well')`, 'Tesseract English installed', 180_000);
+  summary.tesseract = { downloadSeconds: Math.round((Date.now() - downloadStarted) / 1000) };
+  const data = join(app.memento, 'models', 'tesseract', 'eng.traineddata');
+  check(existsSync(data) && sha256(data) === '7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2', 'the language data is in the private data root and matches the catalog SHA-256');
+  await page.click({ name: 'Tesseract', within: '.settings-content .seg-well' });
+  await page.waitFor(`${group}?.querySelector('.seg.on')?.innerText === 'Tesseract' && /Installed · in use/.test(document.querySelector('[data-model-id="tesseract-eng"]')?.innerText ?? '')`, 'Tesseract chosen', 15_000);
+  // The page updates at once; the host writes settings.json a moment later.
+  for (let i = 0; i < 50 && readJson(join(app.memento, 'settings.json')).documents?.ocrEngine !== 'tesseract'; i++) await sleep(100);
+  check(readJson(join(app.memento, 'settings.json')).documents.ocrEngine === 'tesseract', 'settings.json says tesseract');
+  await shot('settings-ocr-tesseract-chosen');
+  log('Tesseract installed and chosen', `${summary.tesseract.downloadSeconds} s download, SHA-256 checked`);
+
+  // The open recording's Details: Choose a file with the photographed agenda.
+  await page.click({ name: 'Library' });
+  await hasText('Newest first');
+  await page.click({ selector: `.lib-item .row-title` });
+  await page.waitFor(`!!document.querySelector('.review-panes')`, 'Review', 30_000);
+  await page.click({ role: 'tab', name: 'Details' });
+  await page.click({ name: 'Edit details' });
+  await page.waitFor(`!!document.querySelector('.sheet')`, 'the Details sheet');
+  // An agenda already applied: replace it with the photo.
+  if (!(await page.locate({ name: 'Choose a file', within: '.sheet' }))) {
+    await page.click({ name: 'Replace', within: '.sheet', exact: false });
+  }
+  const photo = join(fixtures, 'ocr-photo.png');
+  const readStarted = Date.now();
+  await pick({ name: 'Choose a file', within: '.sheet' }, 'Choose an agenda', photo);
+  await page.waitFor(`(document.querySelector('.sheet')?.innerText ?? '').includes('read with Tesseract on this PC')`, 'the photo read with Tesseract', 60_000);
+  summary.tesseract.readSeconds = Math.round((Date.now() - readStarted) / 1000);
+  await shot('agenda-photo-tesseract');
+  const items = await page.eval(`[...document.querySelectorAll('.sheet .agenda-item')].map((row) => ({ text: row.querySelector('.ii').value, uncertain: row.classList.contains('low'), reason: row.querySelector('.ii').title }))`);
+  summary.tesseract.items = items.map((i) => `${i.uncertain ? '? ' : ''}${i.text}`);
+  summary.tesseract.notice = await page.text('.sheet .agenda-notice').catch(() => null);
+  check(items.some((i) => /seed swap/i.test(i.text)) && items.some((i) => /volunteer rota/i.test(i.text)), 'the photographed agenda was read');
+  log('agenda photo read with Tesseract', `${items.length} items in ${summary.tesseract.readSeconds} s: ${summary.tesseract.items.join('; ')}`);
+  if (await page.locate({ name: 'Apply agenda', within: '.sheet' })) await page.click({ name: 'Apply agenda', within: '.sheet' });
+  await page.click({ name: 'Done', within: '.sheet' });
+  await page.waitFor(`!document.querySelector('.sheet')`, 'the sheet to close', 20_000);
+  await page.waitFor(`(document.querySelector('.detail-caption')?.innerText ?? '').includes('ocr-photo.png')`, 'the photo agenda applied', 20_000);
+  await shot('review-details-agenda-tesseract');
+  check(manifestOf(recordingId).details.agenda.items.length === items.length, 'the agenda read with Tesseract was saved');
+}
+
+/** --tesseract: only the Tesseract step, on a recording imported from a short audio file (nothing is played). */
+if (args.includes('--tesseract')) {
+  const audio = resolve(option('--audio', join(repoRoot, 'artifacts', 'e2e-fixtures', 'sync-44k.wav')));
+  try {
+    check(existsSync(audio), '--audio names an audio file to import');
+    rmSync(out, { recursive: true, force: true });
+    mkdirSync(out, { recursive: true });
+    page = await app.start();
+    await hasText('Your library is empty');
+    // No transcription: the agenda needs only the recording.
+    await openSettings('Transcription');
+    await page.click({ name: 'Transcribe automatically', role: 'switch' });
+    await sleep(500);
+    await page.click({ name: 'Library' });
+    await pick({ name: 'Import audio or video' }, 'Import audio or video', audio);
+    await page.waitFor(`!!document.querySelector('.lib-item')`, 'the imported recording', 60_000);
+    const [id] = projectIds();
+    log('imported', `${id} from ${audio.split(/[\\/]/).pop()}`);
+    await tesseractAgenda(id);
+    await app.close();
+    summary.logProblems = logLines(/\[(WRN|ERR|FTL)\]/).map((l) => l.slice(0, 400));
+    summary.result = 'passed';
+  } catch (error) {
+    summary.result = `failed: ${error.message}`;
+    console.error(error);
+    try {
+      await shot('failure');
+    } catch {
+      // The page is gone.
+    }
+    await app.kill().catch(() => undefined);
+    process.exitCode = 1;
+  } finally {
+    console.log(JSON.stringify(summary, null, 2));
+  }
+  process.exit();
 }
 
 try {
@@ -397,6 +496,9 @@ try {
   await page.waitFor(`document.body.innerText.includes('The library index was rebuilt')`, 'the rebuilt toast', 30_000);
   await shot('settings-index-rebuilt');
   log('storage', `usage ${summary.storageUsage.join(' | ')}; index rebuilt`);
+
+  // 10b. (2.0) Tesseract: downloaded in Settings › Documents, chosen, and an agenda photo read with it.
+  await tesseractAgenda(importedId);
 
   // 11. Library move to a temporary folder and back.
   const originalLibrary = join(app.memento, 'Library');
