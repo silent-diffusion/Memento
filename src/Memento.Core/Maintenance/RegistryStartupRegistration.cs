@@ -67,4 +67,22 @@ public sealed class RegistryStartupRegistration : Host.IStartupRegistration
             key.DeleteValue(_valueName, throwOnMissingValue: false);
         }
     }
+
+    /// <summary>
+    /// The uninstaller's hook: removes the Run value so nothing keeps naming a program file that is gone (a path in the
+    /// user's profile that something else could later fill; audit 2, SA2-34). Never throws: the uninstall goes on.
+    /// </summary>
+    /// <returns><c>true</c> when no value is left.</returns>
+    public bool RemoveQuietly()
+    {
+        try
+        {
+            SetEnabled(false);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or PlatformNotSupportedException)
+        {
+            return false;
+        }
+    }
 }

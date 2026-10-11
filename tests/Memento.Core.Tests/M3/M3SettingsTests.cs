@@ -288,4 +288,25 @@ public sealed class M3SettingsTests : IDisposable
             Registry.CurrentUser.DeleteSubKeyTree(keyPath, throwOnMissingSubKey: false);
         }
     }
+
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public void TheUninstallerRemovesTheRegistryEntry()
+    {
+        // Audit 2, SA2-34: the Run value outlived an uninstall, naming a program path in the profile.
+        var keyPath = @"Software\Memento.Tests." + Guid.NewGuid().ToString("N");
+        var registration = new RegistryStartupRegistration(keyPath, "Memento", () => @"D:\Apps\MementoApp\Memento.exe", "--background");
+        try
+        {
+            registration.SetEnabled(true);
+
+            Assert.True(registration.RemoveQuietly());
+            Assert.False(registration.IsEnabled);
+            Assert.True(registration.RemoveQuietly());
+        }
+        finally
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(keyPath, throwOnMissingSubKey: false);
+        }
+    }
 }
