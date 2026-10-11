@@ -111,8 +111,9 @@ public sealed record Mp4FileSummary(
         }
 
         var payload = Mp4BoxReader.ReadPayload(stream, mdhd);
-        // version 1 has 64-bit creation/modification times.
-        return payload[0] == 1 ? BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(20)) : BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(12));
+        // version 1 has 64-bit creation/modification times. A damaged box shorter than its version needs has no timescale.
+        var at = payload.Length > 0 && payload[0] == 1 ? 20 : 12;
+        return payload.Length >= at + 4 ? BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(at)) : 0;
     }
 
     private static (long Samples, long Ticks) ReadSampleTable(Stream stream, Mp4Box trak)
@@ -127,6 +128,11 @@ public sealed record Mp4FileSummary(
         }
 
         var payload = Mp4BoxReader.ReadPayload(stream, stts);
+        if (payload.Length < 8)
+        {
+            return (0, 0);
+        }
+
         var entries = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(4));
         long samples = 0;
         long ticks = 0;
@@ -159,8 +165,11 @@ public sealed record Mp4FileSummary(
                     case "tfhd":
                         defaultDuration = TfhdDefaultDuration(payload, defaultDuration);
                         break;
-                    case "tfdt":
-                        decodeTime = payload[0] == 1 ? BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(4)) : BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(4));
+                    case "tfdt" when payload.Length >= 12 && payload[0] == 1:
+                        decodeTime = BinaryPrimitives.ReadUInt64BigEndian(payload.AsSpan(4));
+                        break;
+                    case "tfdt" when payload.Length >= 8 && payload[0] != 1:
+                        decodeTime = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(4));
                         break;
                     case "trun":
                         var (count, total) = TrunDuration(payload, defaultDuration);
@@ -176,6 +185,11 @@ public sealed record Mp4FileSummary(
 
     private static uint TfhdDefaultDuration(byte[] payload, uint fallback)
     {
+        if (payload.Length < 8)
+        {
+            return fallback;
+        }
+
         var flags = BinaryPrimitives.ReadUInt32BigEndian(payload) & 0xFFFFFF;
         var offset = 8; // version/flags + track_ID
         if ((flags & 0x1) != 0)
@@ -188,11 +202,16 @@ public sealed record Mp4FileSummary(
             offset += 4; // sample_description_index
         }
 
-        return (flags & 0x8) != 0 ? BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(offset)) : fallback;
+        return (flags & 0x8) != 0 && payload.Length >= offset + 4 ? BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(offset)) : fallback;
     }
 
     private static (uint Count, long Duration) TrunDuration(byte[] payload, uint defaultDuration)
     {
+        if (payload.Length < 8)
+        {
+            return (0, 0);
+        }
+
         var flags = BinaryPrimitives.ReadUInt32BigEndian(payload) & 0xFFFFFF;
         var count = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(4));
         var offset = 8;
