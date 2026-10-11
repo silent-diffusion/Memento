@@ -107,3 +107,109 @@ export class LaneHistory {
     return out;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The quiet-source hint (after 2.0.0-beta.1, ENGINE-NOTES.md §Q, DESIGN.md §17): a source whose
+// speech over the last 10 s stays under -30 dBFS, or 20 dB or more under another source's, gets a
+// line under its meter. Judged from recording.levels' peaks, per source, against its own floor.
+// ---------------------------------------------------------------------------------------------
+
+/** How much of each source's level is looked at. */
+export const QUIET_WINDOW_MS = 10_000;
+/** Speech that peaks under this is quiet, whatever the other sources do. */
+export const QUIET_BELOW_DBFS = -30;
+/** Or this far under another source that is speaking. */
+export const QUIET_UNDER_OTHERS_DB = 20;
+/** Speech is present when the loud moments are this far over the source's own floor. */
+const SPEAKING_OVER_FLOOR_DB = 10;
+/** Once shown, the hint stays until the speech peaks reach this (so it does not flicker at the edge). */
+const NOT_QUIET_FROM_DBFS = -26;
+/** Fewer readings than this in the window say nothing yet (levels arrive up to 30 times a second). */
+const MIN_READINGS = 50;
+
+function dbfs(linear: number): number {
+  return linear > 0 && Number.isFinite(linear) ? 20 * Math.log10(Math.min(1, linear)) : -120;
+}
+
+function percentile(sorted: readonly number[], p: number): number {
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] ?? -120;
+}
+
+export interface SourceSpeech {
+  /** The loud moments' peak in dBFS over the window (its 95th-percentile reading). */
+  levelDb: number;
+  /** Whether the source rose well above its own floor in the window: someone spoke. */
+  speaking: boolean;
+}
+
+/** The last 10 s of one source's peak readings. */
+export class SpeechWindow {
+  private readings: { at: number; db: number }[] = [];
+
+  add(atMs: number, peak: number): void {
+    this.readings.push({ at: atMs, db: dbfs(peak) });
+    const from = atMs - QUIET_WINDOW_MS;
+    let drop = 0;
+    while (drop < this.readings.length && (this.readings[drop]?.at ?? 0) < from) {
+      drop++;
+    }
+    if (drop > 0) {
+      this.readings = this.readings.slice(drop);
+    }
+  }
+
+  speech(): SourceSpeech | null {
+    if (this.readings.length < MIN_READINGS) {
+      return null;
+    }
+    const sorted = this.readings.map((r) => r.db).sort((a, b) => a - b);
+    const floor = percentile(sorted, 0.1);
+    const levelDb = percentile(sorted, 0.95);
+    return { levelDb, speaking: levelDb > -100 && levelDb - floor >= SPEAKING_OVER_FLOOR_DB };
+  }
+}
+
+/**
+ * Which sources are quiet now, with their level, from each source's last 10 s and which were quiet
+ * before: a speaking source under -30 dBFS or 20 dB under another speaking source becomes quiet; it
+ * stops being quiet once its speech reaches -26 dBFS and is within 16 dB of the others. A source that
+ * is silent keeps what it was, so the hint neither appears nor goes while nobody talks into it.
+ */
+export function quietSources(windows: ReadonlyMap<string, SpeechWindow>, before: ReadonlyMap<string, number>): Map<string, number> {
+  const speech = new Map<string, SourceSpeech>();
+  for (const [id, window] of windows) {
+    const s = window.speech();
+    if (s !== null) {
+      speech.set(id, s);
+    }
+  }
+  const quiet = new Map<string, number>();
+  for (const [id, s] of speech) {
+    const others = [...speech].filter(([other, o]) => other !== id && o.speaking).map(([, o]) => o.levelDb);
+    const loudestOther = Math.max(-120, ...others);
+    const wasQuiet = before.has(id);
+    if (!s.speaking) {
+      if (wasQuiet) {
+        quiet.set(id, before.get(id) ?? s.levelDb);
+      }
+      continue;
+    }
+    const under = loudestOther - s.levelDb;
+    const isQuiet = wasQuiet
+      ? s.levelDb < NOT_QUIET_FROM_DBFS || under >= QUIET_UNDER_OTHERS_DB - 4
+      : s.levelDb < QUIET_BELOW_DBFS || under >= QUIET_UNDER_OTHERS_DB;
+    if (isQuiet) {
+      quiet.set(id, s.levelDb);
+    }
+  }
+  return quiet;
+}
+
+/** The §17 line under a quiet source's meter: "Microphone is quiet (−38 dB). Move closer or raise its level in Windows; the transcript may miss you." */
+export function quietHint(kind: string, name: string, levelDb: number): string {
+  const rounded = Math.round(levelDb);
+  const level = `${rounded < 0 ? '−' : ''}${Math.abs(rounded)} dB`;
+  return kind === 'microphone'
+    ? `${name} is quiet (${level}). Move closer or raise its level in Windows; the transcript may miss you.`
+    : `${name} is quiet (${level}). Raise its volume in Windows or in the app; the transcript may miss it.`;
+}

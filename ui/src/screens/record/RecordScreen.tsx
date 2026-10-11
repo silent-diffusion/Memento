@@ -33,6 +33,7 @@ import { CapturePicker, type PickerMode } from './CapturePicker';
 import { EncoderCard, LivePreview } from './VideoCards';
 import { VideoSources, type RowNote, type VideoCardAction, type VideoRow } from './VideoSources';
 import { PREVIEW_EVERY_MS, ROW_EVERY_MS, useThumbnail } from './useThumbnail';
+import { useQuietSources } from './useQuietSources';
 import {
   findSource,
   initialSelection,
@@ -243,6 +244,7 @@ export function RecordScreen(): JSX.Element {
   const liveTracks = own?.tracks.filter((t) => t.endedEarlyAtMs === null) ?? [];
   const liveSourceIds = new Set(liveTracks.map((t) => t.sourceId));
   const levelBySource = new Map((store.levels.value?.sessionId === own?.sessionId ? store.levels.value?.levels : undefined)?.map((l) => [l.sourceId, l.rms]) ?? []);
+  const quiet = useQuietSources(store.levels, live ? (own?.sessionId ?? null) : null);
   const lost = store.lostSource.value;
 
   // 2.0 video: while recording the rows follow the session's tracks; before, the page's own choice.
@@ -317,6 +319,7 @@ export function RecordScreen(): JSX.Element {
             on,
             busy: pendingSources.has(source.id),
             rms: live ? (levelBySource.get(source.id) ?? 0) : null,
+            quietDb: live && on ? (quiet.get(source.id) ?? null) : null,
             lostAt: live && lost?.sourceId === source.id && lost.sessionId === own?.sessionId ? lost.atMs : null,
           };
         });

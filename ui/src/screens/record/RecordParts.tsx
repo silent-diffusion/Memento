@@ -9,7 +9,7 @@ import { agendaMarks, PASTED_SOURCE } from '../../format/agenda';
 import { formatTimecode } from '../../format/duration';
 import type { ElapsedClock } from '../../format/elapsed';
 import type { TrackFormat } from '../../format/estimate';
-import { meterPercent } from '../../format/levels';
+import { meterPercent, quietHint } from '../../format/levels';
 import { recordStatusLine, recordStorageLine, withVideo, type RecordPhase, type VideoFooter } from '../../format/recordFooter';
 
 // ---------------------------------------------------------------------------------------------
@@ -23,6 +23,8 @@ export interface SourceRow {
   busy: boolean;
   /** 0..1 RMS from recording.levels, or null outside a recording. */
   rms: number | null;
+  /** After 2.0.0-beta.1: the source's speech level in dBFS while it is quiet (the hint under its meter), else null. */
+  quietDb?: number | null;
   /** "Stopped at 00:41:12" for a source lost in this session. */
   lostAt: number | null;
 }
@@ -127,6 +129,11 @@ export function SourcesCard({ rows, error, onToggle, onRescan, video }: SourcesC
               <div class="src-meter" aria-hidden="true">
                 <div class="src-meter-fill" style={{ width: `${row.on && row.rms !== null ? meterPercent(row.rms) : 0}%` }} />
               </div>
+              {row.on && row.quietDb != null ? (
+                <p class="src-hint" role="status">
+                  {quietHint(row.source.kind, sourceName(row.source), row.quietDb)}
+                </p>
+              ) : null}
             </div>
           ))
         )}

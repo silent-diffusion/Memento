@@ -214,6 +214,19 @@ export function RecordingSection(): JSX.Element {
             }}
           />
         </SettingsRow>
+        <SettingsRow
+          label="Even out source levels"
+          description="When the mix is made, a quiet microphone is lifted to match the loudest source so you can hear everyone. Each source's own track stays as recorded; the transcript always hears every track at an even level."
+        >
+          <OnOff on={storage.evenLevels} />
+          <Toggle
+            label="Even out source levels"
+            checked={storage.evenLevels}
+            onChange={(evenLevels) => {
+              save({ storage: { ...storage, evenLevels } });
+            }}
+          />
+        </SettingsRow>
         <SettingsRow label="Save a checkpoint every" description="How much could be lost if the PC shuts down abruptly.">
           <SelectMenu<string>
             label="Save a checkpoint every"
