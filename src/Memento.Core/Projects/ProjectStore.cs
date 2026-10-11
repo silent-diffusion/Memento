@@ -156,6 +156,14 @@ public sealed partial class ProjectStore : IProjectStore
             LogUnreadable(recordingId, ex);
             throw new ProjectNotFoundException($"The details file of recording {recordingId} could not be read.", ex);
         }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException or ProjectSchemaException)
+        {
+            // A property written twice (JsonObject throws ArgumentException), a value of the wrong kind, or a schema version
+            // that is not a number: a damaged or crafted folder is a project that cannot be opened, like unreadable JSON,
+            // so one such folder never stops a library rebuild, a reclaim or a usage count (audit 2, SA2-33).
+            LogUnreadable(recordingId, ex);
+            throw new ProjectNotFoundException($"The details file of recording {recordingId} could not be read.", ex);
+        }
     }
 
     public async Task<ProjectManifest> SaveAsync(ProjectManifest manifest, CancellationToken cancellationToken)

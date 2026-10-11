@@ -217,6 +217,27 @@ public sealed class SqliteLibraryIndexTests : IDisposable
         Assert.Equal([good.Id], (await index.QueryAsync(LibraryQuery.All, CancellationToken.None)).Recordings.Select(r => r.Id));
     }
 
+    [Theory]
+    [InlineData("""{ "schemaVersion": 4, "id": "x", "details": {}, "details": {} }""")]
+    [InlineData("""{ "schemaVersion": "x" }""")]
+    [InlineData("""{ "schemaVersion": 0 }""")]
+    [InlineData("""{ "schemaVersion": 3, "videoTracks": {}, "videoTracks": [] }""")]
+    public async Task ACraftedProjectIsLeftOutOfARebuildWithoutStoppingIt(string json)
+    {
+        // Audit 2, SA2-33: a duplicated property threw ArgumentException and a version that is not a number
+        // ProjectSchemaException; neither was caught, so one folder stopped the whole rebuild.
+        var good = await AddAsync("Good", "meeting", 0, 1);
+        var bad = await AddAsync("Bad", "meeting", 1, 1);
+        var later = await AddAsync("Later", "meeting", 2, 1);
+        await File.WriteAllTextAsync(Path.Combine(_store.GetProjectFolder(bad.Id), "project.json"), json);
+
+        using var index = CreateIndex();
+        Assert.Equal(2, await index.RebuildAsync(CancellationToken.None));
+
+        Assert.Equal([good.Id, later.Id], (await index.QueryAsync(LibraryQuery.All, CancellationToken.None)).Recordings.Select(r => r.Id).Order());
+        await Assert.ThrowsAsync<ProjectNotFoundException>(() => _store.LoadAsync(bad.Id, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ListsIdsByState()
     {
