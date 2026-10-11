@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The agenda fuzz harness's byte mutations, reused for the manifest's video entries (security audit 2). -->
+    <Compile Include="..\Memento.Documents.Tests\Fuzz\ByteMutator.cs" Link="Projects\ByteMutator.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
