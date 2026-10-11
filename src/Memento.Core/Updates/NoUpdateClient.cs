@@ -9,6 +9,8 @@ public sealed class NoUpdateClient(string currentVersion) : IUpdateClient
 
     public string? PendingVersion => null;
 
+    public string? ReleaseNotes => null;
+
     public Task<string?> CheckAsync(CancellationToken cancellationToken) => Task.FromResult<string?>(null);
 
     public Task DownloadAsync(IProgress<int> progress, CancellationToken cancellationToken) => Task.CompletedTask;

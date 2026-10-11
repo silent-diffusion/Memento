@@ -40,9 +40,22 @@ export interface M3Flags {
   import: 'ok' | 'unsupported' | 'interrupted';
   move: 'ok' | 'busy';
   attachment: 'ok' | 'tooLarge';
+  /** 2.1.0: `?update=available` makes Check now find {@link MOCK_UPDATE_VERSION} with release notes. */
+  update?: 'newest' | 'available';
 }
 
-export const DEFAULT_M3_FLAGS: M3Flags = { export: 'ok', agenda: 'ok', import: 'ok', move: 'ok', attachment: 'ok' };
+export const DEFAULT_M3_FLAGS: M3Flags = { export: 'ok', agenda: 'ok', import: 'ok', move: 'ok', attachment: 'ok', update: 'newest' };
+
+/** The newer version and its release notes the preview offers with `?update=available`. */
+export const MOCK_UPDATE_VERSION = '0.6.0';
+export const MOCK_UPDATE_NOTES = [
+  '## What’s new',
+  '',
+  '- **Check now** and **Update now** are separate: checking never downloads.',
+  '- The release notes of a new version show before you download it.',
+  '',
+  'Your recordings are not affected by updating.',
+].join('\n');
 
 export function m3FlagsFromQuery(query: URLSearchParams): Partial<M3Flags> {
   const flags: Partial<M3Flags> = {};
@@ -65,6 +78,9 @@ export function m3FlagsFromQuery(query: URLSearchParams): Partial<M3Flags> {
   }
   if (query.get('attachment') === 'toolarge') {
     flags.attachment = 'tooLarge';
+  }
+  if (query.get('update') === 'available') {
+    flags.update = 'available';
   }
   return flags;
 }
@@ -97,6 +113,7 @@ export const M3_METHODS = [
   'updates.status',
   'updates.check',
   'updates.apply',
+  'updates.download',
 ] as const satisfies readonly MethodName[];
 
 export type M3Method = (typeof M3_METHODS)[number];
@@ -724,14 +741,41 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       env.setSettings({ ...settings, general: { ...settings.general, startWithWindows: params.startWithWindows } });
       return { startWithWindows: params.startWithWindows };
     },
-    // The preview is the newest version; Check now says so.
+    // The preview is the newest version and Check now says so; with ?update=available it finds a newer one, which
+    // downloads only on Update now (2.1.0).
     'updates.status': () => ({ ...updates }),
     'updates.check': () => {
       if (updates.state === 'ready' || updates.state === 'downloading') {
         return { ...updates };
       }
-      updates = { ...updates, state: 'idle', lastCheckedAt: isoWithOffset(new Date()), message: `Memento ${updates.currentVersion} is the newest version.` };
+      const lastCheckedAt = isoWithOffset(new Date());
+      updates =
+        env.flags.update === 'available'
+          ? { ...updates, state: 'available', availableVersion: MOCK_UPDATE_VERSION, releaseNotes: MOCK_UPDATE_NOTES, lastCheckedAt, message: null }
+          : { ...updates, state: 'idle', availableVersion: null, releaseNotes: null, lastCheckedAt, message: `You are on the newest version (${updates.currentVersion}).` };
       env.emit('updates.progress', { ...updates });
+      return { ...updates };
+    },
+    'updates.download': () => {
+      if (updates.state === 'downloading' || updates.state === 'ready') {
+        return { ...updates };
+      }
+      if (updates.state !== 'available') {
+        throw new MockHostError(
+          'updates.nothingToDownload',
+          `No newer version has been found to download, so nothing was downloaded. Choose Check now first; Memento ${updates.currentVersion} keeps working as it is.`,
+        );
+      }
+      updates = { ...updates, state: 'downloading', percent: 0, message: null };
+      env.emit('updates.progress', { ...updates });
+      const timer = setInterval(() => {
+        const percent = Math.min(100, (updates.percent ?? 0) + 25);
+        updates = percent < 100 ? { ...updates, percent } : { ...updates, state: 'ready', percent: 100 };
+        env.emit('updates.progress', { ...updates });
+        if (percent >= 100) {
+          clearInterval(timer);
+        }
+      }, 400);
       return { ...updates };
     },
     'updates.apply': () => {

@@ -18,6 +18,11 @@ internal sealed class FakeUpdateClient : IUpdateClient
     /// <summary>The version a check finds (null: none), or an exception to throw.</summary>
     public string? Available { get; set; }
 
+    /// <summary>The release notes of <see cref="Available"/>.</summary>
+    public string? Notes { get; set; }
+
+    public string? ReleaseNotes => Available is null ? null : Notes;
+
     public Exception? CheckFailure { get; set; }
 
     public Exception? DownloadFailure { get; set; }

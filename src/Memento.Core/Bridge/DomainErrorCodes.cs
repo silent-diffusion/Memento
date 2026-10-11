@@ -190,6 +190,9 @@ public static class DomainErrorCodes
     /// <summary><c>updates.apply</c> with no update downloaded.</summary>
     public const string UpdatesNotReady = "updates.notReady";
 
+    /// <summary><c>updates.download</c> when "Check now" has not found a newer version to download (2.1.0).</summary>
+    public const string UpdatesNothingToDownload = "updates.nothingToDownload";
+
     /// <summary><c>updates.apply</c> while a recording runs; it is never interrupted for an update.</summary>
     public const string UpdatesBusy = "updates.busy";
 

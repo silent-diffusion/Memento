@@ -143,6 +143,7 @@ public static class BridgeMethodNames
     // H1: updates.
     public const string UpdatesStatus = "updates.status";
     public const string UpdatesCheck = "updates.check";
+    public const string UpdatesDownload = "updates.download";
     public const string UpdatesApply = "updates.apply";
 
     // 2.0 Review: known voices, suggested chapters, selection mode.

@@ -671,22 +671,26 @@ interface GenerationOutput {
 
 Memento updates itself from the project's GitHub releases (Velopack's `releases.win.json` feed). The host checks once the page has sent `ui.ready` and then every 24 hours while it runs, never while a recording or a processing stage is queued, waiting or running (it waits until both are idle), downloads in the background and then offers a restart. Nothing installs until the person chooses "Restart to update", or the next time Memento starts. A pre-release is offered only to a pre-release build (a SemVer suffix, or a version before 0.5.0); from 0.5.0 on only full releases count. With `general.autoUpdate` off nothing is checked automatically; `updates.check` still works. A copy not installed with Setup (a build folder) never checks.
 
+Manual versus automatic (2.1.0): the automatic check still downloads a newer version by itself. "Check now" (`updates.check`) only checks: a newer version becomes `state: 'available'` with `availableVersion` and `releaseNotes`, and nothing downloads until "Update now" (`updates.download`). `releaseNotes` is the release's Markdown (Velopack's `TargetFullRelease.NotesMarkdown`, the GitHub release body); the UI shows it read-only as plain text (headings, lists, paragraphs; marks, links and HTML stripped).
+
 ```ts
 interface UpdateStatus {
   currentVersion: string;
-  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';   // failed: only after updates.check
-  availableVersion: string | null;   // while downloading or ready, and while a download is deferred
+  state: 'unavailable' | 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'failed';   // failed: only after updates.check / updates.download; available (2.1.0): found by updates.check, waits for updates.download
+  availableVersion: string | null;   // while available, downloading or ready, and while a download is deferred
   percent: number | null;            // while downloading
   lastCheckedAt: string | null;      // ISO 8601, when the feed last answered
-  message: string | null;            // after updates.check: "Memento 0.5.0 is the newest version.", why it failed, or that the download waits
+  message: string | null;            // after updates.check: "You are on the newest version (2.0.0).", why it failed, or that the download waits
   deferred: boolean;                 // a newer version waits to download until no recording or processing runs
+  releaseNotes?: string | null;      // 2.1.0: the release notes (Markdown) of availableVersion, when the feed has them
 }
 ```
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
 | `updates.status` | `{}` | `UpdateStatus` | |
-| `updates.check` | `{}` | `UpdateStatus` | "Check now": answers once the feed did; a newer version then downloads in the background (once idle). A failed check is not an error: `state: 'failed'` with the reason in `message`. `updates.unavailable` for a copy that cannot update itself. |
+| `updates.check` | `{}` | `UpdateStatus` | "Check now": answers once the feed did. It only checks (2.1.0): a newer version is `available` with its `releaseNotes` and is not downloaded; the newest says so in `message`. A failed check is not an error: `state: 'failed'` with the reason in `message`. `updates.unavailable` for a copy that cannot update itself. |
+| `updates.download` | `{}` | `UpdateStatus` | 2.1.0, "Update now": downloads the `available` version in the background (once no recording or processing runs; `deferred` meanwhile); `updates.progress` follows it to `ready`. A failed download is `state: 'failed'` with the reason in `message`. `updates.nothingToDownload` when nothing is `available`; `updates.unavailable` for a copy that cannot update itself. |
 | `updates.apply` | `{}` | `{}` | "Restart to update": Memento closes normally, the update installs and Memento starts again. `updates.notReady` when nothing is downloaded, `updates.busy` while recording. |
 
 | Event | Payload |
@@ -698,7 +702,7 @@ Settings snapshot: `general` adds `autoUpdate: boolean` (default `true`), merged
 
 ## Error codes (H1)
 
-`library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).
+`library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead), `updates.nothingToDownload` (2.1.0: `updates.download` before Check now found a newer version; nothing was downloaded).
 
 ## Clipboard and transcript text options (after 1.2.0)
 

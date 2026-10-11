@@ -103,6 +103,7 @@ public sealed class UpdateServiceTests : IDisposable
         var checkedNow = await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
         Assert.Equal(1, _client.Checks);
         Assert.Equal("0.5.1", checkedNow.GetProperty("availableVersion").GetString());
+        await _host.ResultAsync(BridgeMethodNames.UpdatesDownload);
         await StateAsync(UpdateStates.Ready);
         _stop.Cancel();
         await schedule;
@@ -131,6 +132,7 @@ public sealed class UpdateServiceTests : IDisposable
         _client.DownloadGate = new TaskCompletionSource();
         var checkedNow = await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
         Assert.Equal("0.5.1", checkedNow.GetProperty("availableVersion").GetString());
+        await _host.ResultAsync(BridgeMethodNames.UpdatesDownload);
         await StateAsync(UpdateStates.Downloading);
 
         SetRecording(true);
@@ -170,9 +172,77 @@ public sealed class UpdateServiceTests : IDisposable
         var result = await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
 
         Assert.Equal(UpdateStates.Idle, result.GetProperty("state").GetString());
-        Assert.Equal("Memento 0.5.0 is the newest version.", result.GetProperty("message").GetString());
+        Assert.Equal("You are on the newest version (0.5.0).", result.GetProperty("message").GetString());
         Assert.Equal(JsonValueKind.String, result.GetProperty("lastCheckedAt").ValueKind);
         Assert.Equal(0, _client.Downloads);
+    }
+
+    [Fact]
+    public async Task CheckNowOnlyChecksAndOffersTheNewerVersionWithItsReleaseNotes()
+    {
+        _client.Available = "0.5.1";
+        _client.Notes = "## What's new\n- Faster export";
+
+        var result = await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
+        await Task.Delay(100);
+
+        Assert.Equal(UpdateStates.Available, result.GetProperty("state").GetString());
+        Assert.Equal("0.5.1", result.GetProperty("availableVersion").GetString());
+        Assert.Equal("## What's new\n- Faster export", result.GetProperty("releaseNotes").GetString());
+        Assert.Equal(JsonValueKind.Null, result.GetProperty("message").ValueKind);
+        Assert.Equal(0, _client.Downloads);
+        Assert.Equal(UpdateStates.Available, Service.Status.State);
+        Assert.DoesNotContain(_host.Sink.Payloads(BridgeEventNames.UpdatesProgress), p => p.GetProperty("state").GetString() == UpdateStates.Downloading);
+    }
+
+    [Fact]
+    public async Task UpdateNowDownloadsTheVersionFoundAndOffersTheRestart()
+    {
+        _client.Available = "0.5.1";
+        _client.Notes = "Notes";
+        _client.DownloadGate = new TaskCompletionSource();
+        await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
+
+        var started = await _host.ResultAsync(BridgeMethodNames.UpdatesDownload);
+        Assert.Equal(UpdateStates.Downloading, started.GetProperty("state").GetString());
+        await _host.Sink.WaitForAsync(BridgeEventNames.UpdatesProgress, p => p.GetProperty("percent").ValueKind == JsonValueKind.Number && p.GetProperty("percent").GetInt32() == 42);
+
+        _client.DownloadGate.SetResult();
+        var ready = await StateAsync(UpdateStates.Ready);
+        Assert.Equal("0.5.1", ready.GetProperty("availableVersion").GetString());
+        Assert.Equal("Notes", ready.GetProperty("releaseNotes").GetString());
+        Assert.Equal(1, _client.Downloads);
+        Assert.Equal(0, _client.Applies);
+    }
+
+    [Fact]
+    public async Task UpdateNowWithNothingFoundDownloadsNothingAndSaysWhy()
+    {
+        var before = await _host.CallAsync(BridgeMethodNames.UpdatesDownload);
+        Assert.Equal(DomainErrorCodes.UpdatesNothingToDownload, before.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal(
+            "No newer version has been found to download, so nothing was downloaded. Choose Check now first; Memento 0.5.0 keeps working as it is.",
+            before.GetProperty("error").GetProperty("message").GetString());
+
+        await _host.ResultAsync(BridgeMethodNames.UpdatesCheck); // the newest: still nothing to download
+        var after = await _host.CallAsync(BridgeMethodNames.UpdatesDownload);
+        Assert.Equal(DomainErrorCodes.UpdatesNothingToDownload, after.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal(0, _client.Downloads);
+    }
+
+    [Fact]
+    public async Task TheAutomaticCheckStillDownloadsByItselfWithTheReleaseNotes()
+    {
+        _client.Available = "0.5.1";
+        _client.Notes = "Auto notes";
+        var schedule = RunScheduleAsync();
+
+        var ready = await StateAsync(UpdateStates.Ready);
+        Assert.Equal("Auto notes", ready.GetProperty("releaseNotes").GetString());
+        Assert.Equal(1, _client.Downloads);
+        Assert.DoesNotContain(_host.Sink.Payloads(BridgeEventNames.UpdatesProgress), p => p.GetProperty("state").GetString() == UpdateStates.Available);
+        _stop.Cancel();
+        await schedule;
     }
 
     [Fact]
@@ -182,6 +252,7 @@ public sealed class UpdateServiceTests : IDisposable
         _client.DownloadFailure = new UpdateCheckException("the update could not be saved (disk full)");
 
         await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
+        await _host.ResultAsync(BridgeMethodNames.UpdatesDownload);
         var failed = await StateAsync(UpdateStates.Failed);
 
         Assert.Equal(
@@ -197,6 +268,7 @@ public sealed class UpdateServiceTests : IDisposable
 
         _client.Available = "0.5.1";
         await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
+        await _host.ResultAsync(BridgeMethodNames.UpdatesDownload);
         await StateAsync(UpdateStates.Ready);
         SetRecording(true);
         var busy = await _host.CallAsync(BridgeMethodNames.UpdatesApply);

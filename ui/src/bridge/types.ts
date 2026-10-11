@@ -141,6 +141,8 @@ export const ERROR_CODES = [
   'folder.notFound',
   'folder.nameTaken',
   'folder.invalid',
+  // 2.1.0 updates: Check now and Update now separated
+  'updates.nothingToDownload',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -1270,8 +1272,11 @@ export interface FooterUpdateStatus {
 /** updates.status / updates.check result and the updates.progress payload (BRIDGE.md "Updates"). */
 export interface UpdateStatus {
   currentVersion: string;
-  /** failed: only after updates.check ("Check now"); automatic checks that fail stay idle. */
-  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';
+  /**
+   * failed: only after updates.check ("Check now"); automatic checks that fail stay idle. available (2.1.0): Check now
+   * found a newer version; it downloads only on updates.download ("Update now").
+   */
+  state: 'unavailable' | 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'failed';
   availableVersion: string | null;
   percent: number | null;
   lastCheckedAt: string | null;
@@ -1279,6 +1284,8 @@ export interface UpdateStatus {
   message: string | null;
   /** A newer version waits to download until no recording or processing runs. */
   deferred: boolean;
+  /** Release notes (Markdown) of availableVersion when the feed has them (2.1.0); shown read-only as plain text. */
+  releaseNotes?: string | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2882,6 +2889,7 @@ export interface BridgeMethods {
   'updates.status': { params: EmptyParams; result: UpdateStatus };
   'updates.check': { params: EmptyParams; result: UpdateStatus };
   'updates.apply': { params: EmptyParams; result: EmptyResult };
+  'updates.download': { params: EmptyParams; result: UpdateStatus };
   // 2.0 Review
   'voices.list': { params: EmptyParams; result: KnownVoicesResult };
   'voices.setSuggest': { params: VoiceSuggestParams; result: KnownVoicesResult };
@@ -3192,6 +3200,8 @@ export const METHOD_NAMES = [
   // 2.0 documents: the follow-up email and the preview sheet
   'documents.copyModule',
   'generation.copyPreview',
+  // 2.1.0 updates: Check now and Update now separated
+  'updates.download',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
