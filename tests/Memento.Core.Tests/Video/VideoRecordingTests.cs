@@ -286,6 +286,9 @@ public sealed class VideoRecordingTests : IDisposable
         _host.Session.Advance(TimeSpan.FromSeconds(2));
         await StopAsync(sessionId);
         await _host.WaitForStageLabelAsync(recordingId, StageNames.Video, "Done");
+        // The stage publishes "Done" before it deletes joined parts and writes History; video.remove refuses with
+        // library.busy until the stage has really returned, so wait for processing to be idle (audit 2, SA2-71).
+        await _host.Processing.WhenIdleAsync();
         var folder = _host.Store.GetProjectFolder(recordingId);
 
         var freed = await _host.ResultAsync("video.remove", JsonSerializer.Serialize(new { recordingId }));
