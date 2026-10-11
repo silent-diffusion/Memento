@@ -172,7 +172,11 @@ try {
   run.check('Audio only, Show video, Fullscreen and Esc work', full);
   run.check('the outline lists the video and offers Remove video, keep audio', (await text('.outline-video')).includes('Remove video, keep audio'), await text('.outline-video'));
 } catch (error) {
-  run.check('the run finished', false, error.stack ?? String(error));
+  // What the video pane showed, to tell a loading problem from a sync one.
+  const pane = await run.page
+    ?.eval(`(() => { const v = document.querySelector('video'); return { pane: document.querySelector('.vid-wrap, .vid-line')?.innerText ?? null, video: v ? { src: v.currentSrc || v.getAttribute('src'), readyState: v.readyState, networkState: v.networkState, error: v.error && { code: v.error.code, message: v.error.message } } : null }; })()`)
+    .catch(() => null);
+  run.check('the run finished', false, `${error.stack ?? String(error)}\n${JSON.stringify(pane)}`);
 } finally {
   try {
     if (run.app) await run.app.close();
