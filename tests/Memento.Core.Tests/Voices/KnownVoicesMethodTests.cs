@@ -214,6 +214,25 @@ public sealed class KnownVoicesMethodTests : IDisposable
     }
 
     [Fact]
+    public async Task UndoAfterARecordingWasDeletedDoesNotBringItsVoiceBack()
+    {
+        // Audit 2, SA2-31: the Undo snapshot of the Tuesday enrolment still held Monday's sample after Monday was deleted.
+        await RememberOnAsync();
+        var monday = await RecordingAsync("Monday");
+        await NameAsync(monday, "spk1", "Ana");
+        await ResultAsync("voices.remember", new { recordingId = monday, speakerId = "spk1" });
+        var tuesday = await RecordingAsync("Tuesday");
+        await NameAsync(tuesday, "spk1", "Ana");
+        var second = await ResultAsync("voices.remember", new { recordingId = tuesday, speakerId = "spk1" });
+        await ResultAsync("project.delete", new { recordingId = monday });
+
+        await ResultAsync("voices.revert", new { changeId = second.GetProperty("changeId").GetString() });
+
+        var voices = (await Store.LoadAsync(CancellationToken.None)).Voices;
+        Assert.DoesNotContain(voices, v => v.Samples.Any(s => s.RecordingId == monday) || v.Recordings.Contains(monday));
+    }
+
+    [Fact]
     public async Task AKnownVoicesFileFromANewerMementoIsReported()
     {
         await RememberOnAsync();

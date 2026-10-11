@@ -118,4 +118,29 @@ public sealed class KnownVoicesStoreTests : IDisposable
 
         Assert.False(Directory.Exists(Path.GetDirectoryName(_store.FilePath)));
     }
+
+    [Fact]
+    public async Task ForgetAllAlsoRemovesCopiesSetAsideAsDamaged()
+    {
+        // Audit 2, SA2-30: the set-aside copy holds every signature it had; Forget all left it (and the folder) behind.
+        Directory.CreateDirectory(Path.GetDirectoryName(_store.FilePath)!);
+        await File.WriteAllTextAsync(_store.FilePath + ".damaged-20261001T100000Z", $$"""{ "schemaVersion": 1, "voices": [{ "id": "v1", "name": "Ana", "embeddingModelId": "m", "samples": [{{Sample}}] }] }""");
+        Write("{ damaged again");
+
+        await _store.DeleteAsync(CancellationToken.None);
+
+        Assert.False(Directory.Exists(Path.GetDirectoryName(_store.FilePath)));
+    }
+
+    [Fact]
+    public async Task APropertyWrittenTwiceIsSetAsideNotThrown()
+    {
+        // Audit 2, SA2-32: JsonObject throws ArgumentException for a duplicated key, which escaped the JsonException catch.
+        Write("""{ "schemaVersion": 1, "voices": [], "voices": [] }""");
+
+        var document = await _store.LoadAsync(CancellationToken.None);
+
+        Assert.Empty(document.Voices);
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(_store.FilePath)!, "known.json.damaged-*"));
+    }
 }
