@@ -3,6 +3,46 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.0.0-beta.1
+
+Video. Memento now records your screen, a window or your camera beside the audio, keeps every frame up to the last third of a second if the PC crashes, plays it in Review in step with the transcript, and exports it as one file with the camera inset or as separate files. This is a **pre-release** for people who want to try 2.0 early; it updates itself to the final 2.0.0 when that is published, and 1.3.0 keeps working unchanged for everyone else. Everything from 1.1.0 to 1.3.0 is in it.
+
+### Video
+
+- **Record the screen, a window or a camera** from the Recording session's VIDEO section, with a live preview, a picker that shows every display and window as a thumbnail (windows that keep themselves out of captures are shown but not selectable), and a camera inset in the corner you choose. The Encoder card shows the encoder (your graphics card's, or the processor's when none is free), frame rate, dropped frames, bitrate and size. Turn a source on or off, or switch windows, mid-recording.
+- **Nothing is lost on a crash.** Video is written as fragmented MP4 every third of a second and plays as written; a torn file is repaired at the next start (about 2 seconds for 20 minutes). On the reference laptop a 20-second desktop recording cost 0.8% of the PC with the graphics card encoding, and a real 4-hour file seeks to any frame in under half a second.
+- **In step with the audio.** Video frames carry the same clock as the audio tracks; measured over 22 minutes, the video sat one frame behind the schedule with no drift. In Review the video pane follows the mix exactly, with Audio only, Show video and Fullscreen.
+- **Export** the video as **One file** (the mix with the screen and the camera inset burned in) or **Separate files**, in MP4 or the original container, with sizes shown first.
+- **Settings › Recording** has the video defaults (quality Smaller/Balanced/Best, frame rate, encoder preference, default sources) and **Remove video older than**; **Remove video, keep audio** on any recording frees the space and History says so. Settings › Storage shows how much video takes.
+- **Specific errors**: screen capture blocked by policy, camera privacy off, camera in use by another app (Memento waits and starts the track by itself when it is free), encoder unavailable (continues on the processor), disk full (video stops, audio continues), window closed or minimised, protected content refused.
+- Windows 11 is needed for recording without the yellow capture border; Windows 10 shows the border. There is no camera on the reference laptop, so camera recording is tested with fakes only in this beta: please report what you see.
+
+### While recording
+
+- **Live transcript** (off by default, Settings › Transcription): a provisional draft appears 10 to 20 seconds behind the recording, written by the Small or Base model on the processor (or the card when you allow it), never competing with the full pass, which replaces the draft after Stop. On the reference laptop it costs about 8% of the PC. The draft is never saved.
+- **Keep only the mix** (off by default, Settings › Recording): after processing, the separate tracks are deleted and the mix kept, with the consequences stated; existing recordings can be slimmed from Settings › Storage.
+- **Keep running in the tray** and **Start with Windows** (off by default, Settings › General). The tray shows a recording in progress; signing out still closes Memento.
+
+### Speakers and transcript
+
+- **Known voices** (off by default, Settings › Speakers › Remember speakers by voice): naming a speaker stores a voice signature on this PC, never audio. On a later recording a match prompt offers "Sounds like Sarah · 96% match · 2 past recordings" with **Use name** or **Not Sarah**; nothing is applied silently. Known voices can be switched off one by one, forgotten, or all forgotten, and a deleted recording takes its confirmations with it.
+- **Suggested chapters** in the outline, worked out on the PC from topics, pauses and speaker turns, with accept, dismiss and Accept all, all undoable.
+- **Select several lines** with Ctrl+click, Shift+click or Ctrl+A, then assign a speaker, highlight, copy or mark a chapter start from the selection bar or the right-click menu.
+
+### Documents and agenda
+
+- **Follow-up email** module: recipients from the participants, subject, summary, decisions and action items with owners, in a neutral, warm or brief tone with your sign-off, every statement checked against the transcript; exported as its own section and copied as an email.
+- **Preview exactly what will be sent** is now a full read-only sheet: provider and model, the inputs with their sizes, every request as it will be sent, search, and copy.
+- **Tesseract** is the installable alternative for reading agenda photos and scans, chosen in Settings › Documents once its English data is installed; it runs inside Memento's worker so a crash in it cannot touch a recording. Windows OCR stays the default and was more accurate and five times faster on the test pages.
+
+### Security audit 2
+
+- The whole 2.0 surface was audited (docs/audits/SECURITY-AUDIT-2026-10-11.md): no high findings; the mediums are fixed (bounds on the MP4 reader so one bad file never stops recovery of the others, encoder-fallback parts found after a crash, thumbnail memory caps, deletions that only touch what they own, hostile project and voice files set aside instead of stopping the library) or accepted in writing with the reason. A test now proves that a whole session with video, live transcript, known voices, Tesseract, generation, copies and exports makes no network request, socket connection or DNS lookup, and that no video ever appears in anything sent to a provider.
+
+### Known limits of this beta
+
+- Camera recording and mixed-DPI displays are untested on real hardware. Recordings transcribed before 1.3.0 keep their old line timing until transcribed again. The suggested chapter titles are rough. A screen track starts about a second after the audio while the encoder opens; the player accounts for it.
+
 ## 1.3.0
 
 Speakers that stick to the number you set, a transcript that stays with the audio, filters, copying to the clipboard, and History you can step back into. Memento updates itself to it.
