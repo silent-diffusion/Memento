@@ -54,6 +54,15 @@ public sealed partial class OptimizeStage
             }
         }
 
+        // A manifest that names the mix as one of the tracks' files (a crafted or damaged one; finalize never writes it)
+        // must not make the only remaining copy of the audio go with the tracks (audit 2, SA2-35).
+        var mixPath = Path.GetFullPath(Full(folder, mix.File));
+        if (removed.SelectMany(r => r.Files).Any(f => string.Equals(Path.GetFullPath(Full(folder, f)), mixPath, StringComparison.OrdinalIgnoreCase)))
+        {
+            await KeepTracksAsync(recordingId, $"{Path.GetFileName(mix.File)} is also listed as a separate track, so the separate tracks stay. Nothing was removed.", cancellationToken);
+            return;
+        }
+
         var bytes = removed.SelectMany(r => r.Files).Sum(f => SafeLength(Full(folder, f)));
         var at = time.GetLocalNow();
         var ids = removed.Select(r => r.Track.Id).ToHashSet(StringComparer.Ordinal);
