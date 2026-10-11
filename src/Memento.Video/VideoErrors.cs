@@ -48,6 +48,18 @@ public static class VideoErrors
     public static string CameraDisconnected(string camera, long? atMs = null) =>
         $"{camera} was disconnected{At(atMs)}. The camera track ends there and everything before it is saved; the screen and audio keep recording. Connect it again to start a new camera track.";
 
+    /// <summary>A camera whose pictures arrive in a layout neither Memento nor DirectShow's decoders read (ENGINE-NOTES.md §R).</summary>
+    public static string CameraFormatRefused(string camera, string? format) =>
+        $"{camera} sends its picture in a format Memento can't read{(format is null ? string.Empty : $" ({format})")}. Recording continues with the screen and all audio tracks. Choose another format in the camera's own software, or pick another camera.";
+
+    /// <summary>A virtual camera whose app is not sending it pictures when the track starts (the OBS Virtual Camera before Start Virtual Camera).</summary>
+    public static string VirtualCameraNotStarted(string camera, string app) =>
+        $"{camera} is not started in {app}, so it has no picture to record. Recording continues with the screen and all audio tracks. Start the virtual camera in {app}, then retry the camera.";
+
+    /// <summary>A virtual camera whose app stopped sending it pictures while it was recorded.</summary>
+    public static string VirtualCameraStopped(string camera, string app, long? atMs = null) =>
+        $"{camera} stopped{At(atMs)}: {app} is no longer sending it a picture. The camera track ends there and everything before it is saved; the screen and audio keep recording. Start the virtual camera in {app} again, then turn the camera back on.";
+
     public static string HardwareEncoderFailed(long? atMs = null) =>
         $"Hardware encoder failed{At(atMs)}. Switched to software encoding; frames before it are saved. CPU use is higher until this recording ends. Lower the quality if the PC is slow.";
 

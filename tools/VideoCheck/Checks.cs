@@ -11,7 +11,8 @@ namespace Memento.Tools.VideoCheck;
 
 /// <summary>
 /// capture  --display 1 --seconds 20 [--adapter nvidia|amd|N] [--no-cursor] [--border] [--window "title part"]
-/// record   --display 1 --seconds 20 --out x.mp4 [--size 2560x1440] [--fps 30] [--quality Balanced] [--software] [--adapter ...]
+///          [--camera "name part"] [--png still.png]   (a camera, Media Foundation or DirectShow; --png saves its last picture)
+/// record   (--display 1 | --camera "name part") --seconds 20 --out x.mp4 [--size 2560x1440] [--fps 30] [--quality Balanced] [--software] [--adapter ...]
 /// synthetic --size 2560x1440 --seconds 20 --out x.mp4 [--fps 30] [--quality ...] [--software]
 /// crash    (record options) --after 7.5   — dies without finalizing after that many seconds
 /// inspect  --file x.mp4
@@ -43,6 +44,14 @@ internal static class Checks
         if (synthetic)
         {
             return new SyntheticSource(device, size.W, size.H, originQpc, fps) { Busy = o.Flag("busy") };
+        }
+
+        if (o.Has("camera"))
+        {
+            var part = o.Get("camera", string.Empty);
+            var camera = VideoSourceEnumerator.ListCameras().First(c => part == "true" || c.Name.Contains(part, StringComparison.OrdinalIgnoreCase));
+            Console.WriteLine($"Camera: {camera.Name} ({camera.Backend}, {camera.Id})");
+            return VideoSourceFactory.Create(device, camera.Id, camera.Name);
         }
 
         var captureOptions = new GraphicsCaptureOptions(IncludeCursor: !o.Flag("no-cursor"), ShowBorder: o.Flag("border"));
@@ -100,7 +109,15 @@ internal static class Checks
         await using var source = OpenSource(device, o, QpcClock.Now, 30, (0, 0), synthetic: false);
         var cpu = new CpuMeter();
         using var gpu = new GpuEngineSampler(Environment.ProcessId);
+        var startClock = Stopwatch.StartNew();
         await source.StartAsync(CancellationToken.None);
+        var startedMs = startClock.ElapsedMilliseconds;
+        while (!source.TryGetLatest(out _) && startClock.ElapsedMilliseconds < 10_000)
+        {
+            Thread.Sleep(5);
+        }
+
+        Console.WriteLine($"Started in {startedMs} ms; first picture {startClock.ElapsedMilliseconds} ms after the start call");
         if (source is GraphicsCaptureSource g)
         {
             Console.WriteLine($"Border hidden: {g.BorderHidden}");
@@ -122,6 +139,17 @@ internal static class Checks
 
         var final = source.Statistics;
         Console.WriteLine($"Animator painted {animator?.Frames ?? 0} frames");
+        if (source is DirectShowCameraSource dshow)
+        {
+            Console.WriteLine($"DirectShow: format {dshow.Format}; dropped at the hand-over {dshow.FramesDropped}; unreadable {dshow.FramesUnreadable}");
+        }
+
+        if (o.Has("png") && source is ICameraSnapshot camera && camera.Snapshot() is { } picture)
+        {
+            using var bitmap = Memento.Video.Hosting.Thumbnails.ToBitmap(picture);
+            bitmap.Save(Path.GetFullPath(o.Get("png", "artifacts/video/camera.png")), System.Drawing.Imaging.ImageFormat.Png);
+        }
+
         await source.StopAsync();
         Console.WriteLine($"Frames arrived: {final.FramesArrived} in {watch.Elapsed.TotalSeconds:0.0} s = {final.FramesArrived / watch.Elapsed.TotalSeconds:0.0} fps; per second min {perSecond.DefaultIfEmpty().Min()} max {perSecond.DefaultIfEmpty().Max()}; size {final.Width}x{final.Height}");
         Console.WriteLine($"Arrival − SystemRelativeTime: min {Qpc.Ms(final.ArrivalLatency.MinTicks):0.0} avg {final.ArrivalLatency.AverageTicks / 1e4:0.0} max {Qpc.Ms(final.ArrivalLatency.MaxTicks):0.0} ms; state {source.State}; loss {source.Loss?.Message}");

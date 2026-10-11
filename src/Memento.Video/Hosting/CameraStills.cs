@@ -18,7 +18,7 @@ internal static class CameraStills
 
     private const int FramesToSkipAfterOpening = 5;
     private static readonly object Gate = new();
-    private static readonly Dictionary<string, Open> Readers = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Still> Readers = new(StringComparer.Ordinal);
     private static Timer? _sweeper;
 
     /// <summary>The camera's next picture as NV12; throws <see cref="VideoCaptureException"/> (privacy, in use, not connected).</summary>
@@ -28,7 +28,7 @@ internal static class CameraStills
         {
             if (!Readers.TryGetValue(id.Key, out var open))
             {
-                open = Open.Start(id, name);
+                open = id.Backend == CameraBackend.DirectShow ? DirectShowStill.Start(id, name) : MediaFoundationStill.Start(id, name);
                 Readers[id.Key] = open;
                 _sweeper ??= new Timer(_ => Sweep(), null, IdleAfter, IdleAfter);
             }
@@ -77,13 +77,11 @@ internal static class CameraStills
         }
     }
 
-    private sealed class Open(IMFMediaSource source, IMFSourceReader reader, int width, int height) : IDisposable
+    private sealed class MediaFoundationStill(IMFMediaSource source, IMFSourceReader reader, int width, int height) : Still
     {
         private int _skip = FramesToSkipAfterOpening;
 
-        public DateTime LastUsed { get; set; }
-
-        public static Open Start(VideoSourceId id, string name)
+        public static MediaFoundationStill Start(VideoSourceId id, string name)
         {
             var access = CameraPrivacy.Read();
             if (access is CameraAccess.DeniedForPc or CameraAccess.DeniedForUser or CameraAccess.DeniedForDesktopApps)
@@ -119,7 +117,7 @@ internal static class CameraStills
 
                 using var current = sourceReader.GetCurrentMediaType(SourceReaderIndex.FirstVideoStream);
                 var size = current.GetUInt64(MediaTypeAttributeKeys.FrameSize);
-                var result = new Open(mediaSource, sourceReader, (int)(size >> 32) & ~1, (int)(size & 0xFFFFFFFF) & ~1);
+                var result = new MediaFoundationStill(mediaSource, sourceReader, (int)(size >> 32) & ~1, (int)(size & 0xFFFFFFFF) & ~1);
                 mediaSource = null;
                 sourceReader = null;
                 return result;
@@ -139,7 +137,7 @@ internal static class CameraStills
             }
         }
 
-        public Nv12Frame Read(string name)
+        public override Nv12Frame Read(string name)
         {
             try
             {
@@ -176,7 +174,7 @@ internal static class CameraStills
             }
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             reader.Dispose();
             try
@@ -189,6 +187,118 @@ internal static class CameraStills
             }
 
             source.Dispose();
+        }
+    }
+
+    /// <summary>A camera held open for thumbnails.</summary>
+    private abstract class Still : IDisposable
+    {
+        public DateTime LastUsed { get; set; }
+
+        /// <summary>The camera's latest picture; throws <see cref="VideoCaptureException"/> when it went away.</summary>
+        public abstract Nv12Frame Read(string name);
+
+        public abstract void Dispose();
+    }
+
+    /// <summary>
+    /// A DirectShow camera held open for thumbnails (ENGINE-NOTES.md §R): the same graph as a recording, at up to
+    /// 1280 × 720, feeding a two-buffer queue; each request takes the newest picture waiting (or waits for the next).
+    /// A virtual camera whose app is not sending shows what its filter shows (OBS's placeholder picture).
+    /// </summary>
+    private sealed class DirectShowStill : Still
+    {
+        private static readonly TimeSpan FirstPictureWait = TimeSpan.FromSeconds(4);
+
+        private readonly DirectShowGraph _graph;
+        private readonly RawFrameQueue _queue = new(slots: 2);
+        private readonly (int Width, int Height) _size;
+        private volatile int _error;
+
+        private DirectShowStill(DirectShowGraph graph)
+        {
+            _graph = graph;
+
+            _size = graph.Format.EvenSize;
+        }
+
+        public static DirectShowStill Start(VideoSourceId id, string name)
+        {
+            if (DirectShowGraph.IsHardware(id.Key))
+            {
+                var access = CameraPrivacy.Read();
+                if (access is CameraAccess.DeniedForPc or CameraAccess.DeniedForUser or CameraAccess.DeniedForDesktopApps)
+                {
+                    throw CameraErrors.Classify(CameraErrors.AccessDenied, name, access, null);
+                }
+            }
+
+            var graph = DirectShowGraph.Open(id.Key, name, maxWidth: 1280, maxHeight: 720, minFrameRate: 1);
+            var still = new DirectShowStill(graph);
+            try
+            {
+                graph.Start(still.OnFrame, hr => still._error = hr);
+                return still;
+            }
+            catch
+            {
+                still.Dispose();
+                throw;
+            }
+        }
+
+        private unsafe void OnFrame(IntPtr data, int length) =>
+            _queue.TryWrite(new ReadOnlySpan<byte>((void*)data, length), Audio.QpcClock.Now);
+
+        public override Nv12Frame Read(string name)
+        {
+            RawFrame? newest = null;
+            while (_queue.Take(TimeSpan.Zero) is { } waiting)
+            {
+                if (newest is not null)
+                {
+                    _queue.Return(newest);
+                }
+
+                newest = waiting;
+            }
+
+            newest ??= _queue.Take(FirstPictureWait);
+            if (_error != 0)
+            {
+                if (newest is not null)
+                {
+                    _queue.Return(newest);
+                }
+
+                throw CameraErrors.Classify(_error, name, CameraAccess.Unknown, null);
+            }
+
+            if (newest is null)
+            {
+                throw new VideoCaptureException(VideoErrorCode.SourceNotFound, $"{name} sent no picture for its thumbnail. Audio recording is not affected. Check the camera's own app, or pick another camera.");
+            }
+
+            try
+            {
+                var copy = new Nv12Frame(_size.Width, _size.Height);
+                if (!RawFrameConverter.ToNv12(_graph.Format, newest.Buffer.AsSpan(0, newest.Length), copy))
+                {
+                    throw new VideoCaptureException(VideoErrorCode.SourceNotFound, VideoErrors.CameraFormatRefused(name, _graph.Format.SubtypeName));
+                }
+
+                return copy;
+            }
+            finally
+            {
+                _queue.Return(newest);
+            }
+        }
+
+        public override void Dispose()
+        {
+            _graph.Dispose();
+            _queue.Dispose();
         }
     }
 }

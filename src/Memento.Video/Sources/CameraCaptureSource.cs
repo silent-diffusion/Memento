@@ -14,7 +14,7 @@ namespace Memento.Video.Sources;
 /// encoder. Frames are stamped on the QPC clock: the reader's sample time plus the offset measured at the first frame.
 /// Privacy denial, another app holding the camera and unplugging map to the §18.6 errors (<see cref="CameraErrors"/>).
 /// </summary>
-public sealed class CameraCaptureSource : IVideoSource
+public sealed class CameraCaptureSource : IVideoSource, ICameraSnapshot
 {
     private readonly VideoDevice _device;
     private readonly object _gate = new();
@@ -290,6 +290,8 @@ public sealed class CameraCaptureSource : IVideoSource
             _ = Task.Run(() => StateChanged?.Invoke(this, new VideoSourceStateChangedEventArgs(VideoSourceState.Lost, error.Message, at)));
         }
     }
+
+    Export.Nv12Frame? ICameraSnapshot.Snapshot() => Snapshot();
 
     /// <summary>
     /// A copy of the latest picture in managed memory (the Recording screen's thumbnail of a camera that is being

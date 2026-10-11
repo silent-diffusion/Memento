@@ -120,7 +120,7 @@ internal sealed class VideoTrackRecorder : IVideoTrackRecorder
     {
         if (_cameras is not null && sourceId.StartsWith("camera:", StringComparison.Ordinal))
         {
-            _cameras[sourceId] = () => (_session.Source as CameraCaptureSource)?.Snapshot();
+            _cameras[sourceId] = () => (_session.Source as ICameraSnapshot)?.Snapshot();
         }
     }
 

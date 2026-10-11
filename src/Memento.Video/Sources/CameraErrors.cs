@@ -1,7 +1,7 @@
 namespace Memento.Video.Sources;
 
 /// <summary>
-/// Turns what Media Foundation returns for a camera into the §18.6 sentences. Pure, so every case is unit-tested
+/// Turns what Media Foundation or DirectShow returns for a camera into the §18.6 sentences. Pure, so every case is unit-tested
 /// without a camera (ENGINE-NOTES.md §M.2: this PC has none).
 /// </summary>
 public static class CameraErrors
@@ -23,6 +23,18 @@ public static class CameraErrors
     /// <summary><c>MF_E_NO_CAPTURE_DEVICES_AVAILABLE</c>.</summary>
     public const int NoCaptureDevices = unchecked((int)0xC00D4A3C);
 
+    /// <summary><c>VFW_E_CANNOT_CONNECT</c>: DirectShow found no filters that connect the camera to Memento (an unreadable format).</summary>
+    public const int CannotConnect = unchecked((int)0x80040217);
+
+    /// <summary><c>VFW_E_NO_ACCEPTABLE_TYPES</c>.</summary>
+    public const int NoAcceptableTypes = unchecked((int)0x80040207);
+
+    /// <summary><c>VFW_E_TYPE_NOT_ACCEPTED</c>.</summary>
+    public const int TypeNotAccepted = unchecked((int)0x8004022A);
+
+    /// <summary><c>ERROR_SHARING_VIOLATION</c> as an HRESULT: some DirectShow drivers' answer when another app streams.</summary>
+    public const int SharingViolation = unchecked((int)0x80070020);
+
     /// <summary>
     /// The exception for <paramref name="hresult"/>. <paramref name="access"/> is read from the privacy switches when it
     /// happens, so a denial says which switch; <paramref name="otherApp"/> names who holds the camera when Windows knows.
@@ -42,7 +54,8 @@ public static class CameraErrors
 
         return hresult switch
         {
-            Busy or FailedStartStreaming or DevicePreempted => inner is null
+            CannotConnect or NoAcceptableTypes or TypeNotAccepted => Make(VideoErrorCode.SourceNotFound, VideoErrors.CameraFormatRefused(camera, null)),
+            Busy or FailedStartStreaming or DevicePreempted or SharingViolation => inner is null
                 ? new VideoCaptureException(VideoErrorCode.CameraInUse, VideoErrors.CameraInUse(camera, otherApp)) { Detail = otherApp }
                 : new VideoCaptureException(VideoErrorCode.CameraInUse, VideoErrors.CameraInUse(camera, otherApp), inner) { Detail = otherApp },
             DeviceInvalidated or DeviceNotConnected or DeviceRemoved => Make(VideoErrorCode.SourceLost, VideoErrors.CameraDisconnected(camera, atMs)),
