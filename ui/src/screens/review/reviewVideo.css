@@ -1,0 +1,332 @@
+/* Review with video (DESIGN.md §18.3), from renders/ReviewVideo.dc.html. The well's dark floor
+   (#2A2824), the inset's drop shadow, the caption (#C9C5BC) and the overlay pills
+   (rgba(29,28,26,.72) with #EDEAE4) are the render's own literal colours: they sit on video, which is
+   dark in both themes. Everything else uses the tokens. */
+
+/* The well: 16:9, pressed in, up to 640 px wide and centred in the player strip. */
+.vid-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.vid {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  border-radius: 16px;
+  background: #2a2824;
+  overflow: hidden;
+  box-shadow: var(--neo-in);
+}
+
+.vid-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* The camera inset: 22 % wide, 16:9, radius 8, in the chosen corner. */
+.vid-cam {
+  position: absolute;
+  width: 22%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #3a3733;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition:
+    left 0.2s ease,
+    right 0.2s ease,
+    top 0.2s ease,
+    bottom 0.2s ease;
+}
+
+.vid-cam--off {
+  display: none;
+}
+
+.vid-cam--topLeft {
+  left: 3%;
+  top: 10%;
+}
+
+.vid-cam--topRight {
+  right: 3%;
+  top: 10%;
+}
+
+.vid-cam--bottomLeft {
+  left: 3%;
+  bottom: 20%;
+}
+
+.vid-cam--bottomRight {
+  right: 3%;
+  bottom: 20%;
+}
+
+.vid-cam-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* "Row density and status pills · 18:24". */
+.vid-caption {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  max-width: calc(100% - 28px);
+  font-size: 11px;
+  color: #c9c5bc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Before a track starts, after it ends, between parts, or while its file is being prepared. */
+.vid-still {
+  position: absolute;
+  inset: 0;
+  padding: 40px 32px 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  color: #c9c5bc;
+}
+
+.vid-still-lead {
+  font-size: 14px;
+  font-weight: 600;
+  color: #edeae4;
+}
+
+.vid-still-detail {
+  font-size: 12px;
+}
+
+/* The overlay row along the bottom: translucent dark pills, 32 px, radius 12. */
+.vid-ovl {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vid-spacer {
+  flex: 1;
+}
+
+.vid-ovl .vb {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(29, 28, 26, 0.72);
+  color: #edeae4;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.vid-ovl .vb:hover {
+  background: rgba(29, 28, 26, 0.88);
+}
+
+.vid-ovl .vb:active,
+.vid-ovl .vb.is-pressed,
+.vid-corners .vid-corner:active,
+.vid-corners .vid-corner.is-pressed {
+  transform: translateY(1px) scale(0.985);
+}
+
+.vid-ovl .vb.on {
+  background: #edeae4;
+  color: #1d1c1a;
+}
+
+/* The 2 × 2 corner picker after Camera inset. */
+.vid-corners {
+  display: grid;
+  grid-template-columns: repeat(2, 18px);
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.vid-corners .vid-corner {
+  width: 18px;
+  height: 13px;
+  border-radius: 3px;
+  border: none;
+  background: rgba(237, 234, 228, 0.35);
+  padding: 0;
+  cursor: pointer;
+}
+
+.vid-corners .vid-corner:hover {
+  background: rgba(237, 234, 228, 0.55);
+}
+
+.vid-corners .vid-corner.on {
+  background: #edeae4;
+}
+
+/* Audio only, or the video was removed: a pressed-in line in place of the well. */
+.vid-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: var(--neo-in-xs);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.vid-line .vid-line-show {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: none;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* With video the waveform is 44 px tall (the render), so the transcript keeps its room. */
+.player--video .wave {
+  height: 44px;
+}
+
+/* "Skipped 4 s" sits just above the waveform rather than above the video. */
+.player-wave-anchor {
+  position: relative;
+}
+
+.player-wave-anchor .player-skipped {
+  top: -14px;
+}
+
+/* Fullscreen: the side panes and the transcript are hidden and the video fills the centre pane,
+   as large as its height allows. */
+.review-panes--video-full .review-outline,
+.review-panes--video-full .review-details,
+.review-panes--video-full .review-scroll {
+  display: none;
+}
+
+.review-panes--video-full .review-centre {
+  flex: 1 1 auto;
+}
+
+.review-panes--video-full .player {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-bottom: none;
+}
+
+.review-panes--video-full .vid-wrap {
+  flex: 1 1 0;
+  min-height: 240px;
+  container-type: size;
+  align-items: center;
+}
+
+.review-panes--video-full .vid {
+  max-width: 100%;
+  width: min(100cqw, 100cqh * 16 / 9);
+}
+
+/* Outline › Video sits after Chapters, spaced like the outline's other groups. */
+.outline-video {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vid-facts {
+  margin: 0;
+  padding: 0 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.vid-fact {
+  display: contents;
+}
+
+.vid-fact dt {
+  margin: 0;
+}
+
+.vid-fact dd {
+  margin: 0;
+  color: var(--text);
+  text-align: right;
+}
+
+.vid-remove {
+  margin: 4px 10px 0;
+  height: 32px;
+  border-radius: 12px;
+  border: none;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* Details › the never-sent note under the facts. */
+.vid-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* The camera icon at the start of the header meta line (SpokeHeader puts metaExtra after the text). */
+.review-meta-video {
+  order: -1;
+  display: inline-flex;
+  margin-right: -2px;
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vid-cam {
+    transition: none;
+  }
+
+  .vid-ovl .vb:active,
+  .vid-ovl .vb.is-pressed,
+  .vid-corners .vid-corner:active,
+  .vid-corners .vid-corner.is-pressed {
+    transform: none;
+  }
+}

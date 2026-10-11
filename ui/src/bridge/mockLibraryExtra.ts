@@ -109,6 +109,7 @@ export const DEFAULT_EXPORT_SELECTION: ExportSelection = {
   documents: { on: false, documentIds: [], format: 'docx' },
   details: { on: false },
   attachments: { on: false },
+  video: { on: false, format: 'mp4', layout: 'oneFile' },
 };
 
 /** The M3 blocks of the preview's settings (defaults from the README: local first, AI off, nothing written outside). */
@@ -133,7 +134,7 @@ export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export'
       defaultProviderId: null,
       localModelId: MODEL_IDS.qwen,
     },
-    storage: { reclaimOlderThanDays: null },
+    storage: { reclaimOlderThanDays: null, removeVideoOlderThanDays: null },
   };
 }
 
@@ -341,6 +342,8 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       durationMs,
       participantCount: 0,
       hasVideo: false,
+      // An imported video keeps only its audio in this version.
+      video: null,
       stages: visibleStages(pipeline),
       people: [],
       isProcessing: true,
@@ -556,6 +559,9 @@ export function createMockM3(env: MockM3Environment): MockM3 {
         separateTracksBytes: withTracks.reduce((sum, p) => sum + separateTrackBytes(p), 0),
         separateTracksRecordings: withTracks.length,
         mixOnlyRecordings: listed.filter((p) => (p.mixOnly ?? null) !== null).length,
+        // 2.0 video
+        videoBytes: listed.reduce((sum, p) => sum + (p.video != null && p.video.tracks.length > 0 ? p.video.sizeBytes : 0), 0),
+        videoRecordings: listed.filter((p) => p.video != null && p.video.tracks.length > 0).length,
       };
     },
     // 2.0: as the host, a job reported through storage.reclaimProgress.
@@ -755,6 +761,10 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       const days = storage.reclaimOlderThanDays;
       if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= 3650)) {
         throw invalid('Recordings are made smaller after a whole number of days, from 1 to 3650. Nothing was changed.', String(days));
+      }
+      const videoDays = storage.removeVideoOlderThanDays;
+      if (videoDays !== null && ![30, 90, 180, 365].includes(videoDays)) {
+        throw invalid('Video is removed after 30, 90 or 180 days or a year, or never. Nothing was changed.', String(videoDays));
       }
       return { ...merged, export: exportBlock };
     },

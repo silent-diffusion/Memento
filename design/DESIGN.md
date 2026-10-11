@@ -680,6 +680,17 @@ Same components and copy rules as §17; the extra rule is **video fails first an
 - Grid cards: the video strip carries the `active` pill at its top left while encoding and a mono caption ("Screen + camera · 1440p"). A removed-video card shows a pressed-in `surface-2` strip with the crossed-camera icon and "Video removed · audio kept".
 - List rows reuse the camera icon in the meta line (§4) and the pills above.
 
+### 18.8 Decided while building (2.0)
+
+Deviations from the video renders, made while building against the browser-preview host:
+
+- **Recording session.** Screen and Window are two rows of one screen track: turning one on turns the other off, and Window with no window chosen opens the picker on **This window**. With the VIDEO section present the columns take RecordVideo's widths (sources 300–340 px, right column 280–320 px). The live preview also shows before recording (tag "PREVIEW"; "PAUSED" while paused) and, when its picture is missing, a short notice over the well ("Video paused · Display 2 disconnected", "Blocked in Windows privacy settings"). It is made of stills (two a second) because the contract has no preview stream. The Agenda card stays; the Encoder card sits between Live transcript and Agenda while recording, its pill reading "Software · CPU" in the `queued` style after a fallback. The §18.6 inline and permission cards sit in the Sources card under the source they concern, raised with `--neo-sm`. A row whose track waits or ended says so in place of its sub-line ("Disconnected at 00:23:40 · waiting", "Closed at 00:58:12"). The window-closed toast also covers a window that starts hiding itself from capture ("… hid itself from capture at …").
+- **Picker.** **This window** adds a search field (title or app). Excluded windows are focusable (`aria-disabled`) so their explanation is read, but cannot be chosen; arrow keys move across the two-column grid. The primary button reads "Use {name}" and is disabled until something is chosen.
+- **Review.** The "One playhead…" sentence is left out of the player strip (search and Highlight need the room). The outline's Video block is not shown once the video was removed; the details' Video row says when instead. The camera icon is drawn before the meta text with CSS order, so a screen reader hears it after.
+- **Export.** "Original container" copies the recorded frames, so it is only written as two files: choosing it switches to **Two files**, choosing **One file** switches back to MP4, and a status line says why. The format button reads "Original" to keep the row's description whole; the menu keeps the full name.
+- **Settings.** **Recording mode** is the first row of Defaults; Video defaults are shown at full strength under Audio only (they apply whenever video is chosen). Usage gains a **Video** row. **Remove video older than** asks in place only when the age would remove video that exists now.
+- **Library.** A recording with video reads "Meeting · screen + camera · 5 people · 1:02:14" on the processing card (the recorded time is left out there to keep one line). The failed-video card shows in list view only, where the processing card lives. A removed-video row keeps its pills and ends its meta with "· video removed"; "Video removed · audio kept" replaces "Audio only" when such a row has no pills, and captions the grid card's strip. A grid card with a strip shows its running video pill as plain "Video", since the strip already says "Encoding 42%".
+
 ---
 
 ## 19. 2.0 components

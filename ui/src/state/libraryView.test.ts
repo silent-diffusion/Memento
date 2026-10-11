@@ -24,6 +24,7 @@ const rec = (id: string, createdAt: Date, extra: Partial<RecordingSummary> = {})
   state: 'ready',
   sizeBytes: 0,
   matchSnippet: null,
+  video: null,
   ...extra,
 });
 

@@ -14,6 +14,8 @@ const usage = (over: Partial<LibraryUsage>): LibraryUsage => ({
   separateTracksBytes: 3_400_000_000,
   separateTracksRecordings: 3,
   mixOnlyRecordings: 0,
+  videoBytes: 0,
+  videoRecordings: 0,
   ...over,
 });
 

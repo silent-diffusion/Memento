@@ -75,7 +75,18 @@ describe('M3 contract names', () => {
     const h1Codes = ['library.unavailable', 'updates.unavailable', 'updates.notReady', 'updates.busy'];
     const h1 = ERROR_CODES.indexOf('library.unavailable');
     expect(ERROR_CODES.slice(h1, h1 + h1Codes.length + 1)).toEqual([...h1Codes, 'clipboard.unavailable']);
-    expect(ERROR_CODES.slice(ERROR_CODES.indexOf('voices.notFound'), ERROR_CODES.indexOf('voices.notFound') + 2)).toEqual(['voices.notFound', 'voices.newerVersion']);
+    const voices = ERROR_CODES.indexOf('voices.notFound');
+    expect(ERROR_CODES.slice(voices, voices + 2)).toEqual(['voices.notFound', 'voices.newerVersion']);
+    // 2.0 video (BRIDGE.md "Error codes (2.0, proposed)") closes the list.
+    expect(ERROR_CODES.slice(voices + 2)).toEqual([
+      'video.sourceNotFound',
+      'video.protectedContent',
+      'video.captureBlocked',
+      'video.cameraPrivacy',
+      'video.cameraInUse',
+      'video.encoderUnavailable',
+      'video.diskFull',
+    ]);
   });
 });
 

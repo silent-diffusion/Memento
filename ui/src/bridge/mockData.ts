@@ -9,6 +9,7 @@ import type {
   Highlight,
   HistoryEntry,
   MixOnlyInfo,
+  ProjectVideo,
   RecordingDetails,
   RecordingSummary,
   StageStatus,
@@ -57,6 +58,8 @@ export interface MockProject {
   history: HistoryEntry[];
   /** 2.0: set once "Keep only the mix" removed the separate tracks. */
   mixOnly?: MixOnlyInfo | null;
+  /** 2.0 video: the recording's video (mockVideo.ts); missing or null without video. */
+  video?: ProjectVideo | null;
 }
 
 const s = (h: number, m: number, sec: number): number => ((h * 60 + m) * 60 + sec) * 1000;
@@ -391,7 +394,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
   }
   const wording: Record<StageStatus['stage'], { done: string; failed: string; active: string; detail: string }> = {
     stored: { done: 'Stored', failed: 'Storing failed', active: 'Storing', detail: 'Lossless FLAC tracks on this PC' },
-    video: { done: 'Video checked', failed: 'Video failed', active: 'Checking the video', detail: 'On this PC' },
+    video: { done: 'Video finalised', failed: 'Video encoding failed', active: 'Encoding the video', detail: 'Screen and camera · hardware encoder' },
     transcript: { done: 'Transcribed locally', failed: 'Transcription failed', active: 'Transcribing locally', detail: 'Local engine · GPU · English' },
     speakers: { done: 'Speakers identified', failed: 'Speaker identification failed', active: 'Identifying speakers', detail: 'Local engine · CPU' },
     topics: { done: 'Topics found locally', failed: 'Topics could not be saved', active: 'Finding topics', detail: 'On this PC' },
@@ -445,6 +448,7 @@ export function sampleProjects(now: Date): MockProject[] {
       state: seed.state ?? 'ready',
       sizeBytes: 0,
       matchSnippet: null,
+      video: null,
     };
     summary.sizeBytes = estimateSizeBytes(summary, seed.tracks.length);
     const details: RecordingDetails = {

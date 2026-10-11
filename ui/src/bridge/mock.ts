@@ -12,10 +12,10 @@ import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Fl
 import { createMockClipboard } from './mockClipboard';
 import { createMockCopies } from './mockPreview';
 import { createMockReview } from './mockReview';
-import { createMockVideo } from './mockVideo';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { linkHistory } from './mockHistory';
 import { localModelsInstalled } from './mockLocalModel';
+import { createMockVideo, videoFlagsFromQuery, videoRecordingSettings, type VideoFlag } from './mockVideo';
 import type {
   AnnotationOrigin,
   BridgeEventEnvelope,
@@ -70,6 +70,8 @@ export interface MockOptions {
   m4?: Partial<M4Flags>;
   /** After 1.2.0: another program holds the clipboard, so transcript.copy and documents.copy answer clipboard.unavailable. */
   clipboardBusy?: boolean;
+  /** 2.0 video: `?video=on,disconnect,…` (mockVideo.ts lists every flag). */
+  video?: VideoFlag[];
 }
 
 const STAGE_FLAGS: readonly StageFlag[] = ['done', 'queued', 'running', 'failed', 'paused'];
@@ -90,7 +92,12 @@ export function mockOptionsFromQuery(search: string): MockOptions {
     modelsInstalled: models === 'empty' ? 'none' : 'sample',
     m3: m3FlagsFromQuery(query),
     m4: m4FlagsFromQuery(query),
+    video: videoFlagsFromQuery(query),
   };
+  // The low-disk banner with video figures is the low-space case while recording video.
+  if (options.video?.includes('lowdisk') === true) {
+    options.lowSpace = true;
+  }
   if (theme === 'dark' || theme === 'light' || theme === 'system') {
     options.theme = theme;
   }
@@ -132,6 +139,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       storage: { codec: 'flac', bitrateKbps: null, downmixMono: false, keepOnlyMix: false },
       checkpointSeconds: 30,
       lowSpaceGb: 10,
+      ...videoRecordingSettings(options.video ?? []),
     },
     transcription: {
       auto: true,
@@ -176,6 +184,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       lastCheckpointAt: recoverySample.summary.createdAt,
       recoveredDurationMs: recoverySample.summary.durationMs,
       mayBeMissingMs: 20_000,
+      videoTracks: [],
     });
   }
 
@@ -249,6 +258,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     integrity: { algorithm: 'sha256', computedAt: null },
     sizeBytes: estimateSizeBytes(project.summary, project.trackSources.length),
     mixOnly: project.mixOnly ?? null,
+    video: project.video ?? null,
     };
   };
 
@@ -405,6 +415,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         state: 'recording',
         sizeBytes: 0,
         matchSnippet: null,
+        video: null,
       };
       projects.set(summary.id, {
         summary,
@@ -448,6 +459,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         return;
       }
       const trackCount = result.tracks.length;
+      const recordedVideo = video.finalize(result.recordingId, result.durationMs);
+      project.video = recordedVideo?.project ?? project.video ?? null;
       project.tracks = result.tracks.map((t) => ({ ...t, file: t.file.replace(/\.wav$/, '.flac') }));
       project.trackSources = result.tracks.map((t) => t.sourceKind);
       // Finalize always stores lossless FLAC; a smaller format in Settings queues the optimize stage after it.
@@ -468,8 +481,10 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         stages: visibleStages(pipeline),
         isProcessing: true,
         state: 'ready',
+        hasVideo: recordedVideo !== null,
+        video: recordedVideo?.summary ?? null,
       };
-      project.summary.sizeBytes = estimateSizeBytes(project.summary, trackCount);
+      project.summary.sizeBytes = estimateSizeBytes({ ...project.summary, hasVideo: false }, trackCount) + (recordedVideo?.project.sizeBytes ?? 0);
       project.history = [
         {
           at: result.startedAt,
@@ -522,6 +537,28 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       }, 1000);
     },
   });
+
+  // 2.0 video: sources, thumbnails, the session's video tracks and problems, the samples' video.
+  const video = createMockVideo({
+    emit,
+    now,
+    projects,
+    find,
+    changed,
+    setStages,
+    settings: () => settings,
+    session: () => session.current(),
+    flags: options.video ?? [],
+    live,
+    stepMs: options.stepMs ?? 400,
+    log: (message) => {
+      logger.info(message);
+    },
+  });
+  video.decorateSamples();
+  for (const item of recovered) {
+    item.videoTracks = video.recovered(item.recordingId);
+  }
 
   // M3: agenda import, attachments, import, export, library move and reclaim, keys, startup.
   const m3 = createMockM3({
@@ -686,7 +723,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       return m4.present(settings);
     },
     'library.list': (params) => queryLibrary(summaries(), params, (id, query) => transcription.librarySnippet(id, query)),
-    'library.processing': () => processingOf(listed()),
+    'library.processing': () => processingOf(listed(), (id) => video.failureOf(id)),
     'project.get': (params) => toProject(find(params.recordingId)),
     'project.updateDetails': (params) => {
       const project = find(params.recordingId);
@@ -858,12 +895,15 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       project.topics = project.topics.filter((t) => t.id !== params.topicId);
       return { topics: project.topics };
     },
-    'sources.list':() => ({ audio: [...SAMPLE_SOURCES], videoAvailable: false }),
+    'sources.list': () => ({ audio: [...SAMPLE_SOURCES], videoAvailable: video.available() }),
     'recording.start': (params) => {
       m3.throwIfMoving();
-      const started = session.start(params);
+      // Video ids start the screen and camera tracks; a video source never keeps the audio from starting.
+      const ids = video.splitSourceIds(params.sourceIds);
+      const started = session.start({ ...params, sourceIds: ids.audio });
+      video.started(started.sessionId, started.recordingId, ids.video);
       // Like the host: the sources and type of a recording that starts are remembered for the next one.
-      settings = { ...settings, recording: { ...settings.recording, defaultSourceIds: [...params.sourceIds], defaultType: params.type } };
+      settings = { ...settings, recording: { ...settings.recording, defaultSourceIds: [...ids.audio], defaultType: params.type } };
       startLiveDraft(started.sessionId);
       return started;
     },
@@ -873,10 +913,12 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     'recording.pause': (params) => {
       session.pause(params.sessionId);
+      video.stateChanged();
       return {};
     },
     'recording.resume': (params) => {
       session.resume(params.sessionId);
+      video.stateChanged();
       return {};
     },
     'recording.markHighlight': (params) => ({ highlight: session.markHighlight(params.sessionId, params.note) }),
@@ -917,6 +959,9 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       return { links: linkHistory(project.history, copies) };
     },
     'processing.retry': (params) => {
+      if (params.stage === 'video' && video.retry(params.recordingId, params.remedyId)) {
+        return {};
+      }
       if (params.stage === 'stored') {
         m3.importAgain(params.recordingId);
         return {};
@@ -967,7 +1012,6 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     ...m4.handlers,
     ...clipboard.handlers,
     ...review.handlers,
-    ...createMockVideo().handlers,
     // 2.0: the preview sheet's copy and the follow-up email's copy.
     ...createMockCopies({
       preview: (params) => m4.handlers['generation.preview'](params),
@@ -977,6 +1021,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       }),
       write: clipboard.write,
     }).handlers,
+    ...video.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

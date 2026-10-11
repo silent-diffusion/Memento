@@ -7,7 +7,7 @@ import type { HistoryEntry, HistoryLink, Project, Speaker, TranscriptSearchMatch
 import { DetailsSheet } from '../../components/DetailsSheet';
 import type { AgendaMode } from '../../components/agenda/useAgendaImport';
 import { StatusFooter } from '../../components/StatusFooter';
-import { CheckIcon, DocumentPlusIcon, MoreIcon } from '../../components/icons';
+import { CheckIcon, DocumentPlusIcon, MoreIcon, VideoIcon, VideoRemovedIcon } from '../../components/icons';
 import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
 import { UndoButton } from '../../components/UndoButton';
@@ -39,12 +39,17 @@ import { asOfWording } from '../../format/history';
 import { restoreTranscriptVersion, useHistoryLinks } from './historyVersions';
 import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptVersionView';
 import { useReview20Wiring } from './Review20';
+import { RemoveVideoDialog, useVideoView, VideoArea, VideoOutlineBlock } from './ReviewVideo';
+import { metaVideoTail, removeFailedBody } from './videoCopy';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-/** "Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · audio + video". */
+/**
+ * "Meeting · Yesterday, 4:00 PM · 1:10:02 · 4 people · audio only"; with video (DESIGN.md §18.3) it ends
+ * "screen + camera · 1.9 GB video", or "video removed".
+ */
 export function reviewMeta(project: Project, now: Date): string {
   const { summary } = project;
   const date = parseIso(summary.createdAt);
@@ -55,7 +60,7 @@ export function reviewMeta(project: Project, now: Date): string {
     when,
     formatDuration(summary.durationMs),
     peopleWording(project.details.participants.length),
-    summary.hasVideo ? 'audio + video' : 'audio only',
+    (project.video === null ? null : metaVideoTail(project.video)) ?? (summary.hasVideo ? 'audio + video' : 'audio only'),
   ].join(' · ');
 }
 
@@ -166,6 +171,20 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const canSkip = transcript !== null && transcript.segments.length > 0;
   const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0, canSkip && skipSilences ? silences : null);
   const peaks = usePeaks(project?.peaksUrl ?? null);
+  // 2.0 video (DESIGN.md §18.3): the inset, Audio only and Fullscreen, and Remove video.
+  const videoView = useVideoView(project?.video ?? null, store);
+  const [removingVideo, setRemovingVideo] = useState(false);
+  const removeVideo = async (): Promise<void> => {
+    try {
+      await bridge.call('video.remove', { recordingId });
+      setRemovingVideo(false);
+      videoView.setFull(false);
+      setReload((n) => n + 1);
+    } catch (e: unknown) {
+      setRemovingVideo(false);
+      store.toasts.show({ tone: 'danger', title: 'The video was not removed', body: removeFailedBody(messageOf(e, 'Memento did not answer.')) });
+    }
+  };
   // M4: the viewer's Insert timestamp starts where the player is.
   useEffect(() => {
     rememberPlayhead(store, recordingId, player.positionMs);
@@ -387,12 +406,18 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
         title={title}
         {...(meta === undefined ? {} : { meta })}
         metaExtra={
-          transcript?.reviewed === true ? (
-            <span class="pill done spoke-meta-pill">
-              <CheckIcon size={11} />
-              Reviewed
-            </span>
-          ) : null
+          <>
+            {project?.video == null ? null : (
+              // Shown first on the line (DESIGN.md §18.3): the camera, or the crossed camera once removed.
+              <span class="review-meta-video">{project.video.removed === null ? <VideoIcon size={13} /> : <VideoRemovedIcon size={13} />}</span>
+            )}
+            {transcript?.reviewed === true ? (
+              <span class="pill done spoke-meta-pill">
+                <CheckIcon size={11} />
+                Reviewed
+              </span>
+            ) : null}
+          </>
         }
         actions={
           <>
@@ -496,7 +521,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
       ) : (
         // Each pane scrolls on its own (DESIGN.md §9), so their menus float above them instead of being clipped.
         <FloatingPopovers.Provider value>
-          <div class="review-panes">
+          <div class={videoView.full ? 'review-panes review-panes--video-full' : 'review-panes'}>
             <OutlinePane
               project={project}
               positionMs={player.positionMs}
@@ -547,6 +572,16 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               }}
               speakerExtra={review20.speakerExtra}
               chaptersExtra={review20.chaptersExtra}
+              videoBlock={
+                project.video === null ? null : (
+                  <VideoOutlineBlock
+                    video={project.video}
+                    onRemove={() => {
+                      setRemovingVideo(true);
+                    }}
+                  />
+                )
+              }
               peopleExtra={
                 <PeopleWhoSpoke
                   whoSpoke={project.details.whoSpoke}
@@ -585,6 +620,20 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   search={transcript !== null && transcript.segments.length > 0 ? search : null}
                   onJump={jump}
                   skip={{ available: canSkip, on: skipSilences, onToggle: setSkipSilences, gaps: silences }}
+                  video={
+                    project.video !== null && (project.video.removed !== null || project.video.tracks.length > 0) ? (
+                      <VideoArea
+                        video={project.video}
+                        view={videoView}
+                        positionMs={player.positionMs}
+                        recordingMs={player.durationMs}
+                        mix={{ playing: player.playing, rate: player.rate }}
+                        chapter={project.chapters[chapterIndex]?.title ?? null}
+                        stages={transcriptApi.stages}
+                        now={now}
+                      />
+                    ) : null
+                  }
                 />
               </FloatingPopovers.Provider>
               <div class={TRANSCRIPT_SCROLLER}>
@@ -667,6 +716,16 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
       )}
       {/* M3: Review has no footer (DESIGN.md §3) except while an export it started is running. */}
       {store.footer.value?.export?.active === true ? <StatusFooter status={store.footer.value} /> : null}
+      {removingVideo && project?.video?.removed === null ? (
+        <RemoveVideoDialog
+          title={title}
+          video={project.video}
+          onCancel={() => {
+            setRemovingVideo(false);
+          }}
+          onConfirm={removeVideo}
+        />
+      ) : null}
       {sheetOpen && saver !== null ? (
         <DetailsSheet
           saver={saver}

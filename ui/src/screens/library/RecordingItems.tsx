@@ -4,11 +4,23 @@
 import type { JSX } from 'preact';
 import type { RecordingSummary, StageName } from '../../bridge/types';
 import { formatDuration } from '../../format/duration';
-import { isInterruptedImport, metaLine, stageName, stagePills, type Pill } from '../../format/recording';
+import {
+  cardPills,
+  isInterruptedImport,
+  isVideoRemoved,
+  metaLine,
+  rowMetaLine,
+  runningVideoStage,
+  stageName,
+  stagePills,
+  videoSubStep,
+  type Pill,
+} from '../../format/recording';
+import { heightLabel, rolesLabel } from '../../format/video';
 import { snippetParts } from '../../format/transcript';
 import { waveformBars } from '../../format/waveform';
 import { ActionMenu, type MenuAction } from '../../components/Menus';
-import { CheckIcon, ChevronRightIcon, MoreIcon, TypeIcon, VideoIcon } from '../../components/icons';
+import { CheckIcon, ChevronRightIcon, MoreIcon, TypeIcon, VideoIcon, VideoRemovedIcon } from '../../components/icons';
 
 export interface ItemHandlers {
   open: (recording: RecordingSummary) => void;
@@ -19,9 +31,10 @@ export interface ItemHandlers {
   retry: (recording: RecordingSummary, stage: StageName) => void;
 }
 
-function Pills({ pills, onRetry }: { pills: Pill[]; onRetry: (stage: StageName) => void }): JSX.Element {
+function Pills({ pills, onRetry, videoRemoved = false }: { pills: Pill[]; onRetry: (stage: StageName) => void; videoRemoved?: boolean }): JSX.Element {
   if (pills.length === 0) {
-    return <span class="audio-only">Audio only</span>;
+    // A removed video's caption takes the place a pill would have (DESIGN.md §18.7).
+    return <span class="audio-only">{videoRemoved ? 'Video removed · audio kept' : 'Audio only'}</span>;
   }
   return (
     <>
@@ -60,6 +73,51 @@ function MatchSnippet({ snippet, query }: { snippet: string | null; query: strin
     <span class="row-snippet">
       <span class="sr">Transcript match: </span>
       {snippetParts(snippet, query).map((part, i) => (part.bold ? <b key={i}>{part.text}</b> : part.text))}
+    </span>
+  );
+}
+
+/**
+ * The top of a grid card (DESIGN.md §16, §18.7): the waveform strip for audio, the 96 px video strip
+ * (screen schematic, camera inset, the running sub-step, "Screen + camera · 1440p") for a recording
+ * with video, and the pressed-in strip with the crossed camera once its video was removed.
+ */
+function CardStrip({ recording }: { recording: RecordingSummary }): JSX.Element {
+  const video = recording.video;
+  if (video !== null && video.removedAt !== null) {
+    return (
+      <span class="video-strip video-strip--removed" role="img" aria-label="Video removed · audio kept">
+        <VideoRemovedIcon size={16} decorative />
+        <span aria-hidden="true">Video removed · audio kept</span>
+      </span>
+    );
+  }
+  if (recording.hasVideo && video !== null) {
+    const caption = `${rolesLabel(video.roles)} · ${heightLabel(video.height)}`;
+    const running = runningVideoStage(recording.stages);
+    const step = running === null ? null : videoSubStep(running);
+    const hasScreen = video.roles.includes('screen');
+    const hasCamera = video.roles.includes('camera');
+    return (
+      <span class="video-strip" role="img" aria-label={`Includes video · ${caption}`}>
+        {hasScreen ? <span class="video-strip-win" aria-hidden="true" /> : null}
+        {hasCamera ? <span class={hasScreen ? 'video-strip-cam' : 'video-strip-cam video-strip-cam--solo'} aria-hidden="true" /> : null}
+        {running === null ? null : (
+          <span class="pill active video-strip-pill" aria-hidden="true">
+            {step ?? 'Video'}
+          </span>
+        )}
+        <span class="mono video-strip-caption" aria-hidden="true">
+          {caption}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span class="wave-strip" aria-hidden="true">
+      {waveformBars(recording.id).map((height, index) => (
+        <span key={index} class="wb" style={{ height: `${height}px` }} />
+      ))}
     </span>
   );
 }
@@ -106,13 +164,19 @@ export function RecordingRow({ recording, selected, now, handlers, query }: Item
           <span class="row-title">{recording.title}</span>
           <span class="row-meta">
             {recording.hasVideo ? <VideoIcon size={14} /> : null}
-            {metaLine(recording, now)}
+            {isVideoRemoved(recording) ? (
+              <span class="row-meta-removed">
+                <VideoRemovedIcon size={14} decorative />
+              </span>
+            ) : null}
+            {rowMetaLine(recording, now)}
           </span>
           <MatchSnippet snippet={recording.matchSnippet} query={query} />
         </span>
         <span class="row-pills">
           <Pills
             pills={stagePills(recording.stages)}
+            videoRemoved={isVideoRemoved(recording)}
             onRetry={(stage) => {
               handlers.retry(recording, stage);
             }}
@@ -139,11 +203,7 @@ export function RecordingCard({ recording, selected, now, handlers, query }: Ite
           handlers.open(recording);
         }}
       >
-        <span class="wave-strip" aria-hidden="true">
-          {waveformBars(recording.id).map((height, index) => (
-            <span key={index} class="wb" style={{ height: `${height}px` }} />
-          ))}
-        </span>
+        <CardStrip recording={recording} />
         <span class="card-body">
           <span class="card-head">
             <span class="type-tile type-tile--sm" aria-hidden="true">
@@ -151,17 +211,15 @@ export function RecordingCard({ recording, selected, now, handlers, query }: Ite
             </span>
             <span class="card-text">
               <span class="clamp card-title">{recording.title}</span>
-              <span class="card-meta">
-                {recording.hasVideo ? <VideoIcon size={13} /> : null}
-                {metaLine(recording, now)}
-              </span>
+              <span class="card-meta">{metaLine(recording, now)}</span>
               <MatchSnippet snippet={recording.matchSnippet} query={query} />
             </span>
             <span class="mono card-duration">{formatDuration(recording.durationMs)}</span>
           </span>
           <span class="card-pills">
             <Pills
-              pills={stagePills(recording.stages)}
+              pills={cardPills(recording.stages, recording.hasVideo)}
+              videoRemoved={isVideoRemoved(recording)}
               onRetry={(stage) => {
                 handlers.retry(recording, stage);
               }}

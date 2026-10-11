@@ -1,10 +1,12 @@
 // The Recording session (DESIGN.md §8), transcribed from renders/Record.dc.html. One job: make
 // recording easy and obviously safe. The host owns the session; this screen starts it, mirrors its
 // recording.state / levels events, and routes to Review once finalize reports `ready`.
+// 2.0 video (§18.1, §18.2, §18.6; renders/RecordVideo.dc.html): the VIDEO section, the picker, the
+// live preview, the video lane, the Encoder card and the video variants of the footer and banners.
 import { effect } from '@preact/signals';
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { AgendaItem, AudioSource, Highlight, RecordingStatePayload, RecordingType } from '../../bridge/types';
+import type { AgendaItem, AudioSource, Highlight, PipState, RecordingStatePayload, RecordingType, VideoListSourcesResult, VideoRole, VideoSource } from '../../bridge/types';
 import { BannerSlot } from '../../components/Banners';
 import { DetailsSheet, typeOptions } from '../../components/DetailsSheet';
 import { NotesIcon } from '../../components/icons';
@@ -20,9 +22,33 @@ import { goToLibrary } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { createDetailsSaver, emptyDetails } from '../../state/detailsSaver';
 import { recordShortcut } from '../../state/recordShortcuts';
+import { endVideoTracks } from '../../state/videoEvents';
+import { recordingBytesPerSecond } from '../../format/estimate';
+import { videoSettingsOf } from '../../format/video';
+import { previewNoticeText, rowNoteText, videoFooterLine, videoProblemCard, type VideoProblemCard } from '../../format/videoProblems';
 import { AgendaCard, HighlightsCard, LiveTranscriptCard, RecordFooter, SourcesCard, StageCard, type SourceRow } from './RecordParts';
 import { adoptCurrentSession } from '../../state/currentSession';
 import { TracksCard } from './TracksCard';
+import { CapturePicker, type PickerMode } from './CapturePicker';
+import { EncoderCard, LivePreview } from './VideoCards';
+import { VideoSources, type RowNote, type VideoCardAction, type VideoRow } from './VideoSources';
+import { PREVIEW_EVERY_MS, ROW_EVERY_MS, useThumbnail } from './useThumbnail';
+import {
+  findSource,
+  initialSelection,
+  isLive,
+  NO_SOURCES,
+  previewCaption,
+  rateNote,
+  selectedVideoIds,
+  selectedRoles,
+  selectionFromStatus,
+  sublineSources,
+  displayLine,
+  videoBytesPerSecond,
+  type VideoSelection,
+} from './videoSelection';
+import './video.css';
 
 /** "Untitled meeting"; custom types keep their own capitalisation. */
 export function defaultTitle(type: RecordingType): string {
@@ -61,6 +87,15 @@ export function RecordScreen(): JSX.Element {
   const [pendingSources, setPendingSources] = useState<ReadonlySet<string>>(new Set());
   const [sourcesError, setSourcesError] = useState<string | null>(null);
   const routed = useRef<string | null>(null);
+  // 2.0 video
+  const [videoAvailable, setVideoAvailable] = useState(true);
+  const [videoSources, setVideoSources] = useState<VideoListSourcesResult | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<VideoSelection | null>(null);
+  const [picker, setPicker] = useState<PickerMode | null>(null);
+  const [videoBusy, setVideoBusy] = useState<ReadonlySet<VideoRow | 'pip'>>(new Set());
+  const [cameraRetry, setCameraRetry] = useState(0);
+  const videoSettings = videoSettingsOf(settings?.recording);
 
   const phase: RecordPhase =
     own === null
@@ -149,19 +184,43 @@ export function RecordScreen(): JSX.Element {
     }
   }, [own, router, saver]);
 
-  // Sources: enumerate on open; Add enumerates again.
+  // Sources: enumerate on open; Add enumerates again (2.0: displays, windows and cameras too).
+  const loadVideoSources = useCallback(() => {
+    bridge
+      .call('video.listSources')
+      .then((result) => {
+        setVideoError(null);
+        setVideoSources(result);
+      })
+      .catch((error: unknown) => {
+        setVideoError(`${messageOf(error, 'Memento did not answer.')} Press Add to look again.`);
+      });
+  }, [bridge]);
   const loadSources = useCallback(() => {
     setSourcesError(null);
     bridge
       .call('sources.list')
       .then((result) => {
         store.sources.value = result.audio;
+        setVideoAvailable(result.videoAvailable);
+        if (result.videoAvailable) {
+          loadVideoSources();
+        }
       })
       .catch((error: unknown) => {
         setSourcesError(`${messageOf(error, 'Memento did not answer.')} Press Add to look again.`);
       });
-  }, [bridge, store]);
+  }, [bridge, store, loadVideoSources]);
   useEffect(loadSources, [loadSources]);
+  // A display, window or camera came or went.
+  useEffect(() => bridge.on('video.sourcesChanged', loadVideoSources), [bridge, loadVideoSources]);
+
+  // The video choice starts from Settings › Recording › Video defaults.
+  useEffect(() => {
+    if (selection === null && videoSources !== null && settings !== null) {
+      setSelection(initialSelection(videoSettingsOf(settings.recording), videoSources));
+    }
+  }, [selection, videoSources, settings]);
 
   const sources = store.sources.value;
   // The remembered selection, else the defaults the host marks.
@@ -185,6 +244,68 @@ export function RecordScreen(): JSX.Element {
   const liveSourceIds = new Set(liveTracks.map((t) => t.sourceId));
   const levelBySource = new Map((store.levels.value?.sessionId === own?.sessionId ? store.levels.value?.levels : undefined)?.map((l) => [l.sourceId, l.rms]) ?? []);
   const lost = store.lostSource.value;
+
+  // 2.0 video: while recording the rows follow the session's tracks; before, the page's own choice.
+  const videoStatus = own !== null && store.videoStatus.value?.sessionId === own.sessionId ? store.videoStatus.value : null;
+  const videoTracks = videoStatus?.videoTracks ?? [];
+  const videoProblems = own === null ? [] : store.videoProblems.value.filter((p) => p.sessionId === own.sessionId);
+  const effective: VideoSelection | null =
+    !live || selection === null
+      ? selection
+      : videoStatus === null
+        ? { ...selection, screen: false, window: false, camera: false }
+        : selectionFromStatus(videoTracks, videoStatus.pip, selection);
+  const list = videoSources ?? NO_SOURCES;
+  const screenTrack = videoTracks.find((t) => t.trackId === 'screen');
+  const cameraTrack = videoTracks.find((t) => t.trackId === 'camera');
+  const screenSourceId = effective === null ? null : effective.window ? effective.windowId : effective.screen ? effective.displayId : null;
+  const cameraSourceId = effective?.camera === true ? effective.cameraId : null;
+  const capturing = (track: typeof screenTrack): boolean => !live || track === undefined || track.state === 'recording' || track.state === 'paused';
+  const showVideo = videoAvailable && (screenSourceId !== null || cameraSourceId !== null);
+  const screenThumb = useThumbnail(bridge, screenSourceId !== null && capturing(screenTrack) ? screenSourceId : null, 560, PREVIEW_EVERY_MS);
+  const cameraIsMain = screenSourceId === null;
+  const cameraThumb = useThumbnail(
+    bridge,
+    cameraSourceId !== null && capturing(cameraTrack) ? cameraSourceId : null,
+    cameraIsMain ? 560 : 144,
+    cameraIsMain ? PREVIEW_EVERY_MS : ROW_EVERY_MS,
+    cameraRetry,
+  );
+
+  const videoCards: VideoProblemCard[] = [];
+  if (!live) {
+    const camera = findSource(list, cameraSourceId);
+    if (screenSourceId !== null && screenThumb.errorCode === 'video.captureBlocked') {
+      const card = videoProblemCard(screenThumb.errorCode, 'screen', '', null, false);
+      if (card !== null) {
+        videoCards.push(card);
+      }
+    }
+    if (camera !== null && (cameraThumb.errorCode === 'video.cameraInUse' || cameraThumb.errorCode === 'video.cameraPrivacy')) {
+      const card = videoProblemCard(cameraThumb.errorCode, 'camera', camera.name, cameraThumb.errorDetail, false);
+      if (card !== null) {
+        videoCards.push(card);
+      }
+    }
+  } else {
+    for (const problem of videoProblems) {
+      const card = videoProblemCard(problem.code, problem.trackId, problem.sourceName, problem.detail, true);
+      if (card !== null && !videoCards.some((c) => c.kind === card.kind)) {
+        videoCards.push(card);
+      }
+    }
+  }
+  const rowNotes: Partial<Record<VideoRow, RowNote>> = {};
+  for (const track of live ? videoTracks : []) {
+    if (track.state === 'recording' || track.state === 'paused') {
+      continue;
+    }
+    const problem = [...videoProblems].reverse().find((p) => p.trackId === track.trackId);
+    const row: VideoRow = track.trackId === 'camera' ? 'camera' : track.sourceId.startsWith('window:') ? 'window' : 'screen';
+    rowNotes[row] = problem === undefined ? { text: track.reason ?? 'Stopped', tone: 'danger' } : rowNoteText(problem);
+  }
+  const screenDisplay = findSource(list, effective?.displayId ?? null);
+  const screenLine = screenDisplay === null ? null : displayLine(screenDisplay, videoSettings, effective?.screen === true && isLive(screenTrack) ? screenTrack : undefined);
 
   const rows: SourceRow[] | null =
     sources === null
@@ -241,11 +362,156 @@ export function RecordScreen(): JSX.Element {
       });
   };
 
-  const start = async (): Promise<void> => {
-    const sourceIds = selected ?? [];
-    if (sourceIds.length === 0 || starting) {
+  // --- video actions (§18.1, §18.2, §18.6) -----------------------------------------------------
+
+  const markBusy = (key: VideoRow | 'pip', on: boolean): void => {
+    setVideoBusy((before) => {
+      const next = new Set(before);
+      if (on) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
+
+  const videoFailed = (title: string) => (error: unknown) => {
+    store.toasts.show({ tone: 'warning', title, body: `${messageOf(error, 'Memento did not answer.')} Audio keeps recording.` });
+  };
+
+  /** Starts, switches or ends a role's track while recording; the tracks come back in the answer. */
+  const setVideoSource = (role: VideoRole, sourceId: string | null, key: VideoRow, failTitle: string): void => {
+    if (own === null) {
       return;
     }
+    markBusy(key, true);
+    bridge
+      .call('recording.setVideoSource', { sessionId: own.sessionId, role, sourceId })
+      .then(({ videoTracks: next }) => {
+        const current = store.videoStatus.value;
+        store.videoStatus.value = current?.sessionId === own.sessionId ? { ...current, videoTracks: next } : { sessionId: own.sessionId, videoTracks: next, pip: selection?.pip ?? videoStatusPip() };
+      })
+      .catch(videoFailed(failTitle))
+      .finally(() => {
+        markBusy(key, false);
+      });
+  };
+  const videoStatusPip = (): PipState => ({ enabled: false, corner: videoSettings.video.pipCorner });
+
+  const sourceName = (id: string | null): string => findSource(list, id)?.name ?? 'That source';
+
+  const toggleVideo = (row: VideoRow, on: boolean): void => {
+    if (!live || own === null) {
+      setSelection((s) => {
+        if (s === null) {
+          return s;
+        }
+        if (row === 'screen') {
+          return { ...s, screen: on, window: on ? false : s.window };
+        }
+        if (row === 'window') {
+          if (on && s.windowId === null) {
+            setPicker('window');
+            return s;
+          }
+          return { ...s, window: on, screen: on ? false : s.screen };
+        }
+        return { ...s, camera: on };
+      });
+      return;
+    }
+    if (row === 'camera') {
+      setVideoSource('camera', on ? (effective?.cameraId ?? null) : null, 'camera', on ? `${sourceName(effective?.cameraId ?? null)} could not be turned on` : 'The camera could not be turned off');
+      return;
+    }
+    const id = row === 'window' ? (effective?.windowId ?? null) : (effective?.displayId ?? null);
+    if (on) {
+      if (id === null) {
+        setPicker(row === 'window' ? 'window' : 'screen');
+        return;
+      }
+      setVideoSource('screen', id, row, `The screen track could not switch to ${sourceName(id)}`);
+    } else if ((row === 'window' && effective?.window === true) || (row === 'screen' && effective?.screen === true)) {
+      setVideoSource('screen', null, row, 'The screen track could not be turned off');
+    }
+  };
+
+  const useCaptureSource = (source: VideoSource): void => {
+    setPicker(null);
+    const isWindow = source.kind === 'window';
+    setSelection((s) => (s === null ? s : isWindow ? { ...s, windowId: source.id, window: true, screen: false } : { ...s, displayId: source.id, screen: true, window: false }));
+    if (live && own !== null) {
+      setVideoSource('screen', source.id, isWindow ? 'window' : 'screen', `The screen track could not switch to ${source.name}`);
+    }
+  };
+
+  const chooseCamera = (cameraId: string): void => {
+    setSelection((s) => (s === null ? s : { ...s, cameraId, camera: true }));
+    if (live && own !== null) {
+      setVideoSource('camera', cameraId, 'camera', `${sourceName(cameraId)} could not be turned on`);
+    }
+  };
+
+  const changePip = (pip: PipState): void => {
+    setSelection((s) => (s === null ? s : { ...s, pip }));
+    if (!live || own === null) {
+      return;
+    }
+    markBusy('pip', true);
+    const before = store.videoStatus.value;
+    if (before?.sessionId === own.sessionId) {
+      store.videoStatus.value = { ...before, pip };
+    }
+    bridge
+      .call('recording.setPip', { sessionId: own.sessionId, enabled: pip.enabled, corner: pip.corner })
+      .catch((error: unknown) => {
+        if (before?.sessionId === own.sessionId) {
+          store.videoStatus.value = before;
+        }
+        videoFailed('The camera inset could not be changed')(error);
+      })
+      .finally(() => {
+        markBusy('pip', false);
+      });
+  };
+
+  const videoCardAction = (card: VideoProblemCard, action: VideoCardAction): void => {
+    switch (action) {
+      case 'retry':
+        if (live) {
+          setVideoSource('camera', effective?.cameraId ?? null, 'camera', `${sourceName(effective?.cameraId ?? null)} could not be turned on`);
+        } else {
+          setCameraRetry((n) => n + 1);
+        }
+        return;
+      case 'withoutCamera':
+        toggleVideo('camera', false);
+        return;
+      case 'pickCamera':
+        document.querySelector<HTMLButtonElement>('.rec-camera-select button')?.click();
+        return;
+      case 'openSettings':
+        bridge.call('video.openPrivacySettings', { which: card.kind === 'captureBlocked' ? 'screenCapture' : 'camera' }).catch(videoFailed('Windows settings did not open'));
+        return;
+      case 'audioOnly':
+        if (live && own !== null) {
+          endVideoTracks(bridge, store, own.sessionId).catch(videoFailed('Video could not be turned off'));
+        } else {
+          setSelection((s) => (s === null ? s : { ...s, screen: false, window: false, camera: false }));
+        }
+        return;
+    }
+  };
+
+  const start = async (): Promise<void> => {
+    const audioIds = selected ?? [];
+    if (audioIds.length === 0 || starting) {
+      return;
+    }
+    // A video source that cannot start never keeps the audio from starting (BRIDGE.md video section).
+    const videoIds = videoAvailable ? selectedVideoIds(selection) : [];
+    const sourceIds = [...audioIds, ...videoIds];
     setStageError(null);
     setStarting(true);
     startingRef.current = true;
@@ -253,6 +519,11 @@ export function RecordScreen(): JSX.Element {
     try {
       const result = await bridge.call('recording.start', { title, type: details.type, sourceIds });
       setOwnSessionId(result.sessionId);
+      // Both tracks are always recorded; the inset is only where the preview and Review draw the camera.
+      const roles = selectedRoles(videoIds.length > 0 ? selection : null);
+      if (selection !== null && roles.includes('screen') && roles.includes('camera')) {
+        void bridge.call('recording.setPip', { sessionId: result.sessionId, enabled: selection.pip.enabled, corner: selection.pip.corner }).catch(videoFailed('The camera inset could not be set'));
+      }
       saver.update({ title });
       router.navigate({ name: 'record', sessionId: result.sessionId });
       void saver.attach(result.recordingId);
@@ -378,20 +649,53 @@ export function RecordScreen(): JSX.Element {
   }, [store]);
 
   const selectedCount = (selected ?? []).length;
+  const videoParts = showVideo;
   const subline =
     phase === 'ready'
-      ? `${selectedCount === 0 ? 'No' : selectedCount} audio ${selectedCount === 1 ? 'source' : 'sources'} selected · audio only`
+      ? videoParts && selectedCount > 0
+        ? sublineSources(effective, selectedCount)
+        : `${selectedCount === 0 ? 'No' : selectedCount} audio ${selectedCount === 1 ? 'source' : 'sources'} selected · audio only`
       : own === null
         ? 'Writing the tracks to this PC'
         : phase === 'finalizing'
           ? `Writing ${own.tracks.length} ${own.tracks.length === 1 ? 'track' : 'tracks'} to this PC. Review opens when they are ready.`
           : phase === 'stopped'
             ? `Everything up to ${formatTimecode(own.elapsedMs)} is saved on this PC.`
-            : `Started ${formatClock(parseIso(own.startedAt))} · ${liveTracks.length} audio ${liveTracks.length === 1 ? 'track' : 'tracks'} · audio only`;
+            : videoParts
+              ? `Started ${formatClock(parseIso(own.startedAt))} · ${sublineSources(effective, liveTracks.length)}`
+              : `Started ${formatClock(parseIso(own.startedAt))} · ${liveTracks.length} audio ${liveTracks.length === 1 ? 'track' : 'tracks'} · audio only`;
 
   const formats: TrackFormat[] = live
     ? liveTracks.map((t) => ({ sampleRate: t.sampleRate, channels: t.channels }))
     : (sources ?? []).filter((s) => (selected ?? []).includes(s.id)).map(sourceFormat);
+
+  const videoRate = showVideo ? videoBytesPerSecond(effective, list, videoSettings, live && videoStatus !== null ? videoTracks : null) : 0;
+  const videoFooter = showVideo
+    ? { line: live ? videoFooterLine(videoTracks, videoProblems) : null, bytesPerSecond: videoRate, note: rateNote(effective, videoSettings, live && videoStatus !== null ? videoTracks : null) }
+    : null;
+  const pip = effective?.pip ?? { enabled: false, corner: videoSettings.video.pipCorner };
+  // Over the preview: why the main picture is missing (a track that waits or ended, a source Windows blocks).
+  const mainThumb = screenSourceId !== null ? screenThumb : cameraThumb;
+  const mainTrack = screenSourceId !== null ? screenTrack : cameraTrack;
+  const mainNotice: string | null = live
+    ? mainTrack !== undefined && mainTrack.state !== 'recording' && mainTrack.state !== 'paused'
+      ? previewNoticeText(mainTrack, [...videoProblems].reverse().find((p) => p.trackId === mainTrack.trackId))
+      : null
+    : mainThumb.errorCode === 'video.captureBlocked' || mainThumb.errorCode === 'video.cameraPrivacy' || mainThumb.errorCode === 'video.cameraInUse'
+      ? rowNoteText({ code: mainThumb.errorCode, atMs: 0, detail: mainThumb.errorDetail }).text
+      : null;
+  const preview =
+    showVideo && phase !== 'finalizing' && phase !== 'stopped' ? (
+      <LivePreview
+        phase={phase}
+        main={screenSourceId !== null ? screenThumb.dataUrl : cameraThumb.dataUrl}
+        insetOn={screenSourceId !== null && cameraSourceId !== null && pip.enabled}
+        inset={cameraThumb.dataUrl}
+        pip={pip}
+        caption={previewCaption(effective, list, videoSettings, videoTracks)}
+        notice={mainNotice}
+      />
+    ) : null;
 
   const titleEditor = (
     <>
@@ -460,9 +764,44 @@ export function RecordScreen(): JSX.Element {
         }
       />
       <main class="rec-main">
-        <BannerSlot />
-        <div class="rec-columns">
-          <SourcesCard rows={rows} error={sourcesError} onToggle={toggleSource} onRescan={loadSources} />
+        <BannerSlot
+          video={
+            own !== null && live && videoTracks.length > 0
+              ? {
+                  sessionId: own.sessionId,
+                  bytesPerSecond: recordingBytesPerSecond(formats) + videoRate,
+                  videoRecording: videoTracks.some((t) => t.state === 'recording' || t.state === 'waiting'),
+                  quality: videoSettings.video.quality,
+                }
+              : null
+          }
+        />
+        <div class={videoAvailable ? 'rec-columns rec-columns--video' : 'rec-columns'}>
+          <SourcesCard
+            rows={rows}
+            error={sourcesError}
+            onToggle={toggleSource}
+            onRescan={loadSources}
+            video={
+              <VideoSources
+                available={videoAvailable}
+                sources={videoSources}
+                loadError={videoError}
+                selection={effective}
+                screenLine={screenLine}
+                recordingVideo={live && videoTracks.some((t) => t.state === 'recording')}
+                notes={rowNotes}
+                busy={videoBusy}
+                thumbs={{ screen: screenThumb, camera: cameraThumb }}
+                cards={videoCards}
+                onToggle={toggleVideo}
+                onOpenPicker={setPicker}
+                onCamera={chooseCamera}
+                onPip={changePip}
+                onCardAction={videoCardAction}
+              />
+            }
+          />
 
           <section class="rec-centre" aria-label="Recording">
             <StageCard
@@ -483,9 +822,10 @@ export function RecordScreen(): JSX.Element {
                   router.navigate({ name: 'review', recordingId: own.recordingId });
                 }
               }}
+              preview={preview}
             />
             {own !== null && phase !== 'ready' ? (
-              <TracksCard sessionId={own.sessionId} tracks={own.tracks} levels={store.levels} clock={clock} running={phase === 'recording'} />
+              <TracksCard sessionId={own.sessionId} tracks={own.tracks} levels={store.levels} clock={clock} running={phase === 'recording'} video={store.videoStatus} />
             ) : null}
             {own !== null && highlights.length > 0 ? (
               <HighlightsCard
@@ -505,7 +845,9 @@ export function RecordScreen(): JSX.Element {
               timing={store.settings.value?.transcription.timing ?? null}
               phase={phase}
               elapsedMs={own?.elapsedMs ?? 0}
+              video={showVideo}
             />
+            {live ? <EncoderCard tracks={videoTracks} /> : null}
             <AgendaCard
               details={details}
               onToggle={toggleAgenda}
@@ -523,7 +865,22 @@ export function RecordScreen(): JSX.Element {
         lostAtMs={lost?.sessionId === own?.sessionId ? (lost?.atMs ?? null) : null}
         formats={formats}
         now={services.now}
+        video={videoFooter}
       />
+      {picker !== null && videoSources !== null ? (
+        <CapturePicker
+          bridge={bridge}
+          sources={videoSources}
+          initialMode={picker}
+          displayId={effective?.displayId ?? null}
+          windowId={effective?.windowId ?? null}
+          includePointer={videoSettings.video.includePointer}
+          onUse={useCaptureSource}
+          onClose={() => {
+            setPicker(null);
+          }}
+        />
+      ) : null}
       {sheetOpen ? (
         <DetailsSheet
           saver={saver}

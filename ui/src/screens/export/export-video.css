@@ -1,0 +1,25 @@
+/* 2.0 video: the Video row's sub-row (renders/ExportVideo.dc.html `.sub`, wrapping, 10 × 16 gaps):
+   the One file | Two files segmented control (§5.8, 28 px options) and the 12 px text-3 note. */
+.export-video-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 8px 16px 10px 46px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.export-video-options .seg {
+  height: 28px;
+  font-size: 12px;
+}
+
+.export-video-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.export-video-switched {
+  color: var(--text-2);
+}

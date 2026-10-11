@@ -5,7 +5,9 @@ import type {
   RecordingSourceLostPayload,
   RecordingStoppedByHostPayload,
   RecoveredRecording,
+  RecoveredVideoTrack,
   StorageLowSpacePayload,
+  VideoRole,
 } from '../bridge/types';
 import { formatSpan, formatTimecode, formatDuration } from './duration';
 import { formatFreeSpace, formatSize } from './storage';
@@ -48,11 +50,39 @@ export function recoveryCopy(item: RecoveredRecording): RecoveryCopy {
         : `All ${item.tracksTotal} tracks are intact.`
       : `${item.tracksIntact} of ${item.tracksTotal} tracks are intact.`;
   const missing = item.mayBeMissingMs >= 1000 ? ` The last ${formatSpan(item.mayBeMissingMs)} may be missing.` : '';
+  const video = recoveredVideoSentence(item.videoTracks);
   return {
     title: 'Recovered an interrupted recording',
     lead: item.title,
-    rest: ` was saved up to ${formatDuration(item.recoveredDurationMs)} before the recording was interrupted. ${tracks}${missing}`,
+    rest: ` was saved up to ${formatDuration(item.recoveredDurationMs)} before the recording was interrupted. ${tracks}${video === '' ? '' : ` ${video}`}${missing}`,
   };
+}
+
+/**
+ * How much video came back, in one sentence (DESIGN.md §17, §18.6): "The camera video was recovered
+ * up to 28:48.", "The screen and camera video were recovered up to 28:48.", or with different
+ * lengths "The screen video was recovered up to 28:48 and the camera video up to 27:10." "" without video.
+ */
+export function recoveredVideoSentence(tracks: readonly RecoveredVideoTrack[]): string {
+  const ordered = [...tracks].sort((a, b) => ROLE_ORDER.indexOf(a.trackId) - ROLE_ORDER.indexOf(b.trackId));
+  const first = ordered[0];
+  if (first === undefined) {
+    return '';
+  }
+  const sameLength = ordered.every((t) => formatDuration(t.recoveredDurationMs) === formatDuration(first.recoveredDurationMs));
+  if (ordered.length === 1 || sameLength) {
+    const verb = ordered.length === 1 ? 'was' : 'were';
+    return `The ${joinList(ordered.map((t) => t.trackId))} video ${verb} recovered up to ${formatDuration(first.recoveredDurationMs)}.`;
+  }
+  const [head, ...others] = ordered.map((t) => `the ${t.trackId} video`);
+  const rest = others.map((name, i) => `${name} up to ${formatDuration(ordered[i + 1]?.recoveredDurationMs ?? 0)}`);
+  return `${capitalise(head ?? '')} was recovered up to ${formatDuration(first.recoveredDurationMs)} and ${joinList(rest)}.`;
+}
+
+const ROLE_ORDER: readonly VideoRole[] = ['screen', 'camera'];
+
+function capitalise(text: string): string {
+  return `${text.charAt(0).toLocaleUpperCase()}${text.slice(1)}`;
 }
 
 export interface ToastCopy {

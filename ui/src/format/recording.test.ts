@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import type { RecordingSummary, StageStatus } from '../bridge/types';
-import { cardStageName, CARD_STAGE_NAMES, isInterruptedImport, metaLine, peopleWording, retryRemedy, stageFill, stageName, stagePills, stageStatusText, summaryLine, typeName } from './recording';
+import {
+  cardPills,
+  cardStageName,
+  CARD_STAGE_NAMES,
+  isInterruptedImport,
+  isVideoRemoved,
+  metaLine,
+  peopleWording,
+  retryRemedy,
+  rowMetaLine,
+  runningVideoStage,
+  stageFill,
+  stageName,
+  stagePills,
+  stageStatusText,
+  summaryLine,
+  typeName,
+  videoSubStep,
+} from './recording';
 
 const stage = (s: StageStatus['stage'], state: StageStatus['state'], percent: number | null = null, label: string | null = null): StageStatus => ({
   stage: s,
@@ -60,6 +78,7 @@ describe('meta line', () => {
       state: 'ready',
       sizeBytes: 0,
       matchSnippet: null,
+      video: null,
     };
     expect(metaLine(recording, new Date(2026, 9, 6, 15, 0))).toBe('Meeting · 5 people · 10:00 AM');
   });
@@ -191,5 +210,76 @@ describe('processing card columns', () => {
     expect(stageFill(stage('transcript', 'active', 64))).toBe('64%');
     expect(stageFill(stage('transcript', 'active', 140))).toBe('100%');
     expect(stageFill(stage('speakers', 'queued'))).toBe('0%');
+  });
+});
+
+describe('video stage (DESIGN.md §18.7)', () => {
+  const recording = (video: RecordingSummary['video']): RecordingSummary => ({
+    id: 'b',
+    title: 'Board prep walkthrough',
+    type: 'presentation',
+    createdAt: new Date(2026, 8, 29, 9, 0).toISOString(),
+    durationMs: 1000,
+    participantCount: 3,
+    hasVideo: video !== null && video.removedAt === null,
+    stages: [],
+    people: [],
+    isProcessing: false,
+    state: 'ready',
+    sizeBytes: 0,
+    matchSnippet: null,
+    video,
+  });
+
+  it.each([
+    [stage('video', 'active', 42, 'Encoding 42% · GPU'), 'active', 'Video · Encoding 42%'],
+    [stage('video', 'active', 42, 'Encoding 42% · CPU'), 'active', 'Video · Encoding 42%'],
+    [stage('video', 'active', 76, 'Trimming'), 'active', 'Video · Trimming'],
+    [stage('video', 'active', 90, 'Muxing camera inset'), 'active', 'Video · Muxing camera inset'],
+    [stage('video', 'active', 30), 'active', 'Video · 30%'],
+    [stage('video', 'active'), 'active', 'Video'],
+    [stage('video', 'active', 10, 'Paused · the PC is busy'), 'queued', 'Video paused'],
+    [stage('video', 'done', null, 'Done'), 'done', 'Video'],
+    [stage('video', 'queued', null, 'Queued'), 'queued', 'Video'],
+    [stage('video', 'failed', null, 'Video failed at 71%'), 'failed', 'Video failed · Retry'],
+  ])('%j reads %s "%s"', (status, kind, label) => {
+    expect(stagePills([status]).find((p) => p.stage === 'video')).toEqual({ kind, label, stage: 'video' });
+  });
+
+  it('keeps a finished Video pill in the row, after Transcript (it runs beside it)', () => {
+    // The host sends pipeline order (video before transcript); the pill follows the Transcript pill.
+    expect(pills([stage('video', 'done'), stage('transcript', 'done'), stage('minutes', 'done')])).toEqual([
+      { kind: 'done', label: 'Transcript' },
+      { kind: 'done', label: 'Video' },
+      { kind: 'done', label: 'Minutes' },
+    ]);
+    expect(pills([stage('video', 'failed'), stage('transcript', 'done')]).map((p) => p.label)).toEqual(['Video failed · Retry', 'Stored', 'Transcript']);
+    expect(pills([stage('video', 'queued')]).map((p) => p.label)).toEqual(['Video']);
+  });
+
+  it('names the sub-step without the device', () => {
+    expect(videoSubStep(stage('video', 'active', 42, 'Encoding 42% · GPU'))).toBe('Encoding 42%');
+    expect(videoSubStep(stage('video', 'active', null, 'Trimming'))).toBe('Trimming');
+    expect(videoSubStep(stage('video', 'active'))).toBeNull();
+  });
+
+  it('shortens the running video pill on a card whose strip names the sub-step', () => {
+    const stages = [stage('transcript', 'done'), stage('video', 'active', 42, 'Encoding 42% · GPU'), stage('minutes', 'queued')];
+    expect(cardPills(stages, true).map((p) => p.label)).toEqual(['Transcript', 'Video', 'Minutes']);
+    expect(cardPills(stages, false).map((p) => p.label)).toEqual(['Transcript', 'Video · Encoding 42%', 'Minutes']);
+    expect(runningVideoStage(stages)?.label).toBe('Encoding 42% · GPU');
+    expect(runningVideoStage([stage('video', 'done')])).toBeNull();
+    expect(runningVideoStage([stage('video', 'active', 5, 'Paused · the PC is busy')])).toBeNull();
+  });
+
+  it('ends a removed video row with "video removed"', () => {
+    const now = new Date(2026, 9, 6, 15, 0);
+    const removed = recording({ roles: ['screen', 'camera'], height: 1440, removedAt: '2026-10-01T09:00:00+02:00' });
+    expect(isVideoRemoved(removed)).toBe(true);
+    expect(rowMetaLine(removed, now)).toBe('Presentation · 3 people · Sep 29 · video removed');
+    const kept = recording({ roles: ['screen'], height: 1080, removedAt: null });
+    expect(isVideoRemoved(kept)).toBe(false);
+    expect(rowMetaLine(kept, now)).toBe('Presentation · 3 people · Sep 29');
+    expect(rowMetaLine(recording(null), now)).toBe('Presentation · 3 people · Sep 29');
   });
 });

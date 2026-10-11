@@ -182,7 +182,7 @@ describe('Details sheet agenda import (against the browser-preview host)', () =>
 
   it('keeps a dropped agenda with the recording that has not started, then attaches the original once it exists', async () => {
     h = await mountApp({ name: 'record', sessionId: null });
-    await until(() => h.container.querySelectorAll('.src').length === 5);
+    await until(() => h.container.querySelectorAll('.rec-video-src').length === 3);
     await click(button('Details and agenda'));
     await dropFiles(document.querySelector('.agenda-drop'), ['agenda.docx']);
     await until(() => items().length === 5);

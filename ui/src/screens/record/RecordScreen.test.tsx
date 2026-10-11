@@ -82,11 +82,11 @@ describe('Recording session (against the browser-preview host)', () => {
     document.body.innerHTML = '';
   });
 
-  it('opens ready to record with the remembered sources and the video toggles for later', async () => {
+  it('opens ready to record with the remembered sources and the video sources off (Audio only)', async () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
 
     expect(container.querySelector('.lbl')?.textContent).toBe('Audio sources');
     expect(container.textContent).toContain('Ready to record');
@@ -98,10 +98,12 @@ describe('Recording session (against the browser-preview host)', () => {
       ['Microphone', 'true', false],
       ['System audio', 'true', false],
       ['Zoom', 'true', false],
-      ['Screen (available in a later version)', 'false', true],
-      ['Camera (available in a later version)', 'false', true],
+      ['Screen', 'false', false],
+      ['Window', 'false', false],
+      ['Camera', 'false', false],
+      ['Screen plus camera', 'false', false],
     ]);
-    expect(container.textContent).toContain('Available in a later version');
+    expect(container.textContent).toContain('Capture one window instead of a whole display');
     expect(container.querySelector('footer')?.textContent).toContain('Ready · recordings save to this PC as they happen');
     expect(container.querySelector('footer')?.textContent).toContain('212 GB free · about 87 hours at this quality');
   });
@@ -110,7 +112,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
 
     await act(async () => {
       button('Start recording').click();
@@ -148,7 +150,7 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(store.settings.value?.recording.storage.codec).toBe('flac');
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Zoom"]')?.click();
@@ -192,7 +194,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
     await act(async () => {
       button('Start recording').click();
       await Promise.resolve();
@@ -247,7 +249,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
     await act(async () => {
       button('Details and agenda').click();
       await Promise.resolve();
@@ -341,7 +343,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
     await act(async () => {
       button('Start recording').click();
       await Promise.resolve();
@@ -377,7 +379,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp({ liveTranscript: true });
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
     const card = (): Element | null => container.querySelector('[aria-label="Live transcript"]');
     expect(card()?.textContent).toContain('A rough draft appears here a few seconds behind the recording');
     await act(async () => {
@@ -398,7 +400,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
     await act(async () => {
       button('Details and agenda').click();
       await Promise.resolve();
@@ -451,7 +453,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };
     await mount();
-    await until(() => container.querySelectorAll('.src').length === 5);
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
     const card = container.querySelector('[aria-label="Live transcript"]');
     expect(card?.textContent).toContain('Live transcription is off.');
     expect(card?.querySelector('.pill')).toBeNull();

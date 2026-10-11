@@ -10,6 +10,8 @@ import type {
   RecordingLiveTranscriptPayload,
   RecordingSourceLostPayload,
   RecordingStatePayload,
+  RecordingVideoProblemPayload,
+  RecordingVideoStatusPayload,
   RecoveredRecording,
   SettingsSnapshot,
   StageStatus,
@@ -21,6 +23,7 @@ import type { DialogRequest } from './dialogs';
 import { INITIAL_LIBRARY_VIEW, type LibraryViewState } from './libraryView';
 import { LIBRARY_ROUTE, type Route } from './router';
 import { createToastQueue, type ToastQueue } from './toasts';
+import { connectVideoEvents } from './videoEvents';
 
 /** Everything the UI shows. `null` means "not reported yet", never a made-up value. */
 export interface AppStore {
@@ -48,6 +51,10 @@ export interface AppStore {
   lowSpace: Signal<StorageLowSpacePayload | null>;
   /** The latest live draft (recording.liveTranscript) of a session; null until one arrives. */
   liveTranscript: Signal<RecordingLiveTranscriptPayload | null>;
+  /** 2.0 video: the session's video tracks and inset (recording.videoStatus, once a second); null without video. */
+  videoStatus: Signal<RecordingVideoStatusPayload | null>;
+  /** 2.0 video: the problems of the session so far, newest last, one per track and code; cleared when it ends. */
+  videoProblems: Signal<RecordingVideoProblemPayload[]>;
 
   toasts: ToastQueue;
   dialog: Signal<DialogRequest | null>;
@@ -77,6 +84,8 @@ export function createStore(initialDark: boolean, toasts: ToastQueue = createToa
     lostSource: signal<RecordingSourceLostPayload | null>(null),
     lowSpace: signal<StorageLowSpacePayload | null>(null),
     liveTranscript: signal<RecordingLiveTranscriptPayload | null>(null),
+    videoStatus: signal<RecordingVideoStatusPayload | null>(null),
+    videoProblems: signal<RecordingVideoProblemPayload[]>([]),
     toasts,
     dialog: signal<DialogRequest | null>(null),
     overlays: signal(0),
@@ -157,6 +166,8 @@ export function connectEvents(bridge: BridgeClient, store: AppStore, hooks: Even
       if (payload.state === 'ready' || payload.state === 'stopped') {
         store.lostSource.value = null;
         store.levels.value = null;
+        store.videoStatus.value = null;
+        store.videoProblems.value = [];
       }
     }),
     bridge.on('recording.levels', (payload) => {
@@ -218,6 +229,8 @@ export function connectEvents(bridge: BridgeClient, store: AppStore, hooks: Even
       const live = active !== null && (active.state === 'recording' || active.state === 'paused');
       store.route.value = { name: 'record', sessionId: live ? active.sessionId : null };
     }),
+    // 2.0 video: status, problems (toasts for a track that waits or ends), sources that come and go.
+    connectVideoEvents(bridge, store),
     bridge.on('updates.progress', (payload) => {
       const wasReady = store.updates.value?.state === 'ready';
       store.updates.value = payload;

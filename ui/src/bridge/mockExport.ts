@@ -141,6 +141,32 @@ export function createMockExport(env: MockExportEnvironment): MockExport {
         });
       }
     }
+    // 2.0 video: one file (screen, camera inset composed in, the mix) or two (screen with the mix, camera).
+    const video = project.video ?? null;
+    const choice = selection.video ?? null;
+    if (video === null || video.tracks.length === 0) {
+      unavailable.push({ component: 'video', reason: video?.removed != null ? 'Video was removed' : 'No video' });
+    } else if (choice?.on === true) {
+      const screen = video.tracks.find((t) => t.id === 'screen');
+      const camera = video.tracks.find((t) => t.id === 'camera');
+      if (choice.layout === 'oneFile' && choice.format === 'original' && screen !== undefined && camera !== undefined) {
+        throw new MockHostError(
+          'bridge.invalidParams',
+          '"Original container" copies each track as it was recorded, so it writes the screen and the camera as two files. Choose MP4 for one file with the camera inset.',
+        );
+      }
+      // The mix goes along as 192 kb/s AAC; MP4 re-encodes at about the recorded rate, the original container copies.
+      const mix = Math.round(seconds * 24_000);
+      const sized = (bytes: number): number => (choice.format === 'mp4' ? Math.round(bytes * 1.08) : bytes);
+      if (choice.layout === 'oneFile' || screen === undefined || camera === undefined) {
+        const main = screen ?? camera;
+        const inset = screen !== undefined && camera !== undefined ? Math.round(camera.sizeBytes * 0.15) : 0;
+        add('video', exportFileNames.video(base, 'combined'), sized((main?.sizeBytes ?? 0) + inset) + mix);
+      } else {
+        add('video', exportFileNames.video(base, 'screen'), sized(screen.sizeBytes) + mix);
+        add('video', exportFileNames.video(base, 'camera'), sized(camera.sizeBytes));
+      }
+    }
     const segments = env.transcriptSegments(summary.id);
     if (segments === null) {
       unavailable.push({ component: 'transcript', reason: 'Not transcribed yet' });

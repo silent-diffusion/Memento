@@ -20,7 +20,7 @@ import { Segmented, Toggle } from '../../components/Controls';
 import { InfoIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
 import { NEVER_SENT, NeverSentRow } from '../../components/NeverSentRow';
-import { AUDIO_FORMAT_LABELS, TRANSCRIPT_FORMAT_LABELS } from '../../format/export';
+import { AUDIO_FORMAT_LABELS, TRANSCRIPT_FORMAT_LABELS, validVideoChoice } from '../../format/export';
 import { formatFreeSpace, formatSize } from '../../format/storage';
 import { goToLibrary, openRecording, updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
@@ -28,7 +28,8 @@ import { updateLibraryView } from '../../state/data';
 import { jobsOf } from '../../state/jobs';
 import { PROVIDER_NAMES } from './SettingsDialogs';
 import { AboutGroup, UpdatesGroup } from './about';
-import { LATER, OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
+import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
+import { RemoveVideoRow } from './RemoveVideo';
 import { AiProviderDefaults } from './sections-m4';
 
 function messageOf(error: unknown): string {
@@ -440,12 +441,13 @@ export function AiPrivacySection(): JSX.Element {
 // Export
 // ---------------------------------------------------------------------------------------------
 
-type IncludeKey = 'audioMixed' | 'tracks' | 'transcript' | 'details' | 'attachments' | 'documents';
+type IncludeKey = 'audioMixed' | 'tracks' | 'transcript' | 'details' | 'attachments' | 'documents' | 'video';
 
-const INCLUDE_ITEMS: readonly { key: IncludeKey | 'video'; name: string; note?: string; locked?: boolean }[] = [
+const INCLUDE_ITEMS: readonly { key: IncludeKey; name: string; note?: string }[] = [
   { key: 'audioMixed', name: 'Audio', note: 'mixed' },
   { key: 'tracks', name: 'Individual tracks' },
-  { key: 'video', name: 'Video', note: 'not in this version', locked: true },
+  // 2.0 video: recordings that have it; the Export dialog chooses one or two files.
+  { key: 'video', name: 'Video' },
   { key: 'transcript', name: 'Transcript' },
   // M4: every document of the recording; the Export dialog lists them one by one.
   { key: 'documents', name: 'Documents', note: 'all of them' },
@@ -467,6 +469,10 @@ function toggleInclude(selection: ExportSelection, key: IncludeKey): ExportSelec
       return { ...selection, attachments: { on: !selection.attachments.on } };
     case 'documents':
       return { ...selection, documents: { ...selection.documents, on: !selection.documents.on, documentIds: [] } };
+    case 'video': {
+      const video = validVideoChoice(selection.video);
+      return { ...selection, video: { ...video, on: !video.on } };
+    }
   }
 }
 
@@ -556,7 +562,7 @@ export function ExportSection(): JSX.Element {
               label="Components"
               items={INCLUDE_ITEMS.map((item) => ({
                 ...item,
-                on: item.locked === true ? false : defaults[item.key as IncludeKey].on,
+                on: defaults[item.key]?.on ?? false,
               }))}
               onToggle={(key) => {
                 save({ defaults: toggleInclude(defaults, key as IncludeKey) });
@@ -630,6 +636,14 @@ export function separateTracksText(usage: LibraryUsage | null): string {
   return usage.separateTracksRecordings === 0
     ? `No recording keeps separate tracks.${kept}`
     : `In ${recordingsWord(usage.separateTracksRecordings)}, beside the mix.${kept}`;
+}
+
+/** 2.0 video, Usage › Video: how many recordings still have video ("3 recordings with video"). */
+export function videoUsageText(usage: LibraryUsage | null): string {
+  if (usage === null) {
+    return 'Screen and camera tracks, beside the audio.';
+  }
+  return usage.videoRecordings === 0 ? 'No recording has video.' : `${recordingsWord(usage.videoRecordings)} with video`;
 }
 
 /** 2.0: the confirmation for Keep only the mix (DESIGN.md §17: name it, the amount, what is kept, that it cannot be undone). */
@@ -776,6 +790,9 @@ export function StorageSectionM3(): JSX.Element {
         <SettingsRow label="Separate tracks" description={separateTracksText(usage)}>
           <span class="settings-value">{usage === null ? '…' : formatSize(usage.separateTracksBytes)}</span>
         </SettingsRow>
+        <SettingsRow label="Video" description={videoUsageText(usage)}>
+          <span class="settings-value">{usage === null ? '…' : formatSize(usage.videoBytes)}</span>
+        </SettingsRow>
       </SettingsGroup>
       <SettingsGroup label="Reclaim space">
         <SettingsRow
@@ -845,9 +862,8 @@ export function StorageSectionM3(): JSX.Element {
             Remove tracks…
           </button>
         </SettingsRow>
-        <SettingsRow label="Remove video older than" description="Audio, transcript and documents are kept." note={LATER}>
-          <SelectMenu label="Remove video older than" value="never" options={[{ value: 'never', label: 'Never' }]} onChange={() => undefined} disabled />
-        </SettingsRow>
+        {/* 2.0 video: live, with what it would free now and an in-place confirmation. */}
+        <RemoveVideoRow reload={reload} />
         <SettingsRow label="Review large recordings" description="Opens the library with the largest recordings first.">
           <button class="btn ghost small-btn" type="button" onClick={reviewLarge}>
             Review

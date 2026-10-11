@@ -1,0 +1,611 @@
+/* Recording session with video (DESIGN.md §18.1, §18.2, §18.6), transcribed from
+   design/renders/RecordVideo.dc.html and DisplayPicker.dc.html. Shadows are the tokens by role; the
+   dark schematic colours of the thumbnails and the preview well are the renders' own. */
+
+/* --- VIDEO section rows ------------------------------------------------------------------------- */
+
+.rec-thumb {
+  width: 72px;
+  height: 42px;
+  border-radius: 8px;
+  background: #2a2824;
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  box-shadow: var(--neo-in-xs);
+}
+
+.rec-thumb-win {
+  position: absolute;
+  inset: 6px 8px 10px 8px;
+  border-radius: 3px;
+  background: #3a3733;
+}
+
+.rec-thumb-cam {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 42%, #8c7b6a 0 9px, #4a443d 10px 100%);
+}
+
+.rec-thumb-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rec-pick-row {
+  margin-left: 52px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.rec-pick,
+.rec-camera-select .chip-select {
+  height: 28px;
+  max-width: 100%;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rec-pick-text,
+.rec-camera-select .select-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-pick:disabled {
+  cursor: default;
+}
+
+.rec-camera-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A track that waits or ended: the reason in place of the sub-line. */
+.rec-video-note--accent {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.rec-video-note--danger {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Screen + camera: the inset corner picker, a 2 × 2 grid of 22 × 16 raised buttons. */
+.rec-inset-row {
+  margin-left: 52px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.rec-inset-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.rec-inset-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.rec-corners {
+  display: grid;
+  grid-template-columns: repeat(2, 22px);
+  gap: 4px;
+}
+
+.rec-corner {
+  width: 22px;
+  height: 16px;
+  border-radius: 4px;
+  border: none;
+  background: var(--surface);
+  box-shadow: var(--neo-xs);
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.rec-corner.on {
+  background: var(--text);
+  box-shadow: var(--neo-in-xs);
+}
+
+.rec-corner:active {
+  box-shadow: var(--neo-in) !important;
+}
+
+.rec-corner:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rec-corner:disabled {
+  cursor: default;
+}
+
+/* §18.6 inline and permission cards, in place under the source they are about. */
+.rec-video-card {
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: var(--neo-sm);
+  padding: 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rec-video-card-text {
+  font-size: 14px;
+}
+
+.rec-video-card-lead {
+  font-weight: 700;
+}
+
+.rec-video-card-rest {
+  color: var(--text-2);
+}
+
+.rec-video-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --- Stage: the live preview (a 16:9 pressed-in well up to 560 px) --------------------------------- */
+
+.rec-stage:has(.rec-preview) {
+  padding: 28px 32px;
+  gap: 18px;
+}
+
+.rec-timer--video {
+  font-size: 56px;
+}
+
+.rec-preview {
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #2a2824;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--neo-in);
+}
+
+.rec-preview-win {
+  position: absolute;
+  inset: 22px 28px 34px 28px;
+  border-radius: 6px;
+  background: #3a3733;
+}
+
+.rec-preview-bar {
+  position: absolute;
+  left: 28px;
+  top: 22px;
+  width: 160px;
+  height: 8px;
+  border-radius: 2px;
+  background: #57534c;
+}
+
+.rec-preview-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rec-preview-cam {
+  position: absolute;
+  width: 128px;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.rec-preview-cam--empty {
+  background: radial-gradient(circle at 50% 42%, #8c7b6a 0 16px, #4a443d 17px 100%);
+}
+
+.rec-preview-cam--topLeft {
+  left: 14px;
+  top: 14px;
+}
+
+.rec-preview-cam--topRight {
+  right: 14px;
+  top: 14px;
+}
+
+.rec-preview-cam--bottomLeft {
+  left: 14px;
+  bottom: 30px;
+}
+
+.rec-preview-cam--bottomRight {
+  right: 14px;
+  bottom: 30px;
+}
+
+.rec-preview-notice {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(29, 28, 26, 0.72);
+  color: #edeae4;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rec-preview-caption,
+.rec-preview-tag {
+  position: absolute;
+  bottom: 10px;
+  font-size: 11px;
+  color: #c9c5bc;
+}
+
+.rec-preview-caption {
+  left: 14px;
+  max-width: calc(100% - 90px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.rec-preview-tag {
+  right: 14px;
+}
+
+/* --- Tracks: the video lane, alternating frame blocks in the 36 px well -------------------------- */
+
+.rec-lane-name--video {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: visible;
+}
+
+/* With the VIDEO section the columns are those of renders/RecordVideo: sources 300–340 px, right 280–320 px. */
+.rec-columns--video .rec-sources {
+  flex: 1 1 300px;
+  max-width: 340px;
+}
+
+.rec-columns--video .rec-side {
+  flex: 1 1 280px;
+  max-width: 320px;
+}
+
+.rec-lane-name--video svg {
+  flex: none;
+}
+
+.rec-frame {
+  flex: 1;
+  height: 28px;
+  border-radius: 3px;
+  background: #3a3733;
+}
+
+.rec-frame.alt {
+  background: #4a463f;
+}
+
+.rec-frame.off {
+  background: var(--line-strong);
+}
+
+/* --- Right column: the Encoder card ---------------------------------------------------------------- */
+
+.rec-encoder {
+  gap: 12px;
+}
+
+.rec-encoder-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.rec-encoder-facts dt,
+.rec-encoder-facts dd {
+  margin: 0;
+}
+
+.rec-encoder-facts dd {
+  color: var(--text);
+}
+
+.rec-encoder-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* --- §18.2 the display and window picker: a 600 px side sheet ------------------------------------- */
+
+.sheet--wide {
+  width: min(600px, 100vw);
+}
+
+.sheet--wide .sheet-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet--wide .sheet-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+}
+
+.sheet--wide .sheet-body {
+  padding: 20px;
+}
+
+.sheet--wide .sheet-footer {
+  padding: 14px 20px;
+}
+
+.sheet--wide .sheet-footer .btn {
+  height: 36px;
+  border-radius: 14px;
+}
+
+.rec-pick-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.rec-pick-body,
+.rec-pick-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rec-pick-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: var(--neo-in);
+  align-self: flex-start;
+}
+
+.rec-pick-tabs .seg {
+  height: 32px;
+  padding: 0 16px;
+}
+
+.rec-pick-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+}
+
+.rec-pick-search svg {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+
+.rec-pick-search-input {
+  width: 100%;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 12px 0 36px;
+  border-radius: 14px;
+  border: none;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.rec-pick-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.rec-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rec-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  border: none;
+  margin: 0;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.08s ease;
+}
+
+.rec-tile:hover {
+  box-shadow: var(--neo-sm-hi);
+}
+
+.rec-tile:active {
+  box-shadow: var(--neo-in) !important;
+}
+
+.rec-tile.on {
+  box-shadow: var(--neo-in), 0 0 0 2px var(--accent);
+}
+
+.rec-tile:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Listed and explained, not selectable: Memento's own window and windows hidden from capture. */
+.rec-tile[aria-disabled='true'] {
+  cursor: default;
+}
+
+.rec-tile[aria-disabled='true']:hover,
+.rec-tile[aria-disabled='true']:active {
+  box-shadow: var(--neo-sm) !important;
+}
+
+.rec-tile[aria-disabled='true'] .rec-tile-name {
+  color: var(--text-2);
+}
+
+.rec-shot {
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  background: #2a2824;
+  position: relative;
+  overflow: hidden;
+}
+
+.rec-shot-win {
+  position: absolute;
+  inset: 14% 10% 18% 10%;
+  border-radius: 3px;
+  background: #3a3733;
+}
+
+.rec-shot-bar {
+  position: absolute;
+  left: 10%;
+  top: 14%;
+  height: 6px;
+  width: 40%;
+  border-radius: 2px;
+  background: #57534c;
+}
+
+.rec-shot--app {
+  background: #3a3733;
+}
+
+.rec-shot--app .rec-shot-win {
+  background: #4a463f;
+  inset: 16% 8% 12% 8%;
+}
+
+.rec-shot--excluded {
+  background: var(--surface-2);
+  box-shadow: var(--neo-in-xs);
+}
+
+.rec-shot--excluded .rec-shot-win,
+.rec-shot--excluded .rec-shot-bar {
+  display: none;
+}
+
+.rec-shot-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rec-tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rec-tile-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rec-tile-sub {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.rec-pick-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: var(--neo-in-xs);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.rec-pick-note-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+
+/* The low-space banner with video figures has two actions. */
+.banner-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-corner,
+  .rec-tile {
+    transition: none;
+  }
+
+  .rec-tile:active {
+    transform: none;
+  }
+}

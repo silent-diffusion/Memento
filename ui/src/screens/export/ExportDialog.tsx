@@ -17,6 +17,8 @@ import type {
   TranscriptExportFormat,
   TranscriptLayout,
   TranscriptTextOptions,
+  VideoExportFormat,
+  VideoExportLayout,
 } from '../../bridge/types';
 import { Segmented, Toggle } from '../../components/Controls';
 import { copyDocument, copyTranscript, FORMAT_WORDS } from '../../state/copy';
@@ -34,6 +36,10 @@ import {
   MP3_EXPORT_KBPS,
   summarise,
   TRANSCRIPT_FORMAT_LABELS,
+  validVideoChoice,
+  VIDEO_FORMAT_LABELS,
+  withVideoFormat,
+  withVideoLayout,
 } from '../../format/export';
 import { formatSize } from '../../format/storage';
 import { useServices } from '../../state/context';
@@ -41,6 +47,7 @@ import type { DialogRequest } from '../../state/dialogs';
 import { trackExport } from '../../state/jobs';
 import './export-m4.css';
 import './export-copy.css';
+import { hasScreenAndCamera, VideoOptionsRow, videoRowDescription, type VideoSwitch } from './ExportVideo';
 
 export const ESTIMATE_DEBOUNCE_MS = 250;
 
@@ -60,6 +67,7 @@ const TRANSCRIPT_OPTIONS = (Object.keys(TRANSCRIPT_FORMAT_LABELS) as TranscriptE
   value,
   label: TRANSCRIPT_FORMAT_LABELS[value],
 }));
+const VIDEO_OPTIONS = (Object.keys(VIDEO_FORMAT_LABELS) as VideoExportFormat[]).map((value) => ({ value, label: VIDEO_FORMAT_LABELS[value] }));
 
 /**
  * M4: Documents follow the defaults (every document of the recording), or start ticked with the
@@ -71,6 +79,8 @@ function startingSelection(selection: ExportSelection, documentIds?: string[]): 
     // After 1.2.0: the transcript's text options are remembered per user, whatever the defaults say.
     transcript: { ...selection.transcript, formats: selection.transcript.formats.length === 0 ? ['json'] : selection.transcript.formats, options: readTranscriptText() },
     documents: documentIds === undefined ? { ...selection.documents, documentIds: [] } : { ...selection.documents, on: true, documentIds },
+    // 2.0 video: defaults saved before 2.0 have no choice (off); "Original container" is never one file.
+    video: validVideoChoice(selection.video),
   };
 }
 
@@ -336,6 +346,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
       documents: { ...current.documents, on: current.documents.on && !off('documents') },
       details: { on: current.details.on && !off('details') },
       attachments: { on: current.attachments.on && !off('attachments') },
+      video: { ...validVideoChoice(current.video), on: (current.video?.on ?? false) && !off('video') },
     };
   };
 
@@ -414,6 +425,25 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
   const copyTranscriptAs = (format: TranscriptCopyFormat): void => {
     void copyTranscript(bridge, store, { recordingId: request.recordingId, format, options: textOptions, segmentIds: null }).then(confirmCopy);
   };
+
+  // 2.0 video: the choice as shown, and what a format or layout change did to the other one.
+  const [videoSwitch, setVideoSwitch] = useState<VideoSwitch>(null);
+  const videoChoice = validVideoChoice(selection?.video);
+  const bothTracks = hasScreenAndCamera(project?.video);
+  const setVideoFormat = (format: VideoExportFormat): void => {
+    const next = withVideoFormat(videoChoice, format);
+    setVideoSwitch(bothTracks && videoChoice.layout === 'oneFile' && next.layout === 'twoFiles' ? 'toTwoFiles' : null);
+    update({ video: next });
+  };
+  const setVideoLayout = (layout: VideoExportLayout): void => {
+    const next = withVideoLayout(videoChoice, layout);
+    setVideoSwitch(videoChoice.format === 'original' && next.format === 'mp4' ? 'toMp4' : null);
+    update({ video: next });
+  };
+  const videoDescription = videoRowDescription(project?.video);
+  // Until the estimate names the reason, the project says whether there is video at all.
+  const videoWords = videoDescription ?? (project === null ? 'Video with the mixed audio' : project.video?.removed != null ? 'Video was removed' : 'No video');
+  const videoAvailable = !unavailable.has('video') && (project === null || videoDescription !== null);
 
   const tracks = project?.tracks ?? [];
   const trackWords = tracks.length === 0 ? 'Each source as its own file' : `${joinList(tracks.map((t) => t.name))} as separate files`;
@@ -537,15 +567,31 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   }
                 />
                 )}
+                {/* 2.0 video (§18.4): the recording's video with the mixed audio; one or two files while ticked. */}
                 <ComponentRow
                   id="exp-video"
                   name="Video"
-                  description="Not in this version"
-                  checked={false}
-                  disabled
-                  size="—"
-                  format={<SelectMenu label="Format for Video" value="mp4" options={[{ value: 'mp4', label: 'MP4' }]} disabled onChange={() => undefined} />}
+                  description={reasonOr('video', videoWords)}
+                  checked={videoChoice.on && videoAvailable}
+                  disabled={!videoAvailable}
+                  size={sizeOf('video')}
+                  onToggle={() => {
+                    setVideoSwitch(null);
+                    update({ video: { ...videoChoice, on: !videoChoice.on } });
+                  }}
+                  format={
+                    <SelectMenu<VideoExportFormat>
+                      label="Format for Video"
+                      value={videoChoice.format}
+                      options={VIDEO_OPTIONS}
+                      disabled={!videoChoice.on || !videoAvailable}
+                      // The button stays as narrow as the other rows' ("Original", as §15 names it); the list says it in full.
+                      buttonText={videoChoice.format === 'original' ? 'Original' : 'MP4'}
+                      onChange={setVideoFormat}
+                    />
+                  }
                 />
+                {videoChoice.on && videoAvailable ? <VideoOptionsRow choice={videoChoice} both={bothTracks} switched={videoSwitch} onLayout={setVideoLayout} /> : null}
                 <ComponentRow
                   id="exp-transcript"
                   name="Transcript"

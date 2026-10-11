@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useLayoutEffect } from 'preact/hooks';
+import { useLayoutEffect, useState } from 'preact/hooks';
 import type { LibrarySort, RecordingSummary, RecordingType } from '../../bridge/types';
 import { BannerSlot } from '../../components/Banners';
 import { ChipGroup } from '../../components/Controls';
@@ -58,6 +58,24 @@ function itemHandlers(services: AppServices): ItemHandlers {
   };
 }
 
+/**
+ * A remedy of the failed video stage (DESIGN.md §18.6): processing.retry with stage 'video' and the
+ * remedy's id, then a refetch so the card leaves its failed state; a refusal says what is still safe.
+ */
+async function runVideoRemedy(services: AppServices, recordingId: string, remedyId: string): Promise<void> {
+  const { bridge, store } = services;
+  try {
+    await bridge.call('processing.retry', { recordingId, stage: 'video', remedyId });
+    reloadLibrary(services);
+  } catch (error: unknown) {
+    store.toasts.show({
+      tone: 'warning',
+      title: remedyId === 'keepRaw' ? 'The raw frames were not kept' : 'The video was not encoded again',
+      body: `${error instanceof Error ? error.message : 'Memento did not answer.'} The raw frames, the audio and the transcript are safe.`,
+    });
+  }
+}
+
 /** Returning from a spoke: put the scroll offset back and focus the row that was opened. */
 function useRestoreLibraryPosition(services: AppServices): void {
   useLayoutEffect(() => {
@@ -83,6 +101,7 @@ export function LibraryScreen(): JSX.Element {
   const settings = store.settings.value;
   const isEmpty = library !== null && library.totalCount === 0 && library.recordings.length === 0;
   const now = services.now();
+  const [pendingRemedy, setPendingRemedy] = useState<string | null>(null);
 
   useRestoreLibraryPosition(services);
 
@@ -214,6 +233,13 @@ export function LibraryScreen(): JSX.Element {
               now={now}
               onOpen={(recordingId) => {
                 openRecording(services, recordingId);
+              }}
+              pendingRemedy={pendingRemedy}
+              onRemedy={(recordingId, remedyId) => {
+                setPendingRemedy(remedyId);
+                void runVideoRemedy(services, recordingId, remedyId).finally(() => {
+                  setPendingRemedy(null);
+                });
               }}
             />
           ) : null}

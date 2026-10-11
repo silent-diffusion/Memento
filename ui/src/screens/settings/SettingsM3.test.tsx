@@ -242,7 +242,8 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     await until(() => !rowOf('Library size').textContent.includes('…'));
     expect(rowOf('Library size').textContent).toContain('14 recordings, all on this PC.');
     expect(rowOf('Free space').textContent).toContain('212 GB');
-    expect(rowOf('Largest recording').textContent).toContain('Design review: library screen');
+    // 2.0: the town hall's screen and camera make it the largest (SettingsStorageVideo render).
+    expect(rowOf('Largest recording').textContent).toContain('Town hall Q&A');
 
     expect(button('Run now').disabled).toBe(true);
     await click(document.querySelector('[aria-label^="Downmix tracks older than:"]'));
@@ -268,8 +269,8 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
   it('Storage: Open goes to the largest recording', async () => {
     await open('storage');
     await until(() => document.querySelector('.settings-open') !== null);
-    await click(button('Open Design review: library screen'));
-    expect(h.store.route.value).toEqual({ name: 'review', recordingId: '20261005-160000-dsrev' });
+    await click(button('Open Town hall Q&A'));
+    expect(h.store.route.value).toEqual({ name: 'review', recordingId: '20260918-160000-thall' });
   });
 
   it('moves between the settings rows with the keyboard', async () => {

@@ -8,7 +8,7 @@ const quiet = { info: (): void => undefined, warn: (): void => undefined };
 async function snapshot(): Promise<SettingsSnapshot> {
   const bridge = createBridgeClient({ logger: quiet, mock: { live: false, recovery: false } });
   const settings = await bridge.call('settings.get');
-  return { ...settings, export: { ...settings.export, defaultFolder: 'D:\\Exports' }, storage: { reclaimOlderThanDays: 90 } };
+  return { ...settings, export: { ...settings.export, defaultFolder: 'D:\\Exports' }, storage: { reclaimOlderThanDays: 90, removeVideoOlderThanDays: null } };
 }
 
 describe('settings.set merge (as the host merges it)', () => {

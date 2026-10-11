@@ -107,14 +107,16 @@ interface SideSheetProps {
   children: ComponentChildren;
   /** Footer: a note at the left and the primary action at the right. */
   footer?: ComponentChildren;
+  /** 2.0: the 600 px sheet of the display and window picker (DESIGN.md §18.2). */
+  wide?: boolean;
 }
 
-/** The 480 px side sheet anchored right below the header (DESIGN.md §5.19, §14). */
-export function SideSheet({ titleId, title, onClose, children, footer }: SideSheetProps): JSX.Element {
+/** The 480 px side sheet anchored right below the header (DESIGN.md §5.19, §14); 600 px when `wide`. */
+export function SideSheet({ titleId, title, onClose, children, footer, wide = false }: SideSheetProps): JSX.Element {
   const { ref, onKeyDown } = useModal(onClose);
   return createPortal(
     <div class="scrim scrim--sheet">
-      <div ref={ref} class="sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}>
+      <div ref={ref} class={wide ? 'sheet sheet--wide' : 'sheet'} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}>
         <div class="sheet-header">
           <h2 id={titleId} class="sheet-title">
             {title}
