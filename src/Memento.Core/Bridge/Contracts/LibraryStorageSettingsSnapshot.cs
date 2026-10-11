@@ -1,6 +1,7 @@
 namespace Memento.Core.Bridge.Contracts;
 
-/// <summary>Settings › Storage and history › Reclaim space (M3) and Remove video older than (2.0).</summary>
+/// <summary>Settings › Storage and history › Reclaim space (M3), Remove video older than (2.0) and Delete audio tracks older than (2.1).</summary>
 /// <param name="ReclaimOlderThanDays">Recordings older than this many days are the ones <c>storage.reclaim</c> converts when no ids are given; <c>null</c> for none.</param>
 /// <param name="RemoveVideoOlderThanDays">2.0: recordings older than this many days lose their video files; <c>null</c> for never.</param>
-public sealed record LibraryStorageSettingsSnapshot(int? ReclaimOlderThanDays, int? RemoveVideoOlderThanDays = null);
+/// <param name="DeleteAudioOlderThanDays">2.1: recordings older than this many days lose their audio; <c>null</c> for never.</param>
+public sealed record LibraryStorageSettingsSnapshot(int? ReclaimOlderThanDays, int? RemoveVideoOlderThanDays = null, int? DeleteAudioOlderThanDays = null);

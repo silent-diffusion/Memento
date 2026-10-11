@@ -115,7 +115,7 @@ public sealed class VideoContractTests : IDisposable
         }
 
         var storage = await _host.ResultAsync("settings.set", """{"storage":{"removeVideoOlderThanDays":90}}""");
-        Assert.Equal("""{"reclaimOlderThanDays":null,"removeVideoOlderThanDays":90}""", storage.GetProperty("storage").GetRawText());
+        Assert.Equal("""{"reclaimOlderThanDays":null,"removeVideoOlderThanDays":90,"deleteAudioOlderThanDays":null}""", storage.GetProperty("storage").GetRawText());
         var cleared = await _host.ResultAsync("settings.set", """{"storage":{"removeVideoOlderThanDays":null}}""");
         Assert.Equal(JsonValueKind.Null, cleared.GetProperty("storage").GetProperty("removeVideoOlderThanDays").ValueKind);
     }

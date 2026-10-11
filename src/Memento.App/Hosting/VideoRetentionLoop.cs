@@ -1,3 +1,4 @@
+using Memento.Core.Audio;
 using Memento.Core.Settings;
 using Memento.Core.Video;
 using Microsoft.Extensions.Hosting;
@@ -9,9 +10,10 @@ namespace Memento.App.Hosting;
 /// Settings › Storage and history › Remove video older than (2.0, DESIGN.md §18.5): once the page is ready, then every
 /// 24 hours and whenever the age is changed, the video of recordings older than it is removed
 /// (<see cref="VideoRemovalService.SweepAsync"/>; audio, transcript and documents are kept, and each recording's History
-/// says so). With the setting at Never (the default) nothing happens.
+/// says so). With the setting at Never (the default) nothing happens. 2.1: the same loop runs Delete audio tracks older
+/// than (<see cref="AudioRemovalService.SweepAsync"/>; the transcript, documents and video are kept), after the video sweep.
 /// </summary>
-internal sealed partial class VideoRetentionLoop(VideoRemovalService removal, ISettingsStore settings, UiLifecycle lifecycle, TimeProvider time, ILogger<VideoRetentionLoop> logger) : BackgroundService
+internal sealed partial class VideoRetentionLoop(VideoRemovalService removal, AudioRemovalService audio, ISettingsStore settings, UiLifecycle lifecycle, TimeProvider time, ILogger<VideoRetentionLoop> logger) : BackgroundService
 {
     public static readonly TimeSpan Interval = TimeSpan.FromHours(24);
 
@@ -51,9 +53,11 @@ internal sealed partial class VideoRetentionLoop(VideoRemovalService removal, IS
 
     private void OnSettingsChanged(object? sender, SettingsChangedEventArgs e)
     {
-        if (e.Current.Storage.RemoveVideoOlderThanDays is not null
-            && e.Current.Storage.RemoveVideoOlderThanDays != e.Previous.Storage.RemoveVideoOlderThanDays
-            && _changed.CurrentCount == 0)
+        var video = e.Current.Storage.RemoveVideoOlderThanDays is not null
+            && e.Current.Storage.RemoveVideoOlderThanDays != e.Previous.Storage.RemoveVideoOlderThanDays;
+        var audioAge = e.Current.Storage.DeleteAudioOlderThanDays is not null
+            && e.Current.Storage.DeleteAudioOlderThanDays != e.Previous.Storage.DeleteAudioOlderThanDays;
+        if ((video || audioAge) && _changed.CurrentCount == 0)
         {
             _changed.Release();
         }
@@ -67,6 +71,12 @@ internal sealed partial class VideoRetentionLoop(VideoRemovalService removal, IS
             if (removed > 0)
             {
                 LogSwept(removed);
+            }
+
+            var deleted = await audio.SweepAsync(cancellationToken);
+            if (deleted > 0)
+            {
+                LogAudioSwept(deleted);
             }
         }
         catch (OperationCanceledException)
@@ -84,6 +94,9 @@ internal sealed partial class VideoRetentionLoop(VideoRemovalService removal, IS
     [LoggerMessage(Level = LogLevel.Information, Message = "Remove video older than: {Count} recordings lost their video files")]
     private partial void LogSwept(int count);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Remove video older than: the sweep failed; it runs again later")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Delete audio older than: {Count} recordings lost their audio files")]
+    private partial void LogAudioSwept(int count);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Remove video or delete audio older than: the sweep failed; it runs again later")]
     private partial void LogFailed(Exception exception);
 }

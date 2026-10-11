@@ -194,6 +194,7 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         var registered = _stages.FirstOrDefault(s => s.Name == stage)
             ?? throw new BridgeException(BridgeErrorCodes.InvalidParams, $"There is no '{stage}' stage to retry in this version.");
         var manifest = await _store.LoadAsync(recordingId, cancellationToken);
+        RefuseWithoutAudio(manifest);
         var current = StageList.Find(manifest.Stages, stage);
         if (RunningStage(recordingId) == stage)
         {
@@ -237,6 +238,7 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
             throw new BridgeException(DomainErrorCodes.EngineUnavailable, "Transcription is not available in this build.", "The transcription worker is not installed.");
         }
 
+        RefuseWithoutAudio(await _store.LoadAsync(recordingId, cancellationToken));
         if (RunningStage(recordingId) == StageNames.Transcript)
         {
             await CancelStageAsync(recordingId, StageNames.Transcript, StageStopReason.Requeued);
@@ -246,6 +248,18 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         await _status.SetAsync(recordingId, StageStatusWriter.QueuedStatus(StageNames.Transcript), cancellationToken);
         await QueueDependentsAsync(recordingId, cancellationToken);
         Schedule(recordingId);
+    }
+
+    /// <summary>2.1: every stage reads the audio, so after "Delete audio" nothing can run again.</summary>
+    private static void RefuseWithoutAudio(ProjectManifest manifest)
+    {
+        if (manifest.AudioRemoved is { } removed)
+        {
+            throw new BridgeException(
+                BridgeErrorCodes.InvalidParams,
+                $"The audio of \"{manifest.Details.Title}\" was deleted on {removed.At:yyyy-MM-dd}, so it can't be processed again. Nothing was changed; the transcript and documents are kept as they are.",
+                manifest.Id);
+        }
     }
 
     /// <summary>Stops <paramref name="stage"/> if it is running for the recording, so it can start over with new options.</summary>

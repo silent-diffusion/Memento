@@ -12,6 +12,12 @@ public sealed record GeneralSettingsPatch
 
     public bool? AutoUpdate { get; init; }
 
+    /// <summary>2.1: <c>yearMonthDay</c>, <c>dayMonthYear</c>, <c>monthDayYear</c>, <c>iso</c> or <c>windows</c>.</summary>
+    public string? DateFormat { get; init; }
+
+    /// <summary>2.1: the Library's view, <c>timeline</c> or <c>folders</c>.</summary>
+    public string? LibraryView { get; init; }
+
     /// <summary>Read only (2.0): accepted so the UI can send the whole block back, and ignored.</summary>
     public bool? StartWithWindowsAvailable { get; init; }
 

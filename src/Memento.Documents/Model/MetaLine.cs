@@ -7,6 +7,18 @@ public static class MetaLine
 {
     public const string Separator = " · ";
 
+    private static volatile string? _dateFormat;
+
+    /// <summary>
+    /// 2.1: Settings › General › Date format (<see cref="Core.Formatting.DateFormats"/>), set by the app at start and
+    /// whenever it changes; <c>null</c> (tests, tools) keeps the original "5 October 2026" wording.
+    /// </summary>
+    public static string? DateFormat
+    {
+        get => _dateFormat;
+        set => _dateFormat = value;
+    }
+
     /// <summary>"Meeting minutes · Sunday 5 October 2026, 4:00 PM · 1 h 10 min · Zoom · 4 participants"; empty parts are left out.</summary>
     public static string Format(DocumentMeta meta)
     {
@@ -33,10 +45,14 @@ public static class MetaLine
     }
 
     /// <summary>"Sunday 5 October 2026, 4:00 PM" in the recording's own offset.</summary>
-    public static string LongDate(DateTimeOffset at) => at.ToString("dddd d MMMM yyyy, h:mm tt", CultureInfo.InvariantCulture);
+    public static string LongDate(DateTimeOffset at) => _dateFormat is { } format
+        ? at.ToString("dddd ", CultureInfo.InvariantCulture) + Core.Formatting.DateFormats.Format(at, format) + at.ToString(", h:mm tt", CultureInfo.InvariantCulture)
+        : at.ToString("dddd d MMMM yyyy, h:mm tt", CultureInfo.InvariantCulture);
 
     /// <summary>"5 October 2026", for the running header.</summary>
-    public static string ShortDate(DateTimeOffset at) => at.ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
+    public static string ShortDate(DateTimeOffset at) => _dateFormat is { } format
+        ? Core.Formatting.DateFormats.Format(at, format)
+        : at.ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>"1 h 10 min", "42 min", "2 h", "35 s"; minutes to the nearest one, as the Library shows them (2:58 is "3 min").</summary>
     public static string Duration(long milliseconds)

@@ -18,6 +18,13 @@ public sealed record LibraryStorageSettings
     /// </summary>
     public int? RemoveVideoOlderThanDays { get; init; }
 
+    /// <summary>
+    /// 2.1, Settings › Storage and history › Delete audio tracks older than: recordings older than this many days lose
+    /// their audio (tracks, mix, peaks; the transcript, documents and video are kept). One of
+    /// <see cref="Audio.AudioRemovalService.AgeChoices"/>, or <c>null</c> for never, the default.
+    /// </summary>
+    public int? DeleteAudioOlderThanDays { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -27,5 +34,7 @@ public sealed record LibraryStorageSettings
             ? $"Recordings older than {ReclaimOlderThanDays} days is out of range. Choose {MinDays} to {MaxDays} days, or none."
             : RemoveVideoOlderThanDays is < MinDays or > MaxDays
                 ? $"Removing video older than {RemoveVideoOlderThanDays} days is out of range. Choose {MinDays} to {MaxDays} days, or never."
-                : null;
+                : DeleteAudioOlderThanDays is { } audio && !Audio.AudioRemovalService.AgeChoices.Contains(audio)
+                    ? $"Deleting audio older than {audio} days is not one of the choices. Choose {string.Join(", ", Audio.AudioRemovalService.AgeChoices)} days, or never."
+                    : null;
 }

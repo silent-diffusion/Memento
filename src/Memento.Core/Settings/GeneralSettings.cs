@@ -25,12 +25,25 @@ public sealed record GeneralSettings
     /// </summary>
     public bool AutoUpdate { get; init; } = true;
 
+    /// <summary>2.1: one of <see cref="Formatting.DateFormats"/>; how full dates read everywhere (new titles, lists, exports, History).</summary>
+    public string DateFormat { get; init; } = Formatting.DateFormats.Default;
+
+    public const string TimelineView = "timeline";
+    public const string FoldersView = "folders";
+
+    /// <summary>2.1: the Library's Folders / Timeline switch, remembered for this Windows user; <c>timeline</c> by default.</summary>
+    public string LibraryView { get; init; } = TimelineView;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
     /// <summary>Returns the first problem, worded for people, or <c>null</c>.</summary>
     public string? Validate() =>
-        Languages.Contains(Language, StringComparer.Ordinal)
-            ? null
-            : $"Language '{Language}' is not available in this version. Choose {string.Join(", ", Languages)}.";
+        !Languages.Contains(Language, StringComparer.Ordinal)
+            ? $"Language '{Language}' is not available in this version. Choose {string.Join(", ", Languages)}."
+            : !Formatting.DateFormats.IsKnown(DateFormat)
+                ? $"Date format '{DateFormat}' is not available. Choose {string.Join(", ", Formatting.DateFormats.All)}."
+                : LibraryView is not (TimelineView or FoldersView)
+                    ? $"Library view '{LibraryView}' is not available. Choose {TimelineView} or {FoldersView}."
+                    : null;
 }

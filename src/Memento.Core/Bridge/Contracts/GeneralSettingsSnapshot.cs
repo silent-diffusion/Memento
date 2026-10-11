@@ -6,10 +6,14 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="AutoUpdate">"Install updates automatically" (H1): check at start and daily, download in the background.</param>
 /// <param name="StartWithWindowsAvailable">Only an installed copy may register itself (2.0); Settings disables the toggle otherwise.</param>
 /// <param name="StartWithWindowsNote">Why it is not available, as a sentence; <c>null</c> when it is.</param>
+/// <param name="DateFormat">2.1: how full dates read (Settings › General › Date format).</param>
+/// <param name="LibraryView">2.1: the Library's Folders / Timeline switch: <c>timeline</c> or <c>folders</c>.</param>
 public sealed record GeneralSettingsSnapshot(
     bool StartWithWindows,
     bool KeepRunningInTray,
     string Language,
     bool AutoUpdate = true,
     bool StartWithWindowsAvailable = true,
-    string? StartWithWindowsNote = null);
+    string? StartWithWindowsNote = null,
+    string DateFormat = Formatting.DateFormats.Default,
+    string LibraryView = Settings.GeneralSettings.TimelineView);

@@ -28,7 +28,8 @@ public sealed class VideoTracksMigrationTests : IDisposable
     {
         var migrated = ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = 3, ["videoTracks"] = new JsonArray() });
 
-        Assert.Equal(4, migrated.Manifest["schemaVersion"]!.GetValue<int>());
+        // 2.1 adds the v4 → v5 folder step after it.
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, migrated.Manifest["schemaVersion"]!.GetValue<int>());
         Assert.Empty(migrated.Manifest["videoTracks"]!.AsArray());
         Assert.True(migrated.Migrated);
     }
@@ -84,7 +85,7 @@ public sealed class VideoTracksMigrationTests : IDisposable
         Assert.Equal(("screen", "video", 120L, 600L), (track.Role, track.Kind, track.StartOffsetMs, track.FramesWritten));
         Assert.Null(loaded.VideoRemoved);
         var written = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
-        Assert.Equal(4, written["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, written["schemaVersion"]!.GetValue<int>());
         Assert.Equal("kept", written["videoTracks"]![0]!["laterField"]!.GetValue<string>());
     }
 

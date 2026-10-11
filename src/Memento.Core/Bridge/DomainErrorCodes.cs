@@ -223,4 +223,15 @@ public static class DomainErrorCodes
 
     /// <summary>The disk is (nearly) full: video stopped first; audio continues.</summary>
     public const string VideoDiskFull = "video.diskFull";
+
+    // 2.1: Library folders (BRIDGE.md "2.1 — Folders, dates and Delete audio").
+
+    /// <summary>The folder named is not in the Library (any more); <c>detail</c> is the path.</summary>
+    public const string FolderNotFound = "folder.notFound";
+
+    /// <summary>A folder with that name (ignoring case) is already there; <c>detail</c> is the name.</summary>
+    public const string FolderNameTaken = "folder.nameTaken";
+
+    /// <summary>The name is empty, too long or has <c>/</c> or <c>\</c>, or the move would put a folder in itself or nest deeper than 8.</summary>
+    public const string FolderInvalid = "folder.invalid";
 }

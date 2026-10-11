@@ -50,7 +50,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             }
             else
             {
-                unavailable.Add(new(ExportComponents.AudioMixed, "Not saved yet"));
+                unavailable.Add(new(ExportComponents.AudioMixed, manifest.AudioRemoved is not null ? "Audio was deleted" : "Not saved yet"));
             }
         }
 
@@ -60,7 +60,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
             if (tracks.Count == 0)
             {
                 // 2.0: "Keep only the mix" removed them; otherwise they are not stored yet.
-                unavailable.Add(new(ExportComponents.Tracks, manifest.MixOnly is not null ? "Only the mix was kept" : "Not saved yet"));
+                unavailable.Add(new(ExportComponents.Tracks, manifest.AudioRemoved is not null ? "Audio was deleted" : manifest.MixOnly is not null ? "Only the mix was kept" : "Not saved yet"));
             }
 
             foreach (var track in tracks)
