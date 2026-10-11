@@ -40,7 +40,7 @@ import type {
 
 /**
  * `?video=` (comma-separated): `on` starts with Audio + video; `off` reports no video capture;
- * `nocamera`; before recording `blocked` (screen capture blocked), `privacy` (camera privacy off),
+ * `nocamera`; `virtualcam` (the only camera is the OBS Virtual Camera, reached through DirectShow); before recording `blocked` (screen capture blocked), `privacy` (camera privacy off),
  * `inuse` (camera in use by Zoom, free 20 s into a recording), `noencoder`; during a recording, 10 s
  * in, `disconnect` (display), `closed` and `protected` (window), `minimised` (window, 8–14 s),
  * `fallback` (hardware encoder, 8 s), `diskfull` (15 s), `lowdisk` (the low-space banner with video
@@ -51,6 +51,7 @@ export type VideoFlag =
   | 'on'
   | 'off'
   | 'nocamera'
+  | 'virtualcam'
   | 'blocked'
   | 'privacy'
   | 'inuse'
@@ -70,6 +71,7 @@ export const VIDEO_FLAGS: readonly VideoFlag[] = [
   'on',
   'off',
   'nocamera',
+  'virtualcam',
   'blocked',
   'privacy',
   'inuse',
@@ -116,6 +118,7 @@ export const SAMPLE_DISPLAYS: readonly VideoSource[] = [
     refreshRate: 60,
     primary: true,
     excluded: false,
+    backend: null,
   },
   {
     id: 'display:\\\\.\\DISPLAY2',
@@ -127,21 +130,36 @@ export const SAMPLE_DISPLAYS: readonly VideoSource[] = [
     refreshRate: 60,
     primary: false,
     excluded: false,
+    backend: null,
   },
 ];
 
 export const SAMPLE_WINDOWS: readonly VideoSource[] = [
-  { id: 'window:1A2B3C', kind: 'window', name: 'Zoom Meeting', detail: 'Zoom · 1600 × 900', width: 1600, height: 900, refreshRate: 60, primary: false, excluded: false },
-  { id: 'window:2B3C4D', kind: 'window', name: 'Library — Figma', detail: 'Figma · 2000 × 1250', width: 2000, height: 1250, refreshRate: 60, primary: false, excluded: false },
-  { id: 'window:3C4D5E', kind: 'window', name: 'DESIGN.md — Microsoft Edge', detail: 'Edge · 1440 × 1000', width: 1440, height: 1000, refreshRate: 60, primary: false, excluded: false },
-  { id: 'window:4D5E6F', kind: 'window', name: 'Memento', detail: 'This app is excluded from capture', width: 1440, height: 900, refreshRate: 60, primary: false, excluded: true },
-  { id: 'window:5E6F70', kind: 'window', name: 'Password vault', detail: 'This window keeps itself out of captures', width: 900, height: 640, refreshRate: 60, primary: false, excluded: true },
+  { id: 'window:1A2B3C', kind: 'window', name: 'Zoom Meeting', detail: 'Zoom · 1600 × 900', width: 1600, height: 900, refreshRate: 60, primary: false, excluded: false, backend: null },
+  { id: 'window:2B3C4D', kind: 'window', name: 'Library — Figma', detail: 'Figma · 2000 × 1250', width: 2000, height: 1250, refreshRate: 60, primary: false, excluded: false, backend: null },
+  { id: 'window:3C4D5E', kind: 'window', name: 'DESIGN.md — Microsoft Edge', detail: 'Edge · 1440 × 1000', width: 1440, height: 1000, refreshRate: 60, primary: false, excluded: false, backend: null },
+  { id: 'window:4D5E6F', kind: 'window', name: 'Memento', detail: 'This app is excluded from capture', width: 1440, height: 900, refreshRate: 60, primary: false, excluded: true, backend: null },
+  { id: 'window:5E6F70', kind: 'window', name: 'Password vault', detail: 'This window keeps itself out of captures', width: 900, height: 640, refreshRate: 60, primary: false, excluded: true, backend: null },
 ];
 
 export const SAMPLE_CAMERAS: readonly VideoSource[] = [
-  { id: 'camera:usb-brio', kind: 'camera', name: 'Logitech Brio', detail: 'USB · 1920 × 1080 · 30 fps', width: 1920, height: 1080, refreshRate: 30, primary: false, excluded: false },
-  { id: 'camera:integrated', kind: 'camera', name: 'Integrated camera', detail: 'Built in · 1280 × 720 · 30 fps', width: 1280, height: 720, refreshRate: 30, primary: false, excluded: false },
+  { id: 'camera:usb-brio', kind: 'camera', name: 'Logitech Brio', detail: 'USB · 1920 × 1080 · 30 fps', width: 1920, height: 1080, refreshRate: 30, primary: false, excluded: false, backend: 'mf' },
+  { id: 'camera:integrated', kind: 'camera', name: 'Integrated camera', detail: 'Built in · 1280 × 720 · 30 fps', width: 1280, height: 720, refreshRate: 30, primary: false, excluded: false, backend: 'mf' },
 ];
+
+/** A PC without a camera but with OBS: its virtual camera is a DirectShow filter (ENGINE-NOTES.md §R). */
+export const SAMPLE_VIRTUAL_CAMERA: VideoSource = {
+  id: 'camera:dshow:clsid:{A3FCE0F5-3493-419F-958A-ABA1250EC20B}',
+  kind: 'camera',
+  name: 'OBS Virtual Camera',
+  detail: 'Camera',
+  width: 0,
+  height: 0,
+  refreshRate: 0,
+  primary: false,
+  excluded: false,
+  backend: 'dshow',
+};
 
 /** Settings › Recording › Video defaults as a new install has them (BRIDGE.md additions, Settings). */
 export function defaultVideoSettings(): VideoSettings {
@@ -395,7 +413,7 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
   const urls = new Map<string, string>();
   const generating = new Set<string>();
 
-  const cameras = (): VideoSource[] => (has('nocamera') ? [] : [...SAMPLE_CAMERAS]);
+  const cameras = (): VideoSource[] => (has('nocamera') ? [] : has('virtualcam') ? [SAMPLE_VIRTUAL_CAMERA] : [...SAMPLE_CAMERAS]);
   const allSources = (): VideoSource[] => [...SAMPLE_DISPLAYS, ...SAMPLE_WINDOWS, ...cameras()];
   const sourceById = (id: string): VideoSource | undefined => allSources().find((s) => s.id === id);
   const elapsed = (): number => env.session()?.elapsedMs ?? 0;

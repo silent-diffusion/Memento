@@ -2446,7 +2446,7 @@ export type VideoSourceKind = 'display' | 'window' | 'camera';
 export type VideoRole = 'screen' | 'camera';
 
 export interface VideoSource {
-  /** 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>'. */
+  /** 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>', 'camera:dshow:<device>'. */
   id: string;
   kind: VideoSourceKind;
   /** "Display 1", the window title, the camera's name. */
@@ -2459,7 +2459,16 @@ export interface VideoSource {
   primary: boolean;
   /** Memento's own windows and windows that keep themselves out of captures: listed, not selectable. */
   excluded: boolean;
+  /**
+   * For a camera: 'mf' (Media Foundation: webcams and capture cards Windows lists as cameras) or 'dshow'
+   * (DirectShow: virtual and software cameras such as the OBS Virtual Camera, noted "via DirectShow");
+   * null for a display or a window.
+   */
+  backend: VideoCameraBackend | null;
 }
+
+/** How the host reaches a camera (BRIDGE.md, VideoSource.backend). */
+export type VideoCameraBackend = 'mf' | 'dshow';
 
 export type VideoTrackState = 'recording' | 'paused' | 'waiting' | 'ended' | 'stopped';
 
