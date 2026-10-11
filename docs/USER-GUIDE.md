@@ -2,7 +2,7 @@
 
 Memento records meetings, interviews, lectures and dictation on your Windows PC, keeps each sound source as its own track, writes down what was said on your PC, tells the speakers apart, turns a recording into minutes, summaries and other documents, and lets you export exactly the parts you need. Nothing you record leaves your PC unless you export it yourself or choose an online AI service for a document.
 
-This guide covers version 1.0.0.
+This guide covers version 2.0.0. Features new in 2.0 are video ([Recording video](#recording-video)), the live transcript ([During the recording](#during-the-recording)), suggested chapters and selecting lines ([Review and the transcript](#review-and-the-transcript)), remembering speakers by voice ([Speakers](#speakers)), Tesseract ([Agenda and attachments](#agenda-and-attachments)), the follow-up email and the preview sheet ([Documents](#documents)), video export ([Export](#export)), and the tray, starting with Windows and Keep only the mix ([Settings](#settings)).
 
 ## Contents
 
@@ -31,7 +31,7 @@ This guide covers version 1.0.0.
 2. Download `MementoApp-win-Setup.exe`.
 3. Run it. Memento installs for your Windows account only, needs no administrator rights, and starts when it is done. If the Microsoft Edge WebView2 Runtime is missing, Setup installs it first.
 
-You need Windows 11, or Windows 10 version 2004 or later, on a 64-bit PC. A graphics card makes transcription much faster but is not required.
+You need Windows 11, or Windows 10 version 2004 or later, on a 64-bit PC. A graphics card makes transcription, the local AI model and video encoding much faster but is not required. On Windows 10 a screen recording always shows Windows' yellow border around what is captured; only Windows 11 lets Memento turn it off.
 
 The installer is not code-signed yet, so Windows SmartScreen may warn you the first time. If you downloaded it from the project's Releases page, choose **More info**, then **Run anyway**.
 
@@ -179,9 +179,9 @@ The files go into a folder named after the recording, with a `manifest.json` tha
 Open Settings with the gear at the top right. Every change is saved at once.
 
 - **General**: theme (follows Windows by default), list density, **Start Memento with Windows** (only for an installed Memento; it starts minimised, or only in the tray), **Keep running in the tray when closed** (off by default: with it on, closing the window leaves Memento in the notification area with Open, New recording and Quit, and a recording in progress shows on the icon and its tooltip; Quit ends Memento, and a recording in progress stops with everything so far kept), where the library lives (moving it copies and checks every file before removing the old copy), language, **Updates**, and **About** (version, library location and the licenses of the components inside Memento).
-- **Recording**: the default sources and recording type, **Video defaults** (record video by default, the default source and camera, resolution, frame rate, quality, the camera picture's corner, the graphics card's encoder and the mouse pointer), how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), **Keep only the mix** (off by default: after processing, each source's own track file is removed and only the mix is kept; speakers can then no longer be identified per track and tracks can no longer be exported for that recording, and its History says so), and the free-space warning level (10 GB by default).
-- **Transcription**: transcribe automatically or by hand, **Live transcript while recording** (and whether it may use the graphics card), pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark. Under **Engine**, a line says how much of the graphics card's memory is free and which programs use the rest; when the model needs more than is free, it says so and what to close. **Check again** reads the card again.
-- **Speakers**: identify speakers, the expected number, remember speakers by voice and the known voices, and the speaker models.
+- **Recording**: the default sources and recording type, **Video defaults** (see [Recording video](#recording-video); record video by default, the default source and camera, resolution, frame rate, quality, the camera picture's corner, the graphics card's encoder and the mouse pointer), how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), **Keep only the mix** (off by default: after processing, each source's own track file is removed and only the mix is kept; speakers can then no longer be identified per track and tracks can no longer be exported for that recording, and its History says so), and the free-space warning level (10 GB by default).
+- **Transcription**: transcribe automatically or by hand, **Live transcript while recording** (see [During the recording](#during-the-recording); and whether it may use the graphics card), pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark. Under **Engine**, a line says how much of the graphics card's memory is free and which programs use the rest; when the model needs more than is free, it says so and what to close. **Check again** reads the card again.
+- **Speakers**: identify speakers, the expected number, remember speakers by voice and the known voices (see [Speakers](#speakers)), and the speaker models.
 - **AI and privacy**: the local models, with **Use this model** beside each installed one and a line that says which model writes documents, where it runs (graphics card or processor) and why (when only one is installed it is used, whatever the card has free), and beneath it the graphics card's free memory, who uses the rest and **Check again**; **Allow external AI services** (off by default) with what may be shared (Audio and Video are listed as never sent), **Ask before every send** and **Keep a record of what was sent**; the default provider; and your Claude and ChatGPT keys, which are encrypted for your Windows account and never shown again.
 - **Documents**: the default template and style, **Manage templates and styles**, **Agenda photos and scans** (Windows OCR, or Tesseract once you install **Tesseract English** from its card here; Remove is off while Tesseract is chosen), and version history for transcripts and documents.
 - **Export**: the default folder and what to include.
@@ -233,7 +233,7 @@ Recordings, transcripts and everything else stay in the library folder on your P
 - download a transcription, speaker, text-recognition or local AI model you choose to install (from the addresses listed with each model);
 - send the inputs you tick to Claude or ChatGPT, only after you allow external AI services and add your own key, and only when you generate a document with them. The local model sends nothing.
 
-Audio and video are never sent anywhere. There is no account, no telemetry and no advertising.
+Audio and video are never sent anywhere, and video is never transcribed, analysed or used for a document (see [Recording video](#recording-video)). The live transcript and suggested chapters are made on your PC. Voice signatures for **Remember speakers by voice** stay on this PC in the library's `voices` folder and are never sent (see [Speakers](#speakers)). There is no account, no telemetry and no advertising.
 
 The Microsoft Edge WebView2 runtime, which draws Memento's window, has its own background connections to Microsoft (runtime updates and configuration). Memento cannot turn them off; they carry nothing from your recordings, because the window never loads anything from the internet.
 

@@ -2,6 +2,8 @@
 
 A release is a tag `vX.Y.Z` on `main`. `.github/workflows/release.yml` builds, tests and packs it with a read-only token, then a separate job that runs no project code publishes the GitHub release: `MementoApp-win-Setup.exe`, `MementoApp-win-Portable.zip`, the full (and, after the first release, delta) `.nupkg`, the Velopack feed `releases.win.json`, the two CycloneDX SBOMs and `SHA256SUMS.txt`. Versions before 0.5.0 and versions with a suffix (`1.1.0-rc.1`) are published as pre-releases; every other version is a full release, and the app's update check follows the same rule (`UpdatePolicy`).
 
+**Betas before a major version.** 2.0.0 is tried first as `v2.0.0-beta.1`, `v2.0.0-beta.2`, …: set `<Version>2.0.0-beta.N</Version>`, tag `v2.0.0-beta.N`, and `release.yml` marks the release as a pre-release because of the suffix (`$version.Contains('-')`). Installed 1.x copies are not offered a beta (`UpdatePolicy` skips versions with a suffix; they follow the latest full release), so a beta is installed by hand from its release page; a beta itself accepts pre-releases, so it updates to the next beta and then to 2.0.0. Each beta gets its own `## 2.0.0-beta.N` section in `build/RELEASE-NOTES.md`, or the notes say what changed since the previous beta; the final `v2.0.0` gets the full section.
+
 Never reuse or move a published tag: installed copies update from the feed of the latest full release, and Velopack's package id (`MementoApp`) is permanent.
 
 ## Checklist
@@ -46,6 +48,8 @@ On a clean Windows 11 account or machine (no earlier Memento, no `%LOCALAPPDATA%
 - [ ] Run the downloaded Setup. SmartScreen warns while the installer is unsigned ("More info" → "Run anyway"); the WebView2 Runtime is installed first if it is missing. Memento installs to `%LOCALAPPDATA%\MementoApp` without administrator rights and starts.
 - [ ] The first-run Library shows; Settings › General › About shows X.Y.Z; `%LOCALAPPDATA%\Memento\logs` says X.Y.Z.
 - [ ] A short recording with the microphone and "Everything this PC plays" stops, saves and opens in Review; a model installs from Settings › Transcription and the recording is transcribed; an export opens in Explorer.
+- [ ] Video (2.0 on): a 1-minute **desktop recording** (Display 1 plus the microphone) stops, the Video stage finishes, Review plays the video in step with the mix and follows a seek, and Export › Video › One file writes an MP4 that plays. The Encoder card named the hardware or software encoder you expected. Delete the recording afterwards (it shows the screen).
+- [ ] Video, on a PC **with a camera**: Screen + camera records both tracks, the camera's light comes on only while recording, the inset sits in the chosen corner in Review and in the One file export, and turning Windows' camera privacy switch off gives the named message instead of a black track. (Not yet checked on any PC: the development PC has no camera.)
 - [ ] Settings › General › Updates › **Check now** answers "Memento X.Y.Z is the newest version."
 - [ ] Uninstall from Windows Settings › Apps: the program folder is removed, `%LOCALAPPDATA%\Memento` (recordings, settings, models) is kept.
 
@@ -54,7 +58,7 @@ On a clean Windows 11 account or machine (no earlier Memento, no `%LOCALAPPDATA%
 On a machine with the previous full release installed and a recording in its library:
 
 - [ ] Start it and wait (or **Check now**): the footer shows "Downloading Memento X.Y.Z", then a toast offers **Restart to update**. No check or download starts while recording or processing.
-- [ ] **Restart to update**: Memento closes normally, the update installs and Memento comes back as X.Y.Z with the same library, settings, models and keys.
+- [ ] **Restart to update**: Memento closes normally, the update installs and Memento comes back as X.Y.Z with the same library, settings, models and keys. For a major version (2.0.0), the 1.x recordings open in Review, play, and export; settings keep every value (keep-only-the-mix and the live transcript start off).
 - [ ] Before the first public release this was checked against a local feed (`tools/e2e/h1-update-feed.ps1`, `tools/e2e/h1-update.mjs`); from the second release on it is checked against the real feed.
 
 ## If something is wrong
