@@ -73,6 +73,20 @@ describe('trackPosition: which part covers a moment of the recording timeline', 
     expect(trackPosition(t, 3_600_000)).toEqual({ kind: 'after', endedAtMs: 50_000 });
   });
 
+  it('shows the first frame when the track or a part starts within two seconds (the real host starts video ~200 ms after audio)', () => {
+    const t = track({
+      startOffsetMs: 180,
+      durationMs: 40_000,
+      parts: [
+        { url: 'blob:a', startOffsetMs: 180, durationMs: 20_000 },
+        { url: 'blob:b', startOffsetMs: 21_500, durationMs: 18_680 },
+      ],
+    });
+    expect(trackPosition(t, 0)).toMatchObject({ kind: 'play', partIndex: 0, localMs: 0 });
+    expect(trackPosition(t, 20_500)).toMatchObject({ kind: 'play', partIndex: 1, localMs: 0 });
+    expect(trackPosition({ ...t, startOffsetMs: 2_500, parts: [{ url: 'blob:a', startOffsetMs: 2_500, durationMs: 20_000 }] }, 0)).toEqual({ kind: 'before', startsAtMs: 2_500 });
+  });
+
   it('marks a part whose file cannot be read yet as preparing', () => {
     const t = track({
       parts: [

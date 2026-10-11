@@ -65,12 +65,13 @@ export function useVideoView(video: ProjectVideo | null, store: AppStore): Video
   const playable = video !== null && video.removed === null && video.tracks.length > 0;
   const isFull = full && playable && !audioOnly;
 
+  // Listening the whole time (not only from Fullscreen on) so an Esc pressed the moment Fullscreen opens is never lost:
+  // effects run after paint, which WebView2 can hold back while its window is covered (found by m8-video-ui).
+  const fullNow = useRef(isFull);
+  fullNow.current = isFull;
   useEffect(() => {
-    if (!isFull) {
-      return undefined;
-    }
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.defaultPrevented || store.dialog.value !== null || store.overlays.value > 0) {
+      if (!fullNow.current || event.key !== 'Escape' || event.defaultPrevented || store.dialog.value !== null || store.overlays.value > 0) {
         return;
       }
       const target = event.target;
@@ -87,7 +88,7 @@ export function useVideoView(video: ProjectVideo | null, store: AppStore): Video
     return () => {
       window.removeEventListener('keydown', onKey, true);
     };
-  }, [isFull, store]);
+  }, [store]);
 
   return {
     inset,

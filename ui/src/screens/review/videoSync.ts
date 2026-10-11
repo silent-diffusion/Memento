@@ -39,8 +39,18 @@ export const ENDS_WITH_RECORDING_MS = 1000;
  * track that ended with the recording (no end reason) holds its last frame to the end instead of
  * saying it ended.
  */
+/**
+ * A track whose first frame comes a little after the mix starts (the real host starts the screen track 100-300 ms after
+ * the audio) or a part that starts a moment later shows that first frame rather than a still: a picture this close is
+ * where the viewer expects it.
+ */
+export const SNAP_MS = 2000;
+
 export function trackPosition(track: Timed, timeMs: number, recordingMs?: number): TrackPosition {
-  const raw = Number.isFinite(timeMs) ? timeMs : 0;
+  const given = Number.isFinite(timeMs) ? timeMs : 0;
+  const nextStart = Math.min(...track.parts.map((p) => p.startOffsetMs).filter((at) => at > given), Number.POSITIVE_INFINITY);
+  const inside = track.parts.some((p) => given >= p.startOffsetMs && given < p.startOffsetMs + p.durationMs);
+  const raw = !inside && nextStart - given <= SNAP_MS ? nextStart : given;
   const end = track.startOffsetMs + track.durationMs;
   const endsWithRecording = recordingMs !== undefined && (track.endReason ?? null) === null && end >= recordingMs - ENDS_WITH_RECORDING_MS;
   const t = endsWithRecording && raw >= end && track.durationMs > 0 ? end - END_GUARD_MS : raw;
