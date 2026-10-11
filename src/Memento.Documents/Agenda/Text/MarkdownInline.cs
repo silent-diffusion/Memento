@@ -35,6 +35,7 @@ internal static partial class MarkdownInline
         }
         catch (RegexMatchTimeoutException)
         {
+            RegexGuard.NoteTimeout();
             return text;
         }
     }
