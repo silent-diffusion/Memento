@@ -83,6 +83,16 @@ public sealed partial class KnownVoicesStore(ILibraryLocation library, TimeProvi
             File.Delete(FilePath);
             File.Delete(FilePath + ".tmp");
             var folder = Path.GetDirectoryName(FilePath)!;
+
+            // A copy set aside when the file was unreadable holds signatures too: Forget all removes it (audit 2, SA2-30).
+            if (Directory.Exists(folder))
+            {
+                foreach (var aside in Directory.EnumerateFiles(folder, Path.GetFileName(FilePath) + ".damaged-*"))
+                {
+                    File.Delete(aside);
+                }
+            }
+
             if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any())
             {
                 Directory.Delete(folder);
@@ -116,8 +126,10 @@ public sealed partial class KnownVoicesStore(ILibraryLocation library, TimeProvi
 
             return document;
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or ArgumentException or InvalidOperationException or FormatException)
         {
+            // ArgumentException: a property written twice (JsonObject refuses it, audit 2, SA2-32); the others: values
+            // of the wrong kind. Either way the file is set aside, never read half.
             var aside = path + ".damaged-" + time.GetUtcNow().ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
             File.Move(path, aside, overwrite: true);
             LogSetAside(ex, Path.GetFileName(aside));

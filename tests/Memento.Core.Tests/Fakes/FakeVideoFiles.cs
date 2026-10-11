@@ -19,6 +19,9 @@ internal sealed class FakeVideoFiles : IVideoFiles
     /// <summary>Joins report that the parts were encoded again.</summary>
     public bool JoinReencodes { get; set; }
 
+    /// <summary>When set, answers (or throws) for a repaired file instead of <see cref="RepairResult"/>.</summary>
+    public Func<string, VideoFileRepair>? RepairWith { get; set; }
+
     public VideoFileRepair Repair(string path)
     {
         lock (Repaired)
@@ -26,7 +29,7 @@ internal sealed class FakeVideoFiles : IVideoFiles
             Repaired.Add(path);
         }
 
-        return RepairResult;
+        return RepairWith is { } answer ? answer(path) : RepairResult;
     }
 
     public bool LastJoinReencoded { get; private set; }

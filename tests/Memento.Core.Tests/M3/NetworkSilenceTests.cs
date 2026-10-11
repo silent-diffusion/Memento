@@ -35,8 +35,10 @@ public sealed class NetworkSilenceTests : IDisposable
             }
 
             await Assert.ThrowsAnyAsync<Exception>(() => request);
+            await System.Net.Dns.GetHostAddressesAsync("localhost");
             Assert.Contains(spy.Events, e => e.StartsWith("http GET http://127.0.0.1:", StringComparison.Ordinal));
             Assert.Contains(spy.Events, e => e.StartsWith("connect ", StringComparison.Ordinal));
+            Assert.Contains("resolve localhost", spy.Events);
         }
         finally
         {

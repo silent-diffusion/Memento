@@ -70,4 +70,30 @@ public sealed class HostingTests
         Assert.Equal(Memento.Video.Encoding.VideoQuality.Best, TrackSize.Quality(VideoSettings.QualityBest));
         Assert.Equal(Memento.Video.Encoding.VideoQuality.Balanced, TrackSize.Quality("anything else"));
     }
+
+    [Fact]
+    public void MementosOwnWindowsAndProtectedOnesAreRefusedByTheHostNotOnlyThePicker()
+    {
+        // Audit 2, SA2-05: listed as excluded, but recording.setVideoSource and video.thumbnail accepted them.
+        var own = new Memento.Video.Sources.VideoSourceInfo(Memento.Video.Sources.VideoSourceId.Window(0x1234), "Memento", "Memento", 800, 600, 0, false, IsExcluded: true, "Memento");
+        var shielded = own with { IsExcluded = false, IsProtected = true, Name = "Player" };
+        var ordinary = own with { IsExcluded = false, Name = "Notes" };
+
+        Assert.Equal(DomainErrorCodes.VideoSourceNotFound, MediaFoundationVideoCapture.Refusal(own)!.Code);
+        Assert.Contains("Memento does not record its own windows", MediaFoundationVideoCapture.Refusal(own)!.Message, StringComparison.Ordinal);
+        Assert.Equal(DomainErrorCodes.VideoProtectedContent, MediaFoundationVideoCapture.Refusal(shielded)!.Code);
+        Assert.Null(MediaFoundationVideoCapture.Refusal(ordinary));
+    }
+
+    [Fact]
+    public void AThinTallWindowGivesAThumbnailAtMostTwiceAsTallAsWide()
+    {
+        // Audit 2, SA2-04: a 2 × 4096 window asked for a 640 × 1,310,720 bitmap (3.4 GB).
+        using var thin = new System.Drawing.Bitmap(2, Thumbnails.MaxWindowSide);
+
+        var thumbnail = Thumbnails.Encode(thin, 640);
+
+        Assert.Equal((640, 1280), (thumbnail.Width, thumbnail.Height));
+        Assert.StartsWith("data:image/jpeg;base64,", thumbnail.DataUrl, StringComparison.Ordinal);
+    }
 }

@@ -146,6 +146,19 @@ public sealed partial class ContractDocumentationTests
     }
 
     [Fact]
+    public void EveryHostMethodIsDocumentedInBridgeMdAndListedExactlyInTheUi()
+    {
+        // Security audit 2 (SA2-44): the method list matched by discipline only; a method added without its contract
+        // or its documentation now fails here, like the events and error codes.
+        var host = Constants(typeof(BridgeMethodNames));
+        var ui = Literals(ReadRepoFile("ui", "src", "bridge", "types.ts"), "export const METHOD_NAMES = [", "] as const");
+
+        Assert.Equal(host.Count, host.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(host.Order(StringComparer.Ordinal), ui.Order(StringComparer.Ordinal));
+        Assert.All(host, name => Assert.Contains($"`{name}`", Doc, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TheLiveOutputEventIsDocumentedWithEveryFieldOfItsPayload()
     {
         var section = Sections("## Live output (M4)");

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace Memento.Documents.Agenda.Text;
@@ -14,6 +15,29 @@ internal static class RegexGuard
     /// <summary>Lines longer than this are not run through the structural patterns (headings, tables, inline markup).</summary>
     public const int MaxLineLength = 4_000;
 
+    private static readonly AsyncLocal<StrongBox<int>?> CurrentTally = new();
+
+    /// <summary>
+    /// Starts counting, for the calling flow and the work it starts, the matches that ran past the timeout. A linear
+    /// pattern does a few steps per character and never comes near the limit, so a count above zero means a pattern did
+    /// super-linear work on that text: the hardening tests check this count instead of a stopwatch.
+    /// </summary>
+    internal static StrongBox<int> StartTally()
+    {
+        var tally = new StrongBox<int>();
+        CurrentTally.Value = tally;
+        return tally;
+    }
+
+    /// <summary>Records one match that ran past the timeout (also called by code that catches the timeout itself).</summary>
+    internal static void NoteTimeout()
+    {
+        if (CurrentTally.Value is { } tally)
+        {
+            Interlocked.Increment(ref tally.Value);
+        }
+    }
+
     public static bool IsMatch(Regex regex, string input)
     {
         try
@@ -22,6 +46,7 @@ internal static class RegexGuard
         }
         catch (RegexMatchTimeoutException)
         {
+            NoteTimeout();
             return false;
         }
     }
@@ -34,6 +59,7 @@ internal static class RegexGuard
         }
         catch (RegexMatchTimeoutException)
         {
+            NoteTimeout();
             return System.Text.RegularExpressions.Match.Empty;
         }
     }
@@ -47,6 +73,7 @@ internal static class RegexGuard
         }
         catch (RegexMatchTimeoutException)
         {
+            NoteTimeout();
             return [];
         }
     }

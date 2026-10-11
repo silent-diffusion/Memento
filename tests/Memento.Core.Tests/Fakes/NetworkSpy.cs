@@ -75,7 +75,8 @@ internal sealed class NetworkSpy : EventListener, IObserver<DiagnosticListener>,
 
     protected override void OnEventSourceCreated(EventSource eventSource)
     {
-        if (eventSource.Name == "System.Net.Sockets")
+        // Audit 2: DNS lookups too (System.Net.NameResolution), which name a host before any connect.
+        if (eventSource.Name is "System.Net.Sockets" or "System.Net.NameResolution")
         {
             EnableEvents(eventSource, EventLevel.Informational, EventKeywords.All);
         }
@@ -86,6 +87,10 @@ internal sealed class NetworkSpy : EventListener, IObserver<DiagnosticListener>,
         if (_listening && eventData.EventName == "ConnectStart")
         {
             _events.Enqueue("connect " + (eventData.Payload is { Count: > 0 } payload ? Endpoint(payload[0]?.ToString()) : "?"));
+        }
+        else if (_listening && eventData.EventName == "ResolutionStart")
+        {
+            _events.Enqueue("resolve " + (eventData.Payload is { Count: > 0 } lookup ? lookup[0]?.ToString() : "?"));
         }
     }
 

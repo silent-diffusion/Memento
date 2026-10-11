@@ -110,6 +110,25 @@ public sealed class KeepOnlyMixTests : IDisposable
     }
 
     [Fact]
+    public async Task AManifestThatListsTheMixAsATrackKeepsEveryFile()
+    {
+        // Audit 2, SA2-35: the mix was checked, then deleted with the tracks because a track named the same file.
+        var id = await _m3.RecordAsync("Mix as a track", 2, Mic);
+        await _m3.Host.Processing.WhenIdleAsync().WaitAsync(Patience.Ceiling);
+        var folder = _m3.Host.Store.GetProjectFolder(id);
+        var mixFile = (await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).Mix!.File;
+        await _m3.Get<Memento.Core.Library.ProjectCatalog>().UpdateAsync(id, m => m with { Tracks = [m.Tracks[0] with { File = mixFile }] }, CancellationToken.None);
+
+        await _m3.ResultAsync("storage.keepOnlyMix", new { recordingIds = new[] { id } });
+        await _m3.Get<StorageReclaimService>().WhenIdleAsync().WaitAsync(Patience.Ceiling);
+
+        Assert.True(File.Exists(Path.Combine(folder, mixFile)));
+        Assert.Null((await _m3.Host.Store.LoadAsync(id, CancellationToken.None)).MixOnly);
+        var line = Assert.Single(await _m3.Host.Store.ReadHistoryAsync(id, CancellationToken.None), h => h.Stage == StageNames.Optimize && h.Event == "info");
+        Assert.Contains("is also listed as a separate track", line.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExistingRecordingsKeepOnlyTheirMixAsOneJobThatSaysWhatItFreed()
     {
         var first = await _m3.RecordAsync("First", 2, Mic, SystemAudio);

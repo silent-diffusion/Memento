@@ -1,3 +1,4 @@
+using System.Globalization;
 using Memento.Core.Audio;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
@@ -29,6 +30,12 @@ public sealed partial class RecoveryService(
     MediaImportService? imports = null,
     IVideoFiles? videoFiles = null)
 {
+    /// <summary>The encoder named for a video part found on disk after a crash (the state file had not named it yet).</summary>
+    internal const string UnknownEncoder = "unknown (found after a crash)";
+
+    /// <summary>Encoder fallbacks in one recording are rare; parts beyond this are not looked for.</summary>
+    private const int MaxProbedVideoParts = 64;
+
     private readonly ILogger<RecoveryService> _logger = logger;
 
     /// <summary>
@@ -53,7 +60,9 @@ public sealed partial class RecoveryService(
                     recovered.Add(id);
                 }
             }
-            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ProjectNotFoundException or ProjectSchemaException)
+#pragma warning disable CA1031 // One damaged or hostile project folder must not stop the recovery of every other one (audit 2, SA2-01).
+            catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
+#pragma warning restore CA1031
             {
                 // Leave it exactly as it is; the next launch tries again.
                 LogRecoveryFailed(ex, id);
@@ -305,9 +314,11 @@ public sealed partial class RecoveryService(
                 {
                     repair = files.Repair(path);
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+#pragma warning disable CA1031 // A damaged or hostile file is kept as it is; it must not stop the recovery of this or any other project (audit 2, SA2-01).
+                catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
+#pragma warning restore CA1031
                 {
-                    LogTrackUnrepairable(id, $"{entry.TrackId} ({part.File})", ex.Message);
+                    LogTrackUnrepairable(id, $"{entry.TrackId} ({part.File})", ex.GetType().Name);
                     parts.Add(part);
                     continue;
                 }
@@ -318,6 +329,39 @@ public sealed partial class RecoveryService(
                 }
 
                 parts.Add(files.IsAvailable && repair.Readable ? part with { DurationMs = repair.DurationMs, FramesWritten = repair.Frames } : part);
+            }
+
+            // A part the encoder fallback opened after the last checkpoint is on disk but not in the state file: find it
+            // the way the audio's capture parts are found, so that video is neither lost nor left behind (audit 2, SA2-03).
+            for (var n = Math.Max(2, entry.Parts.Count + 1); n <= MaxProbedVideoParts && parts.Count > 0; n++)
+            {
+                var file = string.Create(CultureInfo.InvariantCulture, $"tracks/{entry.TrackId}.part{n}.mp4");
+                if (entry.Parts.Any(p => p.File == file))
+                {
+                    continue;
+                }
+
+                if (!ProjectPaths.IsSafeRelative(file) || !File.Exists(ProjectPaths.Resolve(folder, file)))
+                {
+                    break;
+                }
+
+                VideoFileRepair repair;
+                try
+                {
+                    repair = files.Repair(ProjectPaths.Resolve(folder, file));
+                }
+#pragma warning disable CA1031 // As above: kept as it is, with no length.
+                catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
+#pragma warning restore CA1031
+                {
+                    LogTrackUnrepairable(id, $"{entry.TrackId} ({file})", ex.GetType().Name);
+                    repair = new VideoFileRepair(false, 0, 0, 0);
+                }
+
+                var previous = parts[^1];
+                parts.Add(new VideoTrackPart(file, previous.StartOffsetMs + previous.DurationMs, repair.Readable ? repair.DurationMs : 0, UnknownEncoder, false, repair.Readable ? repair.Frames : 0));
+                LogVideoPartFound(id, entry.TrackId, file);
             }
 
             if (parts.Count == 0)
@@ -369,6 +413,9 @@ public sealed partial class RecoveryService(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recovery: project {RecordingId} track {TrackId} header rewritten ({Bytes} bytes of samples, {Truncated} trailing bytes cut)")]
     private partial void LogTrackRepaired(string recordingId, string trackId, long bytes, long truncated);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recovery: project {RecordingId} video track {TrackId} has a part the state file did not name yet: {File}")]
+    private partial void LogVideoPartFound(string recordingId, string trackId, string file);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recovery: project {RecordingId} track {TrackId} could not be repaired: {Problem}")]
     private partial void LogTrackUnrepairable(string recordingId, string trackId, string problem);

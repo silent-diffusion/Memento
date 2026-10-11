@@ -78,9 +78,22 @@ public static class ProjectPaths
     public static string? FirstUnsafe(ProjectManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+
+        // System.Text.Json fills a list or an entry written as null with null whatever the annotations say: a crafted
+        // manifest with "videoTracks": [null] is refused here instead of throwing NullReferenceException (audit 2, SA2-08).
+        if (manifest.Tracks is null || manifest.VideoTracks is null || manifest.Attachments is null)
+        {
+            return manifest.Tracks is null ? "tracks" : manifest.VideoTracks is null ? "videoTracks" : "attachments";
+        }
+
         for (var i = 0; i < manifest.Tracks.Count; i++)
         {
             var track = manifest.Tracks[i];
+            if (track is null)
+            {
+                return $"tracks[{i}]";
+            }
+
             if (!IsSafeRelative(track.File))
             {
                 return $"tracks[{i}].file";
@@ -106,6 +119,11 @@ public static class ProjectPaths
         {
             // 2.0: video tracks are read, hashed, served and deleted by these names.
             var video = manifest.VideoTracks[i];
+            if (video?.Parts is null)
+            {
+                return $"videoTracks[{i}]";
+            }
+
             if (!IsSafeRelative(video.File))
             {
                 return $"videoTracks[{i}].file";
@@ -113,7 +131,7 @@ public static class ProjectPaths
 
             for (var p = 0; p < video.Parts.Count; p++)
             {
-                if (!IsSafeRelative(video.Parts[p].File))
+                if (video.Parts[p] is null || !IsSafeRelative(video.Parts[p].File))
                 {
                     return $"videoTracks[{i}].parts[{p}].file";
                 }
@@ -123,7 +141,7 @@ public static class ProjectPaths
         for (var i = 0; i < manifest.Attachments.Count; i++)
         {
             // Attachments are kept in attachments/; AttachmentService only touches files there (ResolveIn).
-            if (!IsSafeRelative(manifest.Attachments[i].File))
+            if (manifest.Attachments[i] is null || !IsSafeRelative(manifest.Attachments[i].File))
             {
                 return $"attachments[{i}].file";
             }

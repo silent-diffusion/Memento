@@ -272,6 +272,39 @@ public sealed partial class KnownVoiceService(
         {
             Purge(id);
         }
+
+        ForgetInJournal(recordingId);
+    }
+
+    /// <summary>
+    /// Undo snapshots taken before the recording was deleted still hold its samples: Undo must not bring a deleted
+    /// recording's signature back (audit 2, SA2-31), so they are scrubbed like the file.
+    /// </summary>
+    private void ForgetInJournal(string recordingId)
+    {
+        lock (_journalLock)
+        {
+            for (var node = _journal.First; node is not null; node = node.Next)
+            {
+                var change = node.Value;
+                if (change.Before.All(b => b.Before is null || (b.Before.Samples.All(s => s.RecordingId != recordingId) && !b.Before.Recordings.Contains(recordingId) && !b.Before.DeclinedIn.Contains(recordingId))))
+                {
+                    continue;
+                }
+
+                node.Value = change with
+                {
+                    Before = change.Before.Select(b => (b.VoiceId, b.Before is { } voice
+                        ? voice with
+                        {
+                            Samples = voice.Samples.Where(s => s.RecordingId != recordingId).ToList(),
+                            Recordings = voice.Recordings.Where(r => r != recordingId).ToList(),
+                            DeclinedIn = voice.DeclinedIn.Where(r => r != recordingId).ToList(),
+                        }
+                        : null)).ToList(),
+                };
+            }
+        }
     }
 
     private async Task<(string ChangeId, KnownVoice Voice)> EnrolAsync(KnownVoiceSample sample, string name, string embeddingModelId, CancellationToken cancellationToken)

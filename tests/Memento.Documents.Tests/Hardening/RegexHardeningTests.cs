@@ -12,10 +12,15 @@ namespace Memento.Documents.Tests.Hardening;
 /// The agenda patterns stay linear on hostile text (long runs of spaces, dots, quote marks or emphasis markers), and
 /// every one carries a match timeout as the last line of defence.
 /// </summary>
+/// <remarks>
+/// These tests measure work, not time: a linear pattern does a few steps per character and never comes near its 250 ms
+/// limit, while the regressions they guard against (cubic on long leaders, quadratic on markers) ran far past it, so they
+/// count the matches that ran past the limit (<see cref="RegexGuard.StartTally"/>) and require none. A stopwatch here
+/// failed on a loaded machine (security audit 2, SA2-70). The whole-parse checks also require that the parse was not
+/// stopped by the product's own ceiling (<see cref="AgendaLimits.ParseTimeout"/>), which a quadratic text pass would hit.
+/// </remarks>
 public sealed class RegexHardeningTests
 {
-    private static readonly TimeSpan Quick = WallClock.Limit(5);
-
     [Fact]
     public void EveryAgendaPatternHasAMatchTimeout()
     {
@@ -41,10 +46,10 @@ public sealed class RegexHardeningTests
     public void ALongLeaderWithNoTimeAfterItIsQuick(char leader)
     {
         var text = "Welcome" + new string(leader, 3_900) + "x9";
-        var watch = Stopwatch.StartNew();
+        var tally = RegexGuard.StartTally();
 
         Assert.False(MarkerParser.TryParseTrailingTime(text, out _, out _));
-        Assert.True(watch.Elapsed < WallClock.Limit(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        Assert.Equal(0, tally.Value);
     }
 
     [Theory]
@@ -78,14 +83,14 @@ public sealed class RegexHardeningTests
     [Fact]
     public void EmphasisMarkersInALongLineAreQuick()
     {
-        var watch = Stopwatch.StartNew();
+        var tally = RegexGuard.StartTally();
 
         MarkdownInline.Strip(string.Concat(Enumerable.Repeat("*a ", 1_300)));
         MarkdownInline.Strip(string.Concat(Enumerable.Repeat("[a](", 900)));
         MarkdownInline.Strip(string.Concat(Enumerable.Repeat("<a ", 1_300)));
         MarkdownInline.Strip(new string('`', 3_900));
 
-        Assert.True(watch.Elapsed < WallClock.Limit(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        Assert.Equal(0, tally.Value);
     }
 
     [Theory]
@@ -119,18 +124,20 @@ public sealed class RegexHardeningTests
         Assert.True(watch.Elapsed < WallClock.Limit(2), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
     }
 
+    /// <summary>The parse ends (a refusal is fine) without a pattern running past its limit and without hitting the parse ceiling.</summary>
     private static async Task Quickly(Func<Task> parse)
     {
-        var watch = Stopwatch.StartNew();
+        var tally = RegexGuard.StartTally();
         try
         {
             await parse();
         }
-        catch (AgendaImportException)
+        catch (AgendaImportException e)
         {
-            // Refusing is fine; being slow is not.
+            // Refusing is fine; being stopped for taking too long is not.
+            Assert.DoesNotContain("took longer than", e.Message, StringComparison.Ordinal);
         }
 
-        Assert.True(watch.Elapsed < Quick, $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.Equal(0, tally.Value);
     }
 }

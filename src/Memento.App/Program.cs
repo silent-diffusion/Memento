@@ -29,8 +29,14 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        // Velopack install/update/uninstall hooks run here and exit the process when they apply.
-        VelopackApp.Build().Run();
+        // DLLs loaded by name come only from the app folder and System32 (audit 2, SA2-09).
+        var dllSearchRestricted = DllSearchPath.Restrict();
+
+        // Velopack install/update/uninstall hooks run here and exit the process when they apply. Uninstalling removes the
+        // Start with Windows value, so it never names a program file that is gone (audit 2, SA2-34).
+        VelopackApp.Build()
+            .OnBeforeUninstallFastCallback(_ => new RegistryStartupRegistration().RemoveQuietly())
+            .Run();
 
         AppLogging.Configure();
         CrashHandler.InstallProcessHandlers();
@@ -57,6 +63,11 @@ internal static class Program
             {
                 // The installer replaces or deletes its own folder; user data must never live inside it (build/pack.ps1).
                 Log.Error("Memento is installed inside its data folder {DataRoot}; an uninstall or update would delete user data", AppPaths.DataRoot);
+            }
+
+            if (!dllSearchRestricted)
+            {
+                Log.Warning("Windows did not narrow the DLL search path; DLLs loaded by name may also come from the current directory or PATH");
             }
 
             // A screenshot run is a separate, short-lived process; it must not hand off to a running Memento.
