@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 namespace Memento.Core.Audio;
 
 /// <summary>
-/// "Delete audio" (2.1, DESIGN.md §6.7): deletes a recording's audio (every track file, the mix and the waveform peaks)
+/// "Delete audio" (2.1, DESIGN.md §6.2): deletes a recording's audio (every track file, the mix and the waveform peaks)
 /// after the page's confirmation (<c>audio.remove</c>) or, when Settings › Storage and history › Delete audio tracks older
 /// than is set, for recordings older than that (<see cref="SweepAsync"/>). The same order as Remove video: the manifest
 /// records it first (<c>audioRemoved</c>; the tracks stay listed without a hash, the mix and peaks are cleared), then the

@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Memento.Core.Library;
 
 /// <summary>
-/// Library folder paths (2.1, DESIGN.md §6.5): names joined by <c>/</c>, such as <c>Clients/Acme</c>; <c>null</c> is the
+/// Library folder paths (2.1, DESIGN.md §6.1): names joined by <c>/</c>, such as <c>Clients/Acme</c>; <c>null</c> is the
 /// root. Folders are data in <c>project.json</c> and <c>folders.json</c>, never real directories, so a name may hold
 /// any character but <c>/</c>, <c>\</c> and control characters. Names compare without case.
 /// </summary>

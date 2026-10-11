@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Memento.Core.Library;
 
 /// <summary>
-/// Library folders (2.1, DESIGN.md §6.5): a nested tree beside the timeline and type filters. A recording is filed in
+/// Library folders (2.1, DESIGN.md §6.1): a nested tree beside the timeline and type filters. A recording is filed in
 /// one folder or the root through <c>project.json</c>'s <c>folder</c>; the tree is <c>folders.json</c>
 /// (<see cref="FolderStore"/>) together with every folder a manifest names. Folders are data only: creating, renaming,
 /// moving or deleting one, or moving a recording, never moves or deletes a file. Renames and moves rewrite the
