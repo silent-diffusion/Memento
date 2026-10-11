@@ -34,7 +34,9 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
                 recording.KeepSeparateTracks,
                 new StorageSettingsSnapshot(storage.Codec, storage.IsLossy ? storage.BitrateKbps : null, storage.DownmixMono, storage.KeepOnlyMix),
                 recording.CheckpointSeconds,
-                recording.LowSpaceGb),
+                recording.LowSpaceGb,
+                recording.CaptureVideo,
+                VideoSettingsBlock.ToSnapshot(recording.Video)),
             new TranscriptionSettingsSnapshot(
                 transcription.Auto,
                 transcription.Timing,

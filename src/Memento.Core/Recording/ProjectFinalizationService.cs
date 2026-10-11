@@ -37,7 +37,7 @@ public sealed partial class ProjectFinalizationService(
     /// <c>stored</c> done, so the Library's processing card does not vanish for a moment in between (the orchestrator
     /// then schedules them, <see cref="ProcessingOrchestrator.EnqueueAfterStoredAsync"/>).
     /// </summary>
-    private IReadOnlyList<StageStatus> WithFollowingQueued(IReadOnlyList<StageStatus> stages)
+    private IReadOnlyList<StageStatus> WithFollowingQueued(ProjectManifest manifest, IReadOnlyList<StageStatus> stages)
     {
         if (settings is null)
         {
@@ -45,7 +45,7 @@ public sealed partial class ProjectFinalizationService(
         }
 
         var current = settings.Current;
-        foreach (var stage in _stages.Where(s => s.AppliesTo(current)))
+        foreach (var stage in _stages.Where(s => s.AppliesTo(current) && s.AppliesTo(manifest)))
         {
             if (StageList.Find(stages, stage.Name) is not { State: StageStates.Done })
             {
@@ -122,7 +122,7 @@ public sealed partial class ProjectFinalizationService(
                 Mix = new ProjectMix(audio.Mix.File, audio.Mix.Codec, audio.Mix.SampleRate, audio.Mix.Channels, audio.Mix.DurationMs, audio.Mix.Sha256),
                 Peaks = audio.PeaksFile,
                 Integrity = new ProjectIntegrity { ComputedAt = audio.ComputedAt, Files = integrity },
-                Stages = WithFollowingQueued(WithStored(m.Stages, StageStates.Done, null, "Done")),
+                Stages = WithFollowingQueued(m, WithStored(m.Stages, StageStates.Done, null, "Done")),
             },
             cancellationToken);
 

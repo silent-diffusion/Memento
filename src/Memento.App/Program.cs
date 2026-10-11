@@ -13,6 +13,7 @@ using Memento.Core.Recording;
 using Memento.Core.Recording.Simulation;
 using Memento.Core.Settings;
 using Memento.Transcription;
+using Memento.Video.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -186,12 +187,16 @@ internal static class Program
         }
 
         builder.Services.AddMediaFoundationStorage();
+
+        // 2.0 video: display, window and camera capture, the video stage's joins and the export's video files.
+        builder.Services.AddMementoVideo();
         builder.Services.AddMementoM3Host();
         builder.Services.AddMementoM4Host();
         builder.Services.AddSingleton<LibraryStartup>();
         builder.Services.AddHostedService<RecordingLifetime>();
         builder.Services.AddHostedService<FooterStatusLoop>();
         builder.Services.AddHostedService<LiveTranscriptLifetime>();
+        builder.Services.AddHostedService<VideoRetentionLoop>();
 
         // Self-update from the GitHub releases (a screenshot run never checks).
         builder.Services.AddSingleton<Core.Updates.IUpdateClient>(services => new VelopackUpdateClient(

@@ -57,6 +57,7 @@ public sealed class ExportNamingSharedCasesTests
             "transcript" => ExportNaming.TranscriptFile(Text("base"), Text("format")),
             "details" => ExportNaming.DetailsFile(Text("base")),
             "attachment" => ExportNaming.AttachmentEntry(Text("name")),
+            "video" => ExportNaming.VideoFile(Text("base"), Text("part") == "combined" ? null : Text("part")),
             var kind => throw new InvalidOperationException($"Unknown case kind {kind}"),
         };
 

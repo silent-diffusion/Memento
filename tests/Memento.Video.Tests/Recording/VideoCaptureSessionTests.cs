@@ -4,6 +4,7 @@ using Memento.Video.Encoding;
 using Memento.Video.Recording;
 using Memento.Video.Sources;
 using Memento.Video.Tests.Fakes;
+using Memento.Core.Projects;
 using Memento.Video.Tracks;
 
 namespace Memento.Video.Tests.Recording;
@@ -208,7 +209,7 @@ public sealed class VideoCaptureSessionTests : IDisposable
 
         source.SetPaused(true);
         Assert.Equal(VideoSessionState.Waiting, session.Status().State);
-        Assert.Equal("Window minimised", session.Status().Reason);
+        Assert.StartsWith("“Team call” was minimised at 0:00. Its video pauses", session.Status().Reason, StringComparison.Ordinal);
         Ticks(session, origin, 3, 4);
         source.SetPaused(false);
         Ticks(session, origin, 7, 2);

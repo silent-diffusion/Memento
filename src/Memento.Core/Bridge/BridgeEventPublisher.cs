@@ -39,6 +39,18 @@ public sealed class BridgeEventPublisher(IBridgeEventSink sink)
     public void PublishModelsProgress(ModelsProgressPayload payload) =>
         sink.Post(Serialize(BridgeEventNames.ModelsProgress, payload, BridgeJsonContext.Default.BridgeEventEnvelopeModelsProgressPayload));
 
+    /// <summary>2.0: the video tracks' Encoder card facts, once a second while recording.</summary>
+    public void PublishRecordingVideoStatus(RecordingVideoStatusPayload payload) =>
+        sink.Post(Serialize(BridgeEventNames.RecordingVideoStatus, payload, VideoBridgeJsonContext.Default.BridgeEventEnvelopeRecordingVideoStatusPayload));
+
+    /// <summary>2.0: a video track's §18.6 toast, banner or card.</summary>
+    public void PublishRecordingVideoProblem(RecordingVideoProblemPayload payload) =>
+        sink.Post(Serialize(BridgeEventNames.RecordingVideoProblem, payload, VideoBridgeJsonContext.Default.BridgeEventEnvelopeRecordingVideoProblemPayload));
+
+    /// <summary>2.0: a display, window or camera came or went while the picker was open.</summary>
+    public void PublishVideoSourcesChanged() =>
+        sink.Post(Serialize(BridgeEventNames.VideoSourcesChanged, new EmptyPayload(), VideoBridgeJsonContext.Default.BridgeEventEnvelopeEmptyPayload));
+
     public static string SerializeThemeChanged(ThemeChangedPayload payload) =>
         Serialize(BridgeEventNames.ThemeChanged, payload, BridgeJsonContext.Default.BridgeEventEnvelopeThemeChangedPayload);
 

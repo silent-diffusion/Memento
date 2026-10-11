@@ -36,7 +36,7 @@ internal static class M3SettingsBlocks
                 new AiProvidersSnapshot(
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.Anthropic) ?? false),
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.OpenAi) ?? false))),
-            Storage = new LibraryStorageSettingsSnapshot(settings.Storage.ReclaimOlderThanDays),
+            Storage = new LibraryStorageSettingsSnapshot(settings.Storage.ReclaimOlderThanDays, settings.Storage.RemoveVideoOlderThanDays),
         };
     }
 
@@ -104,7 +104,14 @@ internal static class M3SettingsBlocks
 
         if (parameters.Storage is { } storage)
         {
-            next = next with { Storage = next.Storage with { ReclaimOlderThanDays = NullableDays(storage.ReclaimOlderThanDays, next.Storage.ReclaimOlderThanDays) } };
+            next = next with
+            {
+                Storage = next.Storage with
+                {
+                    ReclaimOlderThanDays = NullableDays(storage.ReclaimOlderThanDays, next.Storage.ReclaimOlderThanDays, "storage.reclaimOlderThanDays"),
+                    RemoveVideoOlderThanDays = NullableDays(storage.RemoveVideoOlderThanDays, next.Storage.RemoveVideoOlderThanDays, "storage.removeVideoOlderThanDays"),
+                },
+            };
         }
 
         return next;
@@ -146,14 +153,14 @@ internal static class M3SettingsBlocks
         _ => throw new BridgeException(DomainErrorCodes.SettingsInvalidValue, $"{field} must be a folder path or null. Nothing was changed.", field),
     };
 
-    private static int? NullableDays(JsonElement element, int? current) => element.ValueKind switch
+    private static int? NullableDays(JsonElement element, int? current, string field) => element.ValueKind switch
     {
         JsonValueKind.Undefined => current,
         JsonValueKind.Null => null,
         JsonValueKind.Number when element.TryGetInt32(out var days) => days,
         _ => throw new BridgeException(
             DomainErrorCodes.SettingsInvalidValue,
-            $"storage.reclaimOlderThanDays must be a whole number of days from {LibraryStorageSettings.MinDays} to {LibraryStorageSettings.MaxDays}, or null. Nothing was changed.",
-            "storage.reclaimOlderThanDays"),
+            $"{field} must be a whole number of days from {LibraryStorageSettings.MinDays} to {LibraryStorageSettings.MaxDays}, or null. Nothing was changed.",
+            field),
     };
 }

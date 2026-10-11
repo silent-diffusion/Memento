@@ -1,7 +1,7 @@
 using Memento.Audio;
 using Memento.Video.Encoding;
 using Memento.Video.Sources;
-using Memento.Video.Tracks;
+using Memento.Core.Projects;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -24,6 +24,7 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
     private readonly ManualResetEvent _stop = new(false);
     private readonly List<PartInfo> _parts = [];
     private readonly FramePacer _pacer;
+    private VideoEncoderSettings _settings;
     private IVideoSource _source;
     private IVideoTrackWriter? _writer;
     private Thread? _thread;
@@ -43,12 +44,25 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
         _options = options;
         _source = source;
         _writers = writers;
+        _settings = options.Settings;
         _logger = (ILogger?)logger ?? NullLogger.Instance;
         var firstSlot = FramePacer.SlotAt(options.TimelineOriginQpc, options.Settings.FrameRate, QpcClock.Now);
         _pacer = new FramePacer(options.TimelineOriginQpc, options.Settings.FrameRate, firstSlot);
     }
 
     public string TrackId => _options.TrackId;
+
+    /// <summary>The source captured now.</summary>
+    internal IVideoSource Source
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _source;
+            }
+        }
+    }
 
     /// <summary>Raised (on a thread-pool or the pacing thread) when the user must be told something about this track.</summary>
     public event EventHandler<VideoSessionEventArgs>? Problem;
@@ -77,7 +91,7 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
         Directory.CreateDirectory(Path.Combine(_options.ProjectFolder, "tracks"));
         Attach(_source);
         await _source.StartAsync(cancellationToken).ConfigureAwait(false);
-        OpenPart(_options.Settings);
+        OpenPart(_settings);
         _state = VideoSessionState.Recording;
         if (startPacingThread)
         {
@@ -142,11 +156,11 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
         var failed = _writer!;
         _ = failed.FinalizeAsync(CancellationToken.None).ContinueWith(_ => failed.DisposeAsync().AsTask(), TaskScheduler.Default);
         _writer = null;
-        if (failure.Code == VideoErrorCode.EncoderFailed && _options.Settings.PreferHardware && failed.Encoder.IsHardware)
+        if (failure.Code == VideoErrorCode.EncoderFailed && _settings.PreferHardware && failed.Encoder.IsHardware)
         {
             try
             {
-                OpenPart(_options.Settings with { PreferHardware = false });
+                OpenPart(_settings with { PreferHardware = false });
                 Raise(VideoSessionState.Recording, new VideoCaptureException(VideoErrorCode.EncoderFailed, VideoErrors.HardwareEncoderFailed(atMs), failure), atMs);
                 return;
             }
@@ -240,8 +254,49 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
                 return;
             }
 
+            var wasWaiting = _state == VideoSessionState.Waiting;
             _state = e.State == VideoSourceState.Paused ? VideoSessionState.Waiting : VideoSessionState.Recording;
             _reason = e.Reason;
+            if (_state == VideoSessionState.Waiting && !wasWaiting)
+            {
+                // A minimised window, or a camera another app took: the track waits and continues by itself.
+                var atMs = Math.Max(0, (e.AtQpc - _pacer.OriginQpc) / QpcClock.TicksPerMillisecond);
+                var error = _source.Id.Kind == VideoSourceKind.Camera
+                    ? new VideoCaptureException(VideoErrorCode.CameraInUse, VideoErrors.CameraInUse(_source.Name, null))
+                    : new VideoCaptureException(VideoErrorCode.SourceMinimised, VideoErrors.WindowMinimised(_source.Name, atMs));
+                _reason = error.Message;
+                Raise(VideoSessionState.Waiting, error, atMs);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Continues the track at another quality (the §18.6 banner's Lower quality): the current file is closed and the
+    /// track goes on in a new part with the new bitrate, so nothing recorded is touched. Throws when no encoder opens.
+    /// </summary>
+    public void ChangeQuality(VideoQuality quality)
+    {
+        lock (_gate)
+        {
+            if (_writer is null || _state is VideoSessionState.Ended or VideoSessionState.Stopped || _settings.Quality == quality)
+            {
+                return;
+            }
+
+            var old = _writer;
+            _writer = null;
+            _ = old.FinalizeAsync(CancellationToken.None).ContinueWith(_ => old.DisposeAsync().AsTask(), TaskScheduler.Default);
+            var next = _settings with { Quality = quality };
+            try
+            {
+                OpenPart(next);
+                _settings = next;
+            }
+            catch (VideoCaptureException ex)
+            {
+                End(ex, PositionMs(), "error");
+                throw;
+            }
         }
     }
 
@@ -310,21 +365,25 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
         await old.DisposeAsync().ConfigureAwait(false);
     }
 
-    /// <summary>Flushes the file to disk and returns the track's entry for <c>recording.state.json</c>.</summary>
-    public VideoTrackCheckpoint Checkpoint()
+    /// <summary>Flushes the file to disk (unless <paramref name="flush"/> is false) and returns the track's entry for <c>recording.state.json</c>.</summary>
+    public VideoTrackCheckpoint Checkpoint(bool flush = true)
     {
         lock (_gate)
         {
-            _writer?.Checkpoint();
+            if (flush)
+            {
+                _writer?.Checkpoint();
+            }
+
             return new VideoTrackCheckpoint(
                 _options.TrackId,
                 _options.Role,
                 SourceKindName(_source.Id.Kind),
                 _source.Id.ToString(),
                 _source.Name,
-                _options.Settings.Width,
-                _options.Settings.Height,
-                _options.Settings.FrameRate,
+                _settings.Width,
+                _settings.Height,
+                _settings.FrameRate,
                 Parts(),
                 _writer?.Statistics.BytesWritten ?? 0,
                 _pacer.FramesWritten,
@@ -349,15 +408,17 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
                 _error,
                 encoder?.Name ?? string.Empty,
                 encoder?.IsHardware ?? false,
-                _options.Settings.Width,
-                _options.Settings.Height,
-                _options.Settings.FrameRate,
-                _options.Settings.BitrateBitsPerSecond,
+                _settings.Width,
+                _settings.Height,
+                _settings.FrameRate,
+                _settings.BitrateBitsPerSecond,
                 durationMs <= 0 ? 0 : bytes * 8 * 1000 / durationMs,
                 _pacer.FramesWritten,
                 _pacer.FramesDropped,
                 bytes + PreviousPartsBytes(),
-                durationMs);
+                durationMs,
+                _source.Id.ToString(),
+                (_parts.Select(p => p.FirstTicks).FirstOrDefault(t => t is not null) ?? 0) / QpcClock.TicksPerMillisecond);
         }
     }
 
@@ -424,7 +485,7 @@ public sealed partial class VideoCaptureSession : IAsyncDisposable
     {
         var parts = Parts();
         var first = parts.Count == 0 ? null : parts[0];
-        var settings = _options.Settings;
+        var settings = _settings;
         return new VideoTrack
         {
             Id = _options.TrackId,

@@ -28,6 +28,9 @@
     { "kind": "transcript", "base": "B 2026-10-06", "format": "text", "expected": "B 2026-10-06 - transcript.txt" },
     { "kind": "transcript", "base": "B 2026-10-06", "format": "srt", "expected": "B 2026-10-06.srt" },
     { "kind": "details", "base": "B 2026-10-06", "expected": "B 2026-10-06 - details.json" },
+    { "kind": "video", "base": "B 2026-10-06", "part": "combined", "expected": "B 2026-10-06.mp4" },
+    { "kind": "video", "base": "B 2026-10-06", "part": "screen", "expected": "B 2026-10-06 - screen.mp4" },
+    { "kind": "video", "base": "B 2026-10-06", "part": "camera", "expected": "B 2026-10-06 - camera.mp4" },
     { "kind": "attachment", "name": "agenda.docx", "expected": "Attachments/agenda.docx" }
   ]
 }

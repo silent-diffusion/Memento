@@ -501,8 +501,9 @@ public sealed partial class ProjectService(
         var finalized = manifest.State is ProjectStates.Ready or ProjectStates.Recovered;
         var mixUrl = finalized && manifest.Mix is { } mix ? LibraryUrls.ForProjectFile(manifest.Id, mix.File) : null;
         var peaksUrl = finalized && manifest.Peaks is { } peaks ? LibraryUrls.ForProjectFile(manifest.Id, peaks) : null;
+        var folder = store.GetProjectFolder(manifest.Id);
         return new Project(
-            ProjectMapper.ToSummary(manifest, store.GetSizeBytes(manifest.Id)),
+            ProjectMapper.ToSummary(manifest, store.GetSizeBytes(manifest.Id), Video.VideoMapper.Summarize(manifest)),
             ProjectMapper.ToDetails(manifest.Details),
             manifest.Tracks.Select(ProjectMapper.ToTrack).ToList(),
             mixUrl,
@@ -513,7 +514,8 @@ public sealed partial class ProjectService(
             history,
             new IntegrityInfo(manifest.Integrity.Algorithm, manifest.Integrity.ComputedAt),
             store.GetSizeBytes(manifest.Id),
-            manifest.MixOnly is { } mixOnly ? new MixOnlyInfo(mixOnly.At, mixOnly.TrackIds.Count, mixOnly.BytesFreed) : null);
+            manifest.MixOnly is { } mixOnly ? new MixOnlyInfo(mixOnly.At, mixOnly.TrackIds.Count, mixOnly.BytesFreed) : null,
+            Video.VideoMapper.ToProject(manifest, folder, finalized));
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} deleted through the Delete flow")]

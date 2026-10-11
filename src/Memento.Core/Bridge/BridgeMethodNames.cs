@@ -147,4 +147,14 @@ public static class BridgeMethodNames
     public const string AnnotationsDismissSuggestion = "annotations.dismissSuggestion";
     public const string AnnotationsRestoreSuggestion = "annotations.restoreSuggestion";
     public const string TranscriptSetSegmentsSpeaker = "transcript.setSegmentsSpeaker";
+
+    // 2.0 video.
+    public const string VideoListSources = "video.listSources";
+    public const string VideoThumbnail = "video.thumbnail";
+    public const string RecordingSetVideoSource = "recording.setVideoSource";
+    public const string RecordingSetPip = "recording.setPip";
+    public const string RecordingSetVideoQuality = "recording.setVideoQuality";
+    public const string VideoRemoveEstimate = "video.removeEstimate";
+    public const string VideoOpenPrivacySettings = "video.openPrivacySettings";
+    public const string VideoRemove = "video.remove";
 }

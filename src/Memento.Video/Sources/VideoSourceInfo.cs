@@ -6,6 +6,7 @@ namespace Memento.Video.Sources;
 /// <param name="Width">Pixels (0 when not known without opening the device).</param>
 /// <param name="IsExcluded">Memento's own windows: listed but not selectable ("This app is excluded from capture").</param>
 /// <param name="ProcessName">For windows: the program that owns it.</param>
+/// <param name="IsProtected">A window that keeps itself out of captures (display affinity): listed, excluded, never read.</param>
 public sealed record VideoSourceInfo(
     VideoSourceId Id,
     string Name,
@@ -15,4 +16,5 @@ public sealed record VideoSourceInfo(
     int RefreshRate,
     bool IsPrimary,
     bool IsExcluded,
-    string? ProcessName = null);
+    string? ProcessName = null,
+    bool IsProtected = false);

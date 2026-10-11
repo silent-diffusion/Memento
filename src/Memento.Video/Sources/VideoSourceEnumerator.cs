@@ -72,7 +72,8 @@ public static class VideoSourceEnumerator
                 0,
                 false,
                 excluded || window.DisplayAffinity != User32.WdaNone,
-                processName));
+                processName,
+                window.DisplayAffinity != User32.WdaNone));
         }
 
         return result;

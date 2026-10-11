@@ -315,7 +315,15 @@ public sealed partial class ExportService(
 
                 job.CurrentFile = name;
                 Publish(job, force: false, throttle);
-                var bytes = await WriteFileAsync(item.WriteAsync, destination, work, name, written, token);
+                var before = doneEstimate;
+                var write = item.WriteWithProgressAsync is { } withProgress
+                    ? (path, ct) => withProgress(path, new InlineProgress(fraction =>
+                    {
+                        job.Percent = (int)Math.Min(99, (before + (long)(item.EstimatedBytes * Math.Clamp(fraction, 0, 1))) * 100 / total);
+                        Publish(job, force: false, throttle);
+                    }), ct)
+                    : item.WriteAsync;
+                var bytes = await WriteFileAsync(write, destination, work, name, written, token);
                 Journal();
                 var relative = item.Folder is null ? name : item.Folder + "/" + name;
                 files.Add(new ExportManifestFile(relative, bytes.Length, bytes.Sha256));
@@ -452,6 +460,12 @@ public sealed partial class ExportService(
         {
             LogNotCleaned(ex, work);
         }
+    }
+
+    /// <summary>Reports on the writer's own thread (a <see cref="Progress{T}"/> would post to a context there is none of).</summary>
+    private sealed class InlineProgress(Action<double> report) : IProgress<double>
+    {
+        public void Report(double value) => report(value);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Export {JobId} of recording {RecordingId} queued: {Files} files, about {Bytes} bytes")]

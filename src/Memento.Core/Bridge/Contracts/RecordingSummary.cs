@@ -16,6 +16,7 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="State"><c>recording</c>, <c>finalizing</c>, <c>ready</c>, <c>recovered</c> or <c>failed</c>.</param>
 /// <param name="SizeBytes">Size of the project folder on disk, kept in the index and refreshed on every project write.</param>
 /// <param name="MatchSnippet">For a <c>library.list</c> search that matched the transcript (M2): the words around the match; otherwise <c>null</c>.</param>
+/// <param name="Video">2.0: the recording's video tracks and whether they were removed; <c>null</c> when it never had video.</param>
 public sealed record RecordingSummary(
     string Id,
     string Title,
@@ -29,4 +30,5 @@ public sealed record RecordingSummary(
     bool IsProcessing,
     string State,
     long SizeBytes,
-    string? MatchSnippet = null);
+    string? MatchSnippet = null,
+    RecordingVideoSummary? Video = null);

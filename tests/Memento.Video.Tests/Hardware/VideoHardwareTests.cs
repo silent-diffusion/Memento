@@ -7,7 +7,7 @@ using Memento.Video.Gpu;
 using Memento.Video.Recording;
 using Memento.Video.Recovery;
 using Memento.Video.Sources;
-using Memento.Video.Tracks;
+using Memento.Core.Projects;
 
 namespace Memento.Video.Tests.Hardware;
 

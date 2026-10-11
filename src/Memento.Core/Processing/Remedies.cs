@@ -18,4 +18,10 @@ public static class Remedies
     public const string InstallPrefix = "install:";
 
     public static string Install(string modelId) => InstallPrefix + modelId;
+
+    /// <summary>2.0, the video stage: join the parts by encoding them again with the software encoder.</summary>
+    public const string Software = "software";
+
+    /// <summary>2.0, the video stage: keep the parts as they were written and mark the stage done.</summary>
+    public const string KeepRaw = "keepRaw";
 }

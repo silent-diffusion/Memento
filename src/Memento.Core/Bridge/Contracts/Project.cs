@@ -5,6 +5,7 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="PeaksUrl"><c>https://library.memento/&lt;id&gt;/peaks.json</c> once finalized.</param>
 /// <param name="SizeBytes">Everything in the project folder.</param>
 /// <param name="MixOnly">2.0: set once "Keep only the mix" removed the separate track files; <c>null</c> while they are kept.</param>
+/// <param name="Video">2.0: the video tracks Review plays; <c>null</c> when the recording never had video.</param>
 public sealed record Project(
     RecordingSummary Summary,
     RecordingDetails Details,
@@ -17,4 +18,5 @@ public sealed record Project(
     IReadOnlyList<HistoryEntry> History,
     IntegrityInfo Integrity,
     long SizeBytes,
-    MixOnlyInfo? MixOnly = null);
+    MixOnlyInfo? MixOnly = null,
+    ProjectVideo? Video = null);

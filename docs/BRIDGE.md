@@ -8,7 +8,7 @@ Status: **M0, M1, M2 and M3 methods and events are implemented** (M3 in 0.4.0) i
 
 ```ts
 type RecordingType = 'meeting' | 'interview' | 'presentation' | 'lecture' | 'dictation' | 'research' | 'general' | string; // any other string is a custom type name
-type StageName = 'stored' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize'; // pipeline order
+type StageName = 'stored' | 'video' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize'; // pipeline order
 type StageState = 'done' | 'active' | 'queued' | 'failed';
 interface StageStatus { stage: StageName; state: StageState; percent: number | null; /* M1: */ label: string | null; /* e.g. "64% · local GPU", "Done", "Queued", "Transcript failed" */ }
 
@@ -76,6 +76,7 @@ A project exists from `recording.start` onwards: `project.get`, `project.updateD
 M1 runs two stages; M2 adds `transcript`, `speakers` and `topics` between them (`minutes`, the documents stage, arrives with M4).
 
 - `stored` — finalize: tracks to lossless FLAC, the mix, `peaks.json` and SHA-256 hashes. Runs for every recording.
+- `video` — 2.0, only for recordings with video: joins a track's parts and hashes the video files (Video (2.0) below). Listed second, run after the transcript stages.
 - `optimize` — only when Settings › Recording › storage asks for AAC or MP3: converts the lossless FLAC files to that smaller format, after every other stage (the transcript is always made from the lossless files). If the setting is FLAC, the stage is not listed at all. When it fails, the FLAC files are kept.
 
 `RecordingSummary.stages` (Library rows and `library.processing.current.meta`) leaves out a **finished** `stored` or `optimize` stage, so a recording with nothing else run reads "Audio only" (DESIGN.md §4). Either stage is listed while it is active or queued and when it failed. `library.processing.current.stages` and `processing.progress.stages` always carry every stage, finished `stored` and `optimize` included.
@@ -855,68 +856,160 @@ interface LibraryUsage { /* … */ separateTracksBytes: number; separateTracksRe
 
 `export.estimate` lists `tracks` as unavailable with the reason "Only the mix was kept", and the Export dialog leaves the Individual tracks row out; Review's People pane offers Reduce but not Identify speakers again (there is nothing per track to listen to); `library.usage` counts what separate tracks use.
 
-# Video (2.0, proposed)
+# Video (2.0)
 
-Proposed with the 2.0 video spike (ENGINE-NOTES.md §M, ARCHITECTURE.md §5.x). Nothing below is implemented in the host or the UI yet: no constant in `BridgeEventNames` or `DomainErrorCodes`, no type in `ui/src/bridge/types.ts`, so `ContractDocumentationTests` is unaffected (it checks that every host code and event is documented, not the reverse). The capture library behind it (`src/Memento.Video`) exists and is tested; the methods are wired when the Recording screen's VIDEO section is built. Video never leaves the PC: none of these methods sends anything anywhere, and no frame or thumbnail is ever given to an AI provider.
+The contract of the 2.0 video host (ENGINE-NOTES.md §M, ARCHITECTURE.md §5.x) and the video screens (DESIGN.md §18): the spike's proposal, with what the screens needed added while they were built against the browser-preview host (`ui/src/bridge/mockVideo.ts`); `ui/src/bridge/types.ts` has each shape exactly as written here. Host contracts: `VideoBridgeJsonContext` (`src/Memento.Core/Bridge/Contracts/`), strict JSON pinned by `VideoContractTests`. Video never leaves the PC: none of these methods sends anything anywhere, and no frame or thumbnail is ever given to an AI provider (the AI payload composer has no video input at all).
 
-## Shared types (2.0, proposed)
+## Shared types (2.0 video)
 
 ```ts
 type VideoSourceKind = 'display' | 'window' | 'camera';
+type VideoRole = 'screen' | 'camera';                 // a display or a window is the screen track
+type PipCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 interface VideoSource {
-  id: string;                 // 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>' (VideoSourceId)
+  id: string;                 // 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>'; stable while Memento runs
   kind: VideoSourceKind;
   name: string;               // "Display 1", the window title, the camera's name
   detail: string;             // "2560 × 1440 · 60 Hz · primary", "Zoom · 1600 × 900", "This app is excluded from capture"
-  width: number; height: number; refreshRate: number;
+  width: number; height: number; refreshRate: number;   // physical pixels; 0 for a camera (not known without opening it)
   primary: boolean;
-  excluded: boolean;          // Memento's own windows and windows that keep themselves out of captures: listed, not selectable
+  excluded: boolean;          // listed, not selectable: Memento's own windows and windows that keep themselves out of captures
+  // The host also sends protected: boolean and processName: string | null (a window's program); the page may ignore them.
 }
-interface VideoTrackStatus {      // DESIGN.md §18.1 Encoder card and footer (VideoSessionStatus)
-  trackId: string;                // 'screen' | 'camera'
-  state: 'recording' | 'paused' | 'waiting' | 'ended' | 'stopped';
+type VideoTrackState = 'recording' | 'paused' | 'waiting' | 'ended' | 'stopped';   // paused = the recording is paused; waiting = window minimised, display disconnected, camera busy
+interface VideoTrackStatus {  // DESIGN.md §18.1 Encoder card, video lane and footer
+  trackId: VideoRole;
+  state: VideoTrackState;
+  sourceId: string;           // the source the track captures now
   sourceName: string;
-  reason: string | null;          // the §18.6 sentence while waiting or after it ended
-  encoder: string;                // "NVIDIA H.264 Encoder MFT"
-  hardware: boolean;              // "Hardware · GPU" or "Software · CPU"
+  reason: string | null;      // the §18.6 sentence while waiting or after it ended
+  encoder: string;            // "NVIDIA H.264 Encoder MFT", "Microsoft H.264 software encoder"
+  hardware: boolean;          // "Hardware · GPU" or "Software · CPU"
   width: number; height: number; frameRate: number;
   targetBitsPerSecond: number; actualBitsPerSecond: number;
   framesWritten: number; framesDropped: number;
   bytesWritten: number; durationMs: number;
 }
-interface VideoSettings {         // Settings › Recording › Video defaults (§18.5)
-  defaultSource: 'screen' | 'window' | 'camera' | 'screenAndCamera';
-  resolution: 'display' | '1080p' | '720p';
-  frameRate: 24 | 30 | 60;
-  quality: 'smaller' | 'balanced' | 'best';
-  defaultCameraId: string | null;
-  pipCorner: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
-  hardwareEncoder: boolean;
-  includePointer: boolean;
+interface PipState { enabled: boolean; corner: PipCorner }
+interface VideoSettings {     // Settings › Recording › Video defaults (§18.5): recording.video
+  defaultSource: 'screen' | 'window' | 'camera' | 'screenAndCamera';   // screenAndCamera
+  resolution: 'display' | '1080p' | '720p';   // display
+  frameRate: 24 | 30 | 60;                     // 30
+  quality: 'smaller' | 'balanced' | 'best';    // balanced: about 6, 12, 20 Mb/s at 1440p 30 fps (scaled by pixel rate^0.75)
+  defaultCameraId: string | null;              // null: the first camera
+  pipCorner: PipCorner;                        // bottomRight
+  hardwareEncoder: boolean;                    // true; falls back to software automatically, with a notice
+  includePointer: boolean;                     // true
 }
+type VideoProblemCode =       // recording.videoProblem's closed list; the four marked * are states, not error codes
+  | 'video.displayDisconnected' /* * */ | 'video.windowClosed' /* * */ | 'video.windowMinimised' /* * */ | 'video.encoderFallback' /* * */
+  | 'video.protectedContent' | 'video.diskFull' | 'video.cameraInUse' | 'video.cameraPrivacy' | 'video.captureBlocked'
+  | 'video.sourceNotFound' | 'video.encoderUnavailable';
+interface RecordingVideoSummary {   // RecordingSummary.video; null when the recording never had video
+  roles: VideoRole[];               // the tracks the recording has (had, once removed)
+  height: number;                   // the screen track's, else the camera's: "1440p" on the grid card
+  removedAt: string | null;         // Remove video ran: hasVideo is false, the row shows "Video removed · audio kept"
+}
+interface ProjectVideo {            // Project.video; null when the recording never had video
+  tracks: ProjectVideoTrack[];      // screen first; [] once removed
+  pip: PipState;                    // where the inset was when recording ended; Review starts there
+  sizeBytes: number;                // every video file of the recording
+  removed: { at: string; bytesFreed: number } | null;
+}
+interface ProjectVideoTrack {
+  id: VideoRole;
+  sourceKind: VideoSourceKind; sourceName: string;   // the last source when it was switched
+  width: number; height: number; frameRate: number;
+  encoder: string; hardware: boolean;
+  framesWritten: number; framesDropped: number; sizeBytes: number;
+  startOffsetMs: number;            // where the track begins on the recording timeline (the file itself starts at 0, §M.3)
+  durationMs: number;
+  endReason: string | null;         // the §18.6 sentence when it ended before the recording ("“Zoom Meeting” was closed at 0:58:12.")
+  parts: VideoPart[];
+}
+interface VideoPart {               // a file written by one encoder (a hardware failure or a quality change starts a new one)
+  url: string | null;               // https://library.memento/<id>/tracks/screen.mp4; null while unreadable (recording, being repaired or joined) or removed
+  startOffsetMs: number; durationMs: number;
+}
+interface RecoveredVideoTrack { trackId: VideoRole; sourceName: string; recoveredDurationMs: number }
+type VideoExportFormat = 'mp4' | 'original';
+type VideoExportLayout = 'oneFile' | 'twoFiles';
+interface ExportVideoChoice { on: boolean; format: VideoExportFormat; layout: VideoExportLayout }
 ```
 
-## Methods (2.0, proposed)
+Additions to existing types:
+
+```ts
+type StageName = 'stored' | 'video' | 'transcript' | …;
+interface RecordingSummary { /* … */ video: RecordingVideoSummary | null }
+interface Project { /* … */ video: ProjectVideo | null }
+interface RecordingStatePayload { /* … */ videoTracks: VideoTrackStatus[] }   // host addition: [] without video; recording.current carries it
+interface ProcessingCurrent { /* … */ failure: StageFailure | null }           // library.processing: the video stage failed
+interface RecoveredRecording { /* … */ videoTracks: RecoveredVideoTrack[] }    // recovery.list items; [] without video
+interface LibraryUsage { /* … */ videoBytes: number; videoRecordings: number } // every video file; recordings that still have video
+interface ExportSelection { /* … */ video?: ExportVideoChoice | null }         // missing or null: off
+interface SourcesListResult { audio: AudioSource[]; videoAvailable: boolean }  // the type was the literal false
+interface RecordingSettings { /* … */ captureVideo: boolean; video: VideoSettings }   // captureVideo: Recording mode, false = Audio only (the product default)
+interface StorageReclaimSettings { reclaimOlderThanDays: number | null; removeVideoOlderThanDays: number | null }   // null = Never, else 30, 90, 180 or 365
+```
+
+## Methods (2.0 video)
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
-| `video.listSources` | `{}` | `{ displays: VideoSource[], windows: VideoSource[], cameras: VideoSource[] }` | Re-enumerates without opening anything (no camera light, no capture border). `sources.list` answers `videoAvailable: true` from 2.0. |
-| `video.thumbnail` | `{ sourceId, width }` | `{ dataUrl }` | One still for the picker tile and the 72 × 42 row thumbnail; a camera is opened for it only while the Recording screen shows it. |
-| `recording.setVideoSource` | `{ sessionId, role: 'screen' \| 'camera', sourceId: string \| null }` | `{ videoTracks: VideoTrackStatus[] }` | Starts, switches ("You can change this while recording; the track continues", §18.2) or ends the role's track. Errors below. |
-| `recording.setPip` | `{ sessionId, enabled, corner }` | `{}` | Only the live preview and Review draw the inset; both tracks are always recorded. |
-| `video.openPrivacySettings` | `{ which: 'camera' \| 'screenCapture' }` | `{}` | Opens Windows Settings at the camera or screen-capture privacy page. |
-| `video.remove` | `{ recordingId }` | `{ freedBytes }` | The §18.6 Remove video dialog's action: a stage that deletes the video files, keeps audio, transcript and documents, and writes History. |
+| `video.listSources` | `{}` | `{ displays: VideoSource[], windows: VideoSource[], cameras: VideoSource[] }` | Re-enumerates without opening anything (no camera light, no capture border). Displays are named "Display 1" (the primary) then left to right. While the page keeps calling it (at least once a minute) the host lists again every 2 s and sends `video.sourcesChanged` when something came or went. |
+| `video.thumbnail` | `{ sourceId, width }` | `{ dataUrl }` | One JPEG still (`data:image/jpeg;base64,…`), `width` 16–640 (CSS pixels × device pixel ratio; 320 when left out); the host also answers `width` and `height`. Cheap enough to poll: the page asks for the 560 px live preview every 500 ms and for each row thumbnail and the inset every 1000 ms, only while the Recording screen is visible and the source is on. A display or window is read with GDI (no capture session, no border; 81 ms for 320 px of a 1080p display); a camera is opened on the first request and kept open while requests keep coming, closed 3 s after the last; a camera being recorded answers the track's latest picture. Never written to disk. Errors: `video.sourceNotFound`, `video.protectedContent` (nothing is read), `video.captureBlocked`, `video.cameraPrivacy`, `video.cameraInUse`; `bridge.invalidParams` for a width out of range or an id that is not a video source. |
+| `recording.setVideoSource` | `{ sessionId, role: VideoRole, sourceId: string \| null }` | `{ videoTracks: VideoTrackStatus[] }` | Starts the role's track, switches it to another source of the role's kind ("You can change this while recording; the track continues", §18.2: the track keeps its size and the new picture is letterboxed into it), or with `null` ends it. A role whose track ended (window closed, camera unplugged) starts a new track from now (stored as `screen-2` in `project.json`; still `screen` here). Errors: the video error codes (nothing changed; the other tracks and the audio are untouched), `recording.noSession`, `bridge.invalidParams` (a role that is not `screen` or `camera`, or a source of the other role's kind). |
+| `recording.setPip` | `{ sessionId, enabled, corner }` | `{}` | The camera inset from now on (`corner` may be left out to keep it). Both tracks are always recorded; the live preview and Review draw the inset, and the export's one file burns it in where it was (each change is kept with its time, `project.json` `videoPip[]`). The page sends it straight after a start that has both tracks. `bridge.invalidParams` for another corner. |
+| `recording.setVideoQuality` | `{ sessionId, quality: VideoSettings['quality'] }` | `{ videoTracks: VideoTrackStatus[] }` | The §18.6 encoder banner's **Lower quality**. The running tracks continue at the new quality's bitrate: each closes its file and goes on in a new part (`tracks/screen.part2.mp4`, joined by the video stage), so nothing recorded is touched. `recording.noSession`; `bridge.invalidParams` for another quality. |
+| `video.openPrivacySettings` | `{ which: 'camera' \| 'screenCapture' }` | `{}` | Opens Windows Settings at `ms-settings:privacy-webcam` or `ms-settings:privacy-graphicscaptureprogrammatic`. `app.openExternal.failed` when Windows did not open it. |
+| `video.remove` | `{ recordingId }` | `{ freedBytes }` | The §18.6 Remove video dialog's action, after the page's confirmation. Deletes every video file of the recording, keeps audio, transcript and documents, records `videoRemoved` in `project.json` before deleting (then `hasVideo` is false), and writes History `video` `completed` "Removed the video · 1.9 GB freed". Errors: `project.notFound`, `project.recording` (still recording or being saved), `library.busy` (its video stage runs now), `bridge.invalidParams` (nothing to remove: no video, or already removed). |
+| `video.removeEstimate` | `{ recordingIds: string[] \| null, olderThanDays: number \| null }` | `{ recordings: number, bytes: number }` | What Remove video would free: the named recordings, or (ids null) every recording with video older than `olderThanDays` (null: every one). Feeds "Would free 11.3 GB now, from 3 recordings" and the Remove video dialog. Reads only. |
 
-`recording.start` takes video source ids in `sourceIds` like audio ones; a video source that cannot start never keeps the audio from starting (it is reported with `recording.videoProblem` instead).
+`recording.start` sorts its `sourceIds` by prefix: `display:` and `window:` start the `screen` track, `camera:` the `camera` track (one source per role, the first of each). At least one audio source is still required (`recording.noSources`): a recording of video alone is not designed (DESIGN.md §20). A video source that cannot start never keeps the audio from starting: the recording starts and `recording.videoProblem` says why. A camera another app holds is tried again every 2 s and its track starts by itself the moment the camera is free. The remembered `recording.defaultSourceIds` keep only the audio ids.
 
-## Events (2.0, proposed)
+## Events (2.0 video)
 
 | Event | Payload | Notes |
 |---|---|---|
-| `recording.videoStatus` | `{ sessionId, videoTracks: VideoTrackStatus[] }` | Once a second while recording, beside `recording.state`. |
-| `recording.videoProblem` | `{ sessionId, trackId, state, code, message, atMs }` | The §18.6 toast, banner or card: display disconnected (waiting), window closed (ended), hardware encoder failed (continues in software), low disk with video, camera in use or privacy off. |
-| `video.sourcesChanged` | `{}` | A display, window or camera came or went while the picker is open. |
+| `recording.videoStatus` | `{ sessionId, videoTracks: VideoTrackStatus[], pip: PipState }` | Once a second while a session with video records, beside `recording.state`, and after every `recording.setVideoSource` and `recording.setVideoQuality`. A track that is off is left out of `videoTracks`; an `ended` one stays listed until it is replaced or the session ends. `pip` is the inset as the session has it, so a page that rejoins draws it where it is. |
+| `recording.videoProblem` | `{ sessionId, trackId: VideoRole, state: VideoTrackState, code: VideoProblemCode, sourceId, sourceName, detail: string \| null, message, atMs }` | The §18.6 toast, banner or card, by `code` (the page writes the sentence; the host's `message` is the fallback for a code it does not know). Audio is never affected. A problem is over when the track's `recording.videoStatus` state returns to `recording`; no event says so separately. |
+| `video.sourcesChanged` | `{}` | A display, window or camera came or went while the page was listing sources; the page lists again. |
 
-## Error codes (2.0, proposed)
+| `code` | `state` | `detail` | When |
+|---|---|---|---|
+| `video.displayDisconnected` | `waiting` | null | The captured display went away; the track waits for `recording.setVideoSource` with another display (or for it to come back). |
+| `video.windowClosed` | `ended` | null | The captured window closed; the track ends there. |
+| `video.windowMinimised` | `waiting` | null | The captured window was minimised; frames resume by themselves when it is restored. Footer only, no toast. |
+| `video.protectedContent` | `ended` | null | The captured window started keeping itself out of captures (ENGINE-NOTES.md §M.1). |
+| `video.encoderFallback` | `recording` | the software encoder's name | The hardware encoder failed; the track continues in software (a new part). |
+| `video.diskFull` | `stopped` | null | Video stopped first because the drive is nearly full (below 1 GB); audio continues until its own 256 MB floor. |
+| `video.cameraInUse` | `waiting` | the other app, or null when Windows does not record which | The camera track starts by itself the moment the camera is free. |
+| `video.cameraPrivacy` | `stopped` | the switch that is off ("Let desktop apps access your camera") | |
+| `video.captureBlocked` | `stopped` | null | Windows privacy settings block screen capture (or this Windows session cannot capture at all). |
+| `video.sourceNotFound` | `ended` | null | The display, window or camera is not there (any other loss, a camera unplugged, a file that could not be written). |
+| `video.encoderUnavailable` | `stopped` | null | No H.264 encoder (or graphics device) could be opened for the track; audio continues. |
 
-`video.sourceNotFound` (the display, window or camera is not there), `video.protectedContent` (the window keeps itself out of captures), `video.captureBlocked` (Windows privacy settings block screen capture), `video.cameraPrivacy` (a camera privacy switch is off; the message names which), `video.cameraInUse` (another app holds the camera; named when Windows records which), `video.encoderUnavailable` (no H.264 encoder opened), `video.diskFull` (video stopped first; audio continues).
+The low-disk banner's "about 25 minutes of video at this quality" is the page's own arithmetic: free bytes over the audio tracks' rate plus the video tracks' `targetBitsPerSecond`.
+
+## Settings snapshot (2.0 video)
+
+`recording` (replaced whole, like the rest of the block) gains `captureVideo` and `video: VideoSettings`; a field left out takes its default. Settings saved before 2.0 read `captureVideo: false` and `video` at its defaults (`screenAndCamera`, `display`, 30, `balanced`, null, `bottomRight`, `true`, `true`). `storage` gains `removeVideoOlderThanDays`, merged field by field like `reclaimOlderThanDays` (whole days 1–3650; JSON `null` clears it to Never; left out, it keeps its value). Bad values answer `settings.invalidValue` and change nothing. Video defaults apply to the next recording.
+
+With an age set, the host removes the video of recordings older than that (each with its History line, `videoRemoved.reason: 'age'`) once the page is ready, then once a day, and at once when the age is changed (the Settings confirmation); never while a recording runs or processing works.
+
+## Library, projects and stages (2.0 video)
+
+- **Timeline.** Each track is laid on the audio session's QPC timeline (§5.x): `startOffsetMs` places it (the MP4 starts at 0), a pause leaves the paused time out of the video exactly as out of the audio. Review plays the video slaved to the mix: video time = mix time − the part's `startOffsetMs`.
+- **Files.** `tracks/screen.mp4`, `tracks/camera.mp4` (fragmented MP4, H.264, playable as written; `.part2.mp4` after an encoder change or a quality change, `.joined.mp4` after the video stage joined them), named in `recording.state.json` `videoTracks[]` at every checkpoint. `project.json` schema 4: `videoTracks[]`, `videoPip[]`, `videoRemoved` and `hasVideo`. 1.x builds keep all of it untouched. Every URL is served by `https://library.memento/`, which answers range requests (206), so the files seek.
+- **Stage `video`.** Listed only for recordings with video, between `stored` and `transcript`; it runs beside transcription (after the transcript stages, never holding them back) and, finished, is left out of rows like `stored` and `optimize`. It joins a track's parts (copied without decoding, or encoded again when an encoder change left parts that cannot be copied together) and hashes every video file. Labels name the sub-step: "Checking", "Joining 42%", "Encoding 42% · CPU"; done "Done"; failed "Video failed". A failure carries `StageFailure` remedies `software` ("Retry with software encoder": the parts are encoded again) and `keepRaw` ("Keep raw frames": the parts stay as written, each hashed, and the stage is marked done), retried with `processing.retry { stage: 'video', remedyId }`; a retry with no remedy runs the stage again. History: `video` `started` "Checking the video", `completed` "Video checked" (size, frame rate, length, size on disk, encoder, dropped frames, ended early), `failed` "Video failed", and `completed` "Removed the video · … freed".
+- **`library.processing`**: `current.failure` is set when the `video` stage failed (`message` "Finalising the video file stopped at 71%: …", `kept` "The raw frames and all audio tracks are safe, and the transcript was not affected.", the two remedies). Such a recording stays `current` until a remedy is chosen, even when no other stage is active or queued.
+- **Recovery.** At launch every part named in `recording.state.json` (or the manifest) has a torn last fragment cut off and its length read back; `recovery.list` items carry `videoTracks` so the dialog says how much video came back.
+
+## Export (2.0 video)
+
+`ExportSelection.video` (`ExportComponent` `'video'`). `oneFile` writes `{base}.mp4`: the screen with the camera inset composed where it was while recording (`videoPip[]`), with the mixed audio as AAC 192 kb/s, encoded again (H.264 at the recorded track's bitrate, composed on the processor); a camera-only recording gives the camera with the mix. `twoFiles` writes `{base} - screen.mp4` with the mixed audio and `{base} - camera.mp4` alone, each at its own resolution; a recording with one video track gives the one file that exists, named by its role. `original` copies the recorded frames into an ordinary MP4 without encoding again (a remux, with the mix as AAC), so it is only offered with `twoFiles`; `oneFile` with `original` answers `bridge.invalidParams`. A gap before a track's first frame or after it ended is black in an MP4 (re-encoded) file, so the picture stays on the audio's timeline; a copied file keeps its start offset. `export.estimate` lists one or two `component: 'video'` items (re-encoded sizes are estimates near the recorded size, plus the audio) or `video` as unavailable with "No video" or "Video was removed". `export.progress` moves within a video file; cancel removes the partial file. File names are in `ui/src/format/export-naming.cases.json` (kind `video`, part `combined`, `screen` or `camera`).
+
+## Error codes (2.0 video)
+
+`video.sourceNotFound` (the display, window or camera is not there; also when this copy of Memento cannot record video), `video.protectedContent` (the window keeps itself out of captures), `video.captureBlocked` (Windows privacy settings block screen capture, or this Windows session cannot capture), `video.cameraPrivacy` (a camera privacy switch is off; the message names which), `video.cameraInUse` (another app holds the camera; named when Windows records which), `video.encoderUnavailable` (no H.264 encoder or graphics device could be opened), `video.diskFull` (video stopped first; audio continues). The four state codes of `recording.videoProblem` (`video.displayDisconnected`, `video.windowClosed`, `video.windowMinimised`, `video.encoderFallback`) are never a method's error.

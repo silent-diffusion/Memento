@@ -7,6 +7,9 @@ namespace Memento.Core.Projects;
 public static class StageNames
 {
     public const string Stored = "stored";
+
+    /// <summary>2.0: joins a video track's parts and hashes the video files (DESIGN.md §18.7); only for recordings with video.</summary>
+    public const string Video = "video";
     public const string Transcript = "transcript";
     public const string Speakers = "speakers";
 

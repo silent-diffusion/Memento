@@ -7,6 +7,7 @@ using Memento.Core.Bridge.Contracts;
 using Memento.Core.Documents;
 using Memento.Core.Projects;
 using Memento.Core.Transcripts;
+using Memento.Core.Video;
 
 namespace Memento.Core.Export;
 
@@ -15,7 +16,7 @@ namespace Memento.Core.Export;
 /// details) are rendered here, so their sizes are exact; audio and attachments are read when the job writes them.
 /// Reads only: the project is never changed.
 /// </summary>
-public sealed class ExportPlanner(IProjectStore store, ProjectService projects, TranscriptStore transcripts, ExportAudio audio, TimeProvider time, IDocumentExportSource? documents = null)
+public sealed class ExportPlanner(IProjectStore store, ProjectService projects, TranscriptStore transcripts, ExportAudio audio, TimeProvider time, IDocumentExportSource? documents = null, IVideoFiles? videoFiles = null)
 {
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -67,6 +68,11 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
                 var name = ExportNaming.TrackFile(baseName, track.Name, track.Id, selection.Tracks.Format);
                 items.Add(AudioItem(ExportComponents.Tracks, name, Full(folder, track.File), track.Codec, track.SampleRate, track.Channels, track.DurationMs, selection.Tracks));
             }
+        }
+
+        if (selection.Video is { On: true } video)
+        {
+            AddVideo(manifest, folder, baseName, stored, video, items, unavailable);
         }
 
         if (selection.Transcript.On)
@@ -171,6 +177,89 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
 
         return ExportJson.Write(root);
     }
+
+    /// <summary>
+    /// 2.0, the Video row (DESIGN.md §18.4). One file (MP4 only): the screen with the camera inset burnt in where it was
+    /// while recording, with the mixed audio as AAC. Two files: each track at its own resolution;
+    /// the mixed audio goes with the screen file. Sizes are estimates: a re-encode lands near the recorded size.
+    /// </summary>
+    private void AddVideo(ProjectManifest manifest, string folder, string baseName, bool stored, ExportVideoChoice choice, List<ExportItem> items, List<ExportUnavailable> unavailable)
+    {
+        var tracks = stored && manifest.VideoRemoved is null
+            ? manifest.VideoTracks.Where(t => ProjectPaths.IsSafeRelative(t.File) && File.Exists(Full(folder, t.File)) && t.DurationMs > 0).ToList()
+            : [];
+        if (tracks.Count == 0)
+        {
+            unavailable.Add(new(
+                ExportComponents.Video,
+                manifest.VideoRemoved is not null ? "Video was removed" : manifest.VideoTracks.Count == 0 ? "No video" : stored ? "The video files are missing" : "Not saved yet"));
+            return;
+        }
+
+        if (videoFiles is not { IsAvailable: true } files)
+        {
+            unavailable.Add(new(ExportComponents.Video, "Video can't be exported in this copy of Memento"));
+            return;
+        }
+
+        // The longest track of each role (a role turned off and on again has several; the longest holds the most).
+        var screen = tracks.Where(t => t.Role == VideoTrack.RoleScreen).MaxBy(t => t.DurationMs);
+        var camera = tracks.Where(t => t.Role == VideoTrack.RoleCamera).MaxBy(t => t.DurationMs);
+        var reencode = choice.Format == ExportRules.Mp4;
+        var mix = manifest.Mix is { } m && File.Exists(Full(folder, m.File)) ? Full(folder, m.File) : null;
+        var duration = Math.Max(manifest.DurationMs, tracks.Max(t => t.StartOffsetMs + t.DurationMs));
+        var pip = manifest.VideoPip.Count > 0
+            ? manifest.VideoPip.Select(p => new VideoPipChange(p.AtMs, p.Enabled, p.Corner)).ToList()
+            : [new VideoPipChange(0, true, VideoPipChange.BottomRight)];
+        var audioBytes = mix is null ? 0 : duration * ExportRules.VideoAudioBitrateKbps / 8;
+
+        void Add(string name, VideoTrack main, VideoTrack? inset, bool withAudio)
+        {
+            var request = new VideoComposeRequest(
+                string.Empty,
+                Input(folder, main),
+                inset is null ? null : Input(folder, inset),
+                withAudio ? mix : null,
+                withAudio ? duration : main.StartOffsetMs + main.DurationMs,
+                reencode,
+                pip,
+                ExportRules.VideoAudioBitrateKbps);
+            var bytes = Processing.VideoStage.SizeOf(folder, main) + (withAudio ? audioBytes : 0) + (inset is null ? 0 : Processing.VideoStage.SizeOf(folder, inset) / 10);
+            items.Add(new ExportItem(
+                ExportComponents.Video,
+                name,
+                null,
+                bytes,
+                (destination, ct) => files.ComposeAsync(request with { OutputPath = destination }, null, ct))
+            {
+                WriteWithProgressAsync = (destination, progress, ct) => files.ComposeAsync(request with { OutputPath = destination }, progress, ct),
+            });
+        }
+
+        if (choice.Layout == ExportRules.OneFile && screen is not null)
+        {
+            Add(ExportNaming.VideoFile(baseName, null), screen, reencode ? camera : null, withAudio: true);
+        }
+        else if (choice.Layout == ExportRules.OneFile)
+        {
+            Add(ExportNaming.VideoFile(baseName, null), camera!, null, withAudio: true);
+        }
+        else
+        {
+            if (screen is not null)
+            {
+                Add(ExportNaming.VideoFile(baseName, VideoTrack.RoleScreen), screen, null, withAudio: true);
+            }
+
+            if (camera is not null)
+            {
+                Add(ExportNaming.VideoFile(baseName, VideoTrack.RoleCamera), camera, null, withAudio: screen is null);
+            }
+        }
+    }
+
+    private static VideoComposeInput Input(string folder, VideoTrack track) =>
+        new(Full(folder, track.File), track.StartOffsetMs, track.DurationMs, track.Width, track.Height, track.FrameRate, track.BitrateBitsPerSecond);
 
     /// <summary>A file named by the manifest, never outside the project folder (<see cref="ProjectPaths"/>).</summary>
     private static string Full(string folder, string relative) => ProjectPaths.Resolve(folder, relative);

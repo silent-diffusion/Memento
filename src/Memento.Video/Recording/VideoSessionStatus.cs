@@ -6,6 +6,8 @@ namespace Memento.Video.Recording;
 /// </summary>
 /// <param name="Reason">Why it is waiting or ended, in the §18.6 wording.</param>
 /// <param name="ActualBitsPerSecond">Bytes written over recorded time, so far.</param>
+/// <param name="SourceId">The source captured now (it changes with a switch).</param>
+/// <param name="StartOffsetMs">The track's first frame on the recording timeline (0 before it).</param>
 public sealed record VideoSessionStatus(
     string TrackId,
     VideoSessionState State,
@@ -22,4 +24,6 @@ public sealed record VideoSessionStatus(
     long FramesWritten,
     long FramesDropped,
     long BytesWritten,
-    long DurationMs);
+    long DurationMs,
+    string SourceId = "",
+    long StartOffsetMs = 0);

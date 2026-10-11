@@ -6,6 +6,7 @@ using Memento.Core.Library;
 using Memento.Core.Processing;
 using Memento.Core.Projects;
 using Memento.Core.Recording;
+using Memento.Core.Video;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Recovery;
@@ -13,7 +14,9 @@ namespace Memento.Core.Recovery;
 /// <summary>
 /// Crash recovery at launch (ARCHITECTURE.md §5.8). Every project with a <c>recording.state.json</c> is repaired
 /// (WAV headers rewritten from the file length), finalized, marked <c>recovered</c> and offered in the recovery
-/// dialog. It never asks whether to keep a recording and never deletes anything. Runs before the window shows.
+/// dialog. It never asks whether to keep a recording and never deletes anything. Runs before the window shows. Video
+/// tracks (2.0) are repaired beside the audio: a torn last fragment is cut off (<see cref="IVideoFiles.Repair"/>); every
+/// complete fragment plays as written.
 /// </summary>
 public sealed partial class RecoveryService(
     IProjectStore store,
@@ -23,7 +26,8 @@ public sealed partial class RecoveryService(
     ProcessingOrchestrator processing,
     TimeProvider time,
     ILogger<RecoveryService> logger,
-    MediaImportService? imports = null)
+    MediaImportService? imports = null,
+    IVideoFiles? videoFiles = null)
 {
     private readonly ILogger<RecoveryService> _logger = logger;
 
@@ -94,7 +98,8 @@ public sealed partial class RecoveryService(
                     recovery.TracksTotal,
                     recovery.LastCheckpointAt,
                     recovery.RecoveredDurationMs,
-                    recovery.MayBeMissingMs));
+                    recovery.MayBeMissingMs,
+                    recovery.VideoTracks));
             }
         }
 
@@ -224,15 +229,18 @@ public sealed partial class RecoveryService(
             });
         }
 
+        var (videoTracks, videoIntact) = RecoverVideo(id, folder, manifest, state);
         var now = time.GetLocalNow();
         var recovery = interrupted
-            ? new ProjectRecovery(now, state?.LastCheckpointAt, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, Acknowledged: false)
+            ? new ProjectRecovery(now, state?.LastCheckpointAt, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, Acknowledged: false, videoTracks.Select(t => new RecoveredVideoTrack(t.Role, t.Name, t.DurationMs)).ToList())
             : manifest.Recovery;
         await catalog.UpdateAsync(
             id,
             m => m with
             {
                 Tracks = tracks,
+                VideoTracks = videoTracks,
+                HasVideo = m.HasVideo || videoTracks.Count > 0,
                 Pauses = state?.Pauses ?? m.Pauses,
                 DurationMs = interrupted ? recoveredMs : m.DurationMs,
                 Recovery = recovery,
@@ -249,7 +257,9 @@ public sealed partial class RecoveryService(
                     "info",
                     // A state file that says "stopped" means the recording had ended and Memento closed while saving it.
                     state?.State == "stopped" ? "Recovered after Memento closed while saving the recording" : "Recovered after Memento closed during recording",
-                    $"{intact} of {HumanFormat.Count(stateTracks.Count, "track", "tracks")} intact · {HumanFormat.Clock(recoveredMs)} recovered"
+                    $"{intact} of {HumanFormat.Count(stateTracks.Count, "track", "tracks")} intact"
+                        + (videoTracks.Count > 0 ? $" · {videoIntact} of {HumanFormat.Count(videoTracks.Count, "video track", "video tracks")} intact" : string.Empty)
+                        + $" · {HumanFormat.Clock(recoveredMs)} recovered"
                         + (mayBeMissingMs > 0 ? $" · up to {HumanFormat.Clock(mayBeMissingMs)} after the last checkpoint may be missing" : " · nothing is missing")),
                 cancellationToken);
         }
@@ -264,6 +274,94 @@ public sealed partial class RecoveryService(
 
         LogRecovered(id, interrupted, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, result.State);
         return interrupted;
+    }
+
+    /// <summary>
+    /// The video tracks of an interrupted recording: every part named by <c>recording.state.json</c> (or the manifest)
+    /// has a torn last fragment cut off, and the track's length and frames are read back from what is on disk.
+    /// </summary>
+    private (List<VideoTrack> Tracks, int Intact) RecoverVideo(string id, string folder, ProjectManifest manifest, RecordingStateDocument? state)
+    {
+        var files = videoFiles ?? new UnavailableVideoFiles();
+        var entries = state?.VideoTracks is { Count: > 0 } checkpoints
+            ? checkpoints
+            : manifest.VideoTracks.Select(t => new VideoTrackCheckpoint(t.Id, t.Role, t.SourceKind, t.SourceId, t.Name, t.Width, t.Height, t.FrameRate, t.Parts, 0, t.FramesWritten, t.FramesDropped, t.EndedEarlyAtMs, t.EndReason)).ToList();
+        var tracks = new List<VideoTrack>();
+        var intact = 0;
+        foreach (var entry in entries)
+        {
+            var parts = new List<VideoTrackPart>();
+            foreach (var part in entry.Parts.Where(p => ProjectPaths.IsSafeRelative(p.File)))
+            {
+                var path = ProjectPaths.Resolve(folder, part.File);
+                if (!File.Exists(path))
+                {
+                    LogTrackUnrepairable(id, $"{entry.TrackId} ({part.File})", "the file is missing");
+                    continue;
+                }
+
+                VideoFileRepair repair;
+                try
+                {
+                    repair = files.Repair(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    LogTrackUnrepairable(id, $"{entry.TrackId} ({part.File})", ex.Message);
+                    parts.Add(part);
+                    continue;
+                }
+
+                if (repair.TornBytesRemoved > 0)
+                {
+                    LogTrackRepaired(id, entry.TrackId, repair.Frames, repair.TornBytesRemoved);
+                }
+
+                parts.Add(files.IsAvailable && repair.Readable ? part with { DurationMs = repair.DurationMs, FramesWritten = repair.Frames } : part);
+            }
+
+            if (parts.Count == 0)
+            {
+                continue;
+            }
+
+            if (parts.Any(p => p.FramesWritten > 0))
+            {
+                intact++;
+            }
+
+            var first = parts[0];
+            var last = parts[^1];
+            var existing = manifest.VideoTracks.FirstOrDefault(t => t.Id == entry.TrackId);
+            var track = (existing ?? new VideoTrack
+            {
+                Id = entry.TrackId,
+                Role = entry.Role,
+                SourceKind = entry.SourceKind,
+                SourceId = entry.SourceId,
+                Name = entry.Name,
+                File = first.File,
+                Width = entry.Width,
+                Height = entry.Height,
+                FrameRate = entry.FrameRate,
+                Encoder = first.Encoder,
+                HardwareEncoder = first.HardwareEncoder,
+                EndedEarlyAtMs = entry.EndedAtMs,
+                EndReason = entry.EndReason,
+            }) with
+            {
+                File = existing?.File is { } kept && parts.Any(p => p.File == kept) ? kept : first.File,
+                Parts = parts,
+                StartOffsetMs = first.StartOffsetMs,
+                DurationMs = Math.Max(0, last.StartOffsetMs + last.DurationMs - first.StartOffsetMs),
+                FramesWritten = parts.Sum(p => p.FramesWritten),
+                FramesDropped = Math.Max(entry.FramesDropped, existing?.FramesDropped ?? 0),
+                Sha256 = null,
+            };
+            tracks.Add(track);
+        }
+
+        return (tracks, intact);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recovery: project {RecordingId} (interrupted: {Interrupted}) finalized with {Intact}/{Total} tracks intact, {RecoveredMs} ms recovered, up to {MissingMs} ms missing; state {State}")]

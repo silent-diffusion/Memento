@@ -2,6 +2,7 @@ using Memento.Core.Bridge.Contracts;
 using Memento.Core.Host;
 using Memento.Core.Library;
 using Memento.Core.Projects;
+using Memento.Core.Video;
 
 namespace Memento.Core.Maintenance;
 
@@ -17,6 +18,8 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
         long separateBytes = 0;
         var separateRecordings = 0;
         var mixOnly = 0;
+        long videoBytes = 0;
+        var videoRecordings = 0;
         foreach (var id in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -29,6 +32,9 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
                 separateBytes += tracks;
                 separateRecordings += tracks > 0 ? 1 : 0;
                 mixOnly += manifest.MixOnly is not null ? 1 : 0;
+                var video = VideoRemovalService.VideoFiles(manifest, store.GetProjectFolder(id)).Sum(f => f.Bytes);
+                videoBytes += video;
+                videoRecordings += video > 0 ? 1 : 0;
             }
             catch (Exception ex) when (ex is ProjectNotFoundException or ProjectSchemaException or IOException or System.Text.Json.JsonException)
             {
@@ -53,7 +59,7 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
             }
         }
 
-        return new LibraryUsage(total, freeSpace.GetFreeBytes(root) ?? 0, ids.Count, largest, separateBytes, separateRecordings, mixOnly);
+        return new LibraryUsage(total, freeSpace.GetFreeBytes(root) ?? 0, ids.Count, largest, separateBytes, separateRecordings, mixOnly, videoBytes, videoRecordings);
     }
 
     /// <summary>

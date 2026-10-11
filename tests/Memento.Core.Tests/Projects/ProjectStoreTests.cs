@@ -242,7 +242,7 @@ public sealed class ProjectStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task AV2ManifestGetsAnEmptyWhoSpokeAndIsWrittenAsV3()
+    public async Task AV2ManifestGetsAnEmptyWhoSpokeAndIsWrittenAsTheCurrentVersion()
     {
         var created = await CreateAsync();
         var path = Path.Combine(Store.GetProjectFolder(created.Id), "project.json");
@@ -257,7 +257,7 @@ public sealed class ProjectStoreTests : IDisposable
         Assert.Null(loaded.Details.WhoSpoke.Count);
         Assert.Empty(loaded.Details.WhoSpoke.Names);
         var written = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
-        Assert.Equal(3, written["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, written["schemaVersion"]!.GetValue<int>());
         Assert.Equal("""{"count":null,"names":[]}""", written["details"]!["whoSpoke"]!.ToJsonString());
     }
 

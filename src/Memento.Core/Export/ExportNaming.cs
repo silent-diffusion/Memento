@@ -54,6 +54,12 @@ public static partial class ExportNaming
     /// <summary><c>{base} - transcript.json</c> / <c>.md</c> / <c>.txt</c>, and <c>{base}.srt</c>.</summary>
     public static string TranscriptFile(string baseName, string format) => baseName + TranscriptSuffix(format);
 
+    /// <summary>
+    /// 2.0, a video file: <c>{base}.mp4</c> for one file with everything, or <c>{base} - screen.mp4</c> and
+    /// <c>{base} - camera.mp4</c> for one file per track.
+    /// </summary>
+    public static string VideoFile(string baseName, string? role) => role is null ? baseName + ".mp4" : $"{baseName} - {role}.mp4";
+
     /// <summary>The recording details: <c>{base} - details.json</c>.</summary>
     public static string DetailsFile(string baseName) => baseName + " - details.json";
 

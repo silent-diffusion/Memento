@@ -1,11 +1,12 @@
 using System.Text.Json.Serialization.Metadata;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Recording;
+using Memento.Core.Video;
 
 namespace Memento.Core.Bridge.Methods;
 
-/// <summary><c>sources.list</c>: re-enumerates the audio sources on every call. Video is not in 1.0.</summary>
-public sealed class SourcesListMethod(IAudioSourceProvider sources) : BridgeMethod<EmptyParams, SourcesListResult>
+/// <summary><c>sources.list</c>: re-enumerates the audio sources on every call; <c>videoAvailable</c> (2.0) says whether video can be recorded here.</summary>
+public sealed class SourcesListMethod(IAudioSourceProvider sources, IVideoCapture? video = null) : BridgeMethod<EmptyParams, SourcesListResult>
 {
     public override string Name => BridgeMethodNames.SourcesList;
 
@@ -15,6 +16,6 @@ public sealed class SourcesListMethod(IAudioSourceProvider sources) : BridgeMeth
 
     public override async Task<SourcesListResult> InvokeAsync(EmptyParams parameters, CancellationToken cancellationToken)
     {
-        return new SourcesListResult(await sources.ListAsync(cancellationToken), VideoAvailable: false);
+        return new SourcesListResult(await sources.ListAsync(cancellationToken), VideoAvailable: video?.IsAvailable ?? false);
     }
 }

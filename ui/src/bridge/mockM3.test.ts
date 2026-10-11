@@ -75,7 +75,7 @@ describe('M3 contract names', () => {
     const h1Codes = ['library.unavailable', 'updates.unavailable', 'updates.notReady', 'updates.busy'];
     const h1 = ERROR_CODES.indexOf('library.unavailable');
     expect(ERROR_CODES.slice(h1, h1 + h1Codes.length + 1)).toEqual([...h1Codes, 'clipboard.unavailable']);
-    expect(ERROR_CODES.slice(-2)).toEqual(['voices.notFound', 'voices.newerVersion']);
+    expect(ERROR_CODES.slice(ERROR_CODES.indexOf('voices.notFound'), ERROR_CODES.indexOf('voices.notFound') + 2)).toEqual(['voices.notFound', 'voices.newerVersion']);
   });
 });
 

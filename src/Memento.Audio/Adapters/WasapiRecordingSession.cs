@@ -77,6 +77,9 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
 
     public DateTimeOffset StartedAt => _session.StartedAt;
 
+    /// <summary>The audio timeline's 0 on <see cref="QpcClock"/>, where video tracks are laid too.</summary>
+    public long? TimelineOriginQpc => _session.StartedAtQpc;
+
     public RecordingSessionState State
     {
         get

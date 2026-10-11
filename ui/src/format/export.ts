@@ -61,6 +61,8 @@ export const exportFileNames = {
   transcript: (base: string, format: TranscriptExportFormat): string => base + TRANSCRIPT_SUFFIX[format],
   details: (base: string): string => `${base} - details.json`,
   attachment: (name: string): string => `Attachments/${name}`,
+  /** 2.0 video: "Design review.mp4" (one file), "Design review - screen.mp4" and "… - camera.mp4" (two files). */
+  video: (base: string, part: 'combined' | 'screen' | 'camera'): string => (part === 'combined' ? `${base}.mp4` : `${base} - ${part}.mp4`),
   /** M4: "Design review - Meeting minutes.docx". */
   document: (base: string, documentName: string, documentId: string, format: DocumentExportFormat): string =>
     `${base} - ${safeFileStem(documentName, documentId)}.${format === 'markdown' ? 'md' : format}`,
@@ -106,7 +108,7 @@ export const EXPORT_COMPONENTS: readonly ExportComponent[] = ['audioMixed', 'tra
 
 /** Is this component ticked in the selection? */
 export function isOn(selection: ExportSelection, component: ExportComponent): boolean {
-  return selection[component].on;
+  return selection[component]?.on ?? false;
 }
 
 export interface ExportSummary {

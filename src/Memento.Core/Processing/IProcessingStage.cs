@@ -30,6 +30,9 @@ public interface IProcessingStage
     /// <summary>Whether a recording stored now gets this stage with these settings.</summary>
     bool AppliesTo(AppSettings settings);
 
+    /// <summary>Whether this recording gets the stage at all (2.0: the video stage only for recordings with video).</summary>
+    bool AppliesTo(Projects.ProjectManifest manifest) => true;
+
     /// <summary>
     /// Runs the stage. Records its own failures (and returns); throws <see cref="OperationCanceledException"/> when its
     /// token is cancelled, after reading <see cref="StageRun.StopReason"/> to record a user cancel itself if it wants.

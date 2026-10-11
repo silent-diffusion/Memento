@@ -11,6 +11,7 @@ import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, ty
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
 import { createMockClipboard } from './mockClipboard';
 import { createMockReview } from './mockReview';
+import { createMockVideo } from './mockVideo';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { linkHistory } from './mockHistory';
 import { localModelsInstalled } from './mockLocalModel';
@@ -965,6 +966,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     ...m4.handlers,
     ...clipboard.handlers,
     ...review.handlers,
+    ...createMockVideo().handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

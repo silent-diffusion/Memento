@@ -81,6 +81,9 @@ public sealed partial class SimulatedRecordingSession : IRecordingSession
 
     public DateTimeOffset StartedAt { get; }
 
+    /// <summary>When the simulated clock started (real time; at a speed other than 1 a video track will not line up).</summary>
+    public long? TimelineOriginQpc { get; private set; }
+
     public RecordingSessionState State
     {
         get
@@ -375,6 +378,7 @@ public sealed partial class SimulatedRecordingSession : IRecordingSession
         }
 
         _wall.Start();
+        TimelineOriginQpc = Video.VideoClock.Now;
         if (_options.Speed > 0)
         {
             _running = true;

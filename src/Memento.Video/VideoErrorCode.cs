@@ -38,4 +38,7 @@ public enum VideoErrorCode
 
     /// <summary>No usable Direct3D 11 graphics adapter.</summary>
     NoGraphicsDevice,
+
+    /// <summary>The captured window was minimised: the track waits and continues when it comes back (not an error).</summary>
+    SourceMinimised,
 }

@@ -15,4 +15,10 @@ public sealed record RecordingSettingsPatch
     public int? CheckpointSeconds { get; init; }
 
     public int? LowSpaceGb { get; init; }
+
+    /// <summary>2.0, Recording mode.</summary>
+    public bool? CaptureVideo { get; init; }
+
+    /// <summary>2.0, Video defaults; replaced whole with the block.</summary>
+    public VideoSettingsPatch? Video { get; init; }
 }

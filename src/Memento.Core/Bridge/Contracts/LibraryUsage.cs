@@ -7,6 +7,8 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="SeparateTracksBytes">2.0: the separate track files of stored recordings that also have a mix, which "Keep only the mix" would free.</param>
 /// <param name="SeparateTracksRecordings">2.0: how many recordings those are.</param>
 /// <param name="MixOnlyRecordings">2.0: recordings that already keep only their mix.</param>
+/// <param name="VideoBytes">2.0: what every video file uses.</param>
+/// <param name="VideoRecordings">2.0: recordings that still have video.</param>
 public sealed record LibraryUsage(
     long TotalBytes,
     long FreeBytes,
@@ -14,4 +16,6 @@ public sealed record LibraryUsage(
     LibraryUsageLargest? Largest,
     long SeparateTracksBytes = 0,
     int SeparateTracksRecordings = 0,
-    int MixOnlyRecordings = 0);
+    int MixOnlyRecordings = 0,
+    long VideoBytes = 0,
+    int VideoRecordings = 0);

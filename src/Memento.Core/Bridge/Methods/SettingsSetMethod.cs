@@ -198,6 +198,8 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
             Storage = storage,
             CheckpointSeconds = patch.CheckpointSeconds ?? defaults.CheckpointSeconds,
             LowSpaceGb = patch.LowSpaceGb ?? defaults.LowSpaceGb,
+            CaptureVideo = patch.CaptureVideo ?? defaults.CaptureVideo,
+            Video = VideoSettingsBlock.Replace(current.Video, patch.Video),
         };
     }
 }

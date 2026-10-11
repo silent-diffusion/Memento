@@ -12,6 +12,12 @@ public sealed record RecordingCoordinatorOptions
     /// <summary>Below this much free space the recording stops cleanly before writes start failing: 256 MB.</summary>
     public long StopFloorBytes { get; init; } = 256L * 1024 * 1024;
 
+    /// <summary>
+    /// 2.0: below this much free space the video tracks stop (DESIGN.md §18.6: video stops first, audio last), well
+    /// before <see cref="StopFloorBytes"/> stops the audio: 1 GB, about 15 minutes of busy 1440p video.
+    /// </summary>
+    public long VideoStopFloorBytes { get; init; } = 1024L * 1024 * 1024;
+
     /// <summary><c>recording.levels</c> is sent at most once per this interval (≤ 30 per second).</summary>
     public TimeSpan LevelsMinInterval { get; init; } = TimeSpan.FromMilliseconds(33);
 }
