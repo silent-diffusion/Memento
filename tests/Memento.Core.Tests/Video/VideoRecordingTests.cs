@@ -345,6 +345,58 @@ public sealed class VideoRecordingTests : IDisposable
         Assert.Contains(history, h => h.Stage == "video" && h.Detail!.StartsWith("Settings › Storage removes video older than 30 days.", StringComparison.Ordinal));
     }
 
+    /// <summary>Records with video, checkpoints and crashes; returns the interrupted recording's id.</summary>
+    private async Task<string> CrashWithVideoAsync()
+    {
+        var first = NewHost();
+        await first.ResultAsync("settings.set", """{"recording":{"checkpointSeconds":5}}""");
+        var (_, recordingId) = await first.StartAsync("Crashed demo", Mic, FakeVideoCapture.Display1);
+        first.Session.Advance(TimeSpan.FromSeconds(6));
+        await first.Session.DrainAsync();
+        await first.WaitForCheckpointWrittenAsync();
+        await first.Session.SimulateCrashAsync(flushBufferedSamples: false);
+        first.DisposeServicesOnly();
+        return recordingId;
+    }
+
+    [Fact]
+    public async Task AVideoFileThatCannotBeReadDoesNotStopRecovery()
+    {
+        // Audit 2, SA2-01: a damaged or crafted MP4 threw past recovery's narrow catch and stopped the recovery of every
+        // project after it, at every launch. Now the file is kept as it is and the recording is recovered.
+        var recordingId = await CrashWithVideoAsync();
+        _files.RepairWith = _ => throw new ArgumentOutOfRangeException("offset");
+
+        using var second = NewHost();
+        var recovered = await second.Recovery.RunAsync(CancellationToken.None);
+
+        Assert.Equal([recordingId], recovered);
+        var manifest = await second.Store.LoadAsync(recordingId, CancellationToken.None);
+        Assert.Equal("tracks/screen.mp4", Assert.Single(Assert.Single(manifest.VideoTracks).Parts).File);
+        Assert.True(File.Exists(Path.Combine(second.Store.GetProjectFolder(recordingId), "tracks", "screen.mp4")));
+        await second.Processing.WhenIdleAsync();
+    }
+
+    [Fact]
+    public async Task APartOpenedAfterTheLastCheckpointIsFoundOnDiskAfterACrash()
+    {
+        // Audit 2, SA2-03: the encoder fallback's part2 was on disk but not in recording.state.json, so it was neither
+        // in the recording nor removed by "Remove video".
+        var recordingId = await CrashWithVideoAsync();
+        _files.RepairWith = path => path.EndsWith("part2.mp4", StringComparison.Ordinal) ? new VideoFileRepair(true, 30, 1_000, 0) : new VideoFileRepair(true, 150, 5_000, 0);
+
+        using var second = NewHost();
+        await File.WriteAllBytesAsync(Path.Combine(second.Store.GetProjectFolder(recordingId), "tracks", "screen.part2.mp4"), new byte[512]);
+        await second.Recovery.RunAsync(CancellationToken.None);
+
+        var track = Assert.Single((await second.Store.LoadAsync(recordingId, CancellationToken.None)).VideoTracks);
+        Assert.Equal(["tracks/screen.mp4", "tracks/screen.part2.mp4"], track.Parts.Select(p => p.File));
+        var found = track.Parts[1];
+        Assert.Equal((track.Parts[0].StartOffsetMs + 5_000, 1_000L, 30L), (found.StartOffsetMs, found.DurationMs, found.FramesWritten));
+        Assert.Equal(180, track.FramesWritten);
+        await second.Processing.WhenIdleAsync();
+    }
+
     [Fact]
     public async Task AnInterruptedRecordingKeepsItsVideoAndTheDialogNamesIt()
     {
