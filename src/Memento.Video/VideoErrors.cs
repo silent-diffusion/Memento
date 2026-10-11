@@ -26,6 +26,9 @@ public static class VideoErrors
     public static string ProtectedWindow(string window) =>
         $"“{window}” shows protected content that Windows does not allow to be recorded, so its video track is stopped rather than recorded as black. Audio keeps recording. Capture a display instead, or record audio only.";
 
+    public static string OwnWindow(string window) =>
+        $"“{window}” is a Memento window, and Memento does not record its own windows. Audio recording is not affected. Pick another window or a display.";
+
     public static string CaptureUnsupported() =>
         "Screen capture is not available on this version of Windows or in this session. Audio sources are not affected. Update Windows, or record audio only.";
 

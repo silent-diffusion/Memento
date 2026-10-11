@@ -17,6 +17,8 @@ namespace Memento.Video.Hosting;
 /// </summary>
 public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) : IVideoCapture
 {
+    private static readonly SemaphoreSlim ThumbnailGate = new(1, 1);
+
     private readonly Lazy<bool> _supported = new(GraphicsCaptureSource.IsSupported);
     private readonly ILoggerFactory _loggers = loggers ?? NullLoggerFactory.Instance;
 
@@ -42,8 +44,11 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
     {
         var (id, info) = Find(sourceId);
         return Task.Run(
-            () =>
+            async () =>
             {
+                // One thumbnail at a time: each holds a window- or display-sized bitmap in the process that captures
+                // the audio, so parallel requests must not add up (audit 2, SA2-04).
+                await ThumbnailGate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
                     return Thumbnails.Take(id, info, width, _recordingCameras.TryGetValue(id.ToString(), out var latest) ? latest : null);
@@ -51,6 +56,14 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
                 catch (VideoCaptureException ex)
                 {
                     throw new VideoStartException(VideoCodes.Of(ex.Code), ex.Message, ex, ex.Detail);
+                }
+                catch (Exception ex) when (ex is ArgumentException or System.Runtime.InteropServices.ExternalException)
+                {
+                    throw new VideoStartException(DomainErrorCodes.VideoSourceNotFound, $"{info.Name} could not be read for its thumbnail. Audio recording is not affected.", ex);
+                }
+                finally
+                {
+                    ThumbnailGate.Release();
                 }
             },
             cancellationToken);
@@ -152,13 +165,22 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
                 });
         }
 
-        if (info.IsProtected)
+        if (Refusal(info) is { } refusal)
         {
-            throw new VideoStartException(DomainErrorCodes.VideoProtectedContent, VideoErrors.ProtectedWindow(info.Name));
+            throw refusal;
         }
 
         return (id, info);
     }
+
+    /// <summary>
+    /// Why a listed source can't be captured: protected content, or one of Memento's own windows (listed, not selectable;
+    /// the host refuses it too, not only the picker: audit 2, SA2-05).
+    /// </summary>
+    internal static VideoStartException? Refusal(VideoSourceInfo info) =>
+        info.IsProtected ? new VideoStartException(DomainErrorCodes.VideoProtectedContent, VideoErrors.ProtectedWindow(info.Name))
+        : info.IsExcluded ? new VideoStartException(DomainErrorCodes.VideoSourceNotFound, VideoErrors.OwnWindow(info.Name))
+        : null;
 
     private static string NameOf(VideoSourceId id)
     {

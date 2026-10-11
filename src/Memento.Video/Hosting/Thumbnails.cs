@@ -20,6 +20,12 @@ namespace Memento.Video.Hosting;
 /// </summary>
 internal static partial class Thumbnails
 {
+    /// <summary>
+    /// A window is printed at its size up to this many pixels a side (64 MB at most; a 4K window fits). Audit 2, SA2-04:
+    /// a window can claim any size, and the bitmap lives in the process that captures the audio.
+    /// </summary>
+    internal const int MaxWindowSide = 4096;
+
     public static VideoThumbnailResult Take(VideoSourceId id, VideoSourceInfo info, int width, Func<Nv12Frame?>? recording = null)
     {
         using var picture = id.Kind switch
@@ -61,7 +67,7 @@ internal static partial class Thumbnails
             throw new VideoCaptureException(VideoErrorCode.ProtectedContent, VideoErrors.ProtectedWindow(info.Name));
         }
 
-        var bitmap = new Bitmap(Math.Clamp(rect.Width, 1, 8192), Math.Clamp(rect.Height, 1, 8192), PixelFormat.Format32bppRgb);
+        var bitmap = new Bitmap(Math.Clamp(rect.Width, 1, MaxWindowSide), Math.Clamp(rect.Height, 1, MaxWindowSide), PixelFormat.Format32bppRgb);
         using (var graphics = Graphics.FromImage(bitmap))
         {
             graphics.Clear(Color.FromArgb(0x2A, 0x28, 0x24));
@@ -128,9 +134,10 @@ internal static partial class Thumbnails
 
     private static byte Clamp(double value) => (byte)Math.Clamp((int)Math.Round(value), 0, 255);
 
-    private static VideoThumbnailResult Encode(Bitmap picture, int width)
+    /// <summary>The JPEG at <paramref name="width"/>; the height follows the picture, at most twice the width (a 1-pixel-wide window must not ask for gigabytes).</summary>
+    internal static VideoThumbnailResult Encode(Bitmap picture, int width)
     {
-        var height = Math.Max(1, (int)Math.Round((double)width * picture.Height / Math.Max(1, picture.Width)));
+        var height = (int)Math.Clamp(Math.Round((double)width * picture.Height / Math.Max(1, picture.Width)), 1, 2.0 * width);
         using var small = new Bitmap(width, height, PixelFormat.Format24bppRgb);
         using (var graphics = Graphics.FromImage(small))
         {
