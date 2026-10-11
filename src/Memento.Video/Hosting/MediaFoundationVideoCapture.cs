@@ -19,6 +19,9 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(1, 1);
 
+    /// <summary>Camera thumbnails, one at a time (a camera's picture is at most 720p for a DirectShow camera).</summary>
+    private static readonly SemaphoreSlim CameraThumbnailGate = new(1, 1);
+
     private readonly Lazy<bool> _supported = new(GraphicsCaptureSource.IsSupported);
     private readonly ILoggerFactory _loggers = loggers ?? NullLoggerFactory.Instance;
 
@@ -46,12 +49,14 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
     public Task<VideoThumbnailResult> ThumbnailAsync(string sourceId, int width, CancellationToken cancellationToken)
     {
         var (id, info) = Find(sourceId);
+        var gate = GateFor(id.Kind);
         return Task.Run(
             async () =>
             {
-                // One thumbnail at a time: each holds a window- or display-sized bitmap in the process that captures
-                // the audio, so parallel requests must not add up (audit 2, SA2-04).
-                await ThumbnailGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                // One screen thumbnail at a time: each holds a window- or display-sized bitmap in the process that
+                // captures the audio, so parallel requests must not add up (audit 2, SA2-04). Cameras queue apart: a
+                // camera may wait seconds for its first picture, and that must never hold a display's still back.
+                await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
                     return Thumbnails.Take(id, info, width, _recordingCameras.TryGetValue(id.ToString(), out var latest) ? latest : null);
@@ -66,11 +71,14 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
                 }
                 finally
                 {
-                    ThumbnailGate.Release();
+                    gate.Release();
                 }
             },
             cancellationToken);
     }
+
+    /// <summary>The queue a thumbnail of <paramref name="kind"/> waits in: displays and windows share one, cameras another.</summary>
+    internal static SemaphoreSlim GateFor(VideoSourceKind kind) => kind == VideoSourceKind.Camera ? CameraThumbnailGate : ThumbnailGate;
 
     public async Task<IVideoTrackRecorder> StartTrackAsync(VideoTrackRequest request, CancellationToken cancellationToken)
     {
