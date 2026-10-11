@@ -31,7 +31,7 @@ internal sealed class SimulatedSignal
             _ => 330 + (variant * 20),
         };
         _noise = (uint)(seed * 2654435761u) | 1u;
-        _speech = kind == "microphone" && speech is { Length: > 0 } ? speech : null;
+        _speech = kind is "microphone" or "system" && speech is { Length: > 0 } ? speech : null;
         _speechRate = speechRate;
     }
 
@@ -65,7 +65,7 @@ internal sealed class SimulatedSignal
         var noise = NextNoise() * 0.01;
         switch (_kind)
         {
-            case "microphone" when _speech is { } clip:
+            case "microphone" or "system" when _speech is { } clip:
             {
                 // A speech clip in a loop (linear interpolation from its own rate).
                 var position = (t * _speechRate) % clip.Length;

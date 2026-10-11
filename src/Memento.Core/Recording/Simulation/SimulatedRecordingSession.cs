@@ -415,7 +415,7 @@ public sealed partial class SimulatedRecordingSession : IRecordingSession
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
         });
-        return new TrackSlot(trackId, source, file, format, writer, new SimulatedSignal(source.Kind, format, variant, _options.Seed + variant, variant == 0 ? _options.SpeechSamples : null, _options.SpeechSampleRate), queue);
+        return new TrackSlot(trackId, source, file, format, writer, source.Kind == "system" && _options.SystemSpeechSamples is { } system ? new SimulatedSignal(source.Kind, format, variant, _options.Seed + variant, system, _options.SystemSpeechSampleRate) : new SimulatedSignal(source.Kind, format, variant, _options.Seed + variant, variant == 0 && source.Kind == "microphone" ? _options.SpeechSamples : null, _options.SpeechSampleRate), queue);
     }
 
     private void RunGenerator()

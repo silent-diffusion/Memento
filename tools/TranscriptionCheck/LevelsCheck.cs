@@ -127,6 +127,11 @@ internal sealed partial class Check
             }
         }
 
+        // What the per-window normalizer costs the worker (it runs on a copy of each window before the engine).
+        var copy = samples.ToArray();
+        var timer = Stopwatch.StartNew();
+        var gain = LoudnessNormalizer.Normalize(copy, 16_000);
+        Console.WriteLine($"{id}: normalizer gain {SpeechLevel.ToDbfs(gain):+0.0;-0.0;0.0} dB over {samples.Length / 16_000.0:0} s of audio in {timer.Elapsed.TotalMilliseconds:0.0} ms");
         var peak = samples.Length == 0 ? 0 : samples.Max(MathF.Abs);
         var level = SpeechLevel.Measure(samples, 16_000);
         Console.WriteLine($"{id}: peak {Db(peak):0.0} dBFS, active speech level {Db(level.ActiveRms):0.0} dBFS, noise floor {Db(level.NoiseRms):0.0} dBFS; " +

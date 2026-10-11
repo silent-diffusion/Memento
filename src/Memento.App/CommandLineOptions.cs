@@ -9,7 +9,7 @@ namespace Memento.App;
 /// Command-line switches for reviewers and CI:
 /// <c>--screenshot &lt;path&gt;</c> captures the page to a PNG once the UI reports ready, then exits 0;
 /// <c>--theme light|dark</c> forces the theme for this run only (nothing is saved);
-/// <c>--simulate-audio [lose-source=&lt;s&gt;,disk-full=&lt;s&gt;,speed=&lt;x&gt;,speech=&lt;wav&gt;,mics=2]</c> (hidden) records from the simulated engine,
+/// <c>--simulate-audio [lose-source=&lt;s&gt;,disk-full=&lt;s&gt;,speed=&lt;x&gt;,speech=&lt;wav&gt;,system-speech=&lt;wav&gt;,mics=2]</c> (hidden) records from the simulated engine,
 /// optionally unplugging the system-audio source or filling the disk after that many seconds of a session, and
 /// producing audio <c>x</c> times faster than real time (long recordings in a short test);
 /// <c>--free-space-override=&lt;bytes|file&gt;</c> (hidden, tests) makes every drive report that many free bytes, or the
@@ -151,10 +151,14 @@ internal sealed record CommandLineOptions(
         foreach (var part in spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var pair = part.Split('=', 2);
-            if (pair.Length == 2 && pair[0] == "speech")
+            if (pair.Length == 2 && pair[0] is "speech" or "system-speech")
             {
-                // 2.0 (tests): the microphone plays this WAV in a loop, so the live transcript has words to hear.
-                options = WithSpeech(options, pair[1]);
+                // 2.0 (tests): the microphone plays this WAV in a loop, so the live transcript has words to hear; after
+                // 2.0.0-beta.1 the system audio can play another (loud system speech beside a quiet microphone).
+                var (samples, rate) = ReadSpeech(pair[1], pair[0]);
+                options = pair[0] == "speech"
+                    ? options with { SpeechSamples = samples, SpeechSampleRate = rate }
+                    : options with { SystemSpeechSamples = samples, SystemSpeechSampleRate = rate };
                 continue;
             }
 
@@ -176,7 +180,7 @@ internal sealed record CommandLineOptions(
         return options;
     }
 
-    private static SimulatedEngineOptions WithSpeech(SimulatedEngineOptions options, string path)
+    private static (float[] Samples, int Rate) ReadSpeech(string path, string name)
     {
         try
         {
@@ -193,11 +197,11 @@ internal sealed record CommandLineOptions(
                 }
             }
 
-            return options with { SpeechSamples = mono, SpeechSampleRate = reader.Format.SampleRate };
+            return (mono, reader.Format.SampleRate);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
-            throw new ArgumentException($"--simulate-audio speech= needs a readable WAV file: {ex.Message}", nameof(path), ex);
+            throw new ArgumentException($"--simulate-audio {name}= needs a readable WAV file: {ex.Message}", nameof(path), ex);
         }
     }
 
