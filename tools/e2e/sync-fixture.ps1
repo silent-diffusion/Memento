@@ -16,6 +16,11 @@
 .PARAMETER Channels
   1 (default) or 2 (the same speech in both channels).
 
+.PARAMETER Script
+  'first' (default): the planning call below. 'second': other made-up lines in the same two voices after other
+  pauses, for a second track that says something else at other times (the level check, ENGINE-NOTES.md §Q, made
+  by tools/e2e/levels-fixture.ps1).
+
 .EXAMPLE
   powershell -File tools/e2e/sync-fixture.ps1 -Path artifacts/e2e-fixtures/sync-44k.wav -SampleRate 44100
 #>
@@ -23,7 +28,8 @@ param(
   [Parameter(Mandatory = $true)] [string] $Path,
   [int] $SampleRate = 44100,
   [int] $Channels = 1,
-  [double] $Minutes = 4
+  [double] $Minutes = 4,
+  [ValidateSet('first', 'second')] [string] $Script = 'first'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -94,6 +100,30 @@ $lines = @(
 )
 # Silence before each line, in seconds: varied, one long pause, never a fixed rhythm.
 $gaps = @(1.5, 2.5, 4.0, 3.0, 6.0, 2.0, 5.0, 3.5, 2.5, 20.0, 3.0, 4.5, 2.0, 7.0, 3.0, 2.5, 5.5, 3.0, 4.0, 2.0, 6.5, 3.0, 4.0, 2.5, 5.0, 3.5, 8.0, 2.0, 4.5, 3.0)
+if ($Script -eq 'second') {
+  $lines = @(
+    'Sorry, I was on mute. Can everyone hear me now?',
+    'I want to add a point about the training videos for new staff.',
+    'The second video is too long, almost forty minutes without a break.',
+    'We could split it into four short parts with a quiz after each one.',
+    'I already wrote the questions for the first two parts last night.',
+    'The sound in the third video is also very low in the middle section.',
+    'Somebody should record that section again with a better microphone.',
+    'I can book the small meeting room on Thursday for the recording.',
+    'Please also check the subtitles, a few of them are out of date.',
+    'The names of the departments changed in January, so the slides are wrong.',
+    'I will make a list of every slide that needs a new title.',
+    'Another thing, the feedback form at the end does not open on phones.',
+    'It works on laptops, so it is probably the size of the window.',
+    'Let me ask the web team if they can look at it next week.',
+    'For the new starters in May we need everything ready by the twentieth.',
+    'That gives us about three weeks, which should be enough time.',
+    'I will send a short plan with the dates after this call.',
+    'Thanks everyone, that is all from my side for today.'
+  )
+  # Other pauses than the first script, so the two tracks' lines fall at other times.
+  $gaps = @(3.0, 5.5, 2.0, 7.5, 4.0, 9.0, 2.5, 6.0, 3.5, 11.0, 4.5, 2.0, 8.0, 3.0, 6.5, 2.5, 5.0, 4.0)
+}
 if ($gaps.Count -ne $lines.Count) { throw 'Every line needs a gap.' }
 
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer

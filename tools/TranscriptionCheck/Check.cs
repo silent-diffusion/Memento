@@ -24,7 +24,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Memento.Tools.TranscriptionCheck;
 
 /// <summary>The production registrations with the real probe, worker and model manager, minus the UI.</summary>
-internal sealed class Check : IAsyncDisposable
+internal sealed partial class Check : IAsyncDisposable
 {
     private readonly ServiceProvider _services;
 
@@ -218,11 +218,15 @@ internal sealed class Check : IAsyncDisposable
     /// window every 10 s, or back to back with <paramref name="paced"/> false. Prints each window's time, the lines heard,
     /// and the worker's processor time per window and over the run (ENGINE-NOTES.md §O).
     /// </summary>
-    public async Task<int> LiveAsync(string wav, string modelFile, int threads, int windows, bool paced, bool gpu)
+    public async Task<int> LiveAsync(string wavs, string modelFile, int threads, int windows, bool paced, bool gpu)
     {
-        var full = Path.GetFullPath(wav);
-        var source = new LiveTrackSource("mix", Path.GetDirectoryName(full)!, Path.GetFileName(full), 0, null);
-        var covered = LiveMixReader.CoveredUntilMs(source);
+        // Several WAVs (comma-separated) are tracks of one recording, mixed as the app mixes a session's tracks.
+        var sources = wavs.Split(',')
+            .Select(Path.GetFullPath)
+            .Select((full, i) => new LiveTrackSource("track" + i, Path.GetDirectoryName(full)!, Path.GetFileName(full), 0, null))
+            .ToList();
+        var allHeard = new List<WorkerSegment>();
+        var covered = sources.Min(LiveMixReader.CoveredUntilMs);
         var job = new LiveJob(Path.GetFullPath(modelFile), Path.GetFileNameWithoutExtension(modelFile), gpu ? [WorkerRuntimes.Vulkan, WorkerRuntimes.Cpu] : [WorkerRuntimes.Cpu], -1, null, "en", TranscriptionDefaults.Prompt, threads);
         var heard = Channel.CreateUnbounded<WorkerReply>();
         var workers = _services.GetRequiredService<WorkerClient>();
@@ -245,7 +249,7 @@ internal sealed class Check : IAsyncDisposable
         var count = (int)Math.Min(windows, covered / LiveWindows.WindowMs);
         for (var w = 0; w < count; w++)
         {
-            var mix = LiveMixReader.Read([source], w * LiveWindows.WindowMs, (w + 1) * LiveWindows.WindowMs);
+            var mix = LiveMixReader.Read(sources, w * LiveWindows.WindowMs, (w + 1) * LiveWindows.WindowMs);
             var cpuBefore = workers.RunningCpuTime;
             var window = Stopwatch.StartNew();
             await session.SendAsync(new WorkerCommand(WorkerMessageTypes.Audio, Audio: new LiveAudio(w, w * 10.0, LiveAudio.Encode(mix.Samples))));
@@ -256,6 +260,7 @@ internal sealed class Check : IAsyncDisposable
             }
             while (reply.Type != WorkerMessageTypes.Heard);
             busy += window.Elapsed;
+            allHeard.AddRange(reply.Segments ?? []);
             var cpu = workers.RunningCpuTime - cpuBefore;
             Console.WriteLine($"window {w}: {window.Elapsed.TotalSeconds:0.00} s, worker CPU {cpu.TotalSeconds:0.00} s, {reply.Segments?.Count ?? 0} lines: {string.Join(" | ", (reply.Segments ?? []).Select(s => s.Text))}");
             if (paced)
@@ -271,6 +276,7 @@ internal sealed class Check : IAsyncDisposable
         var total = workers.RunningCpuTime - cpuAtStart;
         Console.WriteLine($"{count} windows in {run.Elapsed.TotalSeconds:0.0} s; engine busy {busy.TotalSeconds:0.0} s ({100 * busy.TotalSeconds / Math.Max(1, count * 10.0):0}% of the audio time)");
         Console.WriteLine($"worker CPU {total.TotalSeconds:0.0} s over {run.Elapsed.TotalSeconds:0.0} s = {100 * total.TotalSeconds / run.Elapsed.TotalSeconds / Environment.ProcessorCount:0.0}% of all {Environment.ProcessorCount} processor threads");
+        ScoreLive(sources, allHeard, count * LiveWindows.WindowMs / 1000.0);
         await session.SendAsync(new WorkerCommand(WorkerMessageTypes.End));
         await session.Completion;
         return 0;
