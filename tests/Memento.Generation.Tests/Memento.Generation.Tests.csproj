@@ -18,12 +18,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Memento.Generation\Memento.Generation.csproj" />
+    <!-- The live transcript, for the 2.0 network check (security audit 2). -->
+    <ProjectReference Include="..\..\src\Memento.Transcription\Memento.Transcription.csproj" />
   </ItemGroup>
 
   <!-- The Core test host and fakes, shared rather than copied (as Memento.Transcription.Tests does). -->
   <ItemGroup>
-    <Compile Include="..\Memento.Core.Tests\Fakes\*.cs" LinkBase="Fakes" />
-  </ItemGroup>
+    <Compile Include="..\Memento.Core.Tests\Fakes\*.cs" LinkBase="Fakes" />  </ItemGroup>
 
   <ItemGroup>
     <None Include="fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
