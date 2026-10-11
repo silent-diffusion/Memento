@@ -3,7 +3,8 @@
 // transcript search and Highlight. The real <audio> element plays the host's mixUrl.
 import type { JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { TranscriptSearchMatch } from '../../bridge/types';
+import type { RecordingSegment, TranscriptSearchMatch } from '../../bridge/types';
+import { segmentMarkers, type SegmentMarker } from '../../format/segments';
 import { BackTenIcon, ChevronDownIcon, ChevronUpIcon, FlagIcon, ForwardTenIcon, PauseIcon, PlayIcon, SearchIcon } from '../../components/icons';
 import { SelectMenu } from '../../components/Menus';
 import { formatDuration } from '../../format/duration';
@@ -229,6 +230,8 @@ interface PlayerStripProps {
   skip: SkipSilencesState;
   /** 2.0: the video area above the waveform (ReviewVideo.tsx); null without video. */
   video?: JSX.Element | null;
+  /** 2.1: the recording's segments; a marker shows where each resumed one starts. */
+  segments?: readonly RecordingSegment[];
 }
 
 /** The Skip silences chip: on or off, and whether there is a transcript to find the silences in. */
@@ -240,7 +243,35 @@ export interface SkipSilencesState {
   gaps: readonly Silence[];
 }
 
-function Waveform({ player, peaks, skipped }: { player: PlayerApi; peaks: PeaksState; skipped: readonly Silence[] | null }): JSX.Element {
+/** 2.1: where the recording was resumed: a thin line on the waveform with "Resumed at 10:42 AM · paused 12 min". */
+function ResumeMarkers({ markers }: { markers: readonly SegmentMarker[] }): JSX.Element | null {
+  if (markers.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {markers.map((m) => (
+        <span key={m.index} class="wave-resume" style={{ left: `${m.fraction * 100}%` }} title={`${m.label} · ${m.gap}`}>
+          <span class="wave-resume-label">
+            {m.label} · {m.gap}
+          </span>
+        </span>
+      ))}
+    </>
+  );
+}
+
+function Waveform({
+  player,
+  peaks,
+  skipped,
+  markers = [],
+}: {
+  player: PlayerApi;
+  peaks: PeaksState;
+  skipped: readonly Silence[] | null;
+  markers?: readonly SegmentMarker[];
+}): JSX.Element {
   const played = player.durationMs > 0 ? player.positionMs / player.durationMs : 0;
   const barCount = peaks.kind === 'ready' ? peaks.bars.length : 0;
   // Skip silences on: the bars standing for skipped time are dimmed.
@@ -274,6 +305,7 @@ function Waveform({ player, peaks, skipped }: { player: PlayerApi; peaks: PeaksS
           style={{ height: `${waveBarHeight(value)}px` }}
         />
       ))}
+      <ResumeMarkers markers={markers} />
     </div>
   );
 }
@@ -405,7 +437,8 @@ function TranscriptSearchField({ search, onJump }: { search: SearchApi | null; o
   );
 }
 
-export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump, skip, video = null }: PlayerStripProps): JSX.Element {
+export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump, skip, video = null, segments }: PlayerStripProps): JSX.Element {
+  const markers = useMemo(() => segmentMarkers(segments, player.durationMs), [segments, player.durationMs]);
   const skipping = skip.available && skip.on;
   const landedAt = player.durationMs > 0 && player.skipped !== null ? Math.min(1, player.skipped.atMs / player.durationMs) : 0;
   // Where playback landed after a jump; visual only (the chip's pressed state says it is on).
@@ -415,7 +448,7 @@ export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJu
         {skippedCaption(player.skipped.seconds)}
       </span>
     ) : null;
-  const wave = <Waveform player={player} peaks={peaks} skipped={skipping ? skip.gaps : null} />;
+  const wave = <Waveform player={player} peaks={peaks} skipped={skipping ? skip.gaps : null} markers={markers} />;
   return (
     <div class={video === null ? 'player' : 'player player--video'}>
       {video === null ? (

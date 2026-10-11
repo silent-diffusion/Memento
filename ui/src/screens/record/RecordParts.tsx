@@ -184,6 +184,10 @@ interface StageCardProps {
   onOpenRecording: () => void;
   /** 2.0: the live preview under the sub-line while a video source is on (§18.1). */
   preview?: ComponentChildren;
+  /** 2.1: after Stop, "Resume recording" records another segment into the same recording once it is saved. */
+  onResume?: () => void;
+  /** 2.1: Resume was pressed and waits for the saving to finish. */
+  resumeQueued?: boolean;
 }
 
 export function StageCard(props: StageCardProps): JSX.Element {
@@ -241,8 +245,20 @@ export function StageCard(props: StageCardProps): JSX.Element {
           <button class="btn primary rec-open" type="button" onClick={props.onOpenRecording}>
             Open recording
           </button>
+        ) : props.onResume !== undefined ? (
+          <button class="btn ghost rec-resume" type="button" disabled={props.resumeQueued === true} onClick={props.onResume}>
+            <span class="rec-start-dot" aria-hidden="true" />
+            {props.resumeQueued === true ? 'Resumes once saved…' : 'Resume recording'}
+          </button>
         ) : null}
       </div>
+      {phase === 'finalizing' && props.onResume !== undefined ? (
+        <p class="rec-start-note">
+          {props.resumeQueued === true
+            ? 'Recording continues in the same recording as soon as the tracks are saved. What is recorded so far stays as it is.'
+            : 'Stopped by mistake? Resume records more into this recording; the pause is kept on its timeline.'}
+        </p>
+      ) : null}
 
       {phase === 'ready' ? (
         <p class="rec-start-note">

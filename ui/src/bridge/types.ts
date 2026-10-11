@@ -57,6 +57,8 @@ export const ERROR_CODES = [
   'recording.noSession',
   'recording.diskFull',
   'recording.alreadyActive',
+  // 2.1: resume a stopped recording
+  'recording.cannotResume',
   // M2
   'transcript.none',
   'transcript.segmentNotFound',
@@ -216,6 +218,8 @@ export interface RecordingSummary {
   matchSnippet: string | null;
   /** 2.0 video: the recording's video tracks and whether they were removed; null when it never had video. */
   video: RecordingVideoSummary | null;
+  /** 2.1: when each "Resume recording" segment started (ISO 8601); [] when recorded in one go. Hosts before 2.1 leave it out. */
+  resumedAt?: string[];
   /** 2.1: the Library folder it is filed in ("Clients/Acme"); null at the root. */
   folder: string | null;
   /** 2.1: set once "Delete audio" removed its tracks and mix; null while they are kept. */
@@ -366,6 +370,21 @@ export interface Project {
   mixLevels: MixLevelsInfo | null;
   /** 2.1: "Delete audio" removed the tracks, mix and peaks (mixUrl and peaksUrl are then null); null while they are kept. */
   audioRemoved: AudioRemovedInfo | null;
+  /** 2.1: the recorded stretches, one per Stop; [] for an import. Hosts before 2.1 leave it out. */
+  segments?: RecordingSegment[];
+  /** 2.1: "Resume recording" may add a segment now; resumeNote says why not otherwise. */
+  canResume?: boolean;
+  /** 2.1: why the recording cannot be resumed, as a sentence; null when it can. */
+  resumeNote?: string | null;
+}
+
+/** 2.1: one recorded stretch; segments sit end to end, gapMs is the real time since the previous Stop (shown as a pause). */
+export interface RecordingSegment {
+  index: number;
+  startedAt: string;
+  offsetMs: number;
+  durationMs: number;
+  gapMs: number;
 }
 
 /** 2.0: when the separate track files were removed, how many, and their size. */
@@ -1112,6 +1131,12 @@ export interface RecordingStartResult {
   startedAt: string;
 }
 
+/** 2.1 recording.resumeStopped: without sourceIds the last segment's sources that are still connected. */
+export interface RecordingResumeStoppedParams {
+  recordingId: string;
+  sourceIds?: string[];
+}
+
 export interface SessionParams {
   sessionId: string;
 }
@@ -1150,6 +1175,10 @@ export interface RecordingStatePayload {
   tracks: Track[];
   lastCheckpointAt: string | null;
   highlightsCount: number;
+  /** 2.1: the segment after "Resume recording" (2, 3, …); null or absent for a recording's first. */
+  segment?: number | null;
+  /** 2.1: recorded time of the earlier segments; the recording's total is segmentOffsetMs + elapsedMs. */
+  segmentOffsetMs?: number;
 }
 
 export interface RecordingCurrentResult {
@@ -2752,6 +2781,7 @@ export interface BridgeMethods {
   'recording.markHighlight': { params: RecordingMarkHighlightParams; result: RecordingMarkHighlightResult };
   'recording.stop': { params: SessionParams; result: RecordingStopResult };
   'recording.current': { params: EmptyParams; result: RecordingCurrentResult };
+  'recording.resumeStopped': { params: RecordingResumeStoppedParams; result: RecordingStartResult };
   'recovery.list': { params: EmptyParams; result: RecoveryListResult };
   'recovery.acknowledge': { params: RecordingIdParams; result: EmptyResult };
   'dialog.pickFolder': { params: PickFolderParams; result: PickFolderResult };
@@ -3032,6 +3062,7 @@ export const METHOD_NAMES = [
   'recording.markHighlight',
   'recording.stop',
   'recording.current',
+  'recording.resumeStopped',
   'recovery.list',
   'recovery.acknowledge',
   'dialog.pickFolder',

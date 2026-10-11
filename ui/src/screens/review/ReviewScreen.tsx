@@ -12,6 +12,7 @@ import { ActionMenu } from '../../components/Menus';
 import { SpokeHeader } from '../../components/SpokeHeader';
 import { UndoButton } from '../../components/UndoButton';
 import { formatDuration } from '../../format/duration';
+import { resumedSummary } from '../../format/segments';
 import { activeChapterIndex } from '../../format/player';
 import { silenceGaps } from '../../format/silences';
 import { useUiFlag } from '../../state/uiPrefs';
@@ -234,6 +235,24 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     }
   };
 
+  // 2.1: Resume recording adds a segment to this recording and opens the Recording session on it.
+  const [resuming, setResuming] = useState(false);
+  const resumeRecording = (): void => {
+    if (resuming) {
+      return;
+    }
+    setResuming(true);
+    bridge
+      .call('recording.resumeStopped', { recordingId })
+      .then((result) => {
+        services.router.navigate({ name: 'record', sessionId: result.sessionId });
+      })
+      .catch((e: unknown) => {
+        setResuming(false);
+        fail('The recording was not resumed')(e);
+      });
+  };
+
   const patch = (changes: Partial<Project>): void => {
     setProject((p) => (p === null ? p : { ...p, ...changes }));
   };
@@ -416,6 +435,9 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               // Shown first on the line (DESIGN.md §18.3): the camera, or the crossed camera once removed.
               <span class="review-meta-video">{project.video.removed === null ? <VideoIcon size={13} /> : <VideoRemovedIcon size={13} />}</span>
             )}
+            {resumedSummary(project?.summary.resumedAt) === null ? null : (
+              <span class="review-meta-resumed">{resumedSummary(project?.summary.resumedAt)}</span>
+            )}
             {transcript?.reviewed === true ? (
               <span class="pill done spoke-meta-pill">
                 <CheckIcon size={11} />
@@ -427,6 +449,17 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
         actions={
           <>
             <UndoButton />
+            {project?.canResume === true ? (
+              <button
+                class="btn ghost spoke-ghost"
+                type="button"
+                disabled={resuming}
+                title="Record more into this recording; what is recorded so far stays as it is"
+                onClick={resumeRecording}
+              >
+                {resuming ? 'Resuming…' : 'Resume recording'}
+              </button>
+            ) : null}
             <button
               class="btn ghost spoke-ghost"
               type="button"
@@ -638,6 +671,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   search={transcript !== null && transcript.segments.length > 0 ? search : null}
                   onJump={jump}
                   skip={{ available: canSkip, on: skipSilences, onToggle: setSkipSilences, gaps: silences }}
+                  {...(project.segments === undefined ? {} : { segments: project.segments })}
                   video={
                     project.video !== null && (project.video.removed !== null || project.video.tracks.length > 0) ? (
                       <VideoArea

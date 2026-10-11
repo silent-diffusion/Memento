@@ -4,6 +4,7 @@
 import type { JSX } from 'preact';
 import type { RecordingSummary, StageName } from '../../bridge/types';
 import { formatDuration } from '../../format/duration';
+import { resumedSummary } from '../../format/segments';
 import {
   cardPills,
   isInterruptedImport,
@@ -190,6 +191,7 @@ export function RecordingRow({ recording, selected, now, handlers, query }: Item
               </span>
             ) : null}
             {rowMetaLine(recording, now)}
+            {resumedSummary(recording.resumedAt) === null ? null : <span class="row-meta-resumed"> · {resumedSummary(recording.resumedAt)}</span>}
           </span>
           <MatchSnippet snippet={recording.matchSnippet} query={query} />
         </span>
