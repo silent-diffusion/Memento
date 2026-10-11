@@ -31,7 +31,8 @@ import { Palette } from './Palette';
 import { PreviewPanel, type InputRow } from './PreviewPanel';
 import { layoutOfDocument } from './regenerate';
 import { bindBuilderUndo, recordBuilderStep, structureStep, templateStep, type BuilderSnapshot } from './builderUndo';
-import { ConfirmSendDialog, PayloadSheet } from './SendDialogs';
+import { PreviewSheet } from './PreviewSheet';
+import { ConfirmSendDialog } from './SendDialogs';
 import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
 import { TemplateChooser } from './TemplateChooser';
@@ -431,6 +432,22 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       });
   };
 
+  /** 2.0: the preview (or one request of it) on the clipboard through the host; a refusal is a warning toast. */
+  const copyPreview = async (passId: string | null): Promise<string> => {
+    if (current === null || recordingId === null) {
+      return '';
+    }
+    try {
+      const copied = await bridge.call('generation.copyPreview', { recordingId, template: current, passId });
+      return passId === null
+        ? `Copied ${copied.characters.toLocaleString('en-US')} characters: every request`
+        : `Copied ${copied.characters.toLocaleString('en-US')} characters: this request`;
+    } catch (e) {
+      store.toasts.show({ tone: 'warning', title: 'The preview was not copied', body: messageOf(e) });
+      throw e;
+    }
+  };
+
   const editStyle = (styleId: string): void => {
     if (template === null) {
       return;
@@ -681,10 +698,11 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
         </div>
       </main>
       {sheet !== null && provider !== null ? (
-        <PayloadSheet
+        <PreviewSheet
           provider={provider}
           preview={sheet.preview}
           error={sheet.error}
+          onCopy={copyPreview}
           onClose={() => {
             setSheet(null);
           }}

@@ -160,9 +160,12 @@ function contentOf(id: string, html: string, record: GenerationRecord | null): D
   const title = text(/<h1 class="paper-title">([\s\S]*?)<\/h1>/.exec(html)?.[1] ?? '');
   const meta = text(/<p class="paper-meta"[^>]*>([\s\S]*?)<\/p>/.exec(html)?.[1] ?? '');
   const rows = [...html.matchAll(/<div class="paper-row"[^>]*>([\s\S]*?)<\/div>\n(?=<div class="paper-row"|<\/article>)/g)].map((row, index) => {
-    const blocks: Block[] = [];
-    for (const section of (row[1] ?? '').matchAll(/<section[^>]*>([\s\S]*?)<\/section>/g)) {
-      const body = (section[1] ?? '').replace(/<h2 class="paper-h">[\s\S]*?<\/h2>/, '');
+    // Each section keeps its module's id, type and heading (2.0: the viewer finds the follow-up email by them).
+    const modules = [...(row[1] ?? '').matchAll(/<section([^>]*)>([\s\S]*?)<\/section>/g)].map((section, column): DocumentModule => {
+      const attributes = section[1] ?? '';
+      const heading = text(/<h2 class="paper-h">([\s\S]*?)<\/h2>/.exec(section[2] ?? '')?.[1] ?? '');
+      const body = (section[2] ?? '').replace(/<h2 class="paper-h">[\s\S]*?<\/h2>/, '');
+      const blocks: Block[] = [];
       const items = [...body.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((li) => ({ runs: [plainRun(text(li[1] ?? ''))], items: [] }));
       if (body.includes('class="chips"')) {
         blocks.push({ type: 'chips', items: [...body.matchAll(/<span class="chip">([^<]*)<\/span>/g)].map((m) => text(m[1] ?? '')) });
@@ -171,9 +174,16 @@ function contentOf(id: string, html: string, record: GenerationRecord | null): D
       } else if (text(body) !== '') {
         blocks.push({ type: 'paragraph', runs: [plainRun(text(body))] });
       }
-    }
-    const module: DocumentModule = { id: `m${String(index + 1).padStart(2, '0')}`, module: 'notes', title: '', textSize: 'normal', linkToTranscript: true, blocks };
-    return { modules: [module] };
+      return {
+        id: /data-id="([^"]*)"/.exec(attributes)?.[1] ?? `m${String(index + 1).padStart(2, '0')}${column === 0 ? '' : String(column)}`,
+        module: /data-module="([^"]*)"/.exec(attributes)?.[1] ?? 'notes',
+        title: heading,
+        textSize: 'normal',
+        linkToTranscript: true,
+        blocks,
+      };
+    });
+    return { modules };
   });
   return { schemaVersion: 1, id, title, meta, rows, record, styleId: record?.styleId ?? null, version: 1 };
 }
@@ -308,10 +318,38 @@ function writeModule(module: ModuleSettings, ctx: WriteContext): string {
             .map((para) => `<p>${escapeHtml(para.trim()).replace(/\n/g, '<br>')}</p>`)
             .join('\n')}\n`;
     case 'followUpEmail': {
-      const people = details.participants.map(firstName);
-      const greeting = people.length === 0 ? 'Hello,' : `Hello ${people.join(', ')},`;
-      const agreed = named.slice(0, 2).map((h) => `${sentence(h.note)}${ts(h.atMs / 1000)}`);
-      return `<p>${escapeHtml(greeting)}</p>\n<p>${escapeHtml(`Thank you for joining "${details.title}".`)} ${agreed.length === 0 ? 'Nothing was agreed that needs following up.' : `What we agreed: ${agreed.join(' ')}`}</p>\n`;
+      // 2.0: as the host's FollowUpEmailWriter: recipients and subject, a greeting, opening, recap, decisions and
+      // action items, and a closing in the module's tone, signed with its sign-off name.
+      const tone = module.email?.tone ?? 'neutral';
+      const people = details.participants;
+      const first = people.map(firstName);
+      const names = first.length === 1 ? (first[0] ?? '') : `${first.slice(0, -1).join(', ')} and ${first[first.length - 1] ?? ''}`;
+      const hello = tone === 'neutral' ? 'Hello' : 'Hi';
+      const greeting = people.length === 0 || people.length > 4 || (tone === 'brief' && people.length > 1) ? (tone === 'brief' ? 'Hi all,' : `${hello} everyone,`) : `${hello} ${names},`;
+      const opening =
+        tone === 'warm'
+          ? `Thank you all for your time at ${details.title}. Here is a short recap of what we covered and agreed.`
+          : tone === 'brief'
+            ? `A quick recap of ${details.title}.`
+            : `Thank you for joining ${details.title}. Here is a summary of what we discussed and agreed.`;
+      const decided = named.filter((h) => !/ owns /i.test(h.note)).slice(0, 3);
+      const owned = named.map((h) => ({ h, match: /^(\w+) owns (.+)$/i.exec(h.note.trim()) })).filter((x) => x.match !== null);
+      const recap = lines.slice(0, tone === 'brief' ? 1 : 2).map((l) => `${escapeHtml(sentence(`${firstName(l.speaker)} said that ${l.text.trim().replace(/[.?!]$/, '')}`))}${ts(l.t)}`);
+      const closing = tone === 'warm' ? 'Thanks again, everyone. Let me know if I missed anything.' : tone === 'brief' ? null : 'Please reply if anything here does not match your notes.';
+      const signOff = tone === 'warm' ? 'Warm regards,' : tone === 'brief' ? 'Thanks,' : 'Best regards,';
+      const subject = tone === 'brief' ? `Recap: ${details.title}` : `Follow-up: ${details.title}`;
+      return [
+        `<dl class="kv"><dt>To</dt><dd>${people.length === 0 ? '<span class="note">No participants were listed. Add the recipients when you send it.</span>' : escapeHtml(people.join('; '))}</dd><dt>Subject</dt><dd>${escapeHtml(subject)}</dd></dl>`,
+        `<p>${escapeHtml(greeting)}</p>`,
+        `<p>${escapeHtml(opening)}</p>`,
+        ...(recap.length === 0 ? [] : [...(tone === 'brief' ? [] : ['<p><b>Summary</b></p>']), `<p>${recap.join(' ')}</p>`]),
+        ...(decided.length === 0 ? [] : ['<p><b>Decisions</b></p>', `<ul>${decided.map((h) => `<li>${escapeHtml(sentence(h.note))}${ts(h.atMs / 1000)}</li>`).join('')}</ul>`]),
+        ...(owned.length === 0 ? [] : ['<p><b>Action items</b></p>', `<ul>${owned.map(({ h, match }) => `<li><b>${escapeHtml(match?.[1] ?? '')}:</b> ${escapeHtml(sentence(`take on ${match?.[2] ?? ''}`))}${ts(h.atMs / 1000)}</li>`).join('')}</ul>`]),
+        ...(decided.length === 0 && owned.length === 0 ? ['<p><span class="note">No decisions or action items were recorded.</span></p>'] : []),
+        ...(closing === null ? [] : [`<p>${escapeHtml(closing)}</p>`]),
+        `<p>${escapeHtml(signOff)}</p>`,
+        ...(module.email?.signOff == null || module.email.signOff.trim() === '' ? [] : [`<p>${escapeHtml(module.email.signOff.trim())}</p>`]),
+      ].join('\n') + '\n';
     }
     case 'summary':
     case 'executiveSummary':

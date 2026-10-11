@@ -12,6 +12,7 @@ import { createMockLiveOutput, type MockLiveOutput } from './mockLiveOutput';
 import { effectiveLocalModelId, localProviderInfo, recommendedLocalModelId, type LocalModelsFlag, type VramFlag } from './mockLocalModel';
 import { type MockModelManager } from './mockModels';
 import { articleOpen, metaLine, moduleOpen, skeletonHtml, titleBlock } from './mockPaper';
+import { previewInputs, previewPasses, previewRedactions } from './mockPreview';
 import { MockHostError } from './mockSession';
 import { createMockTemplateStore, MODULE_CATALOG, moduleInfo, sampleHtml, type MockTemplateStore } from './mockTemplates';
 import type {
@@ -266,39 +267,61 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         }
       });
     });
+    // 2.0: each input's text, for the preview sheet's sizes.
+    const sections: Partial<Record<keyof InputSelection, string>> = {};
+    const section = (key: keyof InputSelection, heading: string, body: string[]): void => {
+      parts.push('', heading, ...body);
+      sections[key] = [heading, ...body].join('\n');
+    };
     if (used.details) {
-      parts.push('', '[Recording details]', `Title: ${details.title}`, `Recorded: ${project.summary.createdAt} · ${formatDuration(project.summary.durationMs)}`);
-      if (details.platform !== '') {
-        parts.push(`Platform: ${details.platform}`);
-      }
-      if (details.purpose !== '') {
-        parts.push(`Purpose: ${details.purpose}`);
-      }
+      section('details', '[Recording details]', [
+        `Title: ${details.title}`,
+        `Recorded: ${project.summary.createdAt} · ${formatDuration(project.summary.durationMs)}`,
+        ...(details.platform !== '' ? [`Platform: ${details.platform}`] : []),
+        ...(details.purpose !== '' ? [`Purpose: ${details.purpose}`] : []),
+      ]);
     }
     if (used.participants) {
-      parts.push('', '[Participants]', ...details.participants);
+      section('participants', '[Participants]', details.participants);
     }
     if (used.agenda) {
-      parts.push('', `[Agenda] (${details.agenda.source ?? 'typed in'})`, ...details.agenda.items.map((item, i) => `${i + 1}. ${item.text}`));
+      section('agenda', `[Agenda] (${details.agenda.source ?? 'typed in'})`, details.agenda.items.map((item, i) => `${i + 1}. ${item.text}`));
     }
     if (used.highlights) {
-      parts.push('', '[Highlights and notes]', ...project.highlights.map((h) => `${formatDuration(h.atMs)} ${h.note === '' ? '(no note)' : h.note}`));
+      section('highlights', '[Highlights and notes]', project.highlights.map((h) => `${formatDuration(h.atMs)} ${h.note === '' ? '(no note)' : h.note}`));
     }
     if (used.attachments) {
-      parts.push('', '[Imported documents]', ...attachments.map((name) => `${name} (text extracted on this PC)`));
+      section('attachments', '[Imported documents]', attachments.map((name) => `${name} (text extracted on this PC)`));
     }
     if (used.previousDocuments) {
-      parts.push('', '[Earlier documents]', ...earlier.map((d) => d.name));
+      section('previousDocuments', '[Earlier documents]', earlier.map((d) => d.name));
     }
+    const transcriptLines = lines.map((l, i) => `[${String(i + 1)}] ${l.speaker}: ${l.text}`);
     if (used.transcript) {
-      parts.push('', '[Transcript]', ...lines.map((l) => `${formatDuration(l.t * 1000)} ${l.speaker}: ${l.text}`));
+      section('transcript', '[Transcript]', lines.map((l) => `${formatDuration(l.t * 1000)} ${l.speaker}: ${l.text}`));
     }
     parts.push('', 'Audio and video are not sent.');
     const payloadText = parts.join('\n');
     const bytes = new TextEncoder().encode(payloadText).length;
     // The local model reads a smaller window at a time.
     const chunkBytes = provider.kind === 'local' ? 12_000 : 160_000;
-    return { payloadText, bytes, chunks: Math.max(1, Math.ceil(bytes / chunkBytes)), inputsUsed: used, warnings };
+    const chunks = Math.max(1, Math.ceil(bytes / chunkBytes));
+    const source = { template, provider, ticked: template.inputs, used, allowed: provider.kind === 'cloud' ? allowed : template.inputs, sections, transcript: transcriptLines, chunks };
+    const inputs = previewInputs(source);
+    return {
+      payloadText,
+      bytes,
+      chunks,
+      inputsUsed: used,
+      warnings,
+      providerId: provider.id,
+      staysOnPc: provider.kind === 'local',
+      provider: { id: provider.id, name: provider.name, kind: provider.kind, modelLabel: provider.modelLabel },
+      askBeforeSend: env.settings().ai.askBeforeSend,
+      inputs,
+      redactions: previewRedactions(inputs),
+      passes: previewPasses(source),
+    };
   };
 
   const emitProgress = (job: Job, stage: EventPayload<'generation.progress'>['stage'], percent: number, moduleId: string | null, message: string | null, documentId: string | null = null): void => {

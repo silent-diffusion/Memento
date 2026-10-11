@@ -10,6 +10,7 @@ import { LIVE_DRAFT_LINES } from './mockTranscripts';
 import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, type M3Flags } from './mockLibraryExtra';
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
 import { createMockClipboard } from './mockClipboard';
+import { createMockCopies } from './mockPreview';
 import { createMockReview } from './mockReview';
 import { createMockVideo } from './mockVideo';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
@@ -967,6 +968,15 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     ...clipboard.handlers,
     ...review.handlers,
     ...createMockVideo().handlers,
+    // 2.0: the preview sheet's copy and the follow-up email's copy.
+    ...createMockCopies({
+      preview: (params) => m4.handlers['generation.preview'](params),
+      document: (recordingId, documentId) => ({
+        document: m4.handlers['documents.get']({ recordingId, documentId }).document,
+        html: m4.handlers['documents.renderHtml']({ recordingId, documentId, mode: 'print' }).html,
+      }),
+      write: clipboard.write,
+    }).handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

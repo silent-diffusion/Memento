@@ -9,6 +9,7 @@ import { Segmented, Toggle } from '../../components/Controls';
 import { DragHandleIcon, PlusIcon } from '../../components/icons';
 import { SmallCloseIcon, SmallDownIcon, SmallUpIcon } from '../../components/paper/icons';
 import { moduleWords, rowWords } from '../../format/documents';
+import { EmailOptions } from './EmailOptions';
 import { startDrag } from './Palette';
 import { canDropBeside, moduleCount, type DragPayload, type Rows, type StructureAction } from './structureState';
 
@@ -340,6 +341,7 @@ function ModuleCard({ module, info, index, name, shared, selected, ghosted, disp
               </div>
             ) : null}
           </div>
+          {module.module === 'followUpEmail' ? <EmailOptions module={module} name={name} update={update} /> : null}
         </div>
       ) : null}
     </div>

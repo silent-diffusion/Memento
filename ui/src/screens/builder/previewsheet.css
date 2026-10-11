@@ -1,0 +1,171 @@
+/* "Preview exactly what will be sent" (DESIGN.md §10.6): the Live output sheet's layout (liveoutput.css) with a search
+   field over the list, an overview of the inputs, and two wells per request (system prompt, then the user turn). */
+.preview-state {
+  flex: 1;
+  min-height: 0;
+  padding: 20px 24px;
+  border-top: 1px solid var(--line);
+}
+
+.preview-list {
+  gap: 10px;
+}
+
+.preview-search {
+  position: relative;
+}
+
+.preview-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.preview-field {
+  width: 100%;
+  height: 36px;
+  padding-left: 40px;
+  font-size: 13px;
+}
+
+.preview-count {
+  margin: 0 0 0 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.preview-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* A request: its system prompt over its user turn, the second taking the rest of the height. */
+.preview-pass {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-pass > .live-request {
+  flex: 0 1 30%;
+  min-height: 96px;
+}
+
+.preview-pass > .live-well:last-child {
+  flex: 1 1 auto;
+}
+
+.preview-illustration {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.preview-mark {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* The overview: facts, the inputs table and what is held back, scrolling as one. */
+.preview-overview {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-scroll {
+  height: 100%;
+  overflow: auto;
+  padding: 16px 24px 20px;
+}
+
+.preview-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.preview-facts {
+  margin-bottom: 18px;
+}
+
+.preview-heading {
+  margin: 18px 0 8px;
+}
+
+.preview-inputs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.preview-inputs th,
+.preview-inputs td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-inputs thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.preview-inputs tbody th {
+  font-weight: 600;
+}
+
+.preview-input td {
+  color: var(--text-2);
+}
+
+.preview-input--sent td:nth-child(2) {
+  color: var(--text);
+}
+
+.preview-input--never th,
+.preview-input--never td {
+  color: var(--text-3);
+}
+
+.preview-input-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.preview-redactions {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.preview-none {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.preview-footer {
+  flex-wrap: wrap;
+}
+
+.preview-copied {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+@media (max-width: 760px) {
+  .preview-inputs td.mono {
+    white-space: normal;
+  }
+}

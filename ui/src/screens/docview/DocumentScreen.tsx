@@ -14,7 +14,7 @@ import { Paper } from '../../components/paper/Paper';
 import { serializePaper } from '../../components/paper/paperDom';
 import { PROVIDER_SHORT, whenWords } from '../../format/documents';
 import { useServices } from '../../state/context';
-import { copyDocument } from '../../state/copy';
+import { copyDocument, copyModule, emailModules } from '../../state/copy';
 import { MERGE_WINDOW_MS, undoOf } from '../../state/undo';
 import { cancelGeneration, generationOf } from '../builder/generation';
 import { holdLiveOutput, liveOutputOf, openLiveOutput, releaseLiveOutput } from '../builder/liveOutput';
@@ -44,6 +44,8 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
   const now = services.now();
   const [summary, setSummary] = useState<DocumentSummary | null>(null);
   const [record, setRecord] = useState<GenerationRecord | null>(null);
+  /** 2.0: the Follow-up email modules, each copied as an email on its own. */
+  const [emails, setEmails] = useState<{ id: string; title: string }[]>([]);
   const [html, setHtml] = useState<string | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [styles, setStyles] = useState<Style[]>([]);
@@ -107,6 +109,7 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
         }
         setSummary(doc.summary);
         setRecord(doc.document.record);
+        setEmails(emailModules(doc.document));
         setName(doc.summary.name);
         setHtml(rendered.html);
         setProject(p);
@@ -548,6 +551,19 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
                   });
                 },
               },
+              // 2.0: a Follow-up email on its own, as text and formatted, ready to paste into an email.
+              ...emails.map((email) => ({
+                label: emails.length === 1 && email.title === 'Follow-up email' ? 'Copy the follow-up email' : `Copy “${email.title}”`,
+                run: () => {
+                  void saverRef.current?.flush().finally(() => {
+                    void copyModule(bridge, store, recordingId, documentId, email.id, email.title).then((done) => {
+                      if (done !== null) {
+                        undo.announce(done);
+                      }
+                    });
+                  });
+                },
+              })),
               {
                 label: 'Make template',
                 disabled: record === null,

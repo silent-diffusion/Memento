@@ -2,7 +2,7 @@
 // formats and writes the Windows clipboard; the page never uses the browser's clipboard. A copy is
 // confirmed quietly (DESIGN.md §17: no toast for a success); a refusal gets the host's words in a toast.
 import type { BridgeClient } from '../bridge/client';
-import type { TranscriptCopyFormat, TranscriptCopyResult, TranscriptTextOptions } from '../bridge/types';
+import type { DocumentContent, TranscriptCopyFormat, TranscriptCopyResult, TranscriptTextOptions } from '../bridge/types';
 import type { AppStore } from './store';
 import { writeCopyFormat } from './uiPrefs';
 
@@ -56,6 +56,25 @@ export async function copyDocument(bridge: BridgeClient, store: AppStore, record
     return `Copied “${name}”`;
   } catch (e) {
     store.toasts.show({ tone: 'warning', title: `“${name}” was not copied`, body: messageOf(e) });
+    return null;
+  }
+}
+
+/** 2.0: the document's Follow-up email modules (the viewer's More menu copies each one as an email). */
+export function emailModules(document: DocumentContent): { id: string; title: string }[] {
+  return document.rows
+    .flatMap((r) => r.modules)
+    .filter((m) => m.module === 'followUpEmail')
+    .map((m) => ({ id: m.id, title: m.title }));
+}
+
+/** 2.0: one module as plain text and formatted, without heading or timestamps; "Copied the follow-up email", or null after a warning toast. */
+export async function copyModule(bridge: BridgeClient, store: AppStore, recordingId: string, documentId: string, moduleId: string, title: string): Promise<string | null> {
+  try {
+    await bridge.call('documents.copyModule', { recordingId, documentId, moduleId });
+    return title === 'Follow-up email' ? 'Copied the follow-up email' : `Copied “${title}”`;
+  } catch (e) {
+    store.toasts.show({ tone: 'warning', title: `“${title}” was not copied`, body: messageOf(e) });
     return null;
   }
 }
