@@ -133,7 +133,8 @@ public sealed class UpdateServiceTests : IDisposable
         var checkedNow = await _host.ResultAsync(BridgeMethodNames.UpdatesCheck);
         Assert.Equal("0.5.1", checkedNow.GetProperty("availableVersion").GetString());
         await _host.ResultAsync(BridgeMethodNames.UpdatesDownload);
-        await StateAsync(UpdateStates.Downloading);
+        // Update now reports "downloading" before the background download has reached the feed; wait until it has.
+        await _host.Sink.WaitForAsync(BridgeEventNames.UpdatesProgress, p => p.GetProperty("percent").ValueKind == JsonValueKind.Number && p.GetProperty("percent").GetInt32() == 42);
 
         SetRecording(true);
         await _host.Sink.WaitForAsync(BridgeEventNames.UpdatesProgress, p => p.GetProperty("deferred").GetBoolean());
