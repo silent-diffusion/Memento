@@ -79,7 +79,8 @@ export function rolesLabel(roles: readonly VideoRole[]): string {
 
 /** What a camera offers: "1080p" for a 1920 × 1080 camera. */
 export function cameraLabel(source: Pick<VideoSource, 'name' | 'height'>): string {
-  return `${source.name} · ${heightLabel(source.height)}`;
+  // A camera's size is not known without opening it: the host lists 0 (BRIDGE.md, VideoSource).
+  return source.height > 0 ? `${source.name} · ${heightLabel(source.height)}` : source.name;
 }
 
 /** Mean bitrate of busy 30 fps content at each height, at Balanced (ENGINE-NOTES.md §M.3). */

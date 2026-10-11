@@ -161,7 +161,8 @@ export function previewCaption(selection: VideoSelection | null, sources: VideoL
   if (selection?.camera === true) {
     const camera = findSource(sources, selection.cameraId);
     const track = tracks.find((t) => t.trackId === 'camera');
-    return `Camera · ${heightLabel(isLive(track) ? track.height : Math.min(camera?.height ?? 1080, 1080))}`;
+    const height = isLive(track) ? track.height : Math.min(camera === null || camera.height === 0 ? 1080 : camera.height, 1080);
+    return height > 0 ? `Camera · ${heightLabel(height)}` : 'Camera';
   }
   return 'No video source';
 }
@@ -196,7 +197,8 @@ export function videoBytesPerSecond(
   }
   const camera = selection.camera ? findSource(sources, selection.cameraId) : null;
   if (camera !== null) {
-    bits += targetBitsPerSecond(Math.min(camera.height, 1080), 30, video.quality);
+    // A camera lists no size until it is opened (0): count it as 1080p.
+    bits += targetBitsPerSecond(Math.min(camera.height || 1080, 1080), 30, video.quality);
   }
   return bits / 8;
 }

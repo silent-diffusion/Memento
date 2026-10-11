@@ -28,7 +28,8 @@ function errorOf(error: unknown): { code: string; detail: string | null } {
 /** Pixels the host should send for `cssWidth` on this screen. */
 export function thumbnailWidth(cssWidth: number): number {
   const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
-  return Math.round(cssWidth * Math.min(2, Math.max(1, ratio)));
+  // The host answers 16 to 640 pixels (BRIDGE.md, video.thumbnail).
+  return Math.min(640, Math.max(16, Math.round(cssWidth * Math.min(2, Math.max(1, ratio)))));
 }
 
 /**
