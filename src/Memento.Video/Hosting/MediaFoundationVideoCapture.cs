@@ -136,7 +136,16 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
             info.IsPrimary,
             info.IsExcluded,
             info.IsProtected,
-            info.ProcessName);
+            info.ProcessName,
+            BackendName(info.Backend));
+
+    /// <summary>The bridge's name for a camera backend: <c>mf</c>, <c>dshow</c>, or null for a display or window.</summary>
+    internal static string? BackendName(CameraBackend? backend) => backend switch
+    {
+        CameraBackend.MediaFoundation => "mf",
+        CameraBackend.DirectShow => "dshow",
+        _ => null,
+    };
 
     /// <summary>The listed source for an id, or <c>video.sourceNotFound</c> / <c>video.protectedContent</c>.</summary>
     private static (VideoSourceId Id, VideoSourceInfo Info) Find(string sourceId)

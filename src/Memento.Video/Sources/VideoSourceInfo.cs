@@ -17,4 +17,8 @@ public sealed record VideoSourceInfo(
     bool IsPrimary,
     bool IsExcluded,
     string? ProcessName = null,
-    bool IsProtected = false);
+    bool IsProtected = false)
+{
+    /// <summary>For a camera: Media Foundation or DirectShow (the picker's "via DirectShow" note); <c>null</c> otherwise.</summary>
+    public CameraBackend? Backend => Id.Backend;
+}

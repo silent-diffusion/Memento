@@ -30,8 +30,11 @@ public sealed class VideoContractTests : IDisposable
 
         Assert.Equal("displays,windows,cameras", string.Join(",", result.EnumerateObject().Select(p => p.Name)));
         Assert.Equal(
-            """{"id":"window:1A2B3C","kind":"window","name":"Planning notes","detail":"Notes \u00B7 1280 \u00D7 720","width":1280,"height":720,"refreshRate":0,"primary":false,"excluded":false,"protected":false,"processName":"Notes"}""",
+            """{"id":"window:1A2B3C","kind":"window","name":"Planning notes","detail":"Notes \u00B7 1280 \u00D7 720","width":1280,"height":720,"refreshRate":0,"primary":false,"excluded":false,"protected":false,"processName":"Notes","backend":null}""",
             result.GetProperty("windows")[0].GetRawText());
+        Assert.Equal(
+            """[{"id":"camera:usb-test-camera","kind":"camera","name":"Test camera","detail":"Camera","width":0,"height":0,"refreshRate":0,"primary":false,"excluded":false,"protected":false,"processName":null,"backend":"mf"},{"id":"camera:dshow:clsid:{A3FCE0F5-3493-419F-958A-ABA1250EC20B}","kind":"camera","name":"OBS Virtual Camera","detail":"Camera","width":0,"height":0,"refreshRate":0,"primary":false,"excluded":false,"protected":false,"processName":null,"backend":"dshow"}]""",
+            result.GetProperty("cameras").GetRawText());
         Assert.Equal(2, result.GetProperty("displays").GetArrayLength());
         Assert.True((await _host.ResultAsync("sources.list")).GetProperty("videoAvailable").GetBoolean());
     }
@@ -166,7 +169,7 @@ public sealed class VideoContractTests : IDisposable
         watch.Tick();
         Assert.Empty(_host.Sink.Payloads(BridgeEventNames.VideoSourcesChanged));
 
-        _capture.MoreWindows.Add(new VideoSource("window:FF", "window", "New window", "App · 800 × 600", 800, 600, 0, false, false, false, "App"));
+        _capture.MoreWindows.Add(new VideoSource("window:FF", "window", "New window", "App · 800 × 600", 800, 600, 0, false, false, false, "App", null));
         watch.Tick();
         Assert.Single(_host.Sink.Payloads(BridgeEventNames.VideoSourcesChanged));
 
