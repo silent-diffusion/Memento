@@ -9,6 +9,7 @@ import type {
   Highlight,
   HistoryEntry,
   MixOnlyInfo,
+  MixLevelsInfo,
   ProjectVideo,
   RecordingDetails,
   RecordingSummary,
@@ -58,6 +59,8 @@ export interface MockProject {
   history: HistoryEntry[];
   /** 2.0: set once "Keep only the mix" removed the separate tracks. */
   mixOnly?: MixOnlyInfo | null;
+  /** After 2.0.0-beta.1: the gains of a mix built with evened levels; missing or null for one summed as recorded. */
+  mixLevels?: MixLevelsInfo | null;
   /** 2.0 video: the recording's video (mockVideo.ts); missing or null without video. */
   video?: ProjectVideo | null;
 }
@@ -399,6 +402,7 @@ function sampleHistory(seed: Seed, createdAt: Date): HistoryEntry[] {
     speakers: { done: 'Speakers identified', failed: 'Speaker identification failed', active: 'Identifying speakers', detail: 'Local engine · CPU' },
     topics: { done: 'Topics found locally', failed: 'Topics could not be saved', active: 'Finding topics', detail: 'On this PC' },
     minutes: { done: 'Minutes generated', failed: 'Minutes failed', active: 'Generating minutes', detail: 'Sent the transcript, agenda and participants' },
+    mix: { done: 'Rebuilt the mix with evened levels', failed: 'Rebuilding the mix failed', active: 'Rebuilding the mix', detail: 'The tracks and the transcript were not changed' },
     optimize: { done: 'Saved smaller files', failed: 'Making smaller files failed', active: 'Making smaller files', detail: 'AAC 128 kbps' },
   };
   seed.stages.forEach((stage, index) => {

@@ -544,7 +544,7 @@ export function historyWhen(iso: string, now: Date): string {
   return `${prefix} ${formatClock(date)}`;
 }
 
-const RETRYABLE: ReadonlySet<string> = new Set<StageName>(['stored', 'transcript', 'speakers', 'minutes', 'optimize']);
+const RETRYABLE: ReadonlySet<string> = new Set<StageName>(['stored', 'transcript', 'speakers', 'minutes', 'mix', 'optimize']);
 
 /** After 1.2.0: a line that made a stored version opens it; the others say on hover why they open nothing. */
 export interface HistoryVersions {

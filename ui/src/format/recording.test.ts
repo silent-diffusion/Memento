@@ -165,6 +165,7 @@ describe('processing card columns', () => {
       speakers: 'Speakers',
       topics: 'Topics',
       minutes: 'Minutes',
+      mix: 'Mix',
       optimize: 'Smaller files',
     });
   });

@@ -8,7 +8,7 @@ Status: **M0, M1, M2 and M3 methods and events are implemented** (M3 in 0.4.0) i
 
 ```ts
 type RecordingType = 'meeting' | 'interview' | 'presentation' | 'lecture' | 'dictation' | 'research' | 'general' | string; // any other string is a custom type name
-type StageName = 'stored' | 'video' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize'; // pipeline order
+type StageName = 'stored' | 'video' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'mix' | 'optimize'; // pipeline order
 type StageState = 'done' | 'active' | 'queued' | 'failed';
 interface StageStatus { stage: StageName; state: StageState; percent: number | null; /* M1: */ label: string | null; /* e.g. "64% · local GPU", "Done", "Queued", "Transcript failed" */ }
 
@@ -77,6 +77,7 @@ M1 runs two stages; M2 adds `transcript`, `speakers` and `topics` between them (
 
 - `stored` — finalize: tracks to lossless FLAC, the mix, `peaks.json` and SHA-256 hashes. Runs for every recording.
 - `video` — 2.0, only for recordings with video: joins a track's parts and hashes the video files (Video (2.0) below). Listed second, run after the transcript stages.
+- `mix` — after 2.0.0-beta.1, only on request (`project.rebuildMix`, Even out source levels below): mixes the stored tracks again and replaces the mix. Never queued by itself; finished, it is left out of rows like `stored`.
 - `optimize` — only when Settings › Recording › storage asks for AAC or MP3: converts the lossless FLAC files to that smaller format, after every other stage (the transcript is always made from the lossless files). If the setting is FLAC, the stage is not listed at all. When it fails, the FLAC files are kept.
 
 `RecordingSummary.stages` (Library rows and `library.processing.current.meta`) leaves out a **finished** `stored` or `optimize` stage, so a recording with nothing else run reads "Audio only" (DESIGN.md §4). Either stage is listed while it is active or queued and when it failed. `library.processing.current.stages` and `processing.progress.stages` always carry every stage, finished `stored` and `optimize` included.
@@ -164,7 +165,7 @@ interface SettingsSnapshot {
   recording: {
     defaultType: RecordingType; defaultSourceIds: string[];            // remembered selection
     keepSeparateTracks: true;                                           // fixed in M1
-    storage: { codec: 'flac' | 'aac' | 'mp3'; bitrateKbps: number | null; downmixMono: boolean; keepOnlyMix: boolean }; // aac/mp3: the optimize stage converts after processing
+    storage: { codec: 'flac' | 'aac' | 'mp3'; bitrateKbps: number | null; downmixMono: boolean; keepOnlyMix: boolean; evenLevels: boolean }; // aac/mp3: the optimize stage converts after processing; evenLevels: after 2.0.0-beta.1
     checkpointSeconds: number;                                          // 30
     lowSpaceGb: number;                                                 // 10
   };
@@ -1062,3 +1063,29 @@ With an age set, the host removes the video of recordings older than that (each 
 ## Error codes (2.0 video)
 
 `video.sourceNotFound` (the display, window or camera is not there; also when this copy of Memento cannot record video), `video.protectedContent` (the window keeps itself out of captures), `video.captureBlocked` (Windows privacy settings block screen capture, or this Windows session cannot capture), `video.cameraPrivacy` (a camera privacy switch is off; the message names which), `video.cameraInUse` (another app holds the camera; named when Windows records which), `video.encoderUnavailable` (no H.264 encoder or graphics device could be opened), `video.diskFull` (video stopped first; audio continues). The four state codes of `recording.videoProblem` (`video.displayDisconnected`, `video.windowClosed`, `video.windowMinimised`, `video.encoderFallback`) are never a method's error.
+
+---
+
+# After 2.0.0-beta.1 — Even out source levels
+
+A quiet microphone beside loud system audio was missed by the transcript (ENGINE-NOTES.md §Q). The transcript and the live draft now judge and hear every track at its own level, which needs nothing on the bridge; the mix gets a setting and Review an action. Contracts: `BridgeJsonContext` (host) and `ui/src/bridge/types.ts`; strict JSON pinned by `EvenLevelsContractTests`.
+
+## Settings snapshot (even levels)
+
+`recording.storage` gains `evenLevels: boolean` (Settings › Recording › Storage, "Even out source levels"; **on** by default, and a settings file from an earlier build reads it on). It applies when a recording's mix is built (finalize): each track's speech level is measured against its own noise floor, and a track more than 3 dB under the loudest one is lifted to it, by at most 24 dB, never turned down; the soft limiter keeps the sum below full scale. Only `mix.flac` changes; the tracks are never touched. Like the other storage fields it is replaced with the `recording` block; left out, it takes its default (on).
+
+## Methods (even levels)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `project.rebuildMix` | `{ recordingId: string; evenLevels: boolean }` | `{}` | Review › More › Reprocess › "Rebuild the mix with evened levels" (`evenLevels: true`), or "Rebuild the mix as recorded" (`false`) once it was evened: the way back. Writes the request into `project.json` (`mixRebuild: { evenLevels, requestedAt }`) and queues the `mix` stage, which mixes the stored tracks again into `mix.rebuilt.flac` (verified, hashed) and `mix.rebuilt.peaks.json`, then replaces `mix.flac` and `peaks.json`, records the new hash and the gains in the manifest, and writes History: `mix` `started` "Rebuilding the mix with evened levels", `completed` "Rebuilt the mix with evened levels" (detail: "levels evened: Microphone lifted 24.0 dB (speech at −53.9 dBFS) to match System audio (−29.8 dBFS) · the tracks and the transcript were not changed. To undo it, choose Rebuild the mix as recorded in Review › More › Reprocess."), or `failed` "Rebuilding the mix failed" with a `StageFailure` ("Rebuilding the mix stopped: …", kept "The current mix and every track are unchanged.", remedy `retry`). Progress through `processing.progress` (stage `mix`, labels "Mixing 42%"). A mix that had been made smaller (AAC, MP3) is replaced by the lossless one and `optimize` is queued again when Settings still asks for a smaller format. Once the stage has run, `mixUrl` and `peaksUrl` carry `?v=<first 8 hex of the mix's SHA-256>` so the player and the waveform load the new files. `project.recording` while the recording is still being recorded or stored; `project.mixUnavailable` when it keeps only its mix or a track file is missing; `project.notFound`. |
+
+```ts
+interface Project { /* … */ mixLevels: { at: string; tracks: { trackId: string; levelDbfs: number | null; gainDb: number }[] } | null } // null: the mix sums the tracks as recorded
+```
+
+`project.json` (optional fields within schema 4, ignored by earlier builds): `mix.evenLevels: { at, tracks: [{ trackId, levelDbfs, gainDb }] }` when the mix was built with evened levels (`levelDbfs` `null` for a track without speech; `gainDb` 0 when it was left as recorded), and `mixRebuild` while a rebuild is pending. The `stored` History line's detail says what was evened ("levels evened: Microphone lifted 24.0 dB …").
+
+## Error codes (even levels)
+
+`project.mixUnavailable` (the mix cannot be built again: the recording keeps only its mix, or a track file is not in its folder; nothing was changed).

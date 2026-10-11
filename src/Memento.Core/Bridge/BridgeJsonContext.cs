@@ -26,6 +26,7 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(Project))]
 [JsonSerializable(typeof(ProjectUpdateDetailsParams))]
 [JsonSerializable(typeof(ProjectRenameParams))]
+[JsonSerializable(typeof(ProjectRebuildMixParams))]
 [JsonSerializable(typeof(ProjectDeleteEstimateResult))]
 [JsonSerializable(typeof(ChapterParams))]
 [JsonSerializable(typeof(ChapterIdParams))]

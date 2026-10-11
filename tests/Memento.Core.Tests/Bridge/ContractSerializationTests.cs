@@ -44,7 +44,7 @@ public sealed class ContractSerializationTests : IDisposable
         Assert.Contains("\"theme\":\"system\"", json, StringComparison.Ordinal);
         Assert.Contains("\"listDensity\":\"comfortable\"", json, StringComparison.Ordinal);
         Assert.Equal(
-            """{"defaultType":"meeting","defaultSourceIds":[],"keepSeparateTracks":true,"storage":{"codec":"flac","bitrateKbps":null,"downmixMono":false,"keepOnlyMix":false},"checkpointSeconds":30,"lowSpaceGb":10,"captureVideo":false,"video":{"defaultSource":"screenAndCamera","resolution":"display","frameRate":30,"quality":"balanced","defaultCameraId":null,"pipCorner":"bottomRight","hardwareEncoder":true,"includePointer":true}}""",
+            """{"defaultType":"meeting","defaultSourceIds":[],"keepSeparateTracks":true,"storage":{"codec":"flac","bitrateKbps":null,"downmixMono":false,"keepOnlyMix":false,"evenLevels":true},"checkpointSeconds":30,"lowSpaceGb":10,"captureVideo":false,"video":{"defaultSource":"screenAndCamera","resolution":"display","frameRate":30,"quality":"balanced","defaultCameraId":null,"pipCorner":"bottomRight","hardwareEncoder":true,"includePointer":true}}""",
             result.GetProperty("recording").GetRawText());
     }
 
@@ -208,7 +208,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(project, BridgeJsonContext.Default.Project));
         var root = document.RootElement;
-        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly,video", Names(root));
+        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly,video,mixLevels", Names(root));
         Assert.Equal(JsonValueKind.Null, root.GetProperty("video").ValueKind);
         Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda,whoSpoke", Names(root.GetProperty("details")));
         Assert.Equal("""{"count":null,"names":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());

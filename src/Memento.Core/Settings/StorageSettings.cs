@@ -25,6 +25,13 @@ public sealed record StorageSettings
     /// <summary>Recorded for later; separate tracks are always kept in M1.</summary>
     public bool KeepOnlyMix { get; init; }
 
+    /// <summary>
+    /// "Even out source levels" (after 2.0.0-beta.1, on by default): when the mix is built, a track whose speech is much
+    /// quieter than the loudest track's is lifted to match it (ENGINE-NOTES.md §Q); the gains go into the manifest.
+    /// The tracks themselves are never changed. A settings file without the field (an earlier build) gets it on.
+    /// </summary>
+    public bool EvenLevels { get; set; } = true;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 

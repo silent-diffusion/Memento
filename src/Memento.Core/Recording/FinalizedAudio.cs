@@ -24,4 +24,10 @@ public sealed record FinalizedAudio(
     /// of a track kept as multi-part WAV. Keys are relative paths.
     /// </summary>
     public IReadOnlyDictionary<string, string> ExtraHashes { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// The gain each track got in the mix with "Even out source levels" (<see cref="FinalizeRequest.EvenLevels"/>);
+    /// <c>null</c> when the tracks were summed as recorded.
+    /// </summary>
+    public IReadOnlyList<Audio.MixTrackGain>? MixGains { get; init; }
 }

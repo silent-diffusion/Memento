@@ -136,7 +136,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       defaultType: 'meeting',
       defaultSourceIds: ['mic:usb-mv7', 'system:default-output', 'app:4120'],
       keepSeparateTracks: true,
-      storage: { codec: 'flac', bitrateKbps: null, downmixMono: false, keepOnlyMix: false },
+      storage: { codec: 'flac', bitrateKbps: null, downmixMono: false, keepOnlyMix: false, evenLevels: true },
       checkpointSeconds: 30,
       lowSpaceGb: 10,
       ...videoRecordingSettings(options.video ?? []),
@@ -258,6 +258,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     integrity: { algorithm: 'sha256', computedAt: null },
     sizeBytes: estimateSizeBytes(project.summary, project.trackSources.length),
     mixOnly: project.mixOnly ?? null,
+    mixLevels: project.mixLevels ?? null,
     video: project.video ?? null,
     };
   };
@@ -798,6 +799,32 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       project.details = { ...project.details, title };
       changed(project.summary.id);
       return toProject(project);
+    },
+    'project.rebuildMix': (params) => {
+      // After 2.0.0-beta.1: the host queues the mix stage; the preview rebuilds at once and writes History as it does.
+      const project = find(params.recordingId);
+      if (project.mixOnly != null) {
+        throw new MockHostError('project.mixUnavailable', 'The mix cannot be built again: this recording keeps only its mix, so its separate tracks are gone. Nothing was changed.');
+      }
+      const tracks = project.tracks ?? mockTracks(project.summary.id, project.trackSources, project.summary.durationMs);
+      const at = new Date().toISOString();
+      project.mixLevels = params.evenLevels
+        ? { at, tracks: tracks.map((t, i) => ({ trackId: t.id, levelDbfs: i === 0 ? -48.5 : -24.0, gainDb: i === 0 && tracks.length > 1 ? 24 : 0 })) }
+        : null;
+      project.history = [
+        ...project.history,
+        {
+          at,
+          stage: 'mix',
+          event: 'completed',
+          summary: params.evenLevels ? 'Rebuilt the mix with evened levels' : 'Rebuilt the mix as recorded',
+          detail: params.evenLevels
+            ? 'levels evened: Microphone lifted 24.0 dB (speech at −48.5 dBFS) to match System audio (−24.0 dBFS) · the tracks and the transcript were not changed. To undo it, choose Rebuild the mix as recorded in Review › More › Reprocess.'
+            : 'every track summed as it was recorded · the tracks and the transcript were not changed. To even the levels again, choose Rebuild the mix with evened levels in Review › More › Reprocess.',
+        },
+      ];
+      changed(project.summary.id);
+      return {};
     },
     'annotations.addChapter': (params) => {
       const project = find(params.recordingId);

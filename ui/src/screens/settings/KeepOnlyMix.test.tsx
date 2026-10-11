@@ -45,7 +45,7 @@ describe('Keep only the mix (Settings › Recording and Storage and history, 2.0
     await click(button('Keep only the mix'));
     await until(() => h.callsOf('settings.set').length === 1);
     const sent = h.callsOf('settings.set')[0] as SettingsSetParams;
-    expect(sent.recording?.storage).toEqual({ codec: 'flac', bitrateKbps: null, downmixMono: false, keepOnlyMix: true });
+    expect(sent.recording?.storage).toEqual({ codec: 'flac', bitrateKbps: null, downmixMono: false, keepOnlyMix: true, evenLevels: true });
   });
 
   it('shows what separate tracks use and removes them from existing recordings only after the confirmation', async () => {

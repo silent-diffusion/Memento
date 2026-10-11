@@ -25,6 +25,7 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, ProjectDeleteEstimateMethod>();
         services.AddSingleton<IBridgeHandler, ProjectDeleteMethod>();
         services.AddSingleton<IBridgeHandler, ProjectRenameMethod>();
+        services.AddSingleton<IBridgeHandler, ProjectRebuildMixMethod>();
         services.AddSingleton<IBridgeHandler, AnnotationsAddChapterMethod>();
         services.AddSingleton<IBridgeHandler, AnnotationsUpdateChapterMethod>();
         services.AddSingleton<IBridgeHandler, AnnotationsRemoveChapterMethod>();

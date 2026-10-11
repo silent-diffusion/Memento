@@ -234,7 +234,7 @@ public sealed class BridgeRouterTests
             "annotations.addChapter", "annotations.addHighlight", "annotations.addTopic", "annotations.removeChapter",
             "annotations.removeHighlight", "annotations.removeTopic", "annotations.updateChapter", "annotations.updateHighlight",
             "app.openExternal", "app.version", "dialog.pickFolder", "library.list", "library.processing",
-            "project.delete", "project.deleteEstimate", "project.get", "project.rename", "project.updateDetails",
+            "project.delete", "project.deleteEstimate", "project.get", "project.rebuildMix", "project.rename", "project.updateDetails",
             "recording.current", "recording.markHighlight", "recording.pause", "recording.resume", "recording.setSource",
             "recording.start", "recording.stop", "recovery.acknowledge", "recovery.list", "settings.get", "settings.set",
             "sources.list", "status.get", "ui.ready",

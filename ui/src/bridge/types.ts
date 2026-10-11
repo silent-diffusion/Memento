@@ -50,6 +50,7 @@ export const ERROR_CODES = [
   'settings.libraryMoveUnavailable',
   'project.notFound',
   'project.recording',
+  'project.mixUnavailable',
   'annotations.notFound',
   'recording.noSources',
   'recording.sourceUnavailable',
@@ -162,9 +163,9 @@ export type RecordingType = BuiltInRecordingType | (string & Record<never, never
 /**
  * Pipeline order. `topics` is the short local keyword stage after `speakers` (a finished one is left
  * out of rows, like `stored`); `optimize` converts the lossless files to the smaller AAC/MP3 choice,
- * after every other stage.
+ * after every other stage. `mix` (after 2.0.0-beta.1) rebuilds the mix only when asked (project.rebuildMix).
  */
-export type StageName = 'stored' | 'video' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'optimize';
+export type StageName = 'stored' | 'video' | 'transcript' | 'speakers' | 'topics' | 'minutes' | 'mix' | 'optimize';
 
 export type StageState = 'done' | 'active' | 'queued' | 'failed';
 
@@ -347,6 +348,8 @@ export interface Project {
   mixOnly: MixOnlyInfo | null;
   /** 2.0 video: the video tracks Review plays; null when the recording never had video. */
   video: ProjectVideo | null;
+  /** After 2.0.0-beta.1: the gains "Even out source levels" gave each track in the mix; null when the mix sums them as recorded. */
+  mixLevels: MixLevelsInfo | null;
 }
 
 /** 2.0: when the separate track files were removed, how many, and their size. */
@@ -354,6 +357,21 @@ export interface MixOnlyInfo {
   at: string;
   tracks: number;
   bytesFreed: number;
+}
+
+/** After 2.0.0-beta.1: one track in a mix built with evened levels. */
+export interface MixTrackGain {
+  trackId: string;
+  /** Its speech level against its own noise floor; null when it had no speech. */
+  levelDbfs: number | null;
+  /** 0 when left as recorded; up to +24 dB. */
+  gainDb: number;
+}
+
+/** After 2.0.0-beta.1: when the mix was built with evened levels, and each track's gain. */
+export interface MixLevelsInfo {
+  at: string;
+  tracks: MixTrackGain[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -806,6 +824,8 @@ export interface RecordingStorageSettings {
   bitrateKbps: number | null;
   downmixMono: boolean;
   keepOnlyMix: boolean;
+  /** Even out source levels (after 2.0.0-beta.1, on by default): a quiet track is lifted to the loudest one's speech level in the mix. */
+  evenLevels: boolean;
 }
 
 export interface RecordingSettings {
@@ -974,6 +994,13 @@ export interface ProjectUpdateDetailsParams {
 export interface ProjectRenameParams {
   recordingId: string;
   title: string;
+}
+
+/** After 2.0.0-beta.1: Review › More › Reprocess › Rebuild the mix. */
+export interface ProjectRebuildMixParams {
+  recordingId: string;
+  /** true: lift a quiet track to the loudest one's speech level; false: sum the tracks as recorded. */
+  evenLevels: boolean;
 }
 
 /** Feeds the delete confirmation. `items` are lower-case noun phrases ("the recording", "its 3 tracks"). */
@@ -2678,6 +2705,7 @@ export interface BridgeMethods {
   'project.deleteEstimate': { params: RecordingIdParams; result: ProjectDeleteEstimate };
   'project.delete': { params: RecordingIdParams; result: EmptyResult };
   'project.rename': { params: ProjectRenameParams; result: Project };
+  'project.rebuildMix': { params: ProjectRebuildMixParams; result: EmptyResult };
   'annotations.addChapter': { params: ChapterParams; result: ChaptersResult };
   'annotations.updateChapter': { params: ChapterParams; result: ChaptersResult };
   'annotations.removeChapter': { params: ChapterIdParams; result: ChaptersResult };
@@ -2872,6 +2900,7 @@ export const METHOD_NAMES = [
   'project.deleteEstimate',
   'project.delete',
   'project.rename',
+  'project.rebuildMix',
   'annotations.addChapter',
   'annotations.updateChapter',
   'annotations.removeChapter',

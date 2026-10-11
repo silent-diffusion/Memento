@@ -11,4 +11,7 @@ public sealed record StorageSettingsPatch
     public bool? DownmixMono { get; init; }
 
     public bool? KeepOnlyMix { get; init; }
+
+    /// <summary>"Even out source levels" (after 2.0.0-beta.1); omitted or <c>null</c> takes the default, on.</summary>
+    public bool? EvenLevels { get; init; }
 }

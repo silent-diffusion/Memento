@@ -29,7 +29,7 @@ public static class PcmMixer
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         var readers = new List<WavReader>(inputs.Count);
-        var sources = new List<(ResamplingReader Reader, long StartFrame, long EndFrame)>(inputs.Count);
+        var sources = new List<(ResamplingReader Reader, long StartFrame, long EndFrame, float Gain)>(inputs.Count);
         try
         {
             foreach (var input in inputs)
@@ -44,7 +44,7 @@ public static class PcmMixer
             {
                 var resampler = new ResamplingReader(readers[i], rate, channels);
                 var start = Math.Max(0, inputs[i].StartOffsetMs) * rate / 1000;
-                sources.Add((resampler, start, start + resampler.OutputFrames));
+                sources.Add((resampler, start, start + resampler.OutputFrames, inputs[i].Gain));
             }
 
             readers.Clear(); // now owned by the resamplers
@@ -83,7 +83,7 @@ public static class PcmMixer
     }
 
     private static long WriteMix(
-        List<(ResamplingReader Reader, long StartFrame, long EndFrame)> sources,
+        List<(ResamplingReader Reader, long StartFrame, long EndFrame, float Gain)> sources,
         PcmFormat format,
         long totalFrames,
         string outputPath,
@@ -107,7 +107,7 @@ public static class PcmMixer
             cancellationToken.ThrowIfCancellationRequested();
             var frames = (int)Math.Min(BlockFrames, totalFrames - position);
             Array.Clear(mix, 0, frames * channels);
-            foreach (var (reader, start, end) in sources)
+            foreach (var (reader, start, end, gain) in sources)
             {
                 if (end <= position || start >= position + frames)
                 {
@@ -120,7 +120,7 @@ public static class PcmMixer
                 var target = offset * channels;
                 for (var i = 0; i < got * channels; i++)
                 {
-                    mix[target + i] += scratch[i];
+                    mix[target + i] += scratch[i] * gain;
                 }
             }
 

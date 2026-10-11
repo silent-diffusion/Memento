@@ -499,8 +499,8 @@ public sealed partial class ProjectService(
         var annotations = await LoadAnnotationsAsync(manifest.Id, cancellationToken);
         var history = await store.ReadHistoryAsync(manifest.Id, cancellationToken);
         var finalized = manifest.State is ProjectStates.Ready or ProjectStates.Recovered;
-        var mixUrl = finalized && manifest.Mix is { } mix ? LibraryUrls.ForProjectFile(manifest.Id, mix.File) : null;
-        var peaksUrl = finalized && manifest.Peaks is { } peaks ? LibraryUrls.ForProjectFile(manifest.Id, peaks) : null;
+        var mixUrl = finalized && manifest.Mix is { } mix ? Versioned(LibraryUrls.ForProjectFile(manifest.Id, mix.File), manifest) : null;
+        var peaksUrl = finalized && manifest.Peaks is { } peaks ? Versioned(LibraryUrls.ForProjectFile(manifest.Id, peaks), manifest) : null;
         var folder = store.GetProjectFolder(manifest.Id);
         return new Project(
             ProjectMapper.ToSummary(manifest, store.GetSizeBytes(manifest.Id), Video.VideoMapper.Summarize(manifest)),
@@ -515,8 +515,17 @@ public sealed partial class ProjectService(
             new IntegrityInfo(manifest.Integrity.Algorithm, manifest.Integrity.ComputedAt),
             store.GetSizeBytes(manifest.Id),
             manifest.MixOnly is { } mixOnly ? new MixOnlyInfo(mixOnly.At, mixOnly.TrackIds.Count, mixOnly.BytesFreed) : null,
-            Video.VideoMapper.ToProject(manifest, folder, finalized));
+            Video.VideoMapper.ToProject(manifest, folder, finalized),
+            manifest.Mix?.EvenLevels is { } levels ? new MixLevelsInfo(levels.At, levels.Tracks) : null);
     }
+
+    /// <summary>
+    /// A mix rebuilt by the <c>mix</c> stage (after 2.0.0-beta.1) keeps its file name, so once the stage has run the mix
+    /// and peaks URLs carry the start of the mix's SHA-256 (<c>?v=1a2b3c4d</c>; the virtual host ignores the query) and
+    /// the player and the waveform load the new files instead of what WebView2 has cached.
+    /// </summary>
+    internal static string Versioned(string url, ProjectManifest manifest) =>
+        manifest.Stages.Any(s => s.Stage == StageNames.Mix) && manifest.Mix is { Sha256.Length: >= 8 } mix ? $"{url}?v={mix.Sha256[..8]}" : url;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} deleted through the Delete flow")]
     private partial void LogDeleted(string recordingId);

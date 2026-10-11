@@ -32,7 +32,7 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
                 recording.DefaultType,
                 recording.DefaultSourceIds,
                 recording.KeepSeparateTracks,
-                new StorageSettingsSnapshot(storage.Codec, storage.IsLossy ? storage.BitrateKbps : null, storage.DownmixMono, storage.KeepOnlyMix),
+                new StorageSettingsSnapshot(storage.Codec, storage.IsLossy ? storage.BitrateKbps : null, storage.DownmixMono, storage.KeepOnlyMix, storage.EvenLevels),
                 recording.CheckpointSeconds,
                 recording.LowSpaceGb,
                 recording.CaptureVideo,

@@ -62,7 +62,7 @@ public static class ProjectMapper
     }
 
     /// <summary>Stages that only store the audio (as opposed to adding a transcript or a document).</summary>
-    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Video or StageNames.Optimize or StageNames.Topics;
+    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Video or StageNames.Mix or StageNames.Optimize or StageNames.Topics;
 
     public static bool IsProcessing(IReadOnlyList<StageStatus> stages) => stages.Any(s => StageStates.IsRunning(s.State));
 

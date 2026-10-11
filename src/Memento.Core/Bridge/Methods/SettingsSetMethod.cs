@@ -187,6 +187,7 @@ public sealed class SettingsSetMethod(ISettingsStore store, EngineSelector selec
                 BitrateKbps = bitrate,
                 DownmixMono = storagePatch.DownmixMono ?? storage.DownmixMono,
                 KeepOnlyMix = storagePatch.KeepOnlyMix ?? storage.KeepOnlyMix,
+                EvenLevels = storagePatch.EvenLevels ?? storage.EvenLevels,
             };
         }
 
