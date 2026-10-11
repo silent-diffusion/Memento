@@ -211,7 +211,7 @@ Open Settings with the gear at the top right. Every change is saved at once.
 
 Memento checks this project's GitHub releases for a newer version when it starts and then once a day, but never while you record or while a recording is being processed: it waits until both are finished. A new version downloads in the background (the footer shows the progress), and then a message offers **Restart to update**. Nothing is installed until you choose it; if you do not, the update is installed the next time Memento starts. Your recordings, settings and models are kept.
 
-**Settings › General › Updates** shows your version and when Memento last checked, and has **Check now**. Turn off **Install updates automatically** if you do not want Memento to check by itself; **Check now** still works. A check sends nothing about you or your recordings: it is a plain request for the list of releases, the same as opening the Releases page in a browser.
+**Settings › General › Updates** shows your version and when Memento last checked, and has **Check now**. Check now only checks: it says "You are on the newest version", or that a newer version is available and shows that version's release notes. Nothing is downloaded until you choose **Update now**; the download then shows its progress, and **Restart to update** installs it. Turn off **Install updates automatically** if you do not want Memento to check by itself; **Check now** still works. A check sends nothing about you or your recordings: it is a plain request for the list of releases, the same as opening the Releases page in a browser.
 
 ## Where your data lives, and how to back it up
 

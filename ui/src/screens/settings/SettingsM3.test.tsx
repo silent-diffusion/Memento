@@ -94,7 +94,7 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     await until(() => rowOf('Updates').textContent.includes('Version 0.5.0'));
     expect(rowOf('Updates').textContent).toContain('Not checked yet');
     await click(button('Check now'));
-    await until(() => rowOf('Updates').textContent.includes('Memento 0.5.0 is the newest version.'));
+    await until(() => rowOf('Updates').textContent.includes('You are on the newest version (0.5.0).'));
     expect(rowOf('Updates').textContent).toContain('Last checked');
     await click(button('Install updates automatically'));
     await until(() => h.callsOf('settings.set').length === 1);

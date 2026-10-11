@@ -514,6 +514,18 @@ Rules: every row has a description that says what the setting does in one senten
 
 **Graphics card line** (after 1.1.0; not on the canvas): under the Transcription › Engine row and under the local model's "Documents are written with …" line, a full-width row with the host's sentence at 13 px `text-2` ("The graphics card has 4.0 GB of 6 GB free. Windows desktop (dwm.exe) is using 0.4 GB.") and a **Check again** small button (§5.1, `neo-sm`) at its right; while checking the button reads "Checking…" and is disabled. When the model in effect cannot use the card the sentence is the §17 one (the amount, who holds the memory, what runs meanwhile, the fix) in `accent-text`, the colour of the other warning states. Under 640 px the button drops below the text. The Builder's Local provider card shows the same §17 sentence on its own line under the name (12 px `accent-text`).
 
+**Updates** (Settings › General, H1; Check now and Update now separated in 2.1.0; not on the canvas): the Updates row shows "Version {x}" and one button at its right, with the state below it.
+
+- *Idle*: ghost **Check now**; the quiet line "Last checked {when}." or "Not checked yet in this session."
+- *Checking*: the button reads "Checking…" and is disabled.
+- *Newest*: after Check now, the ok line "You are on the newest version ({running version})."
+- *Available*: Check now only checks and never downloads. The ok line "Memento {version} is available. Nothing is downloaded until you choose Update now." sits over the release notes of that version (the feed's notes, the GitHub release body) in a read-only, scrollable block (max 240 px, 13 px `text-2`, 1 px `line` border, radius 12): headings (600, `text`), bullet lists and paragraphs only; bold, code and links stripped to their words, HTML dropped, nothing clickable. "This release has no release notes." when there are none. The button becomes primary **Update now**.
+- *Downloading*: the progress bar "Downloading Memento {version} · {n}%", Check now disabled. While a recording or processing runs the download waits and the line says "Memento {version} is available. It downloads once the recording and processing have finished."
+- *Ready*: primary **Restart to update to {version}** and "Memento {version} is downloaded and installs when you restart."
+- *Failed*: the §17 sentence as an alert ("Memento could not check for updates: {reason}. Nothing was downloaded and this version keeps working as it is. Check the internet connection, then choose Check now again.", or "Memento {version} could not be downloaded: {reason}. Nothing was changed and this version keeps working as it is. Choose Check now to try again.") with **Check now**.
+
+The automatic daily check (Install updates automatically on) still downloads by itself and ends in *Ready* with the restart toast.
+
 ---
 
 ## 12. Screen: Document viewer
