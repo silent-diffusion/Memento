@@ -83,7 +83,14 @@ interface PreviewSheetProps {
   onClose: () => void;
 }
 
-export function PreviewSheet({ provider, preview, error, onCopy, onClose }: PreviewSheetProps): JSX.Element {
+/** The provider the preview was composed for (the host's answer), else the Builder's choice while it loads. */
+export function previewProvider(chosen: ProviderInfo, preview: GenerationPreviewResult | null): ProviderInfo {
+  const host = preview?.provider;
+  return host == null ? chosen : { ...chosen, id: host.id, name: host.name, kind: host.kind, modelLabel: host.modelLabel ?? chosen.modelLabel };
+}
+
+export function PreviewSheet({ provider: chosen, preview, error, onCopy, onClose }: PreviewSheetProps): JSX.Element {
+  const provider = previewProvider(chosen, preview);
   const { ref, onKeyDown } = useModal(onClose);
   const [selectedId, setSelectedId] = useState<string>(OVERVIEW);
   const [query, setQuery] = useState('');
@@ -115,7 +122,7 @@ export function PreviewSheet({ provider, preview, error, onCopy, onClose }: Prev
 
   const sub = local
     ? `${provider.modelLabel ?? 'The local model'} on this PC · nothing leaves it`
-    : `${preview?.provider?.name ?? provider.name}${preview?.provider?.modelLabel == null ? '' : ` · ${preview.provider.modelLabel}`} · Ask before every send ${preview?.askBeforeSend === false ? 'off' : 'on'}`;
+    : `${provider.name}${provider.modelLabel === null ? '' : ` · ${provider.modelLabel}`} · Ask before every send ${preview?.askBeforeSend === false ? 'off' : 'on'}`;
 
   return createPortal(
     <div class="scrim scrim--sheet">

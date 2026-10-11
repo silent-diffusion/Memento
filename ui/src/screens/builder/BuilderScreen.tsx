@@ -417,13 +417,19 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       });
   };
 
+  /**
+   * The template with the provider the Builder shows chosen, as Generate sends it (generation.ts): a template that names
+   * none would otherwise be previewed for the host's default (the local model) while the Builder shows Claude.
+   */
+  const asSent = (template: Template): Template => (provider === null ? template : { ...template, providerId: provider.id });
+
   const openPayload = (): void => {
     if (current === null || recordingId === null) {
       return;
     }
     setSheet({ preview: null, error: null });
     bridge
-      .call('generation.preview', { recordingId, template: current })
+      .call('generation.preview', { recordingId, template: asSent(current) })
       .then((preview) => {
         setSheet((s) => (s === null ? s : { preview, error: null }));
       })
@@ -438,7 +444,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       return '';
     }
     try {
-      const copied = await bridge.call('generation.copyPreview', { recordingId, template: current, passId });
+      const copied = await bridge.call('generation.copyPreview', { recordingId, template: asSent(current), passId });
       return passId === null
         ? `Copied ${copied.characters.toLocaleString('en-US')} characters: every request`
         : `Copied ${copied.characters.toLocaleString('en-US')} characters: this request`;
