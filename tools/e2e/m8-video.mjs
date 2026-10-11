@@ -81,6 +81,11 @@ try {
   const thumb = await run.bridge('video.thumbnail', { sourceId: display.id, width: 320 });
   measurements.thumbnailMs = Date.now() - thumbStarted;
   run.check('video.thumbnail answers a JPEG data URL of the asked width', thumb.dataUrl.startsWith('data:image/jpeg;base64,') && thumb.width === 320, `${thumb.width} × ${thumb.height}, ${thumb.dataUrl.length} characters, ${measurements.thumbnailMs} ms`);
+  // The preview polls twice a second: ten in a row must stay cheap.
+  const pollStarted = Date.now();
+  for (let i = 0; i < 10; i++) await run.bridge('video.thumbnail', { sourceId: display.id, width: 560 });
+  measurements.thumbnail560AverageMs = Math.round((Date.now() - pollStarted) / 10);
+  run.check('a 560 px preview thumbnail is cheap enough to poll twice a second', measurements.thumbnail560AverageMs < 250, `${measurements.thumbnail560AverageMs} ms each`);
 
   // Record: the simulated microphone and Display 1.
   const mic = sources.audio.find((s) => s.kind === 'microphone') ?? sources.audio[0];
@@ -100,17 +105,16 @@ try {
   const statuses = (await run.events('recording.videoStatus')).filter((e) => e.payload.sessionId === started.sessionId);
   const last = statuses.at(-1)?.payload.videoTracks[0];
   run.check('recording.videoStatus arrives about once a second', statuses.length >= seconds - 3, `${statuses.length} events in ${seconds} s`);
-  run.check('the Encoder card has its figures', last && last.encoder.length > 0 && last.framesWritten > 0 && last.bytesWritten > 0, last ? `${last.encoder} (hardware ${last.hardware}), ${last.width} × ${last.height} @ ${last.frameRate}, ${last.framesWritten} frames, ${last.framesDropped} dropped, ${(last.actualBitsPerSecond / 1e6).toFixed(2)} Mb/s` : 'none');
+  run.check('recording.videoStatus carries the inset', statuses.at(-1)?.payload.pip && typeof statuses.at(-1).payload.pip.enabled === 'boolean');
+  run.check('the Encoder card has its figures', last && last.trackId === 'screen' && last.sourceId === display.id && last.encoder.length > 0 && last.framesWritten > 0 && last.bytesWritten > 0, last ? `${last.encoder} (hardware ${last.hardware}), ${last.width} × ${last.height} @ ${last.frameRate}, ${last.framesWritten} frames, ${last.framesDropped} dropped, ${(last.actualBitsPerSecond / 1e6).toFixed(2)} Mb/s` : 'none');
   run.check('recording.current carries the video tracks', current.session?.videoTracks?.[0]?.trackId === 'screen');
   measurements.encoder = last && { name: last.encoder, hardware: last.hardware, width: last.width, height: last.height, frameRate: last.frameRate, actualMbps: Number((last.actualBitsPerSecond / 1e6).toFixed(2)) };
 
   await run.bridge('recording.stop', { sessionId: started.sessionId });
   await run.until(async () => (await run.events('recording.state')).some((e) => e.payload.recordingId === recordingId && e.payload.state === 'ready'), 'the recording to be ready', 120_000);
-  const project = await run.until(async () => {
-    const p = await run.bridge('project.get', { recordingId });
-    return p.summary.stages.find((s) => s.stage === 'video')?.state === 'done' ? p : null;
-  }, 'the video stage', 180_000, 500);
-  run.check('the video stage is done', true, project.summary.stages.map((s) => `${s.stage} ${s.state}`).join(', '));
+  await run.until(() => run.manifest(recordingId).stages?.find((s) => s.stage === 'video')?.state === 'done', 'the video stage', 180_000, 500);
+  const project = await run.bridge('project.get', { recordingId });
+  run.check('the video stage is done and left out of the row like stored', !project.summary.stages.some((s) => s.stage === 'video'), run.manifest(recordingId).stages.map((s) => `${s.stage} ${s.state}`).join(', '));
 
   // project.json
   const manifest = run.manifest(recordingId);
@@ -128,9 +132,10 @@ try {
 
   // Library and Review payloads.
   const row = (await run.bridge('library.list', {})).recordings.find((r) => r.id === recordingId);
-  run.check('the Library row has the video summary', row?.hasVideo === true && row.video?.state === 'present' && row.video.layout === 'screen' && row.video.sizeBytes > 0, JSON.stringify(row?.video ?? null));
-  const info = project.videoTracks[0];
-  run.check('Review gets the track URL and its start offset', info.url === `https://library.memento/${recordingId}/tracks/screen.mp4` && info.startOffsetMs === track.startOffsetMs, info.url);
+  run.check('the Library row has the video summary', row?.hasVideo === true && row.video?.roles?.join() === 'screen' && row.video.height === track.height && row.video.removedAt === null, JSON.stringify(row?.video ?? null));
+  const info = project.video.tracks[0];
+  info.url = info.parts[0].url;
+  run.check('Review gets the track, its part URL and its start offset', info.id === 'screen' && info.url === `https://library.memento/${recordingId}/tracks/screen.mp4` && info.startOffsetMs === track.startOffsetMs && project.video.sizeBytes > 0, info.url);
 
   // Playback and seeking through the library.memento virtual host: the responses are watched over the DevTools
   // protocol to see that the media element's range requests are answered with 206 Partial Content.
@@ -178,7 +183,7 @@ try {
   const after = run.manifest(recordingId);
   run.check('video.remove frees the video and keeps the audio', removed.freedBytes > 0 && !existsSync(file) && after.videoRemoved?.reason === 'user' && after.tracks.length === 1, `${removed.freedBytes} bytes freed`);
   const reviewAfter = await run.bridge('project.get', { recordingId });
-  run.check('Review says the video was removed', reviewAfter.video?.state === 'removed' && reviewAfter.videoTracks[0].url === null);
+  run.check('Review says the video was removed', reviewAfter.video?.removed?.bytesFreed === removed.freedBytes && reviewAfter.video.tracks.length === 0 && reviewAfter.summary.hasVideo === false);
 } catch (error) {
   run.check('the run finished', false, error.stack ?? String(error));
 } finally {
