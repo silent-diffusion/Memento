@@ -7,6 +7,10 @@
 //                              [--data <dir>] [--out <dir>] [--port <n>]
 //   node tools/e2e/m3-flow.mjs --tesseract [--audio <file to import>] [--data <dir>] [--out <dir>] [--port <n>]
 //                              (2.0: only the Tesseract step, on a recording imported from --audio; plays and records nothing)
+//   node tools/e2e/m3-flow.mjs --mp3 <audio file> --simulate [--speech <wav>] [--models <dir>] ...
+//                              (every step, but step 12 records the simulated engine, whose microphone loops --speech,
+//                              default artifacts/e2e-fixtures/two-voices.wav from tools/e2e/speech.ps1: nothing is played
+//                              and no real device is recorded; --play is refused)
 //
 // --mp3 is the file imported with "Import audio or video" (a public-domain recording; the run used LibriVox's "After
 // Twenty Years", https://archive.org/download/short_story_048_1104_librivox/shortstory048_aftertwentyyears_kam2_64kb.mp3,
@@ -41,7 +45,10 @@ let shotIndex = 0;
 let page;
 // --no-mic: leave the microphone out of the recordings (when another app is recording it).
 const noMic = args.includes('--no-mic');
-const app = new App({ dataRoot, port: Number(option('--port', '9555')) });
+// --simulate: the simulated engine records (its microphone loops --speech); nothing is played or recorded for real.
+const simulate = args.includes('--simulate');
+const speech = resolve(option('--speech', join(repoRoot, 'artifacts', 'e2e-fixtures', 'two-voices.wav')));
+const app = new App({ dataRoot, port: Number(option('--port', '9555')), args: simulate ? [`--simulate-audio=speech=${speech}`, '--update-feed=off'] : [] });
 const library = () => join(app.memento, 'Library', 'projects');
 const t0 = Date.now();
 
@@ -254,6 +261,8 @@ if (args.includes('--tesseract')) {
 
 try {
   check(mp3 && existsSync(mp3), '--mp3 names an audio file to import');
+  check(!(simulate && play), '--simulate plays nothing: leave --play out');
+  check(!simulate || existsSync(speech), `--simulate needs the speech WAV (${speech}); make it with tools/e2e/speech.ps1`);
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   if (models) {
@@ -551,7 +560,7 @@ try {
   await page.click({ name: 'Stop and open review' });
   playback?.stop();
   const recordedId = projectIds().find((id) => id !== importedId);
-  log('recorded', `${seconds} s, ${noMic ? 'system audio only' : 'microphone + system audio'}`);
+  log('recorded', `${seconds} s, ${noMic ? 'system audio only' : 'microphone + system audio'}${simulate ? ' (simulated)' : ''}`);
   await waitProcessed(recordedId, 20);
   await page.waitFor(`document.querySelectorAll('.segm').length > 1`, 'the recording transcript in Review', 60_000);
   await shot('review-recording-transcript');
