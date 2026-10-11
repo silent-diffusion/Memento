@@ -95,7 +95,9 @@ async function review20({ audio, chaptersAudio }) {
   };
   const seen = new Set(run.projectIds());
 
-  // 1. Settings › Speakers: Remember speakers by voice is off; turn it on.
+  // 1. Settings › Speakers: Remember speakers by voice is off; turn it on. (After the 1.x steps Review is open, and
+  // Settings is on the Library's header.)
+  if (!(await page().locate({ name: 'Settings' }))) await page().click({ name: 'Library' });
   await page().click({ name: 'Settings' });
   await page().click({ name: 'Speakers', role: 'tab' }).catch(() => page().click({ name: 'Speakers' }));
   await page().waitFor(`!!document.querySelector('[role="switch"][aria-label="Remember speakers by voice"]')`, 'the Remember switch');
@@ -392,7 +394,7 @@ try {
   await page().waitFor(`[...document.querySelectorAll('[role="option"]')].some((o) => o.textContent.trim() === '2 speakers')`, 'the count options');
   await page().eval(`[...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.trim() === '2 speakers').click()`);
   await run.until(() => run.manifest(id).details.whoSpoke?.count === 2, 'Who spoke = 2 in project.json');
-  run.check('Who spoke is saved with the recording (schema v3)', run.manifest(id).schemaVersion === 3, JSON.stringify(run.manifest(id).details.whoSpoke));
+  run.check('Who spoke is saved with the recording (schema v3 or later)', run.manifest(id).schemaVersion >= 3, JSON.stringify(run.manifest(id).details.whoSpoke));
   await page().waitFor(`!!document.querySelector('.people-reduce')`, 'Reduce to 2 speakers');
   await run.shot('who-spoke-2');
   await page().click({ selector: '.people-reduce' });

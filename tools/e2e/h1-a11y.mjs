@@ -5,11 +5,13 @@
 //  2. Reduced motion: with prefers-reduced-motion emulated, every control that has a press/hover transform in the
 //     stylesheets is forced into :hover and :active (CSS.forcePseudoState) and must compute no transform; running
 //     animations are listed.
-// Light and dark themes are both walked. A 3-minute public-domain two-reader WAV is imported (library.importMedia
-// { path }: the import picker is Windows' own dialog) so Review has a transcript; recordings use the simulated engine.
+// Light and dark themes are both walked. A 3-minute public-domain two-reader WAV is imported so Review has a transcript
+// (through Windows' own picker, answered by answer-dialog.ps1: since the 1.0 security audit the bridge refuses a path
+// from the page), from a copy named "Two readers.wav" in --out; recordings use the simulated engine.
 //
 //   node tools/e2e/h1-a11y.mjs --audio <wav> --models <dir> [--data <dir>] [--out <dir>] [--port 9450]
-import { rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { copyFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Run, option, repoRoot, sleep } from './h1-lib.mjs';
 
@@ -148,6 +150,16 @@ async function screen(label, { motionToo = false } = {}) {
   if (motionToo) await motion(label);
 }
 
+/** Answers Windows' file picker titled `title` with `path`. */
+function answerDialog(title, path) {
+  return new Promise((done, fail) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(repoRoot, 'tools', 'e2e', 'answer-dialog.ps1'), '-Title', title, '-Path', path], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+    let errors = '';
+    child.stderr.on('data', (d) => (errors += d));
+    child.once('exit', (code) => (code === 0 ? done() : fail(new Error(`answer-dialog "${title}" exited ${code}: ${errors.trim()}`))));
+  });
+}
+
 async function setTheme(theme) {
   await run.bridge('settings.set', { theme });
   await sleep(600);
@@ -163,7 +175,12 @@ try {
     if (theme === 'light') {
       await run.hasText('Your library is empty');
       await screen(t('library-empty'), { motionToo: true });
-      await run.bridge('library.importMedia', { path: audio, title: 'Two readers' });
+      const named = join(out, 'Two readers.wav');
+      copyFileSync(audio, named);
+      const answered = answerDialog('Import audio or video', named);
+      await run.page.click({ name: 'Import audio or video' });
+      await answered;
+      await run.until(() => run.projectIds().length === 1, 'the import');
       const [id] = run.projectIds();
       await run.until(() => run.manifest(id).stages.every((s) => s.state === 'done' || s.state === 'failed') && run.manifest(id).stages.length > 2, 'the import to be transcribed', 10 * 60_000, 1000);
     }

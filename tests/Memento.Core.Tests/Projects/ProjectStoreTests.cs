@@ -393,6 +393,25 @@ public sealed class ProjectStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task AnnotationsWrittenBy1xReadWithNoDismissedSuggestions()
+    {
+        // annotations.json as 1.3.0 wrote it: no dismissedSuggestions (2.0). Read as null, it failed suggested chapters
+        // (annotations.suggestChapters threw ArgumentNullException in Concat) on every 1.x recording opened in Review.
+        var created = await CreateAsync();
+        var file = Path.Combine(Store.GetProjectFolder(created.Id), "annotations.json");
+        await File.WriteAllTextAsync(file, """{"schemaVersion":1,"chapters":[],"highlights":[{"id":"h1","atMs":0,"note":"","origin":"user","segmentId":"s0001"}],"topics":[{"id":"t1","label":"Library","origin":"local"}]}""");
+
+        var loaded = await Store.LoadAnnotationsAsync(created.Id, CancellationToken.None);
+        Assert.NotNull(loaded.DismissedSuggestions);
+        Assert.Empty(loaded.DismissedSuggestions);
+
+        // Dismissing a suggestion on such a recording keeps what was there.
+        var updated = await Store.UpdateAnnotationsAsync(created.Id, d => d with { DismissedSuggestions = [.. d.DismissedSuggestions, 120_000] }, CancellationToken.None);
+        Assert.Equal([120_000L], updated.DismissedSuggestions);
+        Assert.Equal("Library", Assert.Single(updated.Topics).Label);
+    }
+
+    [Fact]
     public async Task DeleteRefusesWhileRecordingAndRemovesReadOnlyFilesOtherwise()
     {
         var created = await CreateAsync();

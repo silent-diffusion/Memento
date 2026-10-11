@@ -28,6 +28,8 @@ const toastTexts = (run) => run.page.eval(`[...document.querySelectorAll('.toast
 async function caseLowSpace() {
   const run = new Run({ name: 'A. low space and a full drive', dataRoot: join(base, 'A'), out: join(out, 'A'), port, models });
   rmSync(run.dataRoot, { recursive: true, force: true });
+  // Without --models nothing else creates the data root before the free-space file is written.
+  mkdirSync(run.dataRoot, { recursive: true });
   run.copyModels();
   const freeFile = join(run.dataRoot, 'free-bytes.txt');
   const setFree = (bytes) => writeFileSync(freeFile, String(Math.round(bytes)));
