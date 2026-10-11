@@ -3,9 +3,16 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
-## 2.0.0-beta.1
+## 2.0.0
 
-Video. Memento now records your screen, a window or your camera beside the audio, keeps every frame up to the last third of a second if the PC crashes, plays it in Review in step with the transcript, and exports it as one file with the camera inset or as separate files. This is a **pre-release** for people who want to try 2.0 early; it updates itself to the final 2.0.0 when that is published, and 1.3.0 keeps working unchanged for everyone else. Everything from 1.1.0 to 1.3.0 is in it.
+Video. Memento now records your screen, a window or your camera beside the audio, keeps every frame up to the last third of a second if the PC crashes, plays it in Review in step with the transcript, and exports it as one file with the camera inset or as separate files. Everything from 1.1.0 to 1.3.0 is in it, and Memento updates itself to it. This is the 2.0.0-beta.1 pre-release plus what its first testing found:
+
+### Fixed since the beta
+
+- **A quiet microphone next to loud system audio was never transcribed.** The silence detector used a fixed loudness line, so a microphone 40 dB below a playing video was marked silent from start to finish and Whisper never heard it. Silence is now judged against each track's own noise floor, every window is brought to a common level before Whisper and the speaker identification hear it, and the stored recording is untouched. On a two-track test the quiet microphone went from 0 of 18 lines to 18 of 18 with both models, with timing unchanged. **Even out source levels** (Settings › Recording › Storage, on by default) lifts a quiet track in the mix you play, up to +24 dB, and Review › More › Reprocess can **Rebuild the mix** with evened levels or as recorded. The Record screen now says "Microphone is quiet (−40 dB). Move closer or raise its level in Windows; the transcript may miss you." under a quiet source. Recordings made earlier improve with **Transcribe again**. The live draft while recording still hears one mix, so it catches less of a quiet voice spoken over loud audio; the full pass after Stop gets it all.
+- **Virtual cameras and other DirectShow cameras are listed and recorded**: the OBS Virtual Camera, NDI and similar software cameras and DirectShow-only capture cards were invisible, because only Media Foundation cameras were listed. They now appear in the picker with "via DirectShow", preview, record, and end their track cleanly when the virtual camera stops ("OBS Virtual Camera stopped at 0:42"). Tested against OBS 32: 30 frames per second for about 1% of the PC.
+- **Camera recording did not work at all in the beta**, through any camera: the camera picture was created without render-target access and the first frame failed as an encoder error. Fixed.
+- Memento no longer waits over 30 seconds to close while a camera thumbnail is open.
 
 ### Video
 
