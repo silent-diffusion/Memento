@@ -150,8 +150,17 @@ public sealed partial class RecoveryService(
         var interrupted = manifest.State is ProjectStates.Recording or ProjectStates.Finalizing;
         var folder = store.GetProjectFolder(id);
 
+        // 2.1: a crash while recording a resumed segment. The earlier segments' tracks are finalized and hashed; they are
+        // kept exactly as they are and only the segment's own files (named by the state file) are repaired.
+        var segment = state?.Segment ?? manifest.Tracks.Where(t => t.Sha256 is null).Select(t => t.Segment).Max() ?? 1;
+        var priorTracks = segment > 1 ? manifest.Tracks.Where(t => (t.Segment ?? 1) < segment && t.Sha256 is not null).ToList() : [];
+        var priorVideo = segment > 1 ? manifest.VideoTracks.Where(t => (t.Segment ?? 1) < segment).ToList() : [];
+        var segmentManifest = segment > 1
+            ? manifest with { Tracks = manifest.Tracks.Except(priorTracks).ToList(), VideoTracks = manifest.VideoTracks.Except(priorVideo).ToList() }
+            : manifest;
+
         // The state file is the most complete track list; fall back to the manifest if it was unreadable.
-        var stateTracks = state?.Tracks ?? manifest.Tracks.Select(t => new RecordingStateTrack(
+        var stateTracks = state?.Tracks ?? segmentManifest.Tracks.Select(t => new RecordingStateTrack(
             t.Id, t.SourceId, t.SourceKind, t.Name, t.CaptureFile ?? t.File, t.SampleRate, t.Channels, t.BitsPerSample,
             t.SampleEncoding, t.StartOffsetMs, 0, t.EndedEarlyAtMs, t.EndReason)).ToList();
 
@@ -235,10 +244,21 @@ public sealed partial class RecoveryService(
                 EndedEarlyAtMs = track.EndedAtMs,
                 EndReason = track.EndReason,
                 Sha256 = null,
+                Segment = segment > 1 ? segment : existing?.Segment,
             });
         }
 
-        var (videoTracks, videoIntact) = RecoverVideo(id, folder, manifest, state);
+        var (segmentVideo, videoIntact) = RecoverVideo(id, folder, segmentManifest, state);
+        var videoTracks = priorVideo.Concat(segmentVideo.Select(v => segment > 1 ? v with { Segment = segment } : v)).ToList();
+        tracks.InsertRange(0, priorTracks);
+        if (segment > 1)
+        {
+            recoveredMs = Math.Max(recoveredMs, Math.Max(state?.SegmentOffsetMs ?? 0, priorTracks.Select(t => t.StartOffsetMs + t.DurationMs).DefaultIfEmpty(0).Max()));
+        }
+
+        var segments = manifest.Segments.Select(s => s.Index == segment && interrupted
+            ? s with { DurationMs = Math.Max(0, recoveredMs - s.OffsetMs), EndedAt = s.EndedAt ?? state?.LastCheckpointAt }
+            : s).ToList();
         var now = time.GetLocalNow();
         var recovery = interrupted
             ? new ProjectRecovery(now, state?.LastCheckpointAt, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, Acknowledged: false, videoTracks.Select(t => new RecoveredVideoTrack(t.Role, t.Name, t.DurationMs)).ToList())
@@ -252,6 +272,7 @@ public sealed partial class RecoveryService(
                 HasVideo = m.HasVideo || videoTracks.Count > 0,
                 Pauses = state?.Pauses ?? m.Pauses,
                 DurationMs = interrupted ? recoveredMs : m.DurationMs,
+                Segments = segments,
                 Recovery = recovery,
             },
             cancellationToken);

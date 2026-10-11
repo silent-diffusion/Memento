@@ -42,6 +42,7 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, RecordingMarkHighlightMethod>();
         services.AddSingleton<IBridgeHandler, RecordingStopMethod>();
         services.AddSingleton<IBridgeHandler, RecordingCurrentMethod>();
+        services.AddSingleton<IBridgeHandler, RecordingResumeStoppedMethod>();
         services.AddSingleton<IBridgeHandler, RecoveryListMethod>();
         services.AddSingleton<IBridgeHandler, RecoveryAcknowledgeMethod>();
         services.AddSingleton<IBridgeHandler, DialogPickFolderMethod>();

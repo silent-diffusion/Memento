@@ -379,7 +379,7 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
         var info = _describe(id);
         lock (_sync)
         {
-            var stem = TrackNaming.UniqueStem(TrackNaming.BaseStem(id, info), _options.TracksDirectory, _runs.Select(r => r.FileStem).ToList());
+            var stem = TrackNaming.UniqueStem(TrackNaming.BaseStem(id, info), _options.TracksDirectory, _runs.Select(r => r.FileStem).Concat(_options.ReservedStems).ToHashSet(StringComparer.OrdinalIgnoreCase));
             var writer = new TrackWriter(new TrackWriterOptions(_options.TracksDirectory, stem, capture.Format)
             {
                 RolloverBytes = _options.RolloverBytes,

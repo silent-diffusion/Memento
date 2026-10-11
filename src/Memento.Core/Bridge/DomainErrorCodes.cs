@@ -32,6 +32,9 @@ public static class DomainErrorCodes
     /// <summary>A second <c>recording.start</c> while one session is active.</summary>
     public const string RecordingAlreadyActive = "recording.alreadyActive";
 
+    /// <summary>2.1: <c>recording.resumeStopped</c> for a recording that cannot take another segment (the message says why).</summary>
+    public const string RecordingCannotResume = "recording.cannotResume";
+
     /// <summary>The recording has no transcript yet (M2).</summary>
     public const string TranscriptNone = "transcript.none";
 

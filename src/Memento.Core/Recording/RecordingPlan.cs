@@ -15,4 +15,11 @@ public sealed record RecordingPlan(
     string ProjectFolder,
     IReadOnlyList<AudioSource> Sources,
     TimeSpan CheckpointInterval,
-    PcmFormat? PreferredFormat = null);
+    PcmFormat? PreferredFormat = null)
+{
+    /// <summary>
+    /// 2.1, "Resume recording": track ids (and so capture file stems) the project already uses. Engines never give a new
+    /// track one of these, so a resumed segment's files never touch the finalized tracks of earlier segments.
+    /// </summary>
+    public IReadOnlyCollection<string> ReservedTrackIds { get; init; } = [];
+}

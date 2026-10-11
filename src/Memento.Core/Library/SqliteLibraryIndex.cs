@@ -15,8 +15,8 @@ namespace Memento.Core.Library;
 public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
 {
     public const string DatabaseFileName = "library.db";
-    /// <summary>3 (2.0): the <c>video</c> column (the Library's video summary as JSON). 4 (2.1): <c>folder</c> and <c>audioRemoved*</c>.</summary>
-    public const int SchemaVersion = 4;
+    /// <summary>3 (2.0): the <c>video</c> column (the Library's video summary as JSON). 4 (2.1): <c>folder</c> and <c>audioRemoved*</c>. 5 (2.1): <c>resumedAt</c>.</summary>
+    public const int SchemaVersion = 5;
 
     private const int SqliteCorrupt = 11;
     private const int SqliteNotADatabase = 26;
@@ -39,7 +39,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             video TEXT,
             folder TEXT,
             audioRemovedAt TEXT,
-            audioRemovedBytes INTEGER);
+            audioRemovedBytes INTEGER,
+            resumedAt TEXT);
         CREATE INDEX IF NOT EXISTS ix_recordings_createdAtUtc ON recordings (createdAtUtc);
         CREATE INDEX IF NOT EXISTS ix_recordings_folder ON recordings (folder COLLATE NOCASE);
         CREATE TABLE IF NOT EXISTS people (
@@ -64,7 +65,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         """;
 
     private const string SelectColumns =
-        "r.id, r.title, r.type, r.createdAt, r.durationMs, r.hasVideo, r.state, r.sizeBytes, r.video, r.folder, r.audioRemovedAt, r.audioRemovedBytes";
+        "r.id, r.title, r.type, r.createdAt, r.durationMs, r.hasVideo, r.state, r.sizeBytes, r.video, r.folder, r.audioRemovedAt, r.audioRemovedBytes, r.resumedAt";
 
     private readonly ILibraryLocation _library;
     private readonly IProjectStore _store;
@@ -388,8 +389,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         {
             insert.Transaction = transaction;
             insert.CommandText = """
-                INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt, video, folder, audioRemovedAt, audioRemovedBytes)
-                VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt, $video, $folder, $audioRemovedAt, $audioRemovedBytes);
+                INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt, video, folder, audioRemovedAt, audioRemovedBytes, resumedAt)
+                VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt, $video, $folder, $audioRemovedAt, $audioRemovedBytes, $resumedAt);
                 INSERT INTO recordings_fts (id, title, people, transcript) VALUES (
                     $id,
                     $title,
@@ -413,6 +414,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             insert.Parameters.AddWithValue("$folder", FolderPaths.TryNormalize(manifest.Folder, out var folder) ? (object)folder : DBNull.Value);
             insert.Parameters.AddWithValue("$audioRemovedAt", (object?)manifest.AudioRemoved?.At.ToString("o", CultureInfo.InvariantCulture) ?? DBNull.Value);
             insert.Parameters.AddWithValue("$audioRemovedBytes", (object?)manifest.AudioRemoved?.BytesFreed ?? DBNull.Value);
+            var resumed = ProjectMapper.ResumedAt(manifest);
+            insert.Parameters.AddWithValue("$resumedAt", resumed.Count == 0 ? DBNull.Value : string.Join('\n', resumed.Select(r => r.ToString("o", CultureInfo.InvariantCulture))));
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -476,7 +479,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
                 reader.IsDBNull(9) ? null : reader.GetString(9),
                 reader.IsDBNull(10) ? null : new AudioRemovedInfo(
                     DateTimeOffset.Parse(reader.GetString(10), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-                    reader.IsDBNull(11) ? 0 : reader.GetInt64(11))));
+                    reader.IsDBNull(11) ? 0 : reader.GetInt64(11)),
+                reader.IsDBNull(12) ? null : reader.GetString(12)));
         }
 
         return rows;
@@ -545,7 +549,10 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         {
             IReadOnlyList<string> rowPeople = people.TryGetValue(row.Id, out var p) ? p : [];
             IReadOnlyList<StageStatus> rowStages = stages.TryGetValue(row.Id, out var s) ? s : [];
-            var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes, Video.VideoMapper.FromJson(row.VideoJson), row.Folder, row.AudioRemoved);
+            var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes, Video.VideoMapper.FromJson(row.VideoJson), row.Folder, row.AudioRemoved) with
+            {
+                ResumedAt = ParseResumedAt(row.ResumedAt),
+            };
             if (speakers.TryGetValue(row.Id, out var named))
             {
                 summary = summary with { People = rowPeople.Concat(named.Where(n => !rowPeople.Contains(n, StringComparer.OrdinalIgnoreCase))).ToList() };
@@ -703,5 +710,11 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
     [LoggerMessage(Level = LogLevel.Warning, Message = "Project {RecordingId} was left out of the library index because its project.json could not be read")]
     private partial void LogSkipped(string recordingId);
 
-    private sealed record Row(string Id, string Title, string Type, DateTimeOffset CreatedAt, long DurationMs, bool HasVideo, string State, long SizeBytes, string? VideoJson, string? Folder, AudioRemovedInfo? AudioRemoved);
+    private sealed record Row(string Id, string Title, string Type, DateTimeOffset CreatedAt, long DurationMs, bool HasVideo, string State, long SizeBytes, string? VideoJson, string? Folder, AudioRemovedInfo? AudioRemoved, string? ResumedAt);
+
+    /// <summary>2.1: the <c>resumedAt</c> column, one round-trip time per line; anything unreadable is left out.</summary>
+    private static List<DateTimeOffset> ParseResumedAt(string? value) =>
+        string.IsNullOrEmpty(value)
+            ? []
+            : value.Split('\n').Select(v => DateTimeOffset.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at) ? (DateTimeOffset?)at : null).OfType<DateTimeOffset>().ToList();
 }

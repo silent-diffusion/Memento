@@ -58,6 +58,29 @@ internal sealed partial class VideoRecording : IAsyncDisposable
     /// <summary>How often a camera another app holds is tried again (it starts by itself the moment it is free).</summary>
     public TimeSpan CameraRetryInterval { get; init; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// 2.1, "Resume recording": video track ids earlier segments used; a new track takes the next free one
+    /// (<c>screen-2</c>), so its file never touches theirs.
+    /// </summary>
+    public IReadOnlyCollection<string> ReservedTrackIds
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _usedIds.ToList();
+            }
+        }
+
+        init
+        {
+            lock (_sync)
+            {
+                _usedIds.UnionWith(value);
+            }
+        }
+    }
+
     /// <summary>The inset as the page last set it.</summary>
     public PipState Pip { get; private set; }
 

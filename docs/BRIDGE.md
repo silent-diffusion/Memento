@@ -1142,3 +1142,24 @@ Folder changes and filed recordings send `library.changed` (`recordingIds` empty
 ## Error codes (2.1)
 
 `folder.notFound` (the folder named is not in the Library any more; detail: the path), `folder.nameTaken` (a folder with that name, ignoring case, is already there; detail: the name), `folder.invalid` (the name is empty, too long or has `/` or `\`, or the move would put a folder in itself or nest deeper than 8; nothing was changed).
+## Resume recording (2.1)
+
+A stopped recording can take more segments: the Recording session's stopped state and Review's header offer **Resume recording** for a recording started **today** (local date) that was recorded (not imported), is saved (`ready` or `recovered`) and still has its separate tracks (not "Keep only the mix"), while nothing else records. The earlier tracks are finalized and read-only and are never opened again: the new session writes new track files (`tracks/mic-2.wav`, `tracks/screen-2.mp4`; the engines skip every id the project already uses) placed after the recorded time so far. Segments sit end to end on the timeline; the real time between Stop and Resume is a pause (`pauses[]`, at the segment's offset, with the gap as its duration), never recorded silence. There is no undo: a segment ends with Stop like any recording, and a crash mid-segment is recovered like any recording (only the segment's own files are repaired).
+
+```ts
+interface RecordingResumeStoppedParams { recordingId: string; sourceIds?: string[] }  // without sourceIds: the last segment's sources still connected (audio and video)
+interface RecordingSegment { index: number; startedAt: string; offsetMs: number; durationMs: number; gapMs: number }
+interface Project { /* … */ segments: RecordingSegment[]; canResume: boolean; resumeNote: string | null }  // [] for an import; resumeNote: why not, as a §17 sentence
+interface RecordingSummary { /* … */ resumedAt: string[] }   // when each segment after the first started; [] when recorded in one go
+interface RecordingStatePayload { /* … */ segment: number | null; segmentOffsetMs: number }  // segment null for a recording's first; elapsedMs and track offsets stay the session's own; total = segmentOffsetMs + elapsedMs
+```
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `recording.resumeStopped` | `RecordingResumeStoppedParams` | `{ sessionId, recordingId, startedAt }` | 2.1. Starts a new session in the same recording; it is then driven like `recording.start`'s (`recording.pause`, `recording.resume`, `recording.stop`, `recording.markHighlight` at the recording-timeline time, `recording.setSource`, video). Any processing of the recording is stopped first. On Stop only the new segment's tracks are encoded and hashed; the mix and `peaks.json` are built again over every track of every segment (`mixUrl` then carries `?v=`), and every stage that had run (`transcript`, `speakers`, `topics`, `video`, `optimize`) is queued again over the **whole recording**, because a pass over only the new segment is not available; the current transcript stays until the new one replaces it (kept as a version when history is on). History: `recorded` `started` "Recording resumed at 10:42" (detail "Segment 2, after 12:40 recorded and a pause of 8:03 · …"), `recorded` `completed` "Recorded 5:10 more · 17:50 in all", `stored` `info` "Resumed recording saved · 2 segments, 17:50 in all" (which stages run again and why). Refused with `recording.cannotResume` (the message says why: imported, not today, not saved completely, keeps only its mix, still saving), `recording.alreadyActive`, `recording.sourceUnavailable` (none of the last sources is connected, or one cannot open), `recording.noSources` (explicit `sourceIds` without audio), `recording.diskFull`, `project.notFound`, `library.busy`. |
+
+`project.json` schema **6**: `segments: [{ index, startedAt, offsetMs, durationMs, gapMs, endedAt }]`; each track and video track of a later segment carries `segment` (absent for the first). The v5 → v6 step writes one segment from `createdAt` and `durationMs`. `recording.state.json` (schema 1, optional fields) gains `segment` and `segmentOffsetMs`; its tracks, pauses and video parts are on the recording timeline. `library.db` schema 5 adds `resumedAt` (the index is rebuilt from the project folders on the first start).
+
+## Error codes (resume)
+
+`recording.cannotResume` (`recording.resumeStopped` for a recording that cannot take another segment; nothing was changed).

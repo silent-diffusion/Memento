@@ -42,6 +42,9 @@ public sealed record ProjectTrack
 
     public string? Sha256 { get; init; }
 
+    /// <summary>The segment the track was recorded in (2.1, "Resume recording"); <c>null</c> means the first.</summary>
+    public int? Segment { get; init; }
+
     public long? EndedEarlyAtMs { get; init; }
 
     /// <summary><c>disabled</c>, <c>sourceLost</c>, <c>diskFull</c> or <c>error</c> when the track ended early.</summary>

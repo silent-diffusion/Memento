@@ -502,6 +502,7 @@ public sealed partial class ProjectService(
         var mixUrl = finalized && manifest.Mix is { } mix ? Versioned(LibraryUrls.ForProjectFile(manifest.Id, mix.File), manifest) : null;
         var peaksUrl = finalized && manifest.Peaks is { } peaks ? Versioned(LibraryUrls.ForProjectFile(manifest.Id, peaks), manifest) : null;
         var folder = store.GetProjectFolder(manifest.Id);
+        var resumeNote = WhyNotResume(manifest);
         return new Project(
             ProjectMapper.ToSummary(manifest, store.GetSizeBytes(manifest.Id), Video.VideoMapper.Summarize(manifest)),
             ProjectMapper.ToDetails(manifest.Details),
@@ -517,7 +518,28 @@ public sealed partial class ProjectService(
             manifest.MixOnly is { } mixOnly ? new MixOnlyInfo(mixOnly.At, mixOnly.TrackIds.Count, mixOnly.BytesFreed) : null,
             Video.VideoMapper.ToProject(manifest, folder, finalized),
             manifest.Mix?.EvenLevels is { } levels ? new MixLevelsInfo(levels.At, levels.Tracks) : null,
-            manifest.AudioRemoved is { } audio ? new AudioRemovedInfo(audio.At, audio.BytesFreed) : null);
+            manifest.AudioRemoved is { } audio ? new AudioRemovedInfo(audio.At, audio.BytesFreed) : null)
+        {
+            Segments = ProjectMapper.ToSegments(manifest),
+            CanResume = resumeNote is null,
+            ResumeNote = resumeNote,
+        };
+    }
+
+    /// <summary>2.1: why "Resume recording" is not offered for <paramref name="manifest"/> now, or <c>null</c>.</summary>
+    private string? WhyNotResume(ProjectManifest manifest)
+    {
+        if (recordings.IsBusy(manifest.Id))
+        {
+            return $"\"{manifest.Details.Title}\" is still being recorded or saved.";
+        }
+
+        if (recordings.Current is { State: "recording" or "paused" } other)
+        {
+            return $"Another recording is running (started {other.StartedAt.ToString("t", System.Globalization.CultureInfo.CurrentCulture)}). Stop it first to resume this one.";
+        }
+
+        return Memento.Core.Recording.ResumePolicy.WhyNot(manifest, time.GetLocalNow());
     }
 
     /// <summary>
@@ -526,7 +548,7 @@ public sealed partial class ProjectService(
     /// the player and the waveform load the new files instead of what WebView2 has cached.
     /// </summary>
     internal static string Versioned(string url, ProjectManifest manifest) =>
-        manifest.Stages.Any(s => s.Stage == StageNames.Mix) && manifest.Mix is { Sha256.Length: >= 8 } mix ? $"{url}?v={mix.Sha256[..8]}" : url;
+        (manifest.Stages.Any(s => s.Stage == StageNames.Mix) || manifest.Segments.Count > 1) && manifest.Mix is { Sha256.Length: >= 8 } mix ? $"{url}?v={mix.Sha256[..8]}" : url;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} deleted through the Delete flow")]
     private partial void LogDeleted(string recordingId);

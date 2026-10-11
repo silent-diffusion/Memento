@@ -58,6 +58,7 @@ public sealed partial class SimulatedRecordingSession : IRecordingSession
     {
         SessionId = sessionId;
         _plan = plan;
+        _reservedIds.UnionWith(plan.ReservedTrackIds);
         _sources = sources;
         _options = options;
         _time = time;

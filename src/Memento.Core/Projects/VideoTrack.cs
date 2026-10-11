@@ -82,6 +82,9 @@ public sealed record VideoTrack
 
     public string? Sha256 { get; init; }
 
+    /// <summary>The segment the track was recorded in (2.1, "Resume recording"); <c>null</c> means the first.</summary>
+    public int? Segment { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

@@ -259,6 +259,8 @@ public sealed class BridgeRouterTests
             // 2.1 folders and Delete audio.
             "folders.list", "folders.create", "folders.rename", "folders.move", "folders.delete", "library.moveToFolder",
             "audio.remove", "audio.removeEstimate",
+            // 2.1: resume a stopped recording.
+            "recording.resumeStopped",
         ];
 
         Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));

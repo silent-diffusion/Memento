@@ -43,6 +43,7 @@ public sealed partial class WasapiRecordingEngine(WasapiEngineOptions options, T
             RolloverBytes = options.RolloverBytes,
             DurableCheckpoints = options.DurableCheckpoints,
             LoggerFactory = loggerFactory,
+            ReservedStems = plan.ReservedTrackIds,
         };
 
         AudioRecordingSession session;

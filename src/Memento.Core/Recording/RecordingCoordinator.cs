@@ -179,6 +179,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             var active = new ActiveRecording(session, manifest.Id, title, plan.CheckpointInterval)
             {
                 Video = new VideoRecording(_video, session, manifest.Id, folder, session.TimelineOriginQpc ?? startedQpc, _settings.Current.Recording.Video, _publisher, _logger),
+                Segments = [new ProjectSegment(1, session.StartedAt, 0, 0, 0, null)],
             };
             Subscribe(active);
             Volatile.Write(ref _active, active);
@@ -191,7 +192,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             var tracks = session.Tracks;
             await WriteStateFileAsync(active, "recording", tracks, null);
             await _catalog.SaveAsync(
-                manifest with { Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList(), HasVideo = active.Video.HasAny },
+                manifest with { Tracks = active.ManifestTracks(tracks), HasVideo = active.Video.HasAny, Segments = active.Segments },
                 cancellationToken);
             await _store.AppendHistoryAsync(
                 manifest.Id,
@@ -214,6 +215,179 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             _publisher.PublishRecordingState(BuildPayload(active, "recording", tracks, 0));
             LogStarted(manifest.Id, session.SessionId, tracks.Count, _engine.Name);
             return new RecordingStartResult(session.SessionId, manifest.Id, session.StartedAt);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// <c>recording.resumeStopped</c> (2.1): records a new segment into a stopped recording (<see cref="ResumePolicy"/>).
+    /// The finalized tracks of earlier segments are never opened for writing: the session writes new track files
+    /// (<see cref="RecordingPlan.ReservedTrackIds"/>), placed after the recorded time so far; the real time since the stop
+    /// becomes a pause on the timeline. Without <paramref name="sourceIds"/> the last segment's sources that are still
+    /// connected are used. Any processing of the recording is stopped first; it runs again after the segment is saved.
+    /// </summary>
+    public async Task<RecordingStartResult> ResumeStoppedAsync(string recordingId, IReadOnlyList<string>? sourceIds, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(recordingId);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_active is { } running)
+            {
+                throw new BridgeException(
+                    DomainErrorCodes.RecordingAlreadyActive,
+                    $"\"{running.Title}\" is still recording (started {running.StartedAt.ToString("t", CultureInfo.CurrentCulture)}). Stop it before resuming another; it keeps recording until you do.",
+                    running.SessionId);
+            }
+
+            ProjectManifest manifest;
+            try
+            {
+                manifest = await _store.LoadAsync(recordingId, cancellationToken);
+            }
+            catch (ProjectNotFoundException)
+            {
+                throw new BridgeException(DomainErrorCodes.ProjectNotFound, "That recording is no longer in the Library, so it cannot be resumed. Start a new recording instead.", recordingId);
+            }
+
+            if (_finalizing.ContainsKey(recordingId))
+            {
+                manifest = manifest with { State = ProjectStates.Finalizing };
+            }
+
+            if (ResumePolicy.WhyNot(manifest, _time.GetLocalNow()) is { } why)
+            {
+                throw new BridgeException(DomainErrorCodes.RecordingCannotResume, why, recordingId);
+            }
+
+            var segments = manifest.Segments.Count > 0
+                ? manifest.Segments
+                : [new ProjectSegment(1, manifest.CreatedAt, 0, manifest.DurationMs, 0, null)];
+            var last = segments[^1];
+            var requested = sourceIds is { Count: > 0 }
+                ? sourceIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList()
+                : manifest.Tracks.Where(t => (t.Segment ?? 1) == last.Index).Select(t => t.SourceId)
+                    .Concat(manifest.VideoTracks.Where(v => (v.Segment ?? 1) == last.Index && v.EndReason is null).Select(v => v.SourceId))
+                    .Distinct(StringComparer.Ordinal).ToList();
+            var videoIds = requested.Where(VideoSourceIds.IsVideo).ToList();
+            var audioIds = requested.Where(id => !VideoSourceIds.IsVideo(id)).ToList();
+            if (sourceIds is not { Count: > 0 })
+            {
+                // The sources as they were: the ones that are still connected.
+                var available = (await _sources.ListAsync(cancellationToken)).Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+                audioIds = audioIds.Where(available.Contains).ToList();
+                if (audioIds.Count == 0)
+                {
+                    throw new BridgeException(
+                        DomainErrorCodes.RecordingSourceUnavailable,
+                        $"None of the audio sources \"{manifest.Details.Title}\" was recorded from is connected now, so it was not resumed. Connect one, or choose the sources on the Recording screen; the recording is unchanged.",
+                        recordingId);
+                }
+            }
+            else if (audioIds.Count == 0)
+            {
+                throw new BridgeException(
+                    DomainErrorCodes.RecordingNoSources,
+                    "Choose at least one audio source to record; video is recorded beside the audio, never on its own. Nothing was started.");
+            }
+
+            var sources = await ResolveSourcesAsync(audioIds, cancellationToken);
+            if (_opener is not null)
+            {
+                await _opener.EnsureOpenAsync("The recording was not resumed and nothing was recorded.", cancellationToken);
+            }
+
+            EnsureRoomToStart();
+
+            // Transcription of the earlier segments stops now; the whole recording is processed again after this segment.
+            await _processing.CancelAsync(recordingId);
+
+            var folder = _store.GetProjectFolder(recordingId);
+            var plan = new RecordingPlan(folder, sources, TimeSpan.FromSeconds(_settings.Current.Recording.CheckpointSeconds))
+            {
+                ReservedTrackIds = manifest.Tracks.Select(t => t.Id).ToList(),
+            };
+            IRecordingSession session;
+            var startedQpc = VideoClock.Now;
+            try
+            {
+                session = await _engine.StartAsync(plan, cancellationToken);
+            }
+            catch (SourceUnavailableException ex)
+            {
+                throw new BridgeException(
+                    DomainErrorCodes.RecordingSourceUnavailable,
+                    $"{ex.SourceName} could not be opened ({ex.Reason}), so the recording was not resumed and no other source was started. The recording is unchanged. Check the device, or turn it off and try again.",
+                    ex.SourceId);
+            }
+            catch (IOException ex) when (Audio.DiskErrors.IsDiskFull(ex))
+            {
+                throw DiskFullAtStart(_freeSpace.GetFreeBytes(_library.Root));
+            }
+
+            var offset = manifest.DurationMs;
+            var stoppedAt = last.EndedAt ?? manifest.CreatedAt + TimeSpan.FromMilliseconds(manifest.DurationMs + manifest.Pauses.Sum(p => p.DurationMs));
+            var gapMs = Math.Max(0, (long)(session.StartedAt - stoppedAt).TotalMilliseconds);
+            var segment = new ProjectSegment(last.Index + 1, session.StartedAt, offset, 0, gapMs, null);
+            var active = new ActiveRecording(session, recordingId, manifest.Details.Title, plan.CheckpointInterval)
+            {
+                Video = new VideoRecording(_video, session, recordingId, folder, session.TimelineOriginQpc ?? startedQpc, _settings.Current.Recording.Video, _publisher, _logger)
+                {
+                    ReservedTrackIds = manifest.VideoTracks.Select(v => v.Id).ToList(),
+                },
+                Segment = segment.Index,
+                SegmentOffsetMs = offset,
+                PriorTracks = manifest.Tracks,
+                PriorVideo = manifest.VideoTracks,
+                PriorPauses = manifest.Pauses.Append(new ProjectPause(offset, stoppedAt, gapMs)).ToList(),
+                PriorPip = manifest.VideoPip,
+                Segments = segments.Append(segment).ToList(),
+            };
+            Subscribe(active);
+            Volatile.Write(ref _active, active);
+            if (videoIds.Count > 0 && _video.IsAvailable)
+            {
+                await active.Video.StartInitialAsync(videoIds, CancellationToken.None);
+            }
+
+            var tracks = session.Tracks;
+            await WriteStateFileAsync(active, "recording", tracks, null);
+            await _catalog.UpdateAsync(
+                recordingId,
+                m => m with
+                {
+                    State = ProjectStates.Recording,
+                    Tracks = active.ManifestTracks(tracks),
+                    Pauses = active.PriorPauses,
+                    Segments = active.Segments,
+                    HasVideo = m.HasVideo || active.Video.HasAny,
+                    Recovery = m.Recovery is { } recovery ? recovery with { Acknowledged = true } : null,
+                },
+                cancellationToken);
+            await _store.AppendHistoryAsync(
+                recordingId,
+                new HistoryEntry(
+                    session.StartedAt,
+                    "recorded",
+                    "started",
+                    $"Recording resumed at {session.StartedAt.ToString("t", CultureInfo.CurrentCulture)}",
+                    $"Segment {segment.Index}, after {HumanFormat.Clock(offset)} recorded and a pause of {HumanFormat.Clock(gapMs)} · "
+                        + $"{HumanFormat.Count(tracks.Count, "audio track", "audio tracks")}: {string.Join(", ", tracks.Select(t => t.Source.Name))}"
+                        + VideoHistoryPart(active.Video.Statuses())
+                        + " · the earlier tracks are kept as they were"),
+                cancellationToken);
+
+            UpdateBoard(active);
+            _footer.Publish(force: true);
+            active.Loops = Task.WhenAll(
+                Task.Run(() => RunTickerAsync(active, active.Stopping.Token), CancellationToken.None),
+                Task.Run(() => RunDiskWatchAsync(active, active.Stopping.Token), CancellationToken.None));
+            _publisher.PublishRecordingState(BuildPayload(active, "recording", tracks, 0));
+            LogResumed(recordingId, session.SessionId, segment.Index, offset, gapMs);
+            return new RecordingStartResult(session.SessionId, recordingId, session.StartedAt);
         }
         finally
         {
@@ -255,7 +429,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 throw SourceUnavailable(ex.SourceName, ex.SourceId, ex.Reason, recording: true);
             }
 
-            await _catalog.UpdateAsync(active.RecordingId, m => m with { Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList() }, cancellationToken);
+            await _catalog.UpdateAsync(active.RecordingId, m => m with { Tracks = active.ManifestTracks(tracks) }, cancellationToken);
             await WriteStateFileAsync(active, StateName(active.Session.State), tracks, active.LastCheckpointAt);
             _publisher.PublishRecordingState(BuildPayload(active, StateName(active.Session.State), tracks, active.Session.ElapsedMs));
             return tracks.Select(SessionTrackMapper.ToContract).ToList();
@@ -321,7 +495,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         {
             var active = Require(sessionId);
             active.Video.SetPip(enabled, corner);
-            await _catalog.UpdateAsync(active.RecordingId, m => m with { VideoPip = active.Video.PipChanges }, cancellationToken);
+            await _catalog.UpdateAsync(active.RecordingId, m => m with { VideoPip = active.AllPip(active.Video.PipChanges) }, cancellationToken);
         }
         finally
         {
@@ -371,7 +545,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 throw new BridgeException(BridgeErrorCodes.InvalidParams, $"A highlight note can be at most {MaxNoteLength} characters; this one has {text.Length}.");
             }
 
-            var at = await active.Session.MarkAsync(cancellationToken);
+            var at = await active.Session.MarkAsync(cancellationToken) + active.SegmentOffsetMs;
             var highlight = new Highlight(AnnotationIds.New('h'), at, text, AnnotationOrigins.User, null);
             await _store.UpdateAnnotationsAsync(
                 active.RecordingId,
@@ -669,7 +843,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         var tracks = active.Session.Tracks;
         try
         {
-            await _catalog.UpdateAsync(active.RecordingId, m => m with { Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList() }, CancellationToken.None);
+            await _catalog.UpdateAsync(active.RecordingId, m => m with { Tracks = active.ManifestTracks(tracks) }, CancellationToken.None);
         }
         catch (IOException ex)
         {
@@ -768,18 +942,20 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     private async Task RecordStopLockedAsync(ActiveRecording active, RecordingSessionResult result, HostStopReason? reason, long atMs, IReadOnlyList<VideoTrack> video)
     {
         var tracks = result.Tracks;
-        var pip = active.Video.PipChanges;
+        var pip = active.AllPip(active.Video.PipChanges);
         var pauses = result.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList();
+        var allVideo = active.AllVideo(video);
         await _catalog.UpdateAsync(
             active.RecordingId,
             m => m with
             {
-                Tracks = tracks.Select(SessionTrackMapper.ToManifest).ToList(),
-                Pauses = pauses,
-                DurationMs = result.ElapsedMs,
-                VideoTracks = video,
-                HasVideo = video.Count > 0,
+                Tracks = active.ManifestTracks(tracks),
+                Pauses = active.AllPauses(result.Pauses),
+                DurationMs = active.SegmentOffsetMs + result.ElapsedMs,
+                VideoTracks = allVideo,
+                HasVideo = allVideo.Count > 0 || (active.Segment > 1 && m.HasVideo),
                 VideoPip = pip,
+                Segments = active.FinishedSegments(result.ElapsedMs, result.StoppedAt),
                 State = ProjectStates.Finalizing,
                 Stages = ProjectFinalizationService.WithStored(m.Stages, StageStates.Active, 0, "Saving tracks"),
             },
@@ -791,9 +967,11 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             HostStopReason.DiskFull => $"Stopped · drive full at {HumanFormat.Clock(atMs)}",
             HostStopReason.DeviceLost => $"Stopped at {HumanFormat.Clock(atMs)} · every source was disconnected",
             HostStopReason.Error => $"Stopped at {HumanFormat.Clock(atMs)} · a track could not be written",
+            _ when active.Segment > 1 => $"Recorded {HumanFormat.Clock(result.ElapsedMs)} more · {HumanFormat.Clock(active.SegmentOffsetMs + result.ElapsedMs)} in all",
             _ => $"Recorded {HumanFormat.Clock(result.ElapsedMs)}",
         };
-        var detail = $"{HumanFormat.Count(tracks.Count, "track", "tracks")}"
+        var detail = (active.Segment > 1 ? $"Segment {active.Segment} · " : string.Empty)
+            + $"{HumanFormat.Count(tracks.Count, "track", "tracks")}"
             + (pauses.Count > 0 ? $" · paused {HumanFormat.Count(pauses.Count, "time", "times")}" : string.Empty)
             + string.Concat(tracks.Where(t => t.EndedAtMs is not null).Select(t => $" · {t.Source.Name} ended at {HumanFormat.Clock(t.EndedAtMs!.Value)}"))
             + VideoStopHistoryPart(video);
@@ -842,7 +1020,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
     {
         try
         {
-            await _catalog.UpdateAsync(active.RecordingId, m => m with { HasVideo = m.HasVideo || active.Video.HasAny, VideoPip = active.Video.PipChanges }, CancellationToken.None);
+            await _catalog.UpdateAsync(active.RecordingId, m => m with { HasVideo = m.HasVideo || active.Video.HasAny, VideoPip = active.AllPip(active.Video.PipChanges) }, CancellationToken.None);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1031,6 +1209,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         {
             // The video files are flushed first, so every part the state file names is on disk up to its entry.
             var video = active.Video.Checkpoint(flushVideo);
+            var offset = active.SegmentOffsetMs;
             await _store.WriteRecordingStateAsync(
                 new RecordingStateDocument
                 {
@@ -1039,12 +1218,14 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     StartedAt = active.StartedAt,
                     State = state,
                     LastCheckpointAt = lastCheckpointAt,
-                    ElapsedMsAtCheckpoint = tracks.Count == 0 ? 0 : tracks.Max(t => t.StartOffsetMs + t.Format.BytesToMilliseconds(t.CheckpointedBytes)),
+                    ElapsedMsAtCheckpoint = offset + (tracks.Count == 0 ? 0 : tracks.Max(t => t.StartOffsetMs + t.Format.BytesToMilliseconds(t.CheckpointedBytes))),
                     CheckpointSeconds = (int)active.CheckpointInterval.TotalSeconds,
                     FlushIntervalMs = _engine.FlushInterval is { } flush ? (int)flush.TotalMilliseconds : null,
-                    Tracks = tracks.Select(SessionTrackMapper.ToState).ToList(),
-                    Pauses = active.Session.Pauses.Select(p => new ProjectPause(p.AtMs, p.PausedAt, p.DurationMs ?? 0)).ToList(),
-                    VideoTracks = video,
+                    Tracks = tracks.Select(t => SessionTrackMapper.ToState(t) with { StartOffsetMs = t.StartOffsetMs + offset, EndedAtMs = t.EndedAtMs + offset }).ToList(),
+                    Pauses = active.AllPauses(active.Session.Pauses),
+                    VideoTracks = active.ShiftCheckpoints(video),
+                    Segment = active.Segment == 1 ? null : active.Segment,
+                    SegmentOffsetMs = offset,
                 },
                 CancellationToken.None);
         }
@@ -1072,10 +1253,17 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             tracks.Select(SessionTrackMapper.ToContract).ToList(),
             active.LastCheckpointAt ?? active.Session.LastCheckpointAt,
             Volatile.Read(ref active.HighlightsCount),
-            active.Video.Statuses());
+            active.Video.Statuses())
+        {
+            Segment = active.Segment == 1 ? null : active.Segment,
+            SegmentOffsetMs = active.SegmentOffsetMs,
+        };
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} started (session {SessionId}, {Tracks} tracks, engine {Engine})")]
     private partial void LogStarted(string recordingId, string sessionId, int tracks, string engine);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} resumed (session {SessionId}, segment {Segment} at {OffsetMs} ms, {GapMs} ms after the stop)")]
+    private partial void LogResumed(string recordingId, string sessionId, int segment, long offsetMs, long gapMs);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} stopped at {ElapsedMs} ms by the user; finalizing")]
     private partial void LogStopped(string recordingId, long elapsedMs);
@@ -1164,6 +1352,67 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
         /// <summary>2.0: the session's video tracks (none until a video source is chosen).</summary>
         public required VideoRecording Video { get; init; }
+
+        /// <summary>2.1: the segment this session records (1, or later after "Resume recording").</summary>
+        public int Segment { get; init; } = 1;
+
+        /// <summary>2.1: where this session's time 0 sits on the recording timeline (the recorded time of earlier segments).</summary>
+        public long SegmentOffsetMs { get; init; }
+
+        /// <summary>2.1: the finalized tracks of earlier segments, kept as they are in the manifest.</summary>
+        public IReadOnlyList<ProjectTrack> PriorTracks { get; init; } = [];
+
+        /// <summary>2.1: the video tracks of earlier segments.</summary>
+        public IReadOnlyList<VideoTrack> PriorVideo { get; init; } = [];
+
+        /// <summary>2.1: the pauses of earlier segments and the gap before this one, on the recording timeline.</summary>
+        public IReadOnlyList<ProjectPause> PriorPauses { get; init; } = [];
+
+        /// <summary>2.1: the camera inset changes of earlier segments.</summary>
+        public IReadOnlyList<ProjectPipChange> PriorPip { get; init; } = [];
+
+        /// <summary>2.1: the segments before this one, and this one (its duration and end filled in at stop).</summary>
+        public IReadOnlyList<ProjectSegment> Segments { get; init; } = [];
+
+        /// <summary>This session's tracks for <c>project.json</c>: placed on the recording timeline, after the earlier segments'.</summary>
+        public List<ProjectTrack> ManifestTracks(IReadOnlyList<SessionTrack> tracks) =>
+            PriorTracks.Concat(tracks.Select(t => SessionTrackMapper.ToManifest(t) with
+            {
+                StartOffsetMs = t.StartOffsetMs + SegmentOffsetMs,
+                EndedEarlyAtMs = t.EndedAtMs + SegmentOffsetMs,
+                Segment = Segment == 1 ? null : Segment,
+            })).ToList();
+
+        /// <summary>Every pause on the recording timeline: earlier segments', the gap, then this session's.</summary>
+        public List<ProjectPause> AllPauses(IReadOnlyList<SessionPause> pauses) =>
+            PriorPauses.Concat(pauses.Select(p => new ProjectPause(p.AtMs + SegmentOffsetMs, p.PausedAt, p.DurationMs ?? 0))).ToList();
+
+        /// <summary>This session's video tracks moved onto the recording timeline, after the earlier segments'.</summary>
+        public List<VideoTrack> AllVideo(IReadOnlyList<VideoTrack> video) =>
+            PriorVideo.Concat(video.Select(v => SegmentOffsetMs == 0 && Segment == 1 ? v : v with
+            {
+                StartOffsetMs = v.StartOffsetMs + SegmentOffsetMs,
+                EndedEarlyAtMs = v.EndedEarlyAtMs + SegmentOffsetMs,
+                Parts = v.Parts.Select(p => p with { StartOffsetMs = p.StartOffsetMs + SegmentOffsetMs }).ToList(),
+                Segment = Segment,
+            })).ToList();
+
+        /// <summary>This session's video checkpoints on the recording timeline, for <c>recording.state.json</c>.</summary>
+        public List<VideoTrackCheckpoint> ShiftCheckpoints(IReadOnlyList<VideoTrackCheckpoint> video) =>
+            SegmentOffsetMs == 0
+                ? video.ToList()
+                : video.Select(v => v with
+                {
+                    EndedAtMs = v.EndedAtMs + SegmentOffsetMs,
+                    Parts = v.Parts.Select(p => p with { StartOffsetMs = p.StartOffsetMs + SegmentOffsetMs }).ToList(),
+                }).ToList();
+
+        public List<ProjectPipChange> AllPip(IReadOnlyList<ProjectPipChange> pip) =>
+            PriorPip.Concat(pip.Select(p => p with { AtMs = p.AtMs + SegmentOffsetMs })).ToList();
+
+        /// <summary>The segments with this one's recorded time and end.</summary>
+        public List<ProjectSegment> FinishedSegments(long elapsedMs, DateTimeOffset stoppedAt) =>
+            Segments.Select(s => s.Index == Segment ? s with { DurationMs = elapsedMs, EndedAt = stoppedAt } : s).ToList();
 
         public async Task StopLoopsAsync()
         {
