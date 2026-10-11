@@ -96,4 +96,37 @@ public sealed class HostingTests
         Assert.Equal((640, 1280), (thumbnail.Width, thumbnail.Height));
         Assert.StartsWith("data:image/jpeg;base64,", thumbnail.DataUrl, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void CameraThumbnailsQueueApartFromDisplayAndWindowThumbnails()
+    {
+        var screens = MediaFoundationVideoCapture.GateFor(Memento.Video.Sources.VideoSourceKind.Display);
+
+        Assert.Same(screens, MediaFoundationVideoCapture.GateFor(Memento.Video.Sources.VideoSourceKind.Window));
+        Assert.NotSame(screens, MediaFoundationVideoCapture.GateFor(Memento.Video.Sources.VideoSourceKind.Camera));
+    }
+
+    [Trait("Category", "Hardware")]
+    [Memento.Video.Tests.Hardware.VideoHardwareFact]
+    public async Task ADisplayStillDoesNotWaitForACameraThatIsSlowToAnswer()
+    {
+        var capture = new MediaFoundationVideoCapture();
+        var display = capture.ListSources().Displays[0];
+        var cameras = MediaFoundationVideoCapture.GateFor(Memento.Video.Sources.VideoSourceKind.Camera);
+
+        // A camera thumbnail waiting for its first picture holds the camera queue.
+        await cameras.WaitAsync();
+        try
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var still = await capture.ThumbnailAsync(display.Id, 320, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.StartsWith("data:image/jpeg;base64,", still.DataUrl, StringComparison.Ordinal);
+            Assert.True(clock.ElapsedMilliseconds < 1000, $"the display's still took {clock.ElapsedMilliseconds} ms");
+        }
+        finally
+        {
+            cameras.Release();
+        }
+    }
 }
