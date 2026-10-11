@@ -314,6 +314,33 @@ public sealed class VideoRecordingTests : IDisposable
     }
 
     [Fact]
+    public async Task RemovingTheVideoTakesLeftoverCopiesAndNeverAnAudioFileTheManifestCallsVideo()
+    {
+        // Audit 2, SA2-06 and SA2-07.
+        var recordingId = await RecordWithVideoAsync();
+        var folder = _host.Store.GetProjectFolder(recordingId);
+        var tracks = Path.Combine(folder, "tracks");
+        var mic = Directory.EnumerateFiles(tracks, "mic.*").Single();
+        var micName = "tracks/" + Path.GetFileName(mic);
+        await File.WriteAllBytesAsync(Path.Combine(tracks, "screen.joined.mp4.tmp"), new byte[100]);
+        await File.WriteAllBytesAsync(Path.Combine(tracks, "camera-2.mp4"), new byte[200]);
+        await File.WriteAllBytesAsync(Path.Combine(tracks, "notes.mp4"), new byte[300]);
+        await _host.Get<Memento.Core.Library.ProjectCatalog>().UpdateAsync(
+            recordingId,
+            m => m with { VideoTracks = [m.VideoTracks[0] with { Parts = [.. m.VideoTracks[0].Parts, new VideoTrackPart(micName, 0, 1, "x", false, 1), new VideoTrackPart(ProjectLayout.ManifestFile, 0, 1, "x", false, 1)] }] },
+            CancellationToken.None);
+
+        var freed = await _host.ResultAsync("video.remove", JsonSerializer.Serialize(new { recordingId }));
+
+        Assert.Equal(4096 + 100 + 200, freed.GetProperty("freedBytes").GetInt64());
+        Assert.True(File.Exists(mic));
+        Assert.True(File.Exists(Path.Combine(folder, ProjectLayout.ManifestFile)));
+        Assert.True(File.Exists(Path.Combine(tracks, "notes.mp4")));
+        Assert.False(File.Exists(Path.Combine(tracks, "camera-2.mp4")));
+        Assert.False(File.Exists(Path.Combine(tracks, "screen.joined.mp4.tmp")));
+    }
+
+    [Fact]
     public async Task VideoOlderThanTheSettingIsRemovedAndCounted()
     {
         var recordingId = await RecordWithVideoAsync();

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Formatting;
@@ -34,18 +35,29 @@ public sealed partial class VideoRemovalService(
 
     public void Dispose() => _oneAtATime.Dispose();
 
-    /// <summary>The video files of <paramref name="manifest"/> on disk, relative to its folder, with their sizes.</summary>
+    /// <summary>
+    /// The video files of <paramref name="manifest"/> on disk, relative to its folder, with their sizes: what its video
+    /// tracks name, but only MP4 files directly in <c>tracks/</c> (a crafted manifest that names the mix or the transcript
+    /// as a video part must not make Remove video delete it: audit 2, SA2-06), and the video files a crash left there
+    /// unnamed (a part opened after the last checkpoint, a camera track restarted, a join's output or temporary file:
+    /// audit 2, SA2-07), so "video removed" means every copy is gone.
+    /// </summary>
     public static IReadOnlyList<(string File, long Bytes)> VideoFiles(ProjectManifest manifest, string folder)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         var result = new List<(string, long)>();
-        foreach (var file in manifest.VideoTracks.SelectMany(t => t.Parts.Select(p => p.File).Append(t.File)).Distinct(StringComparer.Ordinal))
+        var names = manifest.VideoTracks.SelectMany(t => t.Parts.Select(p => p.File).Append(t.File)).Where(IsVideoFile).ToList();
+        var tracks = Path.Combine(folder, ProjectLayout.TracksFolder);
+        if (manifest.VideoTracks.Count > 0 && Directory.Exists(tracks))
         {
-            if (!ProjectPaths.IsSafeRelative(file))
-            {
-                continue;
-            }
+            names.AddRange(Directory.EnumerateFiles(tracks)
+                .Select(Path.GetFileName)
+                .Where(name => name is not null && LeftoverVideoPattern().IsMatch(name))
+                .Select(name => ProjectLayout.TracksFolder + "/" + name));
+        }
 
+        foreach (var file in names.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
             var path = ProjectPaths.Resolve(folder, file);
             if (File.Exists(path))
             {
@@ -275,4 +287,15 @@ public sealed partial class VideoRemovalService(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Remove video older than: recording {RecordingId} failed")]
     private partial void LogSweepFailed(Exception exception, string recordingId);
+
+    /// <summary>An MP4 directly in <c>tracks/</c>: the only kind of file a video track is made of.</summary>
+    internal static bool IsVideoFile(string file) =>
+        ProjectPaths.IsSafeRelative(file)
+        && file.StartsWith(ProjectLayout.TracksFolder + "/", StringComparison.Ordinal)
+        && file.IndexOf('/', ProjectLayout.TracksFolder.Length + 1) < 0
+        && file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The names the recorder and the video stage give video files (<c>screen.mp4</c>, <c>camera-2.part3.mp4</c>, <c>screen.joined.mp4.tmp</c>).</summary>
+    [GeneratedRegex(@"^(screen|camera)(-\d{1,4})?(\.part\d{1,4}|\.joined)?\.mp4(\.tmp)?$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex LeftoverVideoPattern();
 }
