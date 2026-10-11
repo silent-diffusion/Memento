@@ -62,7 +62,7 @@ const CATALOG: readonly CatalogRow[] = [
   ['highlight', 'Highlight', 'detail', 'quote', false, 'short', true, R.annotations, 'The highlights marked in the recording, with their notes.'],
   ['chapter', 'Chapter', 'detail', 'timeline', false, 'medium', true, R.annotations, 'The recording’s chapters with their start times.'],
   ['timeline', 'Timeline', 'detail', 'timeline', true, 'medium', true, R.times, 'The key moments in time order.'],
-  ['followUpEmail', 'Follow-up email', 'detail', 'paragraph', true, 'medium', false, R.commitment, 'A short email to the participants: decisions, actions and the next meeting.'],
+  ['followUpEmail', 'Follow-up email', 'detail', 'paragraph', true, 'medium', false, R.commitment, 'A short email to the participants: a recap, the decisions, and the action items with their owners.'],
   ['notes', 'Notes', 'detail', 'list', false, 'medium', true, R.annotations, 'The notes written during and after the recording.'],
   ['fullTranscript', 'Full transcript', 'detail', 'transcript', false, 'long', false, R.transcript, 'The entire transcript with speakers and timestamps. No AI is involved.'],
   ['customText', 'Custom text', 'custom', 'text', false, 'medium', false, R.user, 'Your own text, placed as written.'],

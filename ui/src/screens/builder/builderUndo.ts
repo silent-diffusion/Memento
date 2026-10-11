@@ -86,6 +86,12 @@ export function structureStep(
     case 'update': {
       const fields = Object.keys(action.patch);
       const field = fields.length === 1 ? (fields[0] ?? '') : '';
+      if (field === 'email') {
+        // 2.0, the Follow-up email: a tone is one step; typing the sign-off is one step until a pause.
+        const before = rows.flat().find((m) => m.id === action.id)?.email?.tone ?? 'neutral';
+        const tone = action.patch.email?.tone ?? 'neutral';
+        return tone === before ? { label: `change ${named(action.id)} sign-off`, mergeKey: `signOff:${action.id}` } : { label: `change ${named(action.id)} tone` };
+      }
       const words = FIELD_WORDS[field] ?? 'settings';
       return { label: `change ${named(action.id)} ${words}`, ...(TYPED.has(field) ? { mergeKey: `${field}:${action.id}` } : {}) };
     }

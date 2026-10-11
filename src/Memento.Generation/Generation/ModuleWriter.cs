@@ -107,7 +107,7 @@ public static class ModuleWriter
                     ],
                 }];
             case ModuleIds.FollowUpEmail:
-                return FollowUpEmail(claims, facts, Stamp);
+                return FollowUpEmailWriter.Write(claims, facts, module.Email, Stamp);
             default:
                 if (claims.Count == 0)
                 {
@@ -188,41 +188,5 @@ public static class ModuleWriter
         }
 
         return new ListBlock { Style = ListStyle.Numbered, Items = items };
-    }
-
-    private static List<Block> FollowUpEmail(IReadOnlyList<Claim> claims, GenerationFacts facts, Func<Claim, IEnumerable<Run>> stamp)
-    {
-        var decisions = claims.Where(c => c.Kind == ClaimKinds.Decision).ToList();
-        var actions = claims.Where(c => c.Kind == ClaimKinds.Action).ToList();
-        var blocks = new List<Block>
-        {
-            new ParagraphBlock { Runs = [Run.Plain("Hello everyone,")] },
-            new ParagraphBlock { Runs = [Run.Plain(facts.Title is { Length: > 0 } title ? $"Thank you for joining {title}. Here is what we agreed." : "Thank you for joining. Here is what we agreed.")] },
-        };
-        if (decisions.Count == 0 && actions.Count == 0)
-        {
-            blocks.Add(Note("No decisions or commitments were recorded."));
-        }
-
-        if (decisions.Count > 0)
-        {
-            blocks.Add(new ParagraphBlock { Runs = [Run.Bold("Decisions")] });
-            blocks.Add(new ListBlock { Items = decisions.Select(c => new ListItem { Runs = [Run.Plain(Sentence(c.Text)), .. stamp(c)] }).ToList() });
-        }
-
-        if (actions.Count > 0)
-        {
-            blocks.Add(new ParagraphBlock { Runs = [Run.Bold("Actions")] });
-            blocks.Add(new ListBlock
-            {
-                Items = actions.Select(c => new ListItem
-                {
-                    Runs = [Run.Plain(Sentence(c.Text).TrimEnd('.')), Run.Plain(" — "), c.Owner is { } o ? Run.Plain(o) : Run.Note(NoOwner), Run.Plain(", "), c.Due is { } d ? Run.Plain(d) : Run.Note(NoDate), .. stamp(c)],
-                }).ToList(),
-            });
-        }
-
-        blocks.Add(new ParagraphBlock { Runs = [Run.Plain("Best regards")] });
-        return blocks;
     }
 }

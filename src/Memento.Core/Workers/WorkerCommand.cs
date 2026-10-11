@@ -8,4 +8,5 @@ namespace Memento.Core.Workers;
 /// </summary>
 /// <param name="Llm">With <c>prompts</c>: Memento.AI's prompt batch as raw JSON.</param>
 /// <param name="Audio">2.0, with <c>audio</c>: one window for the live transcript.</param>
-public sealed record WorkerCommand(string Type, WorkerJob? Job = null, JsonElement? Llm = null, LiveAudio? Audio = null);
+/// <param name="Image">2.0, with <c>recognize</c>: one prepared image for Tesseract.</param>
+public sealed record WorkerCommand(string Type, WorkerJob? Job = null, JsonElement? Llm = null, LiveAudio? Audio = null, OcrImage? Image = null);

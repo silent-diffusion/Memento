@@ -76,6 +76,7 @@ public static partial class MapPrompts
         ModuleIds.OpenQuestions => "open questions: questions raised in this excerpt that were not answered in it",
         ModuleIds.Timeline => "a timeline: the key moments, in time order",
         ModuleIds.MeetingPurpose => "the purpose of the meeting, only if someone states it",
+        ModuleIds.FollowUpEmail => "the recap of a follow-up email to the participants: the main things discussed and concluded, in plain words, for people who were there",
         _ => "what the user's instructions ask for",
     };
 
@@ -84,7 +85,7 @@ public static partial class MapPrompts
     /// have ("decisions first, then risks" over a reading with no decisions) wrote nothing at all on the local model, so it
     /// writes about what the excerpt does say; open questions and a stated purpose stay empty when there are none.
     /// </summary>
-    public static string EmptyRule(string type) => type is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Topic or ModuleIds.Timeline or ModuleIds.CustomAi
+    public static string EmptyRule(string type) => type is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Topic or ModuleIds.Timeline or ModuleIds.CustomAi or ModuleIds.FollowUpEmail
         ? "The user's instructions shape the section. When they ask for something this excerpt does not have (decisions, agenda items, risks), write about what the excerpt does say instead. Return an empty list only when the excerpt has no content for it at all (silence, greetings, small talk)."
         : "If the excerpt has nothing for this section, return an empty list.";
 
@@ -108,7 +109,7 @@ public static partial class MapPrompts
     public static bool ReadsAgainWhenEmpty(ModuleTask task)
     {
         ArgumentNullException.ThrowIfNull(task);
-        return task.PointsType is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Timeline;
+        return task.PointsType is ModuleIds.Summary or ModuleIds.ExecutiveSummary or ModuleIds.Discussion or ModuleIds.Timeline or ModuleIds.FollowUpEmail;
     }
 
     /// <summary>The request for one task and one chunk.</summary>

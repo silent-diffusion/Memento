@@ -76,7 +76,44 @@ public static class M4Mapping
     public static ModuleSettings ToBridge(TemplateModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
-        return new ModuleSettings(module.Id, module.Type, module.Instructions, Name(module.Length), module.TextSize.Name(), module.LinkToTranscript, module.Title, module.CustomText);
+        return new ModuleSettings(module.Id, module.Type, module.Instructions, Name(module.Length), module.TextSize.Name(), module.LinkToTranscript, module.Title, module.CustomText)
+        {
+            Email = module.Type == ModuleIds.FollowUpEmail ? ToBridge(module.Email ?? EmailOptions.Default) : null,
+        };
+    }
+
+    public static EmailModuleSettings ToBridge(EmailOptions email)
+    {
+        ArgumentNullException.ThrowIfNull(email);
+        return new EmailModuleSettings(email.Tone, email.SignOff);
+    }
+
+    /// <summary>A Follow-up email module's settings; any other module carries none.</summary>
+    /// <exception cref="Core.Bridge.BridgeException"><c>bridge.invalidParams</c> naming the field.</exception>
+    public static EmailOptions? EmailFromBridge(ModuleSettings module, string field)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        if (module.Module != ModuleIds.FollowUpEmail || module.Email is not { } email)
+        {
+            return null;
+        }
+
+        var options = new EmailOptions
+        {
+            Tone = (email.Tone ?? EmailOptions.Neutral).Trim(),
+            SignOff = string.IsNullOrWhiteSpace(email.SignOff) ? null : email.SignOff.Trim(),
+        };
+        if (!EmailOptions.Tones.Contains(options.Tone, StringComparer.Ordinal))
+        {
+            throw M4Errors.Invalid($"{field}.email.tone: '{options.Tone}' is not a tone. Use neutral, warm or brief.", field + ".email.tone");
+        }
+
+        if (options.Validate() is { } problem)
+        {
+            throw M4Errors.Invalid($"{field}.email.signOff: {problem}", field + ".email.signOff");
+        }
+
+        return options;
     }
 
     /// <summary>The bridge template as a stored one; fields the bridge does not carry come from <paramref name="existing"/>.</summary>
@@ -150,6 +187,7 @@ public static class M4Mapping
             TextSize = Parse(module.TextSize, field + ".textSize", TextSize.Normal, ("smaller", TextSize.Smaller), ("normal", TextSize.Normal), ("larger", TextSize.Larger)),
             LinkToTranscript = module.LinkToTranscript,
             CustomText = module.CustomText,
+            Email = EmailFromBridge(module, field) ?? (module.Module == ModuleIds.FollowUpEmail ? existing?.Email : null),
         };
     }
 

@@ -47,6 +47,9 @@ public sealed record WorkerReply
     /// <summary>A local model job's progress details, raw JSON. Its text delta is content: shown, never logged.</summary>
     public JsonElement? LlmProgress { get; init; }
 
+    /// <summary>2.0: a <c>recognized</c> line: the words Tesseract read in one image.</summary>
+    public OcrRecognized? Ocr { get; init; }
+
     public string? Code { get; init; }
 
     public string? Message { get; init; }

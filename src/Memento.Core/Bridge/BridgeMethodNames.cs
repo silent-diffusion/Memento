@@ -113,6 +113,9 @@ public static class BridgeMethodNames
     public const string GenerationStart = "generation.start";
     public const string GenerationConfirm = "generation.confirm";
     public const string GenerationCancel = "generation.cancel";
+
+    /// <summary>2.0: "Preview what will be sent", or one of its passes, on the clipboard as text.</summary>
+    public const string GenerationCopyPreview = "generation.copyPreview";
     public const string DocumentsList = "documents.list";
     public const string DocumentsGet = "documents.get";
     public const string DocumentsRenderHtml = "documents.renderHtml";
@@ -127,6 +130,9 @@ public static class BridgeMethodNames
     public const string DocumentsGetVersion = "documents.getVersion";
     public const string DocumentsExport = "documents.export";
     public const string DocumentsCopy = "documents.copy";
+
+    /// <summary>2.0: one module of a document (the Follow-up email) on the clipboard as plain text and HTML.</summary>
+    public const string DocumentsCopyModule = "documents.copyModule";
 
     // H1: updates.
     public const string UpdatesStatus = "updates.status";

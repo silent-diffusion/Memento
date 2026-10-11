@@ -16,8 +16,6 @@ namespace Memento.Documents.Agenda.Ocr;
 /// </summary>
 public sealed partial class WindowsOcrEngine : IOcrEngine
 {
-    private const double MaxUpscale = 4.0;
-
     /// <summary>
     /// The most pixels an image is decoded or upscaled to (40 megapixels: 160 MB as BGRA). A photo within the side
     /// limit can still be 10,000 × 10,000; it is scaled down while decoding instead of being decoded in full.
@@ -57,13 +55,13 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
         if (installed.Count == 0)
         {
             return Task.FromResult(OcrAvailability.NotInstalled(
-                "No Windows text recognition language is installed. Add one in Windows Settings › Time & language › Language & region (a language with \"Optical character recognition\"), or choose Tesseract in Settings › Engines."));
+                "No Windows text recognition language is installed. Add one in Windows Settings › Time & language › Language & region (a language with \"Optical character recognition\"), or choose Tesseract in Settings › Documents."));
         }
 
         if (language is not null && CreateEngine(language) is null)
         {
             return Task.FromResult(OcrAvailability.NotInstalled(
-                $"Windows text recognition for {language} is not installed. Add it in Windows Settings › Time & language › Language & region, or choose Tesseract in Settings › Engines."));
+                $"Windows text recognition for {language} is not installed. Add it in Windows Settings › Time & language › Language & region, or choose Tesseract in Settings › Documents."));
         }
 
         return Task.FromResult(OcrAvailability.Available(installed));
@@ -74,58 +72,26 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
         ArgumentNullException.ThrowIfNull(request);
         var engine = CreateEngine(request.Language) ?? throw new AgendaImportException(
             AgendaErrorCodes.OcrUnavailable,
-            "Windows text recognition is not available for this language. Nothing was imported. Add the language in Windows Settings, or choose Tesseract in Settings › Engines.");
+            "Windows text recognition is not available for this language. Nothing was imported. Add the language in Windows Settings, or choose Tesseract in Settings › Documents.");
         var maxDimension = (int)Math.Min(OcrEngine.MaxImageDimension, (uint)request.MaxImageSide);
 
         var original = await DecodeAsync(image, request.MaxImageSide, maxDimension, cancellationToken).ConfigureAwait(false);
-        var current = original.Image;
-        var scale = original.Scale;
-
-        var result = await RunAsync(engine, current, cancellationToken).ConfigureAwait(false);
-        var words = Words(result);
-
-        // Small text: upscale so the median word is tall enough. No words at all on a small image: try twice the size once.
-        var medianHeight = words.Count == 0 ? 0 : Median(words.Select(w => w.Height));
-        var factor = words.Count == 0
-            ? 2.0
-            : medianHeight < request.MinWordHeight ? Math.Min(MaxUpscale, (request.MinWordHeight + 2) / medianHeight) : 1.0;
-        factor = Math.Min(factor, MaxScale(current.Width, current.Height, maxDimension));
-        if (factor > 1.15)
-        {
-            var upscaled = current.Scale(factor, cancellationToken);
-            var second = await RunAsync(engine, upscaled, cancellationToken).ConfigureAwait(false);
-            var secondWords = Words(second);
-            if (secondWords.Count >= words.Count)
+        var page = await OcrPasses.RunAsync(
+            original.Image,
+            original.Scale,
+            async (prepared, token) =>
             {
-                current = upscaled;
-                result = second;
-                words = secondWords;
-                scale *= factor;
-            }
-        }
+                var result = await RunAsync(engine, prepared, token).ConfigureAwait(false);
+                return (Words(result), result.TextAngle);
+            },
+            request.MinWordHeight,
+            request.DeskewThresholdDegrees,
+            maxDimension,
+            MaxImagePixels,
+            cancellationToken).ConfigureAwait(false);
 
-        var angle = result.TextAngle;
-        var deskewed = false;
-        if (angle is { } degrees && Math.Abs(degrees) > request.DeskewThresholdDegrees && words.Count > 0)
-        {
-            // Measured before rotating: the rotated canvas is larger than the image and is only made when it fits.
-            var (rotatedWidth, rotatedHeight) = GrayImage.RotatedSize(current.Width, current.Height, -degrees);
-            if (Math.Max(rotatedWidth, rotatedHeight) <= maxDimension && (long)rotatedWidth * rotatedHeight <= MaxImagePixels)
-            {
-                var straight = current.Rotate(-degrees, cancellationToken);
-                var third = await RunAsync(engine, straight, cancellationToken).ConfigureAwait(false);
-                var thirdWords = Words(third);
-                if (thirdWords.Count * 10 >= words.Count * 8)
-                {
-                    current = straight;
-                    words = thirdWords;
-                    deskewed = true;
-                }
-            }
-        }
-
-        LogRecognized(_logger, words.Count, scale, angle ?? 0, deskewed);
-        return new OcrPage(words, current.Width, current.Height, scale, angle, deskewed, engine.RecognizerLanguage.LanguageTag, Id);
+        LogRecognized(_logger, page.Words.Count, page.Scale, page.TextAngle ?? 0, page.Deskewed);
+        return new OcrPage(page.Words, page.Image.Width, page.Image.Height, page.Scale, page.TextAngle, page.Deskewed, engine.RecognizerLanguage.LanguageTag, Id);
     }
 
     private static OcrEngine? CreateEngine(string? language)
@@ -151,15 +117,7 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
     /// The largest factor an image of <paramref name="width"/> × <paramref name="height"/> may be scaled by: no side over
     /// <paramref name="maxDimension"/> and no more than <see cref="MaxImagePixels"/> in all.
     /// </summary>
-    internal static double MaxScale(long width, long height, int maxDimension)
-    {
-        if (width <= 0 || height <= 0)
-        {
-            return 1.0;
-        }
-
-        return Math.Min(maxDimension / (double)Math.Max(width, height), Math.Sqrt(MaxImagePixels / ((double)width * height)));
-    }
+    internal static double MaxScale(long width, long height, int maxDimension) => OcrPasses.MaxScale(width, height, maxDimension, MaxImagePixels);
 
     internal static async Task<(GrayImage Image, double Scale)> DecodeAsync(ReadOnlyMemory<byte> image, int maxSide, int maxDimension, CancellationToken cancellationToken)
     {
@@ -239,12 +197,6 @@ public sealed partial class WindowsOcrEngine : IOcrEngine
             .SelectMany(l => l.Words)
             .Select(w => new OcrWordBox(w.Text, w.BoundingRect.X, w.BoundingRect.Y, w.BoundingRect.Width, w.BoundingRect.Height))
             .ToList();
-
-    private static double Median(IEnumerable<double> values)
-    {
-        var sorted = values.Order().ToList();
-        return sorted.Count == 0 ? 0 : sorted[sorted.Count / 2];
-    }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Windows OCR read {WordCount} words (scale {Scale:0.##}, text angle {Angle:0.#}°, deskewed {Deskewed})")]
     private static partial void LogRecognized(ILogger logger, int wordCount, double scale, double angle, bool deskewed);

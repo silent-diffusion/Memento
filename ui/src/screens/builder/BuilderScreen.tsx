@@ -31,7 +31,8 @@ import { Palette } from './Palette';
 import { PreviewPanel, type InputRow } from './PreviewPanel';
 import { layoutOfDocument } from './regenerate';
 import { bindBuilderUndo, recordBuilderStep, structureStep, templateStep, type BuilderSnapshot } from './builderUndo';
-import { ConfirmSendDialog, PayloadSheet } from './SendDialogs';
+import { PreviewSheet } from './PreviewSheet';
+import { ConfirmSendDialog } from './SendDialogs';
 import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
 import { TemplateChooser } from './TemplateChooser';
@@ -416,19 +417,41 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       });
   };
 
+  /**
+   * The template with the provider the Builder shows chosen, as Generate sends it (generation.ts): a template that names
+   * none would otherwise be previewed for the host's default (the local model) while the Builder shows Claude.
+   */
+  const asSent = (template: Template): Template => (provider === null ? template : { ...template, providerId: provider.id });
+
   const openPayload = (): void => {
     if (current === null || recordingId === null) {
       return;
     }
     setSheet({ preview: null, error: null });
     bridge
-      .call('generation.preview', { recordingId, template: current })
+      .call('generation.preview', { recordingId, template: asSent(current) })
       .then((preview) => {
         setSheet((s) => (s === null ? s : { preview, error: null }));
       })
       .catch((e: unknown) => {
         setSheet((s) => (s === null ? s : { preview: null, error: `What would be sent could not be put together. ${messageOf(e)} Nothing was sent.` }));
       });
+  };
+
+  /** 2.0: the preview (or one request of it) on the clipboard through the host; a refusal is a warning toast. */
+  const copyPreview = async (passId: string | null): Promise<string> => {
+    if (current === null || recordingId === null) {
+      return '';
+    }
+    try {
+      const copied = await bridge.call('generation.copyPreview', { recordingId, template: asSent(current), passId });
+      return passId === null
+        ? `Copied ${copied.characters.toLocaleString('en-US')} characters: every request`
+        : `Copied ${copied.characters.toLocaleString('en-US')} characters: this request`;
+    } catch (e) {
+      store.toasts.show({ tone: 'warning', title: 'The preview was not copied', body: messageOf(e) });
+      throw e;
+    }
   };
 
   const editStyle = (styleId: string): void => {
@@ -681,10 +704,11 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
         </div>
       </main>
       {sheet !== null && provider !== null ? (
-        <PayloadSheet
+        <PreviewSheet
           provider={provider}
           preview={sheet.preview}
           error={sheet.error}
+          onCopy={copyPreview}
           onClose={() => {
             setSheet(null);
           }}

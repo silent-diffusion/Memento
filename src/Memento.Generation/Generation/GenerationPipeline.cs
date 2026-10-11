@@ -156,8 +156,10 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
                     continue;
                 }
 
-                var family = ModuleTask.FamilyOf(module);
-                var candidates = (family is not null && byFamily.TryGetValue(family, out var list) ? list : []).Where(c => Reads(module, c)).ToList();
+                var candidates = ModuleTask.FamiliesOf(module)
+                    .SelectMany(family => byFamily.TryGetValue(family, out var list) ? list : [])
+                    .Where(c => Reads(module, c))
+                    .ToList();
                 var kept = Cap(module, candidates.Where(c => c.Kept).ToList());
                 var copies = new List<Claim>();
                 var number = 0;
@@ -199,6 +201,27 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         return new PipelineOutcome(rows, modules, records, runner.Records, timings, chunks.Count, warnings);
     }
 
+    /// <summary>
+    /// The first map requests exactly as <see cref="RunAsync"/> sends them, in the same order and with the Live output's
+    /// titles, without sending anything ("Preview what will be sent", 2.0). A truncated answer's retry on the halves of
+    /// its chunk, and a section read again as a plain summary, happen only after an answer, so they are not here.
+    /// </summary>
+    public IReadOnlyList<(OutputPass Pass, AiRequest Request)> MapRequests(PipelineInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var tasks = Tasks(input);
+        var chunks = input.Payload.TranscriptLines.Count == 0
+            ? []
+            : TranscriptChunker.Chunk(
+                input.Payload.TranscriptLines,
+                new ChunkOptions(Math.Max(64, input.ChunkTokens), new ProviderTokenCounter(input.Provider)),
+                input.Material.ToPayloadInputs(null).Chapters);
+        return tasks.SelectMany(t => chunks.Select(c => (
+                new OutputPass(GenerationOutputFeed.MapStep, MapTitle(t, c, chunks.Count, string.Empty, catalog)),
+                MapPrompts.Build(t, input.Payload, c, chunks.Count, catalog, input.MapOutputTokens, input.Bounded))))
+            .ToList();
+    }
+
     /// <summary>The map tasks of a template, in template order: one per family, shared by the modules that read it.</summary>
     public static IReadOnlyList<ModuleTask> Tasks(PipelineInput input)
     {
@@ -207,28 +230,26 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         var modules = new Dictionary<string, List<TemplateModule>>(StringComparer.Ordinal);
         foreach (var module in input.Template.Modules())
         {
-            if (ModuleTask.FamilyOf(module) is not { } family)
+            foreach (var family in ModuleTask.FamiliesOf(module))
             {
-                continue;
-            }
+                if (family == ModuleTask.AgendaCoverage && (!input.Selection.Agenda || input.Facts.Agenda.Count == 0))
+                {
+                    continue;
+                }
 
-            if (family == ModuleTask.AgendaCoverage && (!input.Selection.Agenda || input.Facts.Agenda.Count == 0))
-            {
-                continue;
-            }
+                if (module.Type == ModuleIds.MeetingPurpose && input.Facts.Purpose is not null)
+                {
+                    continue;
+                }
 
-            if (module.Type == ModuleIds.MeetingPurpose && input.Facts.Purpose is not null)
-            {
-                continue;
-            }
+                if (!modules.TryGetValue(family, out var list))
+                {
+                    modules[family] = list = [];
+                    order.Add(family);
+                }
 
-            if (!modules.TryGetValue(family, out var list))
-            {
-                modules[family] = list = [];
-                order.Add(family);
+                list.Add(module);
             }
-
-            list.Add(module);
         }
 
         return order.Select(f => new ModuleTask(f, modules[f])).ToList();
@@ -460,8 +481,19 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         _ => true,
     };
 
-    /// <summary>The kept claims within the module's length, spread evenly over the recording when there are more.</summary>
-    private static List<Claim> Cap(TemplateModule module, List<Claim> kept) => Spread(kept, CapOf(module));
+    /// <summary>
+    /// The kept claims within the module's length, spread evenly over the recording when there are more. The Follow-up
+    /// email caps its recap and its decisions and action items separately.
+    /// </summary>
+    private static List<Claim> Cap(TemplateModule module, List<Claim> kept) => module.Type == ModuleIds.FollowUpEmail
+        ? [.. Spread(kept.Where(c => c.Kind == ClaimKinds.Point).ToList(), ModuleTask.RecapCap(module.Length)), .. Spread(kept.Where(c => c.Kind != ClaimKinds.Point).ToList(), CapOf(module))]
+        : Spread(kept, CapOf(module));
+
+    /// <summary>How many statements of one family a module shows: the Follow-up email's recap is its own, shorter cap.</summary>
+    internal static int CapOf(TemplateModule module, string family) =>
+        module.Type == ModuleIds.FollowUpEmail && family.StartsWith(ModuleTask.PointsPrefix, StringComparison.Ordinal)
+            ? ModuleTask.RecapCap(module.Length)
+            : CapOf(module);
 
     /// <summary>How many statements a module shows (the meeting purpose is one line).</summary>
     internal static int CapOf(TemplateModule module) => module.Type switch
@@ -499,7 +531,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         foreach (var (family, claims) in byFamily)
         {
             var task = tasks.FirstOrDefault(t => t.Family == family);
-            var cap = task is { IsPoints: true } && task.Modules.Count == 1 ? CapOf(task.Modules[0]) : int.MaxValue;
+            var cap = task is { IsPoints: true } && task.Modules.Count == 1 ? CapOf(task.Modules[0], family) : int.MaxValue;
             if (claims.Count <= cap)
             {
                 first.AddRange(claims);
@@ -603,7 +635,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         var families = group.Select(q => q.Claim.Family).Distinct(StringComparer.Ordinal).ToList();
         var count = group.Count == 1 ? "one question" : string.Create(CultureInfo.InvariantCulture, $"{group.Count} questions");
         return families.Count == 1
-            ? $"Check {FamilyTitle(families[0], template.Modules().Where(m => ModuleTask.FamilyOf(m) == families[0]).ToList(), ModuleCatalog.Default)} · {count}"
+            ? $"Check {FamilyTitle(families[0], template.Modules().Where(m => ModuleTask.FamiliesOf(m).Contains(families[0], StringComparer.Ordinal)).ToList(), ModuleCatalog.Default)} · {count}"
             : $"Check {count}";
     }
 
@@ -614,6 +646,7 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
         ModuleTask.AgendaCoverage => "Agenda",
         ModuleTask.Quotes => "Quotes",
         ModuleTask.NextMeeting => "Next meeting",
+        _ when modules.Count > 0 && modules[0].Type == ModuleIds.FollowUpEmail => modules[0].ResolveTitle(catalog) + " · recap",
         _ => modules.Count > 0 ? modules[0].ResolveTitle(catalog) : family,
     };
 

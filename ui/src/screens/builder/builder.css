@@ -897,3 +897,12 @@
     transition: none;
   }
 }
+
+/* 2.0: the Follow-up email's tone and sign-off, below the shared settings, divided by a groove (§2.5). */
+.mod-email {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}

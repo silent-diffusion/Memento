@@ -9,7 +9,8 @@ namespace Memento.Core.Workers;
 /// carries it without depending on the AI project. Its <c>device</c> says whether it may use the graphics card.
 /// </param>
 /// <param name="Live">2.0: the live transcript while recording (<see cref="WorkerJobKinds.Live"/>).</param>
-public sealed record WorkerJob(string Kind, TranscribeJob? Transcribe = null, DiarizeJob? Diarize = null, JsonElement? Llm = null, LiveJob? Live = null)
+/// <param name="Ocr">2.0: Tesseract text recognition for agenda photos and scans (<see cref="WorkerJobKinds.Ocr"/>); processor only.</param>
+public sealed record WorkerJob(string Kind, TranscribeJob? Transcribe = null, DiarizeJob? Diarize = null, JsonElement? Llm = null, LiveJob? Live = null, OcrJob? Ocr = null)
 {
     /// <summary>
     /// The job may use the graphics card: a transcription (full or live) with a runtime other than the CPU one, or a

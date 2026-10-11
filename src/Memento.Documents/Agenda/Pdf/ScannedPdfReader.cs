@@ -35,7 +35,7 @@ internal static class ScannedPdfReader
             throw AgendaErrors.NoText(
                 options,
                 "has no text to read; it may be a scan or a photo saved as a PDF",
-                "Text recognition, which reads scans, is not set up on this PC: add a language with \"Optical character recognition\" in Windows Settings › Time & language › Language & region and import it again, or paste the items as text.");
+                "Text recognition, which reads scans, is not set up on this PC: add a language with \"Optical character recognition\" in Windows Settings › Time & language › Language & region, or install Tesseract English in Settings › Documents, and import it again; or paste the items as text.");
         }
 
         var images = await renderer.RenderAsync(pdf, Dpi, MaxPages, options, cancellationToken).ConfigureAwait(false);

@@ -1,6 +1,7 @@
 using Memento.Core.Agendas;
 using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
+using Memento.Core.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -8,9 +9,10 @@ namespace Memento.Documents.Agenda.Hosting;
 
 /// <summary>
 /// Core's <see cref="IAgendaReader"/> on <see cref="AgendaImporter"/>: parses on this PC and turns an
-/// <see cref="AgendaImportException"/> into the bridge error with the same <c>agenda.*</c> code and message.
+/// <see cref="AgendaImportException"/> into the bridge error with the same <c>agenda.*</c> code and message. Images and
+/// scans are read with the engine chosen in Settings › Documents first (2.0), the other one being the fallback.
 /// </summary>
-public sealed partial class DocumentsAgendaReader(AgendaImporter importer, ILogger<DocumentsAgendaReader>? logger = null) : IAgendaReader
+public sealed partial class DocumentsAgendaReader(AgendaImporter importer, ILogger<DocumentsAgendaReader>? logger = null, ISettingsStore? settings = null) : IAgendaReader
 {
     /// <summary>Where Windows adds a text recognition language (the <c>agenda.ocrUnavailable</c> detail).</summary>
     public const string OcrLanguageHelp =
@@ -22,7 +24,7 @@ public sealed partial class DocumentsAgendaReader(AgendaImporter importer, ILogg
     {
         try
         {
-            return Map(await importer.ImportFileAsync(path, null, cancellationToken).ConfigureAwait(false));
+            return Map(await importer.ImportFileAsync(path, Options(), cancellationToken).ConfigureAwait(false));
         }
         catch (AgendaImportException ex)
         {
@@ -41,13 +43,17 @@ public sealed partial class DocumentsAgendaReader(AgendaImporter importer, ILogg
     {
         try
         {
-            return Map(await importer.ParseTextAsync(text, null, cancellationToken).ConfigureAwait(false));
+            return Map(await importer.ParseTextAsync(text, Options(), cancellationToken).ConfigureAwait(false));
         }
         catch (AgendaImportException ex)
         {
             throw ToBridge(ex);
         }
     }
+
+    /// <summary>The engine chosen in Settings › Documents goes first; <c>null</c> (the default) is Windows OCR.</summary>
+    internal AgendaParseOptions? Options() =>
+        settings?.Current.Documents.OcrEngine is { } engine && OcrEngines.IsValid(engine) ? new AgendaParseOptions { OcrEngineId = engine } : null;
 
     internal static BridgeException ToBridge(AgendaImportException exception) =>
         new(exception.Code, exception.Message, exception.Code == AgendaErrorCodes.OcrUnavailable ? OcrLanguageHelp : null);

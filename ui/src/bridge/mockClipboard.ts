@@ -35,6 +35,8 @@ export interface MockClipboard {
     'transcript.copy': (params: TranscriptCopyParams) => TranscriptCopyResult;
     'documents.copy': (params: DocumentIdParams) => DocumentCopyResult;
   };
+  /** 2.0: puts text (and HTML) on the clipboard as the host does, or refuses while it is busy. */
+  write: (text: string, html: string | null, what: string) => void;
   /** What the last copy put on the clipboard. */
   current: () => { text: string; html: string | null } | null;
 }
@@ -115,6 +117,7 @@ export function createMockClipboard(env: MockClipboardEnvironment): MockClipboar
     current = { text, html };
   };
   return {
+    write,
     current: () => current,
     handlers: {
       'transcript.copy': (params) => {

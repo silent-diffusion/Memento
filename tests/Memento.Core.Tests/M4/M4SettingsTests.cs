@@ -26,7 +26,7 @@ public sealed class M4SettingsTests : IDisposable
         Assert.Equal(AiModelDefaults.AnthropicModel, ai.GetProperty("providers").GetProperty("anthropic").GetProperty("model").GetString());
         Assert.Equal(["claude-opus-5-5", "claude-fable-5-1"], ai.GetProperty("providers").GetProperty("anthropic").GetProperty("models").EnumerateArray().Select(m => m.GetString()));
         Assert.Equal(AiModelDefaults.OpenAiModel, ai.GetProperty("providers").GetProperty("openai").GetProperty("model").GetString());
-        Assert.Equal("""{"defaultTemplateId":"meeting-minutes","defaultStyleId":"corporate"}""", settings.GetProperty("documents").GetRawText());
+        Assert.Equal("""{"defaultTemplateId":"meeting-minutes","defaultStyleId":"corporate","ocrEngine":"windows"}""", settings.GetProperty("documents").GetRawText());
     }
 
     [Fact]

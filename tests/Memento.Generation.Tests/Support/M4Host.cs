@@ -158,18 +158,21 @@ internal sealed class M4Host : IDisposable
         /// <summary>Replaces the stand-in (a failing or blocking provider).</summary>
         public Func<AiProviderKind, IAiProvider>? Make { get; set; }
 
+        /// <summary>The provider handed out last (the stand-in keeps every request it was sent).</summary>
+        public IAiProvider? Last { get; private set; }
+
         public IAiProvider CreateCloud(string id, string model)
         {
             CloudCreated++;
             Cloud.Add((id, model));
-            return Make?.Invoke(AiProviderKind.Cloud) ?? new MeetingProvider(AiProviderKind.Cloud, 1_000_000);
+            return Last = Make?.Invoke(AiProviderKind.Cloud) ?? new MeetingProvider(AiProviderKind.Cloud, 1_000_000);
         }
 
         public IAiProvider CreateLocal(LocalModelEntry model, string modelPath, LocalAiOptions options, Func<long?> freeVram)
         {
             LocalCreated++;
             Local.Add(options);
-            return Make?.Invoke(AiProviderKind.Local) ?? new MeetingProvider();
+            return Last = Make?.Invoke(AiProviderKind.Local) ?? new MeetingProvider();
         }
     }
 

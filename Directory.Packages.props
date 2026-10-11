@@ -39,6 +39,8 @@
     <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />
     <PackageVersion Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
     <PackageVersion Include="org.k2fsa.sherpa.onnx" Version="1.13.8" />
+    <!-- Tesseract 5.5 for agenda photos and scans (2.0, ENGINE-NOTES.md §P): the managed binding and its x64 natives, Apache-2.0. -->
+    <PackageVersion Include="TesseractOCR" Version="5.5.2" />
     <!-- The Visual C++ runtime DLLs the Whisper.net native libraries import, shipped app-locally beside the worker. -->
     <PackageVersion Include="NtvLibs.MSVCP.vcruntime140.runtime.win-x64" Version="14.42.34430" />
     <PackageVersion Include="NtvLibs.MSVCP.vcruntime140_1.runtime.win-x64" Version="14.42.34430" />

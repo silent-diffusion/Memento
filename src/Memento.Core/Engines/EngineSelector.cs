@@ -17,6 +17,9 @@ public sealed class EngineSelector(IModelManager models, IResourceProbe probe)
 
     public ModelCatalog Catalog => models.Catalog;
 
+    /// <summary>Whether a catalog model is installed and verified (<see cref="IModelManager.IsInstalled"/>).</summary>
+    public bool IsInstalled(string modelId) => models.IsInstalled(modelId);
+
     public ResourceSnapshot Sample() => probe.Sample();
 
     /// <summary>A sample with nothing reused from earlier readings (<see cref="IResourceProbe.Refresh"/>).</summary>

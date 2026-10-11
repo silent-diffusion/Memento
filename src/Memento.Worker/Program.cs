@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using Memento.Core.Workers;
 using Memento.Worker;
 
-// Memento.Worker.exe: reads one "start" line from stdin, runs the job (transcribe, diarize or llm), writes protocol
+// Memento.Worker.exe: reads one "start" line from stdin, runs the job (transcribe, diarize, llm, live or ocr), writes protocol
 // lines to stdout and exits.
 // A "cancel" line (or stdin closing because the app went away) stops the job. Native libraries may print to the
 // process's stdout, so the protocol keeps the original stdout handle and everything else is sent to stderr.
@@ -91,6 +91,7 @@ try
         },
         WorkerJobKinds.Llm when job.Llm is { } llm => await new LlmJob(output).RunAsync(llm, commands.Reader, cancel.Token),
         WorkerJobKinds.Live when job.Live is { } live => await new WhisperTranscriber(output).RunLiveAsync(live, commands.Reader, cancel.Token),
+        WorkerJobKinds.Ocr when job.Ocr is { } ocr => await new TesseractRecognizer(output).RunAsync(ocr, commands.Reader, cancel.Token),
         _ => throw new WorkerFailure(WorkerErrorCodes.InvalidJob, $"Job kind '{job.Kind}' has no body or is not known."),
     };
     output.Send(result);

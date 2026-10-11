@@ -44,6 +44,7 @@ public static class M4ServiceCollectionExtensions
         services.TryAddSingleton<DocumentClipboard>();
         services.TryAddSingleton<GenerationPipeline>();
         services.TryAddSingleton<GenerationService>();
+        services.TryAddSingleton<PreviewClipboard>();
         services.TryAddSingleton<IDocumentExportSource, DocumentExportSource>();
         services.TryAddSingleton<IDocumentHistorySource, DocumentHistorySource>();
 
@@ -63,6 +64,7 @@ public static class M4ServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, StylesSampleHtmlMethod>();
         services.AddSingleton<IBridgeHandler, ProvidersListMethod>();
         services.AddSingleton<IBridgeHandler, GenerationPreviewMethod>();
+        services.AddSingleton<IBridgeHandler, GenerationCopyPreviewMethod>();
         services.AddSingleton<IBridgeHandler, GenerationPreviewHtmlMethod>();
         services.AddSingleton<IBridgeHandler, GenerationStartMethod>();
         services.AddSingleton<IBridgeHandler, GenerationConfirmMethod>();
@@ -81,6 +83,7 @@ public static class M4ServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, DocumentsGetVersionMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsExportMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsCopyMethod>();
+        services.AddSingleton<IBridgeHandler, DocumentsCopyModuleMethod>();
         return services;
     }
 }

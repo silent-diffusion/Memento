@@ -193,16 +193,18 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
     expect(checks[5]?.textContent).toContain('off in Settings');
     await click(checks[3]?.querySelector('input'));
     await click(button('Preview exactly what will be sent'));
-    await until(() => document.querySelector('.payload-text') !== null);
+    await until(() => document.querySelector('.preview-inputs') !== null);
     const params = (h.callsOf('generation.preview') as GenerationPreviewParams[]).at(-1);
     expect(params?.recordingId).toBe(DESIGN);
     expect(params?.template.inputs).toEqual({ transcript: true, details: true, participants: true, agenda: false, highlights: true, attachments: false, previousDocuments: false });
     expect(params?.template.rows.flatMap((r) => r.modules)).toHaveLength(9);
-    const sheet = document.querySelector('.sheet');
+    // 2.0: the full read-only sheet (PreviewSheet.test.tsx has the rest).
+    const sheet = document.querySelector('.preview-sheet');
     expect(sheet?.querySelector('h2')?.textContent).toBe('What will be sent');
-    expect(sheet?.querySelector<HTMLTextAreaElement>('.payload-text')?.readOnly).toBe(true);
-    expect(sheet?.querySelector<HTMLTextAreaElement>('.payload-text')?.value).not.toContain('[Agenda]');
-    expect([...(sheet?.querySelectorAll('.send-pills .pill') ?? [])].map((p) => p.textContent)).toEqual(['Transcript', 'Details', 'Participants', 'Highlights']);
+    const sent = [...(sheet?.querySelectorAll('.preview-input--sent th') ?? [])].map((th) => th.firstChild?.textContent);
+    expect(sent).toEqual(['Transcript', 'Details', 'Participants', 'Highlights and notes']);
+    expect(sheet?.querySelector('[data-input="agenda"] td')?.textContent).toBe('Not ticked');
+    expect([...(sheet?.querySelectorAll('.preview-pass, .live-well') ?? [])].map((w) => w.textContent).join('\n')).not.toContain('[Agenda]');
     expect(sheet?.textContent).toContain('Audio and video are never sent.');
   });
 

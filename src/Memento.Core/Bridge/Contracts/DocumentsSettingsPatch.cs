@@ -8,4 +8,7 @@ public sealed record DocumentsSettingsPatch
     public JsonElement DefaultTemplateId { get; init; }
 
     public JsonElement DefaultStyleId { get; init; }
+
+    /// <summary>2.0: <c>windows</c> or <c>tesseract</c> (installed), or <c>null</c> for Windows OCR; omitted keeps it.</summary>
+    public JsonElement OcrEngine { get; init; }
 }

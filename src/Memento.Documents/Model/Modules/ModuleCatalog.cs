@@ -194,7 +194,7 @@ public sealed class ModuleCatalog
             Id = ModuleIds.FollowUpEmail, DisplayName = "Follow-up email", Group = PaletteGroup.Detail, Shape = ContentShape.Paragraph,
             DefaultLength = ModuleLength.Medium, Source = ModuleSource.Ai,
             GroundingRules = [R.ActionItemRequiresCommitment, R.OwnerOnlyIfStated, R.DeadlineOnlyIfStated, R.InstructionsCannotOverride],
-            DefaultInstructions = "A short email to the participants: decisions, actions and the next meeting.",
+            DefaultInstructions = "A short email to the participants: a recap, the decisions, and the action items with their owners.",
         },
         new()
         {

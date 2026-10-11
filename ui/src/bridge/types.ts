@@ -1992,6 +1992,17 @@ export interface ModuleSettings {
   customTitle: string | null;
   /** Custom text only: the text placed as written. */
   customText: string | null;
+  /** 2.0, Follow-up email only: tone and sign-off (the host always sends it for that module). */
+  email?: EmailModuleSettings | null;
+}
+
+/** 2.0: the Follow-up email's fixed sentences (greeting, opening, closing). */
+export type EmailTone = 'neutral' | 'warm' | 'brief';
+
+export interface EmailModuleSettings {
+  tone: EmailTone;
+  /** The name under the closing (one line, at most 80 characters), or null. */
+  signOff: string | null;
 }
 
 /** One to three modules side by side. */
@@ -2267,10 +2278,18 @@ export interface DocumentVersion {
 /** documents.changed reasons. */
 export type DocumentChangeReason = 'generated' | 'edited' | 'created' | 'deleted' | 'restored';
 
+/** 2.0: the text recognition that reads agenda photos and scanned PDFs. */
+export type OcrEngineId = 'windows' | 'tesseract';
+
 /** Settings › Documents › Defaults (M4). */
 export interface DocumentsSettings {
   defaultTemplateId: string;
   defaultStyleId: string;
+  /**
+   * 2.0, Settings › Documents › Agenda photos and scans: the engine in effect (the choice, or 'windows' while
+   * Tesseract English is not installed). settings.set refuses 'tesseract' until it is installed.
+   */
+  ocrEngine: OcrEngineId;
 }
 
 export interface ModulesListResult {
@@ -2325,6 +2344,65 @@ export interface GenerationPreviewResult {
   chunks: number;
   inputsUsed: InputSelection;
   warnings: string[];
+  /** 2.0: the full read-only sheet (DESIGN.md §10.6). */
+  providerId?: ProviderId;
+  staysOnPc?: boolean;
+  provider?: PreviewProviderInfo | null;
+  /** Settings' "Ask before every send" (it holds cloud jobs only). */
+  askBeforeSend?: boolean;
+  inputs?: PreviewInput[];
+  /** What is held back or changed before sending, in sentences. */
+  redactions?: string[];
+  /** Each request in pipeline order, as the provider will receive it. */
+  passes?: PreviewPass[];
+}
+
+/** 2.0: who the preview is for. */
+export interface PreviewProviderInfo {
+  id: ProviderId;
+  name: string;
+  kind: 'cloud' | 'local';
+  modelLabel: string | null;
+}
+
+/** 2.0: one input of the preview: the template's tick, whether its text is in the payload, and its size. */
+export interface PreviewInput {
+  key: keyof InputSelection | 'instructions';
+  label: string;
+  ticked: boolean;
+  included: boolean;
+  characters: number;
+  bytes: number;
+  summary: string | null;
+  /** Why a ticked input is not sent, or what was left out of it. */
+  note: string | null;
+}
+
+/** 2.0: one request of the preview, as the provider will receive it. */
+export interface PreviewPass {
+  id: string;
+  step: 'map' | 'verify';
+  title: string;
+  system: string;
+  user: string;
+  characters: number;
+  bytes: number;
+  tokens: number;
+  /** False for the verify request, whose claims come from the answers. */
+  exact: boolean;
+}
+
+/** 2.0: generation.copyPreview. */
+export interface GenerationCopyPreviewParams {
+  recordingId: string;
+  template: Template;
+  /** One pass, or null for the whole preview. */
+  passId?: string | null;
+}
+
+export interface PreviewCopyResult {
+  characters: number;
+  passes: number;
 }
 
 export interface GenerationPreviewHtmlParams {
@@ -2439,6 +2517,13 @@ export interface DocumentExportParams {
 export interface DocumentCopyResult {
   characters: number;
   formatted: boolean;
+}
+
+/** 2.0, documents.copyModule: one module (the Follow-up email) as plain text and HTML, without heading or timestamps. */
+export interface DocumentModuleParams {
+  recordingId: string;
+  documentId: string;
+  moduleId: string;
 }
 
 export interface DocumentExportResult {
@@ -2698,6 +2783,9 @@ export interface BridgeMethods {
   'documents.getVersion': { params: DocumentRestoreVersionParams; result: DocumentVersionResult };
   'documents.export': { params: DocumentExportParams; result: DocumentExportResult };
   'documents.copy': { params: DocumentIdParams; result: DocumentCopyResult };
+  // 2.0: the follow-up email and the preview sheet
+  'documents.copyModule': { params: DocumentModuleParams; result: DocumentCopyResult };
+  'generation.copyPreview': { params: GenerationCopyPreviewParams; result: PreviewCopyResult };
   // H1
   'updates.status': { params: EmptyParams; result: UpdateStatus };
   'updates.check': { params: EmptyParams; result: UpdateStatus };
@@ -2903,6 +2991,9 @@ export const METHOD_NAMES = [
   'video.remove',
   'recording.setVideoQuality',
   'video.removeEstimate',
+  // 2.0 documents: the follow-up email and the preview sheet
+  'documents.copyModule',
+  'generation.copyPreview',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [

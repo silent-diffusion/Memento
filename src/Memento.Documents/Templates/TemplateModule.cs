@@ -28,6 +28,10 @@ public sealed record TemplateModule
     /// <summary>Custom text modules: the text, placed as written (no AI). <c>null</c> for every other module.</summary>
     public string? CustomText { get; init; }
 
+    /// <summary>2.0, Follow-up email modules: the tone and the sign-off name; <c>null</c> is neutral with no name.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EmailOptions? Email { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 

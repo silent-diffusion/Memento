@@ -40,9 +40,16 @@ internal static class M4SettingsBlocks
                     snapshot.Ai.Providers.Anthropic with { Model = ai.Providers.Anthropic.Model ?? AiModelDefaults.AnthropicModel, Models = AiModelDefaults.AnthropicModels },
                     snapshot.Ai.Providers.Openai with { Model = ai.Providers.Openai.Model ?? AiModelDefaults.OpenAiModel, Models = AiModelDefaults.OpenAiModels }),
             },
-            Documents = new DocumentsSettingsSnapshot(settings.Documents.DefaultTemplateId ?? BuiltInTemplateId, settings.Documents.DefaultStyleId ?? BuiltInStyleId),
+            Documents = new DocumentsSettingsSnapshot(settings.Documents.DefaultTemplateId ?? BuiltInTemplateId, settings.Documents.DefaultStyleId ?? BuiltInStyleId)
+            {
+                OcrEngine = EffectiveOcrEngine(settings.Documents.OcrEngine, selector.IsInstalled(OcrEngines.TesseractEnglishModelId)),
+            },
         };
     }
+
+    /// <summary>2.0: the text recognition in effect: Tesseract only while its language data is installed.</summary>
+    public static string EffectiveOcrEngine(string? chosen, bool tesseractInstalled) =>
+        chosen == OcrEngines.Tesseract && tesseractInstalled ? OcrEngines.Tesseract : OcrEngines.Windows;
 
     /// <summary>Checks the M4 fields of <paramref name="parameters"/>, then applies them to <paramref name="current"/>.</summary>
     /// <exception cref="BridgeException"><c>settings.invalidValue</c> naming the field.</exception>
@@ -94,6 +101,17 @@ internal static class M4SettingsBlocks
                 {
                     DefaultTemplateId = Choice(documents.DefaultTemplateId, "documents.defaultTemplateId", next.Documents.DefaultTemplateId, IdProblem("documents.defaultTemplateId", "template")),
                     DefaultStyleId = Choice(documents.DefaultStyleId, "documents.defaultStyleId", next.Documents.DefaultStyleId, IdProblem("documents.defaultStyleId", "style")),
+                    OcrEngine = Choice(documents.OcrEngine, "documents.ocrEngine", next.Documents.OcrEngine, id =>
+                    {
+                        if (!OcrEngines.IsValid(id))
+                        {
+                            return $"documents.ocrEngine: '{id}' is not a text recognition engine. Choose windows or tesseract. Nothing was changed.";
+                        }
+
+                        return id == OcrEngines.Tesseract && !models.IsInstalled(OcrEngines.TesseractEnglishModelId)
+                            ? "documents.ocrEngine: Tesseract English is not installed, so it can't be chosen yet. Download it in Settings › Documents first. Nothing was changed."
+                            : null;
+                    }),
                 },
             };
         }
