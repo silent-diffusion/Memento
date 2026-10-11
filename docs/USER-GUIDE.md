@@ -15,15 +15,16 @@ This guide covers version 2.0.0. Features new in 2.0 are video ([Recording video
 7. [Speakers](#speakers)
 8. [Agenda and attachments](#agenda-and-attachments)
 9. [Importing audio or video](#importing-audio-or-video)
-10. [Documents](#documents)
-11. [Export](#export)
-12. [Settings](#settings)
-13. [Updates](#updates)
-14. [Where your data lives, and how to back it up](#where-your-data-lives-and-how-to-back-it-up)
-15. [When something goes wrong](#when-something-goes-wrong)
-16. [Privacy](#privacy)
-17. [Keyboard](#keyboard)
-18. [Known limitations](#known-limitations)
+10. [The Library: folders, dates and deleting audio](#the-library-folders-dates-and-deleting-audio)
+11. [Documents](#documents)
+12. [Export](#export)
+13. [Settings](#settings)
+14. [Updates](#updates)
+15. [Where your data lives, and how to back it up](#where-your-data-lives-and-how-to-back-it-up)
+16. [When something goes wrong](#when-something-goes-wrong)
+17. [Privacy](#privacy)
+18. [Keyboard](#keyboard)
+19. [Known limitations](#known-limitations)
 
 ## Install
 
@@ -142,6 +143,19 @@ Items Memento is unsure of are marked with the reason, for example a heading tha
 
 **Import audio or video** (in the Library's More menu, or on the first-run screen) turns an existing file into a recording: WAV, FLAC, MP3, M4A, WMA, OGG and more, and the sound track of a video file. It is stored, transcribed and given speakers like any other recording. The original file is neither copied elsewhere nor changed.
 
+## The Library: folders, dates and deleting audio
+
+**Timeline and Folders.** The switch at the top of the Library chooses how it is shown. **Timeline** lists every recording by date, as before. **Folders** shows a folder tree beside the list: **Library** holds the recordings in no folder, and each folder shows how many recordings it holds (with its own folders). Click a folder to list its recordings; search and the type buttons still work inside it. Memento remembers which view you used last.
+
+- **Make a folder** with **+** at the top of the tree, or **New folder inside…** in a folder's **⋯** menu. Folders can hold folders, eight levels deep. A folder's **⋯** menu also has **Rename…**, **Move to…** and **Delete…**.
+- **Put a recording in a folder** by dragging its row onto the folder, or with **Move to folder…** in the row's **⋯** menu or under **Details** in Review. A recording is in one folder at a time, or in none.
+- **Deleting a folder** never deletes a recording: what was in it (recordings and folders) moves up into the folder above it, and Memento asks first, saying where they go.
+- Folders only sort the Library. The recordings' files stay where they are on disk, whatever you move.
+
+**Dates.** A new recording is called "Untitled meeting · 2026 February 16" (or Untitled interview, and so on) until you give it a title. **Settings › General › Date format** chooses how dates are written there and everywhere else Memento shows a full date (Review, History, documents, dates in earlier years in the Library): 2026 February 16, 16 February 2026, February 16, 2026, 2026-02-16, or as Windows shows them. Titles you already have are not changed, and times stay as they are.
+
+**Delete audio.** To free space but keep what was said, choose **Delete audio…** in a recording's **⋯** menu or under **Details** in Review. Memento asks first, naming the recording, how long its audio is and how much space it frees. The audio tracks and the mix are deleted; the transcript, documents, attachments and any video stay, and the recording stays in the Library to read. Its audio can't be brought back, so it can no longer be played, exported or transcribed again, and its History says when the audio was deleted. **Settings › Storage and history › Delete audio tracks older than** does it for you for recordings older than a day, a week, a month, 90 days, a year or two to five years (Never by default): it says how much it would free and asks before deleting anything that already exists, and then runs when Memento starts and once a day, never while you record or while a recording is being processed.
+
 ## Documents
 
 In Review, choose **Create document**. The **document builder** opens with your default template. The **Template** list in its header holds the built-in templates (Meeting minutes, Interview notes, Lecture summary, Dictation clean-up) and then your own; choosing one opens it, and with unsaved changes Memento asks first. **Save template** keeps the template you are on (a built-in is saved as a copy with its own name) and **Save as new template** always makes another one. Sections already on the template are greyed in the palette and marked "in use"; you can still add them again.
@@ -181,7 +195,7 @@ The files go into a folder named after the recording, with a `manifest.json` tha
 
 Open Settings with the gear at the top right. Every change is saved at once.
 
-- **General**: theme (follows Windows by default), list density, **Start Memento with Windows** (only for an installed Memento; it starts minimised, or only in the tray), **Keep running in the tray when closed** (off by default: with it on, closing the window leaves Memento in the notification area with Open, New recording and Quit, and a recording in progress shows on the icon and its tooltip; Quit ends Memento, and a recording in progress stops with everything so far kept), where the library lives (moving it copies and checks every file before removing the old copy), language, **Updates**, and **About** (version, library location and the licenses of the components inside Memento).
+- **General**: theme (follows Windows by default), list density, **Date format** (see [The Library](#the-library-folders-dates-and-deleting-audio)), **Start Memento with Windows** (only for an installed Memento; it starts minimised, or only in the tray), **Keep running in the tray when closed** (off by default: with it on, closing the window leaves Memento in the notification area with Open, New recording and Quit, and a recording in progress shows on the icon and its tooltip; Quit ends Memento, and a recording in progress stops with everything so far kept), where the library lives (moving it copies and checks every file before removing the old copy), language, **Updates**, and **About** (version, library location and the licenses of the components inside Memento).
 - **Recording**: the default sources and recording type, **Video defaults** (see [Recording video](#recording-video); record video by default, the default source and camera, resolution, frame rate, quality, the camera picture's corner, the graphics card's encoder and the mouse pointer), how often a checkpoint is saved, the storage format (lossless FLAC by default, or smaller AAC or MP3 files made after processing), **Keep only the mix** (off by default: after processing, each source's own track file is removed and only the mix is kept; speakers can then no longer be identified per track and tracks can no longer be exported for that recording, and its History says so),
   **Even out source levels** (on by default: when the mix is made, a quiet source such as a far-away microphone is lifted to the loudest source's speech level, by at most 24 dB, so you can hear everyone when you play the recording; each source's own track stays as recorded, and the transcript always hears every track at an even level whatever this setting says), and the free-space warning level (10 GB by default).
 - **Transcription**: transcribe automatically or by hand, **Live transcript while recording** (see [During the recording](#during-the-recording); and whether it may use the graphics card), pause when the PC is busy, the model, the model to use without a graphics card, the language, word timings and the uncertainty mark. Under **Engine**, a line says how much of the graphics card's memory is free and which programs use the rest; when the model needs more than is free, it says so and what to close. **Check again** reads the card again.
@@ -189,7 +203,7 @@ Open Settings with the gear at the top right. Every change is saved at once.
 - **AI and privacy**: the local models, with **Use this model** beside each installed one and a line that says which model writes documents, where it runs (graphics card or processor) and why (when only one is installed it is used, whatever the card has free), and beneath it the graphics card's free memory, who uses the rest and **Check again**; **Allow external AI services** (off by default) with what may be shared (Audio and Video are listed as never sent), **Ask before every send** and **Keep a record of what was sent**; the default provider; and your Claude and ChatGPT keys, which are encrypted for your Windows account and never shown again.
 - **Documents**: the default template and style, **Manage templates and styles**, **Agenda photos and scans** (Windows OCR, or Tesseract once you install **Tesseract English** from its card here; Remove is off while Tesseract is chosen), and version history for transcripts and documents.
 - **Export**: the default folder and what to include.
-- **Storage and history**: how much space the library uses, its largest recordings, how much the separate tracks take, making older recordings smaller, **Keep only the mix for existing recordings** (asks first, says how much it frees, cannot be undone), **Remove video older than** (Never by default; it says how much it would free now), and rebuilding the library list.
+- **Storage and history**: how much space the library uses, its largest recordings, how much the separate tracks take, making older recordings smaller, **Keep only the mix for existing recordings** (asks first, says how much it frees, cannot be undone), **Remove video older than** (Never by default; it says how much it would free now), **Delete audio tracks older than** (Never by default; the same, for the audio: the transcript, documents and video are kept), and rebuilding the library list.
 
 ## Updates
 
@@ -202,6 +216,7 @@ Memento checks this project's GitHub releases for a newer version when it starts
 | What | Where |
 |---|---|
 | Your recordings (the library) | `%LOCALAPPDATA%\Memento\Library` unless you moved it (Settings › General shows where) |
+| Your folders | `folders.json` inside the library (the folder names only; which folder a recording is in is written in that recording's `project.json`) |
 | Known voices (only with Remember speakers by voice on) | `voices\known.json` inside the library: voice signatures, never sound |
 | Settings | `%LOCALAPPDATA%\Memento\settings.json` |
 | Downloaded models | `%LOCALAPPDATA%\Memento\models` |
@@ -211,7 +226,7 @@ Memento checks this project's GitHub releases for a newer version when it starts
 
 Type `%LOCALAPPDATA%\Memento` in the File Explorer address bar to open the folder.
 
-Inside the library, each recording is a folder under `projects` with its tracks (`tracks\*.flac`, and `tracks\screen.mp4` and `camera.mp4` for video), the mix, the transcript, details, attachments and its history. The folders are complete on their own: `library.db` is only an index, rebuilt from them when needed.
+Inside the library, each recording is a folder under `projects` with its tracks (`tracks\*.flac`, and `tracks\screen.mp4` and `camera.mp4` for video), the mix, the transcript, details, attachments and its history. The folders are complete on their own: `library.db` is only an index, rebuilt from them when needed. Library folders are not folders on disk: every recording stays in `projects` whatever folder you put it in. After **Delete audio** a recording's folder has no `tracks\*.flac` and no mix, only its transcript, documents and details.
 
 **To back up**, close Memento and copy the whole library folder to another drive or a backup service. **To restore**, copy it back (or to a new PC) and, if it is not in the default place, choose that folder in Settings › General › Library location. Models can always be downloaded again; keys cannot be moved to another PC and must be entered again.
 

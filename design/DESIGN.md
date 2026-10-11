@@ -344,6 +344,28 @@ Centred column, `max-width 760`, 40 px gaps:
 
 Once the first recording exists this state is never shown again (the no-match state in §4 covers filtered-empty).
 
+### 6.1 Library folders (2.1)
+
+Folders sit **beside** the timeline and the type filters, never instead of them. Built from §4's tokens; not on the canvas.
+
+- **Folders / Timeline switch**: a §5.8 segmented control ("Timeline | Folders") first in the heading row's actions, before the sort button. Timeline (the default) is §4 unchanged. The choice is remembered for the Windows user (`settings.general.libraryView`) and the Library opens in it.
+- **Folders view**: a two-column grid under the heading row, 24 px apart: a 248 px **folder pane** (`surface`, `neo-card`, radius 24, 12 × 8 padding, sticky 16 px from the top) and the list column. The processing card is hidden (as when a filter narrows the list). Under 900 px the pane stacks above the list.
+- **Folder pane**: header "FOLDERS" (uppercase 12/700 `text-3`, as a group label) with a 32 px icon **New folder** (+). Then the tree: **Library** first (the root: recordings in no folder), then every folder by name. Each row is 36 px, radius 14: a 22 px disclosure chevron when it holds folders (rotates 90° open, 160 ms), a 16 px folder icon, the name (13/600 `text-2`, ellipsised) and its count in `mono` 12 `text-3` (recordings in it and every folder below it; the accessible name says "Clients, 3 recordings, 1 here"). Hover: `surface-2`. The shown folder is sunk (`neo-in-xs`, `text`). A ⋯ icon button (28 px) appears on hover or focus: **New folder inside…**, **Rename…**, **Move to…**, **Delete…**. Nesting indents 16 px per level, eight levels at most. With no folders yet a 12 px `text-3` line says what folders are for and that nothing moves on disk.
+- **List column**: the folder's trail as a 15/700 heading ("Clients › Acme", or "Library"), the type chips, then §4's date groups for the recordings filed **directly** in that folder; search and the type chips apply inside it. An empty folder shows §4's dashed box with "This folder has no recordings yet. Drag a recording onto it, or choose Move to folder… in a recording's menu."
+- **Moving**: drag a row or card onto a folder (or onto Library) in the pane; the target takes `accent-soft` with a 1 px dashed `accent-text` outline while it is over it. A folder can be dragged onto another the same way. The keyboard way is **Move to folder…** in the row's ⋯ menu (after Change type and any Retry) and in Review › Details: a dialog (§5.19) "Move “{title}” to a folder" with a sunk (`neo-in`) list of radio rows (Library (no folder) first, then every folder indented 18 px per level, "now here" at the right of the current one) and **Cancel** · **Move to “{folder}”** (primary). Moving a folder offers every folder but itself and those inside it.
+- **New folder / Rename**: a dialog with one Name field; the host's rule is checked as you type (1–80 characters, no / or \) and its sentence replaces the field note ("Folders only sort the Library. The recordings’ files stay where they are on disk.").
+- **Delete folder** (§17): "Delete the folder “Acme”?" — "Its 3 recordings and 1 folder move to “Clients”. No recording is deleted, and nothing changes on disk." (or "It is empty. …"). **Cancel** (focused) · **Delete folder** (destructive).
+- Folders are data in `project.json` and `folders.json`: nothing on disk moves, so copy says so wherever a move happens.
+
+### 6.2 Delete audio (2.1)
+
+Like Remove video (§18.6): the recording stays, readable, with its transcript, documents and video.
+
+- **Where**: **Delete audio…** in the Library row's ⋯ menu (after Move to folder…, before Delete) and a ghost button under **Edit details** in Review › Details. Neither is offered once the audio is gone, nor while a recording is still being saved.
+- **Confirmation** (§17, no typing): title "Delete the audio of “{title}”?"; body "This deletes its audio tracks and the mix: {length} of audio, {size}. The transcript{, the video} and documents stay, and the recording stays in the Library to read. The audio can’t be brought back, so it can’t be played, exported or transcribed again." **Cancel** (focused) · **Delete audio** (destructive). A refusal (still processing, still saving) shows the host's sentence in the dialog. Done, a toast "Audio deleted" says what was kept and what was freed.
+- **After**: the row's meta line ends "· audio deleted" and, with no pills, the caption reads "Audio deleted"; Review shows a sunk (`neo-in-xs`) line above the player ("The audio was deleted on {date} to free {size}. The transcript and documents are kept."), the play button is off, Details gains **Audio** "Deleted {date} · {size} freed", Export lists the audio and tracks as unavailable ("Audio was deleted"), and Reprocess is refused with the host's sentence.
+- **By age**: Settings › Storage and history › **Delete audio tracks older than** (§11), the same row as Remove video older than: Never (default), a day, a week, a month, 90 days, a year, 2, 3, 4 or 5 years; the description says what it would free now ("Would free 3.1 GB now, from 12 recordings. …"); an age that would delete existing audio is confirmed in place ("Delete the audio tracks and mix of 12 recordings older than a year (3.1 GB)? … This cannot be undone." · Cancel · **Delete audio**).
+
 ---
 
 ## 7. Behaviour the UI must support
@@ -473,14 +495,16 @@ Canvas artboards: *Settings · light / dark* (the AI and privacy section is show
 
 | Section | Groups and rows |
 |---|---|
-| General | Appearance: Theme (System/Light/Dark), List density. Startup: Start with Windows, Keep running in tray. Library: Library location (path + Change), Language. |
+| General | Appearance: Theme (System/Light/Dark), List density. Startup: Start with Windows, Keep running in tray. Library: Library location (path + Change), **Date format** (2.1: a select of `2026 February 16` (default), `16 February 2026`, `February 16, 2026`, `2026-02-16` and "Windows setting (…)" with what Windows gives; the description shows the title a new recording gets with it), Language. |
 | Recording | Defaults: Recording mode (Audio only / Audio + video), Audio sources, Recording type. Tracks and storage: Keep each source as its own track (on), After recording optimisation (Lossless default), Checkpoint interval (30 s), Low-space warning threshold (10 GB). |
 | Transcription | When: Transcribe automatically (on), Timing (During / After recording), Pause when PC is busy (on). Engine: Engine (Local · GPU, CPU fallback), Model (size and installed state), Language (Auto), Keep word-level timestamps and confidence (on). Blurb: *Runs on this PC. Nothing is uploaded.* |
 | Speakers | Identify speakers (on), Expected speakers (Auto), Remember speakers by voice (off; 2.0, with Known voices, §19). |
 | AI and privacy | External AI: Allow external AI services (**off by default**), Ask before every send (on), Keep a record of what was sent (on). Providers: Claude key (masked, Replace), ChatGPT key (empty, Add). What may be shared: checklist with Transcript, Recording details, Participants, Agenda and imported documents, Highlights and notes ticked; Attachments unticked; Audio and Video locked off "never". |
 | Documents | Defaults: Default template, Default style, Manage templates and styles. Agenda photos and scans (2.0): Text recognition (Windows OCR, the only choice until Tesseract English is installed; then a segmented control Windows OCR | Tesseract) over the Tesseract English model card (§11 model cards: size, licence, Install with the size, progress, Remove; "Installed · in use" and Remove off while Tesseract is chosen). History: Keep version history (on), Keep versions for (90 days). |
 | Export | External copies: Save copies outside Memento (off), Default folder (path), Ask where to save each time (on). Include by default: checklist (Audio mixed, Individual tracks, Video, Transcript, Documents, Recording details, Attachments). Formats: Transcript (JSON/Markdown/Text), Audio (FLAC), Documents (Markdown + Word). |
-| Storage and history | Usage: Library size, Free space, Largest recording (plain values). Reclaim space: Downmix tracks older than, Remove video older than, Review large recordings. |
+| Storage and history | Usage: Library size, Free space, Largest recording (plain values). Reclaim space: Downmix tracks older than, Remove video older than, **Delete audio tracks older than** (2.1, §6.2), Review large recordings. |
+
+**Date format** (2.1) drives every full date the app shows: new titles ("Untitled meeting · 2026 February 16"), a Library date in another year, Review's Recorded fact, History and the documents' meta line and running header. Dates within this year in lists stay short ("Sep 29") and times are unchanged.
 
 Rules: every row has a description that says what the setting does in one sentence; defaults match the README (local first, AI off, nothing written outside the library). API key fields are password inputs and never echo the key. The checklists are the single source of truth for what the Builder may send.
 
