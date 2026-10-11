@@ -9,7 +9,11 @@
 //   TranscriptionCheck killtest <wav> [--model id]    kill the worker mid-pass, show the failure, retry on CPU
 //   TranscriptionCheck live <wav> --model-file <ggml> [--threads 4] [--windows 6] [--fast] [--gpu]
 //                                                     the live transcript's worker on 10 s windows of a WAV (2.0), with its CPU time
-//   TranscriptionCheck show <recordingId>             print a recording's transcript summary and History
+//   TranscriptionCheck levels <folder> [--model id] [--cpu]
+//                                                     the level check (ENGINE-NOTES.md §Q): system.wav (loud) and mic.wav
+//                                                     (quiet) from tools/e2e/levels-fixture.ps1 as two tracks of one
+//                                                     recording through the real stages, scored per track against the truth
+//   TranscriptionCheck show <recordingId>           print a recording's transcript summary and History
 //   TranscriptionCheck diarize <audio> --segmentation <onnx> --embedding <onnx> [--threshold 0.8] [--count n] --out <json>
 //                                                     run the worker's speaker job on one file and save its turns and voices
 //   TranscriptionCheck identify <recordingId> [--count n]
@@ -54,6 +58,8 @@ switch (command)
             int.Parse(Option("--windows") ?? "6", CultureInfo.InvariantCulture),
             !args.Contains("--fast"),
             args.Contains("--gpu"));
+    case "levels":
+        return await check.LevelsAsync(args[1], Option("--model"), args.Contains("--cpu"), args.Contains("--analyse"));
     case "show":
         return await check.ShowAsync(args[1]);
     case "identify":

@@ -81,7 +81,9 @@ public sealed partial class ProjectFinalizationService(
         try
         {
             var progress = new StageProgress(recordingId, manifest.Stages, publisher);
-            audio = await finalizer.FinalizeAsync(new FinalizeRequest(folder, inputs, storage), progress, cancellationToken);
+            // "Even out source levels" (Settings › Recording › Storage, on by default) applies to the mix only.
+            var evenLevels = settings?.Current.Recording.Storage.EvenLevels ?? false;
+            audio = await finalizer.FinalizeAsync(new FinalizeRequest(folder, inputs, storage) { EvenLevels = evenLevels }, progress, cancellationToken);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -119,7 +121,10 @@ public sealed partial class ProjectFinalizationService(
                         Sha256 = f.Sha256,
                     }
                     : t).ToList(),
-                Mix = new ProjectMix(audio.Mix.File, audio.Mix.Codec, audio.Mix.SampleRate, audio.Mix.Channels, audio.Mix.DurationMs, audio.Mix.Sha256),
+                Mix = new ProjectMix(audio.Mix.File, audio.Mix.Codec, audio.Mix.SampleRate, audio.Mix.Channels, audio.Mix.DurationMs, audio.Mix.Sha256)
+                {
+                    EvenLevels = audio.MixGains is { } gains ? new ProjectMixLevels(audio.ComputedAt, gains) : null,
+                },
                 Peaks = audio.PeaksFile,
                 Integrity = new ProjectIntegrity { ComputedAt = audio.ComputedAt, Files = integrity },
                 Stages = WithFollowingQueued(m, WithStored(m.Stages, StageStates.Done, null, "Done")),
@@ -135,7 +140,7 @@ public sealed partial class ProjectFinalizationService(
                 string.Create(CultureInfo.InvariantCulture, $"mix {audio.Mix.File}, {audio.Mix.SampleRate / 1000.0:0.#} kHz"),
                 "SHA-256 computed for every file",
                 string.Create(CultureInfo.InvariantCulture, $"took {stopwatch.Elapsed.TotalSeconds:0.0} s"),
-            }.Concat(audio.Notes));
+            }.Concat(audio.MixGains is { } evened ? new[] { MixLevels.Describe(evened, id => saved.Tracks.FirstOrDefault(t => t.Id == id)?.Name ?? id) } : Array.Empty<string>()).Concat(audio.Notes));
         await AppendQuietlyAsync(
             recordingId,
             new HistoryEntry(

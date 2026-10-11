@@ -145,6 +145,126 @@ public sealed class MediaFoundationTrackFinalizerTests : IDisposable
         Assert.False(File.Exists(_dir.File("out.m4a")));
     }
 
+    /// <summary>
+    /// System audio speaking at about -15 dBFS in 0-1, 2-3 and 4-5 s with digital silence between, and a microphone at
+    /// about -37 dBFS in 1-2, 3-4 and 5-6 s over -66 dBFS room noise (ENGINE-NOTES.md §Q).
+    /// </summary>
+    private void WriteLoudAndQuietTracks()
+    {
+        const int rate = 48_000;
+        var system = new float[rate * 6 * 2];
+        var mic = new float[rate * 6];
+        var random = new Random(3);
+        for (var f = 0; f < rate * 6; f++)
+        {
+            var second = f / rate;
+            var tone = Math.Sin(2 * Math.PI * 200 * f / rate);
+            system[2 * f] = system[(2 * f) + 1] = second % 2 == 0 ? (float)(0.25 * tone) : 0f;
+            mic[f] = (float)((second % 2 == 1 ? 0.02 * tone : 0) + (0.0009 * ((random.NextDouble() * 2) - 1)));
+        }
+
+        Signals.WriteFloatWavAsInt24(Path.Combine(Tracks, "system.wav"), rate, 2, system);
+        Signals.WriteFloatWavAsInt24(Path.Combine(Tracks, "mic.wav"), rate, 1, mic);
+    }
+
+    /// <summary>RMS in dBFS of the decoded file between two times, every channel.</summary>
+    private double LevelDb(string relative, double from, double to)
+    {
+        using var audio = MediaFoundationDecoder.Open(_dir.File(relative));
+        var samples = audio.ReadAll();
+        var start = (int)(from * audio.SampleRate) * audio.Channels;
+        var end = (int)(to * audio.SampleRate) * audio.Channels;
+        var sum = 0.0;
+        for (var i = start; i < end; i++)
+        {
+            sum += samples[i] * (double)samples[i];
+        }
+
+        return 10 * Math.Log10(sum / (end - start));
+    }
+
+    [MediaFoundationFact]
+    public async Task EvenLevelsLiftAQuietMicrophoneInTheMixOnlyAndReportTheGains()
+    {
+        WriteLoudAndQuietTracks();
+        var request = new FinalizeRequest(_dir.Path, [new FinalizeTrackInput("system", "tracks/system.wav", 0), new FinalizeTrackInput("mic", "tracks/mic.wav", 0)], StorageFormat.Lossless) { EvenLevels = true };
+
+        var result = await _finalizer.FinalizeAsync(request, null, CancellationToken.None);
+
+        var gains = Assert.IsAssignableFrom<IReadOnlyList<MixTrackGain>>(result.MixGains);
+        Assert.Equal(["system", "mic"], gains.Select(g => g.TrackId));
+        Assert.Equal(0, gains[0].GainDb);
+        Assert.InRange(gains[0].LevelDbfs!.Value, -16, -14);
+        Assert.InRange(gains[1].LevelDbfs!.Value, -38, -36);
+        Assert.InRange(gains[1].GainDb, 20.5, 23);
+
+        // In the mix the microphone's speech is now within 3 dB of the system audio's; its own track is as recorded.
+        Assert.InRange(LevelDb("mix.flac", 1.1, 1.9) - LevelDb("mix.flac", 0.1, 0.9), -3, 3);
+        Assert.InRange(LevelDb("tracks/mic.flac", 1.1, 1.9), -38, -36);
+        Assert.All(await ReadMixAsync(), s => Assert.InRange(s, -1f, 1f));
+    }
+
+    [MediaFoundationFact]
+    public async Task WithoutEvenLevelsTheMixSumsTheTracksAsRecorded()
+    {
+        WriteLoudAndQuietTracks();
+        var request = new FinalizeRequest(_dir.Path, [new FinalizeTrackInput("system", "tracks/system.wav", 0), new FinalizeTrackInput("mic", "tracks/mic.wav", 0)], StorageFormat.Lossless);
+
+        var result = await _finalizer.FinalizeAsync(request, null, CancellationToken.None);
+
+        Assert.Null(result.MixGains);
+        Assert.InRange(LevelDb("mix.flac", 1.1, 1.9) - LevelDb("mix.flac", 0.1, 0.9), -24, -20);
+    }
+
+    [MediaFoundationFact]
+    public async Task RebuildingTheMixWritesNewFilesBesideTheMixAndTouchesNothingElse()
+    {
+        WriteLoudAndQuietTracks();
+        var stored = await _finalizer.FinalizeAsync(
+            new FinalizeRequest(_dir.Path, [new FinalizeTrackInput("system", "tracks/system.wav", 0), new FinalizeTrackInput("mic", "tracks/mic.wav", 0)], StorageFormat.Lossless),
+            null,
+            CancellationToken.None);
+        var tracks = stored.Tracks.Select(t => new MixRebuildTrack(t.TrackId, t.File, 0, null)).ToList();
+        var mixHash = await FileHashes.Sha256Async(_dir.File("mix.flac"), CancellationToken.None);
+        var micHash = await FileHashes.Sha256Async(_dir.File("tracks/mic.flac"), CancellationToken.None);
+
+        var evened = await _finalizer.RebuildMixAsync(new MixRebuildRequest(_dir.Path, tracks, EvenLevels: true, "mix.rebuilt"), null, CancellationToken.None);
+
+        Assert.Equal("mix.rebuilt.flac", evened.Mix.File);
+        Assert.Equal("mix.rebuilt.peaks.json", evened.PeaksFile);
+        Assert.Equal(await FileHashes.Sha256Async(_dir.File("mix.rebuilt.flac"), CancellationToken.None), evened.Mix.Sha256);
+        Assert.Equal(6000, evened.Mix.DurationMs);
+        Assert.InRange(evened.Gains![1].GainDb, 20.5, 23);
+        Assert.InRange(LevelDb("mix.rebuilt.flac", 1.1, 1.9) - LevelDb("mix.rebuilt.flac", 0.1, 0.9), -3, 3);
+        Assert.Equal(mixHash, await FileHashes.Sha256Async(_dir.File("mix.flac"), CancellationToken.None));
+        Assert.Equal(micHash, await FileHashes.Sha256Async(_dir.File("tracks/mic.flac"), CancellationToken.None));
+        Assert.Empty(Directory.GetFiles(_dir.Path, "mix.rebuilt*.wav"));
+
+        // As recorded again: the same samples as the first mix (its FLAC is bit-exact to the same sum).
+        File.Delete(_dir.File("mix.rebuilt.flac"));
+        var plain = await _finalizer.RebuildMixAsync(new MixRebuildRequest(_dir.Path, tracks, EvenLevels: false, "mix.rebuilt"), null, CancellationToken.None);
+        Assert.Null(plain.Gains);
+        Assert.Equal(LevelDb("mix.flac", 1.1, 1.9), LevelDb("mix.rebuilt.flac", 1.1, 1.9), 3);
+    }
+
+    [MediaFoundationFact]
+    public async Task ARebuildWithAMissingTrackLeavesNothingBehind()
+    {
+        WriteLoudAndQuietTracks();
+        var tracks = new List<MixRebuildTrack> { new("system", "tracks/system.wav", 0, null), new("gone", "tracks/gone.flac", 0, null) };
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => _finalizer.RebuildMixAsync(new MixRebuildRequest(_dir.Path, tracks, true, "mix.rebuilt"), null, CancellationToken.None));
+
+        Assert.Empty(Directory.GetFiles(_dir.Path, "mix.rebuilt*"));
+    }
+
+    private async Task<float[]> ReadMixAsync()
+    {
+        await Task.Yield();
+        using var audio = MediaFoundationDecoder.Open(_dir.File("mix.flac"));
+        return audio.ReadAll();
+    }
+
     private static byte[] ReadAll(WaveStream stream)
     {
         using var memory = new MemoryStream();

@@ -18,6 +18,9 @@ public static class DomainErrorCodes
     public const string ProjectNotFound = "project.notFound";
     public const string ProjectRecording = "project.recording";
 
+    /// <summary>After 2.0.0-beta.1: <c>project.rebuildMix</c> without the separate track files (kept only the mix, or a file missing).</summary>
+    public const string ProjectMixUnavailable = "project.mixUnavailable";
+
     /// <summary>An <c>annotations.update*</c> or <c>annotations.remove*</c> named a chapter, highlight or topic the recording does not have.</summary>
     public const string AnnotationsNotFound = "annotations.notFound";
 

@@ -41,6 +41,7 @@ import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptV
 import { useReview20Wiring } from './Review20';
 import { RemoveVideoDialog, useVideoView, VideoArea, VideoOutlineBlock } from './ReviewVideo';
 import { metaVideoTail, removeFailedBody } from './videoCopy';
+import { rebuildMixAction } from './mixRebuild';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -387,6 +388,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   // Every speaker list: named people first, then "Speaker n", each by first appearance.
   const orderedSpeakers = useMemo(() => (transcript === null ? [] : orderSpeakers(transcript.speakers, transcript.segments)), [transcript]);
   const identifying = transcriptApi.stages.some((s) => s.stage === 'speakers' && (s.state === 'active' || s.state === 'queued'));
+  const rebuildingMix = transcriptApi.stages.some((s) => s.stage === 'mix' && (s.state === 'active' || s.state === 'queued'));
   const expectedSetting = store.settings.value?.speakers.expectedSpeakers ?? 'auto';
   const currentVersion = useMemo(
     () =>
@@ -475,6 +477,14 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                         void transcriptApi.retry('speakers').then(report('Speakers were not identified again'));
                       },
                     },
+                    rebuildMixAction(project, inProgress, rebuildingMix, (evenLevels) => {
+                      void bridge
+                        .call('project.rebuildMix', { recordingId, evenLevels })
+                        .then(() => {
+                          undoOf(store).announce(evenLevels ? 'Rebuilding the mix with evened levels' : 'Rebuilding the mix as recorded');
+                        })
+                        .catch(fail('The mix was not rebuilt'));
+                    }),
                   ],
                 },
                 {

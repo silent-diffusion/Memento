@@ -350,6 +350,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     expect([...(group?.querySelectorAll('[role="menuitem"]') ?? [])].map((m) => [m.textContent, m.getAttribute('aria-disabled')])).toEqual([
       ['Transcribe again…', null],
       ['Identify speakers again', null],
+      ['Rebuild the mix with evened levels', null],
     ]);
     const remove = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((m) => m.textContent === 'Delete');
     if (remove === undefined) {

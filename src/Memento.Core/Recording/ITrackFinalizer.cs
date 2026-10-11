@@ -8,4 +8,11 @@ namespace Memento.Core.Recording;
 public interface ITrackFinalizer
 {
     Task<FinalizedAudio> FinalizeAsync(FinalizeRequest request, IProgress<int>? progress, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Mixes a finished recording's stored tracks again (after 2.0.0-beta.1, "Rebuild the mix"), with or without evened
+    /// levels, into new files named by <see cref="MixRebuildRequest.Stem"/> beside the current mix, which it never
+    /// touches; the tracks are only read. Leaves nothing behind when it fails or is cancelled.
+    /// </summary>
+    Task<RebuiltMix> RebuildMixAsync(MixRebuildRequest request, IProgress<int>? progress, CancellationToken cancellationToken);
 }

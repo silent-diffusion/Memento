@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using Memento.Core.Audio;
 using Memento.Core.Workers;
 using Memento.Transcription;
 using SherpaOnnx;
@@ -61,6 +63,11 @@ internal sealed class SherpaDiarizer(ProtocolWriter output)
                 var track = job.Tracks[t];
                 var samples = TrackAudio.ReadAll(track.Path, cancellationToken);
                 audioSeconds += samples.Length / (double)TrackAudio.SampleRate;
+
+                // A quiet microphone is brought to the same speech level as a loud track (one gain for the whole track,
+                // in this copy only; ENGINE-NOTES.md §Q), so the segmentation hears it as well.
+                var gain = LoudnessNormalizer.Normalize(samples, TrackAudio.SampleRate);
+                output.Log(string.Create(CultureInfo.InvariantCulture, $"{track.Id}: speech level normalized for the diarizer, gain {SpeechLevel.ToDbfs(gain):+0.0;-0.0;0.0} dB"));
                 var index = t;
                 var segments = diarization.ProcessWithCallback(
                     samples,

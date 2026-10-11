@@ -29,20 +29,26 @@ public sealed partial class TrackFinalizer(
         var done = 0;
         void Step() => progress?.Report((int)(100L * ++done / steps));
 
-        // 1. Mix and peaks, from the capture WAVs, in one streaming pass.
-        var inputs = new List<MixInput>();
+        // 1. Mix and peaks, from the capture WAVs, in one streaming pass; with "Even out source levels" each track's
+        // speech level is measured first and a quiet one is lifted in the mix.
+        var present = new List<(string TrackId, string Path, long StartOffsetMs)>();
         foreach (var track in request.Tracks)
         {
             var path = Full(folder, track.CaptureFile);
             if (File.Exists(path))
             {
-                inputs.Add(new MixInput(path, track.StartOffsetMs));
+                present.Add((track.TrackId, path, track.StartOffsetMs));
             }
             else
             {
                 notes.Add($"Track {track.TrackId} had no audio file and was left out of the mix.");
             }
         }
+
+        var gains = request.EvenLevels && present.Count > 1
+            ? MixLevels.Even(present.Select(t => (t.TrackId, WavSpeechLevel.Measure(t.Path, cancellationToken))).ToList())
+            : null;
+        var inputs = present.Select((t, i) => new MixInput(t.Path, t.StartOffsetMs, gains is null ? 1f : MixLevels.Linear(gains[i].GainDb))).ToList();
 
         var mixTemporary = Path.Combine(folder, ProjectLayout.MixBaseName + ".tmp.wav");
         var mix = await Task.Run(
@@ -129,7 +135,66 @@ public sealed partial class TrackFinalizer(
             encoder.Codec,
             time.GetLocalNow(),
             notes,
-            obsolete);
+            obsolete)
+        {
+            MixGains = gains,
+        };
+    }
+
+    /// <summary>
+    /// Mixes the stored tracks again into <c>&lt;stem&gt;.&lt;ext&gt;</c> and <c>&lt;stem&gt;.peaks.json</c>. This finalizer
+    /// reads WAV tracks only (the app's Media Foundation finalizer reads every stored format).
+    /// </summary>
+    public async Task<RebuiltMix> RebuildMixAsync(MixRebuildRequest request, IProgress<int>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var folder = request.ProjectFolder;
+        var encoder = _encoders.FirstOrDefault(e => e.Codec == "flac") ?? PickEncoder(PassThroughWavEncoder.WavCodec, []);
+        var tracks = request.Tracks.Select(t => (t.TrackId, Path: Full(folder, t.File), t.StartOffsetMs)).ToList();
+        if (tracks.FirstOrDefault(t => !File.Exists(t.Path)) is { TrackId: { } missing })
+        {
+            throw new FileNotFoundException($"The track file of {missing} is missing, so the mix cannot be built again.");
+        }
+
+        var gains = request.EvenLevels
+            ? MixLevels.Even(tracks.Select(t => (t.TrackId, WavSpeechLevel.Measure(t.Path, cancellationToken))).ToList())
+            : null;
+        var inputs = tracks.Select((t, i) => new MixInput(t.Path, t.StartOffsetMs, gains is null ? 1f : MixLevels.Linear(gains[i].GainDb))).ToList();
+        var temporary = Path.Combine(folder, request.Stem + ".tmp.wav");
+        var mixRelative = request.Stem + encoder.FileExtension;
+        var mixPath = Full(folder, mixRelative);
+        var peaksRelative = request.Stem + ".peaks.json";
+        try
+        {
+            var mix = await Task.Run(() => PcmMixer.Mix(inputs, temporary, downmixMono: false, PeakBuilder.DefaultWindowMs, cancellationToken), cancellationToken);
+            progress?.Report(60);
+            await mix.Peaks.WriteAsync(Full(folder, peaksRelative), cancellationToken);
+            if (encoder.Codec == PassThroughWavEncoder.WavCodec)
+            {
+                File.Move(temporary, mixPath, overwrite: true);
+            }
+            else
+            {
+                await encoder.EncodeAsync(temporary, mixPath, new AudioEncodeOptions(null, false), cancellationToken);
+                File.Delete(temporary);
+            }
+
+            progress?.Report(100);
+            var hash = await FileHashes.Sha256Async(mixPath, cancellationToken);
+            return new RebuiltMix(
+                new FinalizedFile(mixRelative, encoder.Codec, mix.Format.SampleRate, mix.Format.Channels, mix.DurationMs, new FileInfo(mixPath).Length, hash),
+                peaksRelative,
+                gains);
+        }
+        catch
+        {
+            foreach (var leftover in new[] { temporary, mixPath, Full(folder, peaksRelative) })
+            {
+                File.Delete(leftover);
+            }
+
+            throw;
+        }
     }
 
     private IAudioEncoder PickEncoder(string codec, List<string> notes)

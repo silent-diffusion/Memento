@@ -97,6 +97,7 @@ const DONE_NAMES: Record<PipelineStage, string> = {
   speakers: 'Speakers',
   topics: 'Topics',
   minutes: 'Minutes',
+  mix: 'Mix',
   optimize: 'Smaller files',
 };
 
@@ -107,6 +108,7 @@ const ACTIVE_NAMES: Record<PipelineStage, string> = {
   speakers: 'Speakers',
   topics: 'Topics',
   minutes: 'Minutes',
+  mix: 'Rebuilding the mix',
   optimize: 'Making smaller',
 };
 
@@ -118,6 +120,7 @@ export const CARD_STAGE_NAMES: Record<PipelineStage, string> = {
   speakers: 'Speakers',
   topics: 'Topics',
   minutes: 'Minutes',
+  mix: 'Mix',
   optimize: 'Smaller files',
 };
 
@@ -139,7 +142,7 @@ export function stageName(stage: string): string {
  * Stages whose finished state is the normal state, not news: keeping the audio safe or small, and
  * the quick local topics pass after speakers (the host leaves a finished one out of rows too).
  */
-const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'topics', 'optimize']);
+const HOUSEKEEPING: ReadonlySet<string> = new Set<StageName>(['stored', 'topics', 'mix', 'optimize']);
 
 /**
  * The sub-step of a running video stage, without the device: "Encoding 42%" from the host's

@@ -16,6 +16,9 @@ public static class BridgeMethodNames
     public const string ProjectDeleteEstimate = "project.deleteEstimate";
     public const string ProjectDelete = "project.delete";
     public const string ProjectRename = "project.rename";
+
+    /// <summary>After 2.0.0-beta.1: Review › More › Reprocess › Rebuild the mix (with evened levels, or as recorded).</summary>
+    public const string ProjectRebuildMix = "project.rebuildMix";
     public const string AnnotationsAddChapter = "annotations.addChapter";
     public const string AnnotationsUpdateChapter = "annotations.updateChapter";
     public const string AnnotationsRemoveChapter = "annotations.removeChapter";

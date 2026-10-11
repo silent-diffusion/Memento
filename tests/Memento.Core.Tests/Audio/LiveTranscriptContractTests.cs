@@ -71,6 +71,35 @@ public sealed class LiveTranscriptContractTests : IDisposable
     }
 
     [Fact]
+    public void AQuietMicrophoneIsLiftedToTheLoudTracksLevelBeforeTheSum()
+    {
+        // ENGINE-NOTES.md §Q: system audio speaking at about -15 dBFS from 0-4 s, a microphone at about -51 dBFS over
+        // -66 dBFS room noise from 5-9 s. As recorded the microphone is 36 dB under the system audio in the draft's mix;
+        // each track's speech is brought to one level first, so the engine hears both.
+        static float Burst(int f, int rate, double from, double to, double amplitude) =>
+            f >= from * rate && f < to * rate ? (float)(amplitude * Math.Sin(2 * Math.PI * 200 * f / rate)) : 0f;
+        var random = new Random(4);
+        var noise = Enumerable.Range(0, 48_000 * 10).Select(_ => (float)(0.0009 * ((random.NextDouble() * 2) - 1))).ToArray();
+        Directory.CreateDirectory(Path.Combine(_directory.Path, "tracks"));
+        WavTestFiles.Write(Path.Combine(_directory.Path, "tracks", "system.wav"), PcmFormat.Pcm16(48_000, 2), 480_000, (f, _) => Burst(f, 48_000, 0, 4, 0.25));
+        WavTestFiles.Write(Path.Combine(_directory.Path, "tracks", "mic.wav"), PcmFormat.Pcm16(48_000, 1), 480_000, (f, _) => Burst(f, 48_000, 5, 9, 0.004) + noise[f]);
+        var tracks = new List<LiveTrackSource>
+        {
+            new("system", _directory.Path, "tracks/system.wav", 0, null),
+            new("mic", _directory.Path, "tracks/mic.wav", 0, null),
+        };
+
+        var mix = LiveMixReader.Read(tracks, 0, 10_000);
+
+        static double Rms(float[] s, int from, int to) => Math.Sqrt(s.Skip(from).Take(to - from).Sum(x => (double)x * x) / (to - from));
+        var system = 20 * Math.Log10(Rms(mix.Samples, 16_000, 48_000));
+        var mic = 20 * Math.Log10(Rms(mix.Samples, 96_000, 128_000));
+        Assert.InRange(system, -24, -16);
+        Assert.InRange(mic, -24, -16);
+        Assert.All(mix.Samples, s => Assert.InRange(s, -1f, 1f));
+    }
+
+    [Fact]
     public void TheMixIsReadBehindAWriterThatStillHasTheFileOpen()
     {
         var format = PcmFormat.Pcm16(48_000, 1);

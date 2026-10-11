@@ -146,7 +146,7 @@ describe('Recording session (against the browser-preview host)', () => {
     await setUp();
     // Changed behind this page's back (another path than Settings): the store still holds FLAC.
     const host = await bridge.call('settings.get');
-    await bridge.call('settings.set', { recording: { ...host.recording, storage: { codec: 'aac', bitrateKbps: 128, downmixMono: false, keepOnlyMix: false } } });
+    await bridge.call('settings.set', { recording: { ...host.recording, storage: { codec: 'aac', bitrateKbps: 128, downmixMono: false, keepOnlyMix: false, evenLevels: true } } });
     expect(store.settings.value?.recording.storage.codec).toBe('flac');
     store.route.value = { name: 'record', sessionId: null };
     await mount();

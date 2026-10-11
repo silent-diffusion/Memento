@@ -17,6 +17,9 @@ public static class StageNames
     public const string Topics = "topics";
     public const string Minutes = "minutes";
 
+    /// <summary>After 2.0.0-beta.1: rebuilds the mix on request (Rebuild the mix with evened levels); finished, it is left out of rows like <c>stored</c>.</summary>
+    public const string Mix = "mix";
+
     /// <summary>Converts the lossless FLAC files to the chosen lossy format; always the last stage.</summary>
     public const string Optimize = "optimize";
 }

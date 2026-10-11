@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Memento.Core.Audio;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Workers;
 using Memento.Transcription;
@@ -131,6 +132,15 @@ internal sealed partial class WhisperTranscriber(ProtocolWriter output)
                 {
                     var offset = plan.Track.OffsetSeconds + window.Start;
                     var raw = new List<WorkerSegment>();
+
+                    // The engine hears the window's speech at one loudness whatever the track's level (this copy only;
+                    // the stored track is untouched): a quiet microphone is lifted, ENGINE-NOTES.md §Q.
+                    var gain = LoudnessNormalizer.Normalize(samples, TrackAudio.SampleRate);
+                    if (Math.Abs(gain - 1) > 0.01)
+                    {
+                        output.Log(string.Create(CultureInfo.InvariantCulture, $"{plan.Track.Id} at {Clock(window.Start)}: speech level normalized for the engine, gain {SpeechLevel.ToDbfs(gain):+0.0;-0.0} dB"));
+                    }
+
                     // The engine hears the window with long silences shortened, in chunks cut between words; its
                     // times are mapped back to the window and aligned to the sound under each line (ENGINE-NOTES.md §K).
                     var chunks = SpeechPacker.Pack(samples, TrackAudio.SampleRate, window.Start, plan.Sound);

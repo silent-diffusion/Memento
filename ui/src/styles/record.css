@@ -218,6 +218,15 @@
   transition: width 60ms linear;
 }
 
+/* A quiet source (after 2.0.0-beta.1, DESIGN.md §8 and §17): one accent-text line under its meter, wrapping. */
+.src-hint {
+  margin: 6px 0 0 52px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--accent-text);
+  white-space: normal;
+}
+
 .rec-foot-note {
   margin: 0;
   font-size: 12px;

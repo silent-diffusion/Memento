@@ -38,4 +38,14 @@ public sealed record SimulatedEngineOptions
 
     /// <summary>The sample rate of <see cref="SpeechSamples"/>.</summary>
     public int SpeechSampleRate { get; init; } = 16_000;
+
+    /// <summary>
+    /// After 2.0.0-beta.1 (tests): a speech clip that the system audio plays in a loop instead of its chord, so a
+    /// recording can hold loud system speech beside a quiet microphone (<c>--simulate-audio system-speech=&lt;wav&gt;</c>,
+    /// ENGINE-NOTES.md §Q). Nothing is played through the speakers.
+    /// </summary>
+    public float[]? SystemSpeechSamples { get; init; }
+
+    /// <summary>The sample rate of <see cref="SystemSpeechSamples"/>.</summary>
+    public int SystemSpeechSampleRate { get; init; } = 16_000;
 }

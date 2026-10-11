@@ -86,6 +86,12 @@ public sealed record ProjectManifest
     /// </summary>
     public ProjectMixOnly? MixOnly { get; init; }
 
+    /// <summary>
+    /// A "Rebuild the mix" the <c>mix</c> stage has not finished yet (after 2.0.0-beta.1); <c>null</c> otherwise. An
+    /// optional field within schema 4.
+    /// </summary>
+    public ProjectMixRebuild? MixRebuild { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

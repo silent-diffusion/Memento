@@ -1,4 +1,5 @@
 using Memento.Audio.Codecs;
+using MixLevels = Memento.Core.Audio.MixLevels;
 using Memento.Audio.Mixing;
 using Memento.Audio.Writing;
 using Memento.Core.Projects;
@@ -57,13 +58,17 @@ public sealed partial class MediaFoundationTrackFinalizer(
         var done = 0;
         void Step() => progress?.Report((int)(100L * ++done / steps));
 
-        // 1. Mix on the recording timeline, from the capture WAVs, to a temporary WAV set.
+        // 1. Mix on the recording timeline, from the capture WAVs, to a temporary WAV set. With "Even out source levels"
+        // each track's speech level is measured first and a quiet track is lifted in the mix (ENGINE-NOTES.md §Q).
         RemoveMixLeftovers(folder);
-        var inputs = tracks.Select(t =>
+        var gains = request.EvenLevels && tracks.Count > 1
+            ? await TrackLevels.EvenAsync(tracks.Select(t => (t.Input.TrackId, (Func<DecodedAudio>)(() => MediaFoundationDecoder.Open(t.Set)))).ToList(), cancellationToken).ConfigureAwait(false)
+            : null;
+        var inputs = tracks.Select((t, i) =>
         {
             var start = TimeSpan.FromMilliseconds(t.Input.StartOffsetMs);
             TimeSpan? end = t.Input.EndedAtMs is { } e ? TimeSpan.FromMilliseconds(Math.Max(e, t.Input.StartOffsetMs)) : null;
-            return MixInput.FromTrack(t.Set, start, end);
+            return MixInput.FromTrack(t.Set, start, end, gains is null ? 1f : MixLevels.Linear(gains[i].GainDb));
         }).ToList();
         var mix = await TrackMixer.MixAsync(inputs, folder, MixStem, MixOptions.Default, null, cancellationToken).ConfigureAwait(false);
         if (mix.LimitedSamples > 0)
@@ -133,7 +138,72 @@ public sealed partial class MediaFoundationTrackFinalizer(
         {
             Warnings = warnings,
             ExtraHashes = extraHashes,
+            MixGains = gains,
         };
+    }
+
+    /// <summary>
+    /// "Rebuild the mix" (after 2.0.0-beta.1): the stored tracks, in any format Media Foundation decodes, are mixed again
+    /// on the recording timeline (with evened levels when asked) into <c>&lt;stem&gt;.flac</c>, verified bit-exact
+    /// against the mixed WAV and hashed, with <c>&lt;stem&gt;.peaks.json</c>. The current mix and the tracks are never
+    /// touched; a failure or a cancel leaves nothing behind.
+    /// </summary>
+    public async Task<RebuiltMix> RebuildMixAsync(MixRebuildRequest request, IProgress<int>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var folder = request.ProjectFolder;
+        var tracks = request.Tracks.Select(t => (Track: t, Path: Full(folder, t.File))).ToList();
+        if (tracks.FirstOrDefault(t => !File.Exists(t.Path)) is { Track: { } missing })
+        {
+            throw new FileNotFoundException($"The file of track {missing.TrackId} ({missing.File}) is missing, so the mix cannot be built again.");
+        }
+
+        var wavStem = request.Stem;
+        var flacRelative = request.Stem + ".flac";
+        var peaksRelative = request.Stem + ".peaks.json";
+        RemoveLeftovers(folder, wavStem, flacRelative, peaksRelative);
+        try
+        {
+            var gains = request.EvenLevels
+                ? await TrackLevels.EvenAsync(tracks.Select(t => (t.Track.TrackId, (Func<DecodedAudio>)(() => MediaFoundationDecoder.Open(t.Path)))).ToList(), cancellationToken).ConfigureAwait(false)
+                : null;
+            progress?.Report(20);
+            var inputs = tracks.Select((t, i) =>
+            {
+                var start = TimeSpan.FromMilliseconds(t.Track.StartOffsetMs);
+                TimeSpan? end = t.Track.EndedAtMs is { } e ? TimeSpan.FromMilliseconds(Math.Max(e, t.Track.StartOffsetMs)) : null;
+                return MixInput.FromFile(t.Path, start, end, gains is null ? 1f : MixLevels.Linear(gains[i].GainDb));
+            }).ToList();
+            var mix = await TrackMixer.MixAsync(inputs, folder, wavStem, MixOptions.Default, null, cancellationToken).ConfigureAwait(false);
+            var mixSet = WavTrackSet.FromParts(mix.Parts);
+            progress?.Report(55);
+            var peaks = await PeakBuilder.BuildAsync(mixSet, cancellationToken).ConfigureAwait(false);
+            await PeakBuilder.WriteAsync(peaks, Full(folder, peaksRelative), cancellationToken).ConfigureAwait(false);
+            progress?.Report(65);
+            var result = await flac.EncodeAsync(mixSet, Full(folder, flacRelative), Verified, null, cancellationToken).ConfigureAwait(false);
+            progress?.Report(100);
+            var file = new FinalizedFile(flacRelative, "flac", mixSet.Format.SampleRate, mixSet.Format.Channels, (long)mixSet.Duration.TotalMilliseconds, result.Bytes, result.Sha256);
+            RemoveLeftovers(folder, wavStem);
+            return new RebuiltMix(file, peaksRelative, gains);
+        }
+        catch
+        {
+            RemoveLeftovers(folder, wavStem, flacRelative, peaksRelative);
+            throw;
+        }
+    }
+
+    /// <summary>The rebuild's intermediate WAV parts, and the given files (relative paths).</summary>
+    private static void RemoveLeftovers(string folder, string wavStem, params string[] files)
+    {
+        foreach (var path in WavTrackSet.FindParts(folder, wavStem).Concat(WavTrackSet.FindParts(folder, wavStem + ".partial")).Concat(files.Select(f => Full(folder, f))))
+        {
+            if (File.Exists(path))
+            {
+                ClearReadOnly(path);
+                File.Delete(path);
+            }
+        }
     }
 
     /// <summary>A file named by the manifest, never outside the project folder (<see cref="ProjectPaths"/>).</summary>
