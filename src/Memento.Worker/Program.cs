@@ -9,6 +9,11 @@ using Memento.Worker;
 // A "cancel" line (or stdin closing because the app went away) stops the job. Native libraries may print to the
 // process's stdout, so the protocol keeps the original stdout handle and everything else is sent to stderr.
 ErrorDialogs.Suppress();
+if (!ProcessMitigations.Apply())
+{
+    Console.Error.WriteLine("Windows did not stop the worker from loading DLLs from network shares.");
+}
+
 var protocolStream = Console.OpenStandardOutput();
 NativeConsole.RedirectStdoutToStderr();
 Console.SetOut(Console.Error);
