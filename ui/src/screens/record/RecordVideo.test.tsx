@@ -271,7 +271,7 @@ describe('Recording session with video (against the browser-preview host)', () =
     expect(chip.textContent).toContain('OBS Virtual Camera');
     await click(chip);
     await until(() => document.querySelector('[role="listbox"] [role="option"]') !== null);
-    const options = [...document.querySelectorAll('[role="listbox"] [role="option"]')].map((o) => o.textContent?.trim());
+    const options = [...document.querySelectorAll('[role="listbox"] [role="option"]')].map((o) => o.textContent.trim());
     expect(options).toEqual(['OBS Virtual Camera · via DirectShow']);
   });
 
