@@ -25,6 +25,6 @@ public sealed record ExportSelection
 
     public ExportToggle Attachments { get; set; } = new();
 
-    /// <summary>2.0: the Video row (DESIGN.md §18.4). Left out by a 1.x page, it is off.</summary>
-    public ExportVideoChoice Video { get; set; } = new();
+    /// <summary>2.0: the Video row (DESIGN.md §18.4). Left out or <c>null</c>, it is off.</summary>
+    public ExportVideoChoice? Video { get; set; } = new();
 }

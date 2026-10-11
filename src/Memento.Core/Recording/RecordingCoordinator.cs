@@ -178,7 +178,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
             var active = new ActiveRecording(session, manifest.Id, title, plan.CheckpointInterval)
             {
-                Video = new VideoRecording(_video, session, manifest.Id, folder, session.TimelineOriginQpc ?? startedQpc, _settings.Current.Video, _publisher, _logger),
+                Video = new VideoRecording(_video, session, manifest.Id, folder, session.TimelineOriginQpc ?? startedQpc, _settings.Current.Recording.Video, _publisher, _logger),
             };
             Subscribe(active);
             Volatile.Write(ref _active, active);
@@ -283,10 +283,27 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             var active = Require(sessionId);
             if (sourceId is not null && !_video.IsAvailable)
             {
-                throw new BridgeException(DomainErrorCodes.VideoUnavailable, UnavailableVideoCapture.Message);
+                throw new BridgeException(DomainErrorCodes.VideoSourceNotFound, UnavailableVideoCapture.Message);
             }
 
             var statuses = await active.Video.SetSourceAsync(role, sourceId, cancellationToken);
+            await SaveVideoStateAsync(active);
+            return statuses;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary><c>recording.setVideoQuality</c> (2.0): the running video tracks continue at another quality.</summary>
+    public async Task<IReadOnlyList<VideoTrackStatus>> SetVideoQualityAsync(string sessionId, string quality, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var active = Require(sessionId);
+            var statuses = await active.Video.SetQualityAsync(quality, cancellationToken);
             await SaveVideoStateAsync(active);
             return statuses;
         }
@@ -809,7 +826,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
 
     /// <summary>" · screen video: Display 1" for the "Recording started" History line.</summary>
     private static string VideoHistoryPart(IReadOnlyList<VideoTrackStatus> video) =>
-        video.Count == 0 ? string.Empty : " · video: " + string.Join(", ", video.Select(v => $"{v.Role} ({v.SourceName})"));
+        video.Count == 0 ? string.Empty : " · video: " + string.Join(", ", video.Select(v => $"{v.TrackId} ({v.SourceName})"));
 
     /// <summary>" · 1 video track (screen 20:31, ended at 0:58:12)" for the "Recorded" History line.</summary>
     private static string VideoStopHistoryPart(IReadOnlyList<VideoTrack> video) =>
@@ -834,7 +851,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         var tracks = active.Session.Tracks;
         await WriteStateFileAsync(active, StateName(active.Session.State), tracks, active.LastCheckpointAt, flushVideo: true);
         _publisher.PublishRecordingState(BuildPayload(active, StateName(active.Session.State), tracks, active.Session.ElapsedMs));
-        _publisher.PublishRecordingVideoStatus(new RecordingVideoStatusPayload(active.SessionId, active.Video.Statuses()));
+        _publisher.PublishRecordingVideoStatus(new RecordingVideoStatusPayload(active.SessionId, active.Video.Statuses(), active.Video.Pip));
     }
 
     /// <summary>The library drive is nearly full: the video tracks stop now; the audio keeps recording until the floor.</summary>
@@ -933,7 +950,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                     _publisher.PublishRecordingState(BuildPayload(active, "recording", active.Session.Tracks, active.Session.ElapsedMs));
                     if (active.Video.HasAny)
                     {
-                        _publisher.PublishRecordingVideoStatus(new RecordingVideoStatusPayload(active.SessionId, active.Video.Statuses()));
+                        _publisher.PublishRecordingVideoStatus(new RecordingVideoStatusPayload(active.SessionId, active.Video.Statuses(), active.Video.Pip));
                     }
                 }
             }

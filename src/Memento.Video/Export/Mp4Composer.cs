@@ -49,13 +49,14 @@ internal static class Mp4Composer
         string? audioPath,
         long durationTicks,
         IProgress<double>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool preferHardware = true)
     {
         try
         {
-            return EncodeOnce(output, main, width, height, frameRate, bitsPerSecond, inset, pip, audioPath, durationTicks, progress, preferHardware: true, cancellationToken);
+            return EncodeOnce(output, main, width, height, frameRate, bitsPerSecond, inset, pip, audioPath, durationTicks, progress, preferHardware, cancellationToken);
         }
-        catch (VideoCaptureException) when (!cancellationToken.IsCancellationRequested)
+        catch (VideoCaptureException) when (!cancellationToken.IsCancellationRequested && preferHardware)
         {
             // A hardware encoder that refused system-memory pictures part-way: start again in software.
             return EncodeOnce(output, main, width, height, frameRate, bitsPerSecond, inset, pip, audioPath, durationTicks, progress, preferHardware: false, cancellationToken);

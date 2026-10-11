@@ -58,6 +58,8 @@ public sealed partial class VideoStage(
         }
 
         var folder = store.GetProjectFolder(recordingId);
+        var request = manifest.Processing ?? new ProcessingRequest();
+        var lastPercent = 0;
         await status.SetAsync(recordingId, new StageStatus(Name, StageStates.Active, 0, "Checking"), cancellationToken);
         await AppendQuietlyAsync(
             recordingId,
@@ -68,6 +70,7 @@ public sealed partial class VideoStage(
         var joinedParts = new List<string>();
         var created = new List<string>();
         var notes = new List<string>();
+        var partHashes = new Dictionary<string, string>(StringComparer.Ordinal);
         var count = manifest.VideoTracks.Count;
         try
         {
@@ -76,16 +79,27 @@ public sealed partial class VideoStage(
                 var track = manifest.VideoTracks[i];
                 var share = 100.0 / count;
                 var start = i * share;
-                if (NeedsJoin(track, folder))
+                if (NeedsJoin(track, folder) && request.VideoKeepRaw)
                 {
-                    var (joined, parts, note) = await JoinAsync(recordingId, manifest, folder, track, start, share * 0.8, cancellationToken);
+                    // "Keep raw frames": the parts stay as written; each is hashed and the stage is done.
+                    foreach (var part in track.Parts.Skip(1))
+                    {
+                        partHashes[part.File] = await FileHashes.Sha256Async(ProjectPaths.Resolve(folder, part.File), cancellationToken);
+                    }
+
+                    notes.Add($"kept the {track.Role} video's {track.Parts.Count} parts as they were written");
+                }
+                else if (NeedsJoin(track, folder))
+                {
+                    var (joined, parts, note) = await JoinAsync(recordingId, manifest, folder, track, start, share * 0.8, request.VideoSoftware, p => lastPercent = p, cancellationToken);
                     track = joined;
                     created.Add(joined.File);
                     joinedParts.AddRange(parts);
                     notes.Add(note);
                 }
 
-                status.PublishProgress(manifest, new StageStatus(Name, StageStates.Active, (int)(start + (share * 0.8)), "Checking"));
+                lastPercent = (int)(start + (share * 0.8));
+                status.PublishProgress(manifest, new StageStatus(Name, StageStates.Active, lastPercent, "Checking"));
                 var path = ProjectPaths.Resolve(folder, track.File);
                 var sha256 = File.Exists(path) ? await FileHashes.Sha256Async(path, cancellationToken) : null;
                 done.Add(track with { Sha256 = sha256 });
@@ -102,7 +116,7 @@ public sealed partial class VideoStage(
 #pragma warning restore CA1031
         {
             RemoveQuietly(recordingId, folder, created);
-            await RecordFailureAsync(recordingId, ex, cancellationToken);
+            await RecordFailureAsync(recordingId, ex, lastPercent, cancellationToken);
             return;
         }
 
@@ -126,12 +140,18 @@ public sealed partial class VideoStage(
                     hashes[track.File] = track.Sha256!;
                 }
 
+                foreach (var (file, sha256) in partHashes)
+                {
+                    hashes[file] = sha256;
+                }
+
                 return m with
                 {
                     VideoTracks = m.VideoTracks.Select(t => byId.TryGetValue(t.Id, out var checkedTrack) ? checkedTrack : t).ToList(),
                     Integrity = m.Integrity with { ComputedAt = computedAt, Files = hashes },
                     Stages = StageList.With(m.Stages, new StageStatus(Name, StageStates.Done, null, "Done")),
                     Failures = StageList.WithFailure(m.Failures, null, Name),
+                    Processing = m.Processing is { } p ? p with { VideoSoftware = false, VideoKeepRaw = false } : null,
                 };
             },
             cancellationToken);
@@ -185,6 +205,8 @@ public sealed partial class VideoStage(
         VideoTrack track,
         double start,
         double share,
+        bool software,
+        Action<int> reached,
         CancellationToken cancellationToken)
     {
         var output = $"tracks/{track.Id}.joined.mp4";
@@ -193,23 +215,24 @@ public sealed partial class VideoStage(
         var progress = new Progress<double>(fraction =>
         {
             var percent = (int)(start + (share * Math.Clamp(fraction, 0, 1)));
-            status.PublishProgress(manifest, new StageStatus(Name, StageStates.Active, percent, string.Create(CultureInfo.InvariantCulture, $"Joining {percent}%")));
+            reached(percent);
+            status.PublishProgress(manifest, new StageStatus(Name, StageStates.Active, percent, software ? string.Create(CultureInfo.InvariantCulture, $"Encoding {percent}% · CPU") : string.Create(CultureInfo.InvariantCulture, $"Joining {percent}%")));
         });
-        var result = await files.JoinAsync(parts, ProjectPaths.Resolve(folder, output), progress, cancellationToken);
+        var result = await files.JoinAsync(parts, ProjectPaths.Resolve(folder, output), software, progress, cancellationToken);
         LogJoined(recordingId, track.Id, track.Parts.Count, result.Reencoded);
         var note = $"joined the {track.Role} video's {track.Parts.Count} parts into one file" + (result.Reencoded ? " (encoded again: the encoder changed while recording)" : string.Empty);
         return (track with { File = output, Container = "mp4", DurationMs = Math.Max(track.DurationMs, result.DurationMs) }, track.Parts.Select(p => p.File).ToList(), note);
     }
 
-    private async Task RecordFailureAsync(string recordingId, Exception ex, CancellationToken cancellationToken)
+    private async Task RecordFailureAsync(string recordingId, Exception ex, int percent, CancellationToken cancellationToken)
     {
         LogFailed(ex, recordingId);
         var reason = ex is VideoStartException or IOException or UnauthorizedAccessException ? ex.Message.TrimEnd('.') : "Media Foundation could not read a video file";
         var failure = new ProjectStageFailure(
             Name,
-            $"The video could not be checked: {reason}.",
-            "The recorded video files and every audio track are kept unchanged; the transcript is not affected.",
-            [new Remedy(Remedies.Retry, "Retry")],
+            string.Create(CultureInfo.InvariantCulture, $"Finalising the video file stopped at {percent}%: {reason}."),
+            "The raw frames and all audio tracks are safe, and the transcript was not affected.",
+            [new Remedy(Remedies.Software, "Retry with software encoder"), new Remedy(Remedies.KeepRaw, "Keep raw frames")],
             ProjectStageFailure.CauseEngine,
             time.GetLocalNow());
         await status.FailAsync(recordingId, failure, "Video failed", cancellationToken);

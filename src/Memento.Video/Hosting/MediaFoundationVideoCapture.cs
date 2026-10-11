@@ -20,6 +20,9 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
     private readonly Lazy<bool> _supported = new(GraphicsCaptureSource.IsSupported);
     private readonly ILoggerFactory _loggers = loggers ?? NullLoggerFactory.Instance;
 
+    /// <summary>Cameras being recorded now: their thumbnail is the track's latest picture.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Func<Export.Nv12Frame?>> _recordingCameras = new(StringComparer.Ordinal);
+
     public bool IsAvailable => _supported.Value;
 
     public VideoSourcesResult ListSources()
@@ -43,11 +46,11 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
             {
                 try
                 {
-                    return Thumbnails.Take(id, info, width);
+                    return Thumbnails.Take(id, info, width, _recordingCameras.TryGetValue(id.ToString(), out var latest) ? latest : null);
                 }
                 catch (VideoCaptureException ex)
                 {
-                    throw new VideoStartException(VideoCodes.Of(ex.Code), ex.Message, ex);
+                    throw new VideoStartException(VideoCodes.Of(ex.Code), ex.Message, ex, ex.Detail);
                 }
             },
             cancellationToken);
@@ -58,7 +61,7 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
         ArgumentNullException.ThrowIfNull(request);
         if (!IsAvailable)
         {
-            throw new VideoStartException(DomainErrorCodes.VideoUnavailable, VideoErrors.CaptureUnsupported());
+            throw new VideoStartException(DomainErrorCodes.VideoCaptureBlocked, VideoErrors.CaptureUnsupported());
         }
 
         var (id, info) = Find(request.SourceId);
@@ -73,6 +76,12 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
         VideoCaptureSession? session = null;
         try
         {
+            if (id.Kind == VideoSourceKind.Camera)
+            {
+                // A thumbnail may hold the camera open; the recording needs it.
+                CameraStills.Release(id);
+            }
+
             device = VideoDevice.Create(id.Kind == VideoSourceKind.Display ? VideoDevice.AdapterForDisplay(id.Key) : null);
             var onDevice = device;
             IVideoSource Open(VideoSourceId sourceId) => VideoSourceFactory.Create(onDevice, sourceId, NameOf(sourceId), capture);
@@ -82,14 +91,14 @@ public sealed class MediaFoundationVideoCapture(ILoggerFactory? loggers = null) 
                 new Mp4TrackWriterFactory(device),
                 _loggers.CreateLogger<VideoCaptureSession>());
             await session.StartAsync(cancellationToken).ConfigureAwait(false);
-            var recorder = new VideoTrackRecorder(session, device, request.Role, id.ToString(), Open);
+            var recorder = new VideoTrackRecorder(session, device, request.Role, id.ToString(), Open, _recordingCameras);
             session = null;
             device = null;
             return recorder;
         }
         catch (VideoCaptureException ex)
         {
-            throw new VideoStartException(VideoCodes.Of(ex.Code), ex.Message, ex);
+            throw new VideoStartException(VideoCodes.Of(ex.Code), ex.Message, ex, ex.Detail);
         }
         finally
         {

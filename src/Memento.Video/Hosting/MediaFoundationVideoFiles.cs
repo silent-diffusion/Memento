@@ -25,7 +25,7 @@ public sealed class MediaFoundationVideoFiles : IVideoFiles
         return new VideoFileRepair(summary.HasMoov && summary.Samples > 0, summary.Samples, (long)(summary.DurationSeconds * 1000), 0);
     }
 
-    public Task<VideoJoinResult> JoinAsync(IReadOnlyList<VideoJoinPart> parts, string outputPath, IProgress<double>? progress, CancellationToken cancellationToken)
+    public Task<VideoJoinResult> JoinAsync(IReadOnlyList<VideoJoinPart> parts, string outputPath, bool reencode, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(parts);
         if (parts.Count == 0)
@@ -40,6 +40,11 @@ public sealed class MediaFoundationVideoFiles : IVideoFiles
                 var duration = EndTicks(parts[^1].Path) + segments[^1].StartTicks;
                 try
                 {
+                    if (reencode)
+                    {
+                        throw new VideoCaptureException(VideoErrorCode.WriteFailed, "Encoding again was asked for.");
+                    }
+
                     var copied = Mp4Composer.Copy(outputPath, segments, null, duration, progress, cancellationToken);
                     return new VideoJoinResult(copied.Frames, copied.DurationTicks / TimeSpan.TicksPerMillisecond, copied.Bytes, false);
                 }
@@ -47,7 +52,7 @@ public sealed class MediaFoundationVideoFiles : IVideoFiles
                 {
                     // Parts from different encoders (a hardware encoder failed mid-recording): encode them again as one.
                     var (width, height, frameRate, bitrate) = Format(parts[0].Path);
-                    var encoded = Mp4Composer.Encode(outputPath, segments, width, height, frameRate, bitrate, null, [], null, duration, progress, cancellationToken);
+                    var encoded = Mp4Composer.Encode(outputPath, segments, width, height, frameRate, bitrate, null, [], null, duration, progress, cancellationToken, preferHardware: !reencode);
                     return new VideoJoinResult(encoded.Frames, encoded.DurationTicks / TimeSpan.TicksPerMillisecond, encoded.Bytes, true);
                 }
             },

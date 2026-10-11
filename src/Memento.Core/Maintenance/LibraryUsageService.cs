@@ -2,13 +2,12 @@ using Memento.Core.Bridge.Contracts;
 using Memento.Core.Host;
 using Memento.Core.Library;
 using Memento.Core.Projects;
-using Memento.Core.Settings;
 using Memento.Core.Video;
 
 namespace Memento.Core.Maintenance;
 
 /// <summary><c>library.usage</c> and <c>library.rebuildIndex</c> (Settings › Storage and history).</summary>
-public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation library, IFreeSpaceProbe freeSpace, ILibraryIndex index, ProjectCatalog catalog, ISettingsStore? settings = null, TimeProvider? time = null)
+public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation library, IFreeSpaceProbe freeSpace, ILibraryIndex index, ProjectCatalog catalog)
 {
     public async Task<LibraryUsage> UsageAsync(CancellationToken cancellationToken)
     {
@@ -21,9 +20,6 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
         var mixOnly = 0;
         long videoBytes = 0;
         var videoRecordings = 0;
-        long olderBytes = 0;
-        var olderRecordings = 0;
-        DateTimeOffset? cutoff = settings?.Current.Storage.RemoveVideoOlderThanDays is { } days ? (time ?? TimeProvider.System).GetUtcNow() - TimeSpan.FromDays(days) : null;
         foreach (var id in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -39,11 +35,6 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
                 var video = VideoRemovalService.VideoFiles(manifest, store.GetProjectFolder(id)).Sum(f => f.Bytes);
                 videoBytes += video;
                 videoRecordings += video > 0 ? 1 : 0;
-                if (video > 0 && manifest.CreatedAt < cutoff)
-                {
-                    olderBytes += video;
-                    olderRecordings++;
-                }
             }
             catch (Exception ex) when (ex is ProjectNotFoundException or ProjectSchemaException or IOException or System.Text.Json.JsonException)
             {
@@ -68,7 +59,7 @@ public sealed class LibraryUsageService(IProjectStore store, ILibraryLocation li
             }
         }
 
-        return new LibraryUsage(total, freeSpace.GetFreeBytes(root) ?? 0, ids.Count, largest, separateBytes, separateRecordings, mixOnly, videoBytes, videoRecordings, olderBytes, olderRecordings);
+        return new LibraryUsage(total, freeSpace.GetFreeBytes(root) ?? 0, ids.Count, largest, separateBytes, separateRecordings, mixOnly, videoBytes, videoRecordings);
     }
 
     /// <summary>

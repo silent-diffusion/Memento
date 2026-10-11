@@ -14,6 +14,9 @@ public static class VideoErrors
     public static string WindowClosed(string window, long? atMs = null) =>
         $"“{window}” was closed{At(atMs)}. The video track ends there and everything before it is saved. Audio continues. Capture a display instead, or record audio only from here.";
 
+    public static string WindowMinimised(string window, long? atMs = null) =>
+        $"“{window}” was minimised{At(atMs)}. Its video pauses and continues when the window comes back; audio keeps recording.";
+
     public static string DisplayNotFound(string display) =>
         $"{display} is not connected, so it can't be captured. Audio recording is not affected. Pick another display.";
 

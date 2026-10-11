@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using Memento.Core.Bridge.Contracts;
 using Memento.Video.Gpu;
 using Memento.Video.Interop;
+using Memento.Video.Export;
 using Memento.Video.Sources;
 using SharpGen.Runtime;
 using Vortice.MediaFoundation;
@@ -19,15 +20,13 @@ namespace Memento.Video.Hosting;
 /// </summary>
 internal static partial class Thumbnails
 {
-    private const int CameraFramesToSkip = 5;
-
-    public static VideoThumbnailResult Take(VideoSourceId id, VideoSourceInfo info, int width)
+    public static VideoThumbnailResult Take(VideoSourceId id, VideoSourceInfo info, int width, Func<Nv12Frame?>? recording = null)
     {
         using var picture = id.Kind switch
         {
             VideoSourceKind.Display => Display(id, info),
             VideoSourceKind.Window => Window(id, info),
-            _ => Camera(id, info),
+            _ => Camera(id, info, recording),
         };
         return Encode(picture, width);
     }
@@ -84,100 +83,50 @@ internal static partial class Thumbnails
         return bitmap;
     }
 
-    private static unsafe Bitmap Camera(VideoSourceId id, VideoSourceInfo info)
+    /// <summary>
+    /// A camera's picture: the running track's latest one when it is being recorded (a camera opens only once), else
+    /// the next one from <see cref="CameraStills"/>, which keeps the camera open while the page keeps asking.
+    /// </summary>
+    private static Bitmap Camera(VideoSourceId id, VideoSourceInfo info, Func<Nv12Frame?>? recording)
     {
-        var access = CameraPrivacy.Read();
-        if (access is CameraAccess.DeniedForPc or CameraAccess.DeniedForUser or CameraAccess.DeniedForDesktopApps)
-        {
-            throw CameraErrors.Classify(CameraErrors.AccessDenied, info.Name, access, null);
-        }
+        var frame = recording?.Invoke() ?? CameraStills.Take(id, info.Name);
+        return ToBitmap(frame);
+    }
 
-        MediaFoundationRuntime.EnsureStarted();
-        IMFMediaSource? source = null;
-        IMFSourceReader? reader = null;
+    /// <summary>NV12 (BT.709, limited range) to a 32-bit bitmap.</summary>
+    internal static unsafe Bitmap ToBitmap(Nv12Frame frame)
+    {
+        var bitmap = new Bitmap(frame.Width, frame.Height, PixelFormat.Format32bppRgb);
+        var data = bitmap.LockBits(new Rectangle(0, 0, frame.Width, frame.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
         try
         {
-            using (var attributes = MediaFactory.MFCreateAttributes(2))
+            var source = frame.Data;
+            var chroma = frame.Width * frame.Height;
+            for (var y = 0; y < frame.Height; y++)
             {
-                attributes.Set(CaptureDeviceAttributeKeys.SourceType, CaptureDeviceAttributeKeys.SourceTypeVidcap);
-                attributes.Set(CaptureDeviceAttributeKeys.SourceTypeVidcapSymbolicLink, id.Key);
-                source = MediaFactory.MFCreateDeviceSource(attributes);
-            }
-
-            using (var attributes = MediaFactory.MFCreateAttributes(2))
-            {
-                attributes.Set(SourceReaderAttributeKeys.EnableVideoProcessing, 1u);
-                attributes.Set(SourceReaderAttributeKeys.DisconnectMediasourceOnShutdown, 1u);
-                reader = MediaFactory.MFCreateSourceReaderFromMediaSource(source, attributes);
-            }
-
-            using (var type = MediaFactory.MFCreateMediaType())
-            {
-                type.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-                type.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32);
-                reader.SetCurrentMediaType(SourceReaderIndex.FirstVideoStream, type);
-            }
-
-            using var current = reader.GetCurrentMediaType(SourceReaderIndex.FirstVideoStream);
-            var size = current.GetUInt64(MediaTypeAttributeKeys.FrameSize);
-            var width = (int)(size >> 32);
-            var height = (int)(size & 0xFFFFFFFF);
-
-            // The first frames of many cameras are dark while exposure settles.
-            for (var i = 0; ; i++)
-            {
-                using var sample = reader.ReadSample(SourceReaderIndex.FirstVideoStream, SourceReaderControlFlag.None, out _, out var flags, out _);
-                if ((flags & SourceReaderFlag.EndOfStream) != 0)
+                var row = (byte*)data.Scan0 + ((long)y * data.Stride);
+                for (var x = 0; x < frame.Width; x++)
                 {
-                    throw new VideoCaptureException(VideoErrorCode.SourceNotFound, VideoErrors.CameraNotFound(info.Name));
-                }
-
-                if (sample is null || i < CameraFramesToSkip)
-                {
-                    continue;
-                }
-
-                using var buffer = sample.ConvertToContiguousBuffer();
-                buffer.Lock(out var pointer, out _, out var length);
-                try
-                {
-                    var bitmap = new Bitmap(width, height, PixelFormat.Format32bppRgb);
-                    var data = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
-                    try
-                    {
-                        var rowBytes = width * 4;
-                        for (var y = 0; y < height && ((y + 1) * rowBytes) <= length; y++)
-                        {
-                            Buffer.MemoryCopy((byte*)pointer + ((long)y * rowBytes), (byte*)data.Scan0 + ((long)y * data.Stride), data.Stride, rowBytes);
-                        }
-                    }
-                    finally
-                    {
-                        bitmap.UnlockBits(data);
-                    }
-
-                    return bitmap;
-                }
-                finally
-                {
-                    buffer.Unlock();
+                    var c = (source[(y * frame.Width) + x] - 16) * 1.164;
+                    var uv = chroma + ((y / 2) * frame.Width) + ((x / 2) * 2);
+                    var d = source[uv] - 128;
+                    var e = source[uv + 1] - 128;
+                    row[(x * 4) + 2] = Clamp(c + (1.793 * e));
+                    row[(x * 4) + 1] = Clamp(c - (0.213 * d) - (0.533 * e));
+                    row[x * 4] = Clamp(c + (2.112 * d));
+                    row[(x * 4) + 3] = 255;
                 }
             }
-        }
-        catch (SharpGenException ex)
-        {
-            throw CameraErrors.Classify(ex.ResultCode.Code, info.Name, CameraPrivacy.Read(), CameraUsage.AppUsingCamera(Environment.ProcessPath), inner: ex);
         }
         finally
         {
-            reader?.Dispose();
-            if (source is not null)
-            {
-                source.Shutdown();
-                source.Dispose();
-            }
+            bitmap.UnlockBits(data);
         }
+
+        return bitmap;
     }
+
+    private static byte Clamp(double value) => (byte)Math.Clamp((int)Math.Round(value), 0, 255);
 
     private static VideoThumbnailResult Encode(Bitmap picture, int width)
     {

@@ -4,7 +4,7 @@ using Memento.Core.Video;
 
 namespace Memento.Core.Settings;
 
-/// <summary>Settings › Recording › Video defaults (2.0, DESIGN.md §18.5). Missing in 1.x files, which then read with the defaults.</summary>
+/// <summary>Settings › Recording › Video defaults (2.0, DESIGN.md §18.5): <c>recording.video</c>. Missing in 1.x files, which then read with the defaults.</summary>
 public sealed record VideoSettings
 {
     public const string SourceScreen = "screen";
@@ -26,18 +26,13 @@ public sealed record VideoSettings
 
     public static IReadOnlyList<string> Qualities { get; } = [QualitySmaller, QualityBalanced, QualityBest];
 
-    /// <summary>Recording mode Audio + video; the product default is Audio only.</summary>
-    public bool RecordVideo { get; init; }
-
-    public string DefaultSource { get; init; } = SourceScreen;
+    public string DefaultSource { get; init; } = SourceScreenAndCamera;
 
     public string Resolution { get; init; } = ResolutionDisplay;
 
     public int FrameRate { get; init; } = 30;
 
     public string Quality { get; init; } = QualityBalanced;
-
-    public string? DefaultDisplayId { get; init; }
 
     public string? DefaultCameraId { get; init; }
 
@@ -78,9 +73,9 @@ public sealed record VideoSettings
             return $"Inset corner '{PipCorner}' is not available. Choose {string.Join(", ", VideoPipChange.Corners)}.";
         }
 
-        if (DefaultDisplayId is { Length: > 512 } || DefaultCameraId is { Length: > 512 })
+        if (DefaultCameraId is { Length: > 512 })
         {
-            return "The remembered display or camera is not valid; choose it again.";
+            return "The remembered camera is not valid; choose it again.";
         }
 
         return null;

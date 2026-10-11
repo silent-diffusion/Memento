@@ -3,13 +3,21 @@
 // real work. Kept small on purpose: the Recording screen's VIDEO section brings its own richer mock.
 
 import { MockHostError } from './mockSession';
-import type { BridgeMethods, VideoSourcesResult } from './types';
+import type { BridgeMethods, VideoListSourcesResult } from './types';
 
-type VideoMethod = 'video.listSources' | 'video.thumbnail' | 'recording.setVideoSource' | 'recording.setPip' | 'video.openPrivacySettings' | 'video.remove';
+type VideoMethod =
+  | 'video.listSources'
+  | 'video.thumbnail'
+  | 'recording.setVideoSource'
+  | 'recording.setPip'
+  | 'recording.setVideoQuality'
+  | 'video.openPrivacySettings'
+  | 'video.remove'
+  | 'video.removeEstimate';
 
 type VideoHandlers = { [M in VideoMethod]: (params: BridgeMethods[M]['params']) => BridgeMethods[M]['result'] };
 
-const PREVIEW_SOURCES: VideoSourcesResult = {
+const PREVIEW_SOURCES: VideoListSourcesResult = {
   displays: [
     {
       id: 'display:\\\\.\\DISPLAY1',
@@ -21,8 +29,6 @@ const PREVIEW_SOURCES: VideoSourcesResult = {
       refreshRate: 60,
       primary: true,
       excluded: false,
-      protected: false,
-      processName: null,
     },
   ],
   windows: [],
@@ -38,18 +44,20 @@ export function createMockVideo(): { handlers: VideoHandlers } {
   return {
     handlers: {
       'video.listSources': () => PREVIEW_SOURCES,
-      'video.thumbnail': (params) => ({ dataUrl: STILL, width: params.width ?? 320, height: Math.round(((params.width ?? 320) * 9) / 16) }),
+      'video.thumbnail': () => ({ dataUrl: STILL }),
       'recording.setVideoSource': (params) => {
         if (params.sourceId === null) {
           return { videoTracks: [] };
         }
-        throw new MockHostError('video.unavailable', UNAVAILABLE, params.sourceId);
+        throw new MockHostError('video.sourceNotFound', UNAVAILABLE, params.sourceId);
       },
       'recording.setPip': () => ({}),
+      'recording.setVideoQuality': () => ({ videoTracks: [] }),
       'video.openPrivacySettings': () => ({}),
       'video.remove': (params) => {
-        throw new MockHostError('video.nothingToRemove', 'This recording has no video files to remove. Nothing was changed.', params.recordingId);
+        throw new MockHostError('bridge.invalidParams', 'This recording has no video files to remove. Nothing was changed.', params.recordingId);
       },
+      'video.removeEstimate': () => ({ recordings: 0, bytes: 0 }),
     },
   };
 }

@@ -29,9 +29,22 @@ internal sealed class FakeVideoFiles : IVideoFiles
         return RepairResult;
     }
 
-    public async Task<VideoJoinResult> JoinAsync(IReadOnlyList<VideoJoinPart> parts, string outputPath, IProgress<double>? progress, CancellationToken cancellationToken)
+    public bool LastJoinReencoded { get; private set; }
+
+    /// <summary>The next join fails with this.</summary>
+    public Exception? FailNextJoin { get; set; }
+
+    public async Task<VideoJoinResult> JoinAsync(IReadOnlyList<VideoJoinPart> parts, string outputPath, bool reencode, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         Joins.Add(parts);
+        LastJoinReencoded = reencode;
+        if (FailNextJoin is { } fail)
+        {
+            FailNextJoin = null;
+            progress?.Report(0.7);
+            throw fail;
+        }
+
         progress?.Report(0.5);
         await File.WriteAllBytesAsync(outputPath, new byte[parts.Count * 1000], cancellationToken);
         return new VideoJoinResult(600, 20_000, parts.Count * 1000, JoinReencodes);

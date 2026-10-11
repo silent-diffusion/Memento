@@ -24,6 +24,7 @@ public sealed class CameraCaptureSource : IVideoSource
     private Thread? _thread;
     private volatile bool _stopping;
     private ID3D11Texture2D? _latest;
+    private ID3D11Texture2D? _staging;
     private int _width;
     private int _height;
     private long _sequence;
@@ -290,6 +291,45 @@ public sealed class CameraCaptureSource : IVideoSource
         }
     }
 
+    /// <summary>
+    /// A copy of the latest picture in managed memory (the Recording screen's thumbnail of a camera that is being
+    /// recorded, which cannot be opened a second time); <c>null</c> before the first picture.
+    /// </summary>
+    internal Export.Nv12Frame? Snapshot()
+    {
+        lock (_gate)
+        {
+            if (_latest is null || _sequence == 0)
+            {
+                return null;
+            }
+
+            _staging ??= _device.Device.CreateTexture2D(new Texture2DDescription
+            {
+                Width = (uint)_width,
+                Height = (uint)_height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Vortice.DXGI.Format.NV12,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Staging,
+                CPUAccessFlags = CpuAccessFlags.Read,
+            });
+            _device.Context.CopyResource(_staging, _latest);
+            var mapped = _device.Context.Map(_staging, 0, MapMode.Read);
+            try
+            {
+                var frame = new Export.Nv12Frame(_width, _height);
+                frame.CopyFrom(mapped.DataPointer, (int)mapped.RowPitch, _width, _height);
+                return frame;
+            }
+            finally
+            {
+                _device.Context.Unmap(_staging, 0);
+            }
+        }
+    }
+
     public bool TryGetLatest(out VideoFrame frame)
     {
         lock (_gate)
@@ -328,6 +368,8 @@ public sealed class CameraCaptureSource : IVideoSource
 
     private void Release()
     {
+        _staging?.Dispose();
+        _staging = null;
         _reader?.Dispose();
         _reader = null;
         _mediaSource?.Dispose();

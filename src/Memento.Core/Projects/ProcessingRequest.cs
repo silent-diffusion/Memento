@@ -8,4 +8,6 @@ namespace Memento.Core.Projects;
 /// <param name="Language">A language other than the one in Settings.</param>
 /// <param name="ForceCpu">Run on the processor (the <c>cpu</c> remedy).</param>
 /// <param name="Retranscribe">The pass replaces an existing transcript (it is kept as a version when history is on).</param>
-public sealed record ProcessingRequest(string? ModelId = null, string? Language = null, bool ForceCpu = false, bool Retranscribe = false);
+/// <param name="VideoSoftware">2.0, the video stage's <c>software</c> remedy: join by encoding again in software.</param>
+/// <param name="VideoKeepRaw">2.0, the video stage's <c>keepRaw</c> remedy: keep the parts as written.</param>
+public sealed record ProcessingRequest(string? ModelId = null, string? Language = null, bool ForceCpu = false, bool Retranscribe = false, bool VideoSoftware = false, bool VideoKeepRaw = false);

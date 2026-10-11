@@ -11,6 +11,7 @@ interface FileCase {
   trackName?: string;
   trackId?: string;
   name?: string;
+  part?: string;
 }
 
 function fileName(c: FileCase): string {
@@ -26,6 +27,8 @@ function fileName(c: FileCase): string {
       return exportFileNames.details(base);
     case 'attachment':
       return exportFileNames.attachment(c.name ?? '');
+    case 'video':
+      return exportFileNames.video(base, (c.part ?? 'combined') as 'combined' | 'screen' | 'camera');
     default:
       throw new Error(`Unknown case kind ${c.kind}`);
   }

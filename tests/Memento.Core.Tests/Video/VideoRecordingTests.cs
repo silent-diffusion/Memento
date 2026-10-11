@@ -110,14 +110,21 @@ public sealed class VideoRecordingTests : IDisposable
 
         // Review gets the file and where it sits; the Library row says it has video.
         var project = await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }));
-        var info = project.GetProperty("videoTracks")[0];
-        Assert.Equal($"https://library.memento/{recordingId}/tracks/screen.mp4", info.GetProperty("url").GetString());
+        var video = project.GetProperty("video");
+        var info = video.GetProperty("tracks")[0];
+        Assert.Equal(("screen", "display", "Display 1"), (info.GetProperty("id").GetString(), info.GetProperty("sourceKind").GetString(), info.GetProperty("sourceName").GetString()));
+        Assert.Equal($"https://library.memento/{recordingId}/tracks/screen.mp4", info.GetProperty("parts")[0].GetProperty("url").GetString());
         Assert.Equal(40, info.GetProperty("startOffsetMs").GetInt64());
-        Assert.Equal("screen", project.GetProperty("video").GetProperty("layout").GetString());
-        Assert.Equal(JsonValueKind.Null, project.GetProperty("pip").ValueKind);
+        Assert.Equal(40, info.GetProperty("parts")[0].GetProperty("startOffsetMs").GetInt64());
+        Assert.Equal(JsonValueKind.Null, info.GetProperty("endReason").ValueKind);
+        Assert.Equal(4096, video.GetProperty("sizeBytes").GetInt64());
+        Assert.False(video.GetProperty("pip").GetProperty("enabled").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, video.GetProperty("removed").ValueKind);
         var row = Assert.Single((await _host.ResultAsync("library.list")).GetProperty("recordings").EnumerateArray());
-        Assert.Equal("present", row.GetProperty("video").GetProperty("state").GetString());
-        Assert.Equal(4096, row.GetProperty("video").GetProperty("sizeBytes").GetInt64());
+        Assert.Equal("""{"roles":["screen"],"height":1080,"removedAt":null}""", row.GetProperty("video").GetRawText());
+
+        // A finished video stage is housekeeping: rows leave it out, as they do a finished stored stage.
+        Assert.DoesNotContain(row.GetProperty("stages").EnumerateArray(), s => s.GetProperty("stage").GetString() == "video");
     }
 
     [Fact]
@@ -128,7 +135,8 @@ public sealed class VideoRecordingTests : IDisposable
         var (sessionId, recordingId) = await _host.StartAsync("Interview", Mic, FakeVideoCapture.Camera);
 
         var problem = await _host.Sink.WaitForAsync(BridgeEventNames.RecordingVideoProblem);
-        Assert.Equal((sessionId, "camera", "notStarted", "video.cameraInUse"), (problem.GetProperty("sessionId").GetString(), problem.GetProperty("trackId").GetString(), problem.GetProperty("state").GetString(), problem.GetProperty("code").GetString()));
+        Assert.Equal((sessionId, "camera", "waiting", "video.cameraInUse"), (problem.GetProperty("sessionId").GetString(), problem.GetProperty("trackId").GetString(), problem.GetProperty("state").GetString(), problem.GetProperty("code").GetString()));
+        Assert.Equal((FakeVideoCapture.Camera, "Test camera", "Zoom"), (problem.GetProperty("sourceId").GetString(), problem.GetProperty("sourceName").GetString(), problem.GetProperty("detail").GetString()));
         Assert.StartsWith("Test camera is in use", problem.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal("recording", (await _host.ResultAsync("recording.current")).GetProperty("session").GetProperty("state").GetString());
 
@@ -174,7 +182,7 @@ public sealed class VideoRecordingTests : IDisposable
         _host.Session.Advance(TimeSpan.FromSeconds(3));
         var ended = (await SetVideoSourceAsync(sessionId, "screen", null)).GetProperty("result").GetProperty("videoTracks");
         Assert.True(first.Stopped);
-        Assert.Equal("stopped", Assert.Single(ended.EnumerateArray()).GetProperty("state").GetString());
+        Assert.Empty(ended.EnumerateArray());
         await SetVideoSourceAsync(sessionId, "screen", FakeVideoCapture.Display1);
         Assert.Equal(["screen", "screen-2"], _capture.Started.Select(t => t.TrackId));
 
@@ -210,10 +218,14 @@ public sealed class VideoRecordingTests : IDisposable
         var (sessionId, recordingId) = await _host.StartAsync("Window", Mic, FakeVideoCapture.Window);
         var track = Assert.Single(_capture.Started);
 
-        track.Raise("ended", "video.sourceLost", "“Planning notes” was closed at 0:00:05. The video track ends there and everything before it is saved.", 5000);
+        track.Raise("ended", "video.windowClosed", "“Planning notes” was closed at 0:00:05. The video track ends there and everything before it is saved.", 5000);
 
-        var problem = await _host.Sink.WaitForAsync(BridgeEventNames.RecordingVideoProblem, p => p.GetProperty("code").GetString() == "video.sourceLost");
-        Assert.Equal(("screen", "screen", "ended", 5000L), (problem.GetProperty("trackId").GetString(), problem.GetProperty("role").GetString(), problem.GetProperty("state").GetString(), problem.GetProperty("atMs").GetInt64()));
+        var problem = await _host.Sink.WaitForAsync(BridgeEventNames.RecordingVideoProblem, p => p.GetProperty("code").GetString() == "video.windowClosed");
+        Assert.Equal(("screen", "ended", FakeVideoCapture.Window, "Planning notes", 5000L), (problem.GetProperty("trackId").GetString(), problem.GetProperty("state").GetString(), problem.GetProperty("sourceId").GetString(), problem.GetProperty("sourceName").GetString(), problem.GetProperty("atMs").GetInt64()));
+
+        // The ended track stays listed until it is replaced.
+        var status = await _host.Sink.WaitForAsync(BridgeEventNames.RecordingVideoStatus, p => p.GetProperty("videoTracks").EnumerateArray().Any(t => t.GetProperty("state").GetString() == "ended"));
+        Assert.Equal("screen", status.GetProperty("videoTracks")[0].GetProperty("trackId").GetString());
 
         // "Capture Display 1 instead": a new track from here.
         await SetVideoSourceAsync(sessionId, "screen", FakeVideoCapture.Display1);
@@ -233,7 +245,7 @@ public sealed class VideoRecordingTests : IDisposable
         _host.FreeSpace.FreeBytes = 600L * 1024 * 1024;
 
         var problem = await _host.Sink.WaitForAsync(BridgeEventNames.RecordingVideoProblem, p => p.GetProperty("code").GetString() == "video.diskFull");
-        Assert.Equal("ended", problem.GetProperty("state").GetString());
+        Assert.Equal("stopped", problem.GetProperty("state").GetString());
         Assert.StartsWith("Low disk space · 600 MB free. The screen video stopped at", problem.GetProperty("message").GetString(), StringComparison.Ordinal);
         await WaitUntilAsync(() => track.Stopped, "the video track to stop");
         Assert.Equal("recording", (await _host.ResultAsync("recording.current")).GetProperty("session").GetProperty("state").GetString());
@@ -259,10 +271,10 @@ public sealed class VideoRecordingTests : IDisposable
         await StopAsync(sessionId);
 
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
-        Assert.Equal([(0L, false, "bottomRight"), (2000L, true, "topLeft")], manifest.VideoPip.Select(p => (p.AtMs, p.Enabled, p.Corner)));
+        Assert.Equal([(0L, true, "bottomRight"), (2000L, true, "topLeft")], manifest.VideoPip.Select(p => (p.AtMs, p.Enabled, p.Corner)));
         var project = await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }));
-        Assert.Equal("topLeft", project.GetProperty("pip").GetProperty("corner").GetString());
-        Assert.Equal("screenAndCamera", project.GetProperty("video").GetProperty("layout").GetString());
+        Assert.Equal("topLeft", project.GetProperty("video").GetProperty("pip").GetProperty("corner").GetString());
+        Assert.Equal(2, project.GetProperty("video").GetProperty("tracks").GetArrayLength());
     }
 
     [Fact]
@@ -287,13 +299,15 @@ public sealed class VideoRecordingTests : IDisposable
         Assert.DoesNotContain("tracks/screen.mp4", manifest.Integrity.Files.Keys);
         Assert.Null(StageListOf(manifest, StageNames.Video));
         var history = await _host.Store.ReadHistoryAsync(recordingId, CancellationToken.None);
-        Assert.Contains(history, h => h.Stage == "video" && h.Summary == "Removed the video · freed 4 KB" && h.Detail!.Contains("Audio tracks, the transcript and documents are kept", StringComparison.Ordinal));
+        Assert.Contains(history, h => h.Stage == "video" && h.Summary == "Removed the video · 4 KB freed" && h.Detail!.Contains("Audio tracks, the transcript and documents are kept", StringComparison.Ordinal));
         var project = await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }));
-        Assert.Equal("removed", project.GetProperty("video").GetProperty("state").GetString());
-        Assert.Equal(JsonValueKind.Null, project.GetProperty("videoTracks")[0].GetProperty("url").ValueKind);
+        Assert.Empty(project.GetProperty("video").GetProperty("tracks").EnumerateArray());
+        Assert.Equal(4096, project.GetProperty("video").GetProperty("removed").GetProperty("bytesFreed").GetInt64());
+        Assert.False(project.GetProperty("summary").GetProperty("hasVideo").GetBoolean());
+        Assert.Equal(JsonValueKind.String, project.GetProperty("summary").GetProperty("video").GetProperty("removedAt").ValueKind);
 
         var again = await _host.CallAsync("video.remove", JsonSerializer.Serialize(new { recordingId }));
-        Assert.Equal("video.nothingToRemove", again.GetProperty("error").GetProperty("code").GetString());
+        Assert.Equal("bridge.invalidParams", again.GetProperty("error").GetProperty("code").GetString());
     }
 
     [Fact]
@@ -301,7 +315,10 @@ public sealed class VideoRecordingTests : IDisposable
     {
         var recordingId = await RecordWithVideoAsync();
         var usage = await _host.ResultAsync("library.usage");
-        Assert.Equal((4096L, 1, 0L), (usage.GetProperty("videoBytes").GetInt64(), usage.GetProperty("videoRecordings").GetInt32(), usage.GetProperty("videoOlderThanBytes").GetInt64()));
+        Assert.Equal((4096L, 1), (usage.GetProperty("videoBytes").GetInt64(), usage.GetProperty("videoRecordings").GetInt32()));
+        Assert.Equal("""{"recordings":0,"bytes":0}""", (await _host.ResultAsync("video.removeEstimate", """{"recordingIds":null,"olderThanDays":30}""")).GetRawText());
+        Assert.Equal("""{"recordings":1,"bytes":4096}""", (await _host.ResultAsync("video.removeEstimate", JsonSerializer.Serialize(new { recordingIds = new[] { recordingId }, olderThanDays = (int?)null }))).GetRawText());
+        Assert.Equal("""{"recordings":1,"bytes":4096}""", (await _host.ResultAsync("video.removeEstimate", """{"recordingIds":null,"olderThanDays":null}""")).GetRawText());
 
         // Nothing is older than a day yet.
         await _host.ResultAsync("settings.set", """{"storage":{"removeVideoOlderThanDays":1}}""");
@@ -310,8 +327,13 @@ public sealed class VideoRecordingTests : IDisposable
         // Make the recording look 40 days old.
         await _host.Get<Memento.Core.Library.ProjectCatalog>().UpdateAsync(recordingId, m => m with { CreatedAt = m.CreatedAt.AddDays(-40) }, CancellationToken.None);
         await _host.ResultAsync("settings.set", """{"storage":{"removeVideoOlderThanDays":30}}""");
-        usage = await _host.ResultAsync("library.usage");
-        Assert.Equal((4096L, 1), (usage.GetProperty("videoOlderThanBytes").GetInt64(), usage.GetProperty("videoOlderThanRecordings").GetInt32()));
+        Assert.Equal("""{"recordings":1,"bytes":4096}""", (await _host.ResultAsync("video.removeEstimate", """{"recordingIds":null,"olderThanDays":30}""")).GetRawText());
+
+        // Never while a recording runs.
+        var (sessionId, _) = await _host.StartAsync("Busy", Mic);
+        Assert.Equal(0, await _host.Get<VideoRemovalService>().SweepAsync(CancellationToken.None));
+        await StopAsync(sessionId);
+        await _host.Processing.WhenIdleAsync();
 
         Assert.Equal(1, await _host.Get<VideoRemovalService>().SweepAsync(CancellationToken.None));
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
@@ -343,9 +365,10 @@ public sealed class VideoRecordingTests : IDisposable
         var track = Assert.Single(manifest.VideoTracks);
         Assert.Equal((150L, 5000L), (track.FramesWritten, track.DurationMs));
         Assert.True(manifest.HasVideo);
-        Assert.Equal((1, 1), (manifest.Recovery!.VideoTracksIntact, manifest.Recovery.VideoTracksTotal));
+        var recoveredTrack = Assert.Single(manifest.Recovery!.VideoTracks!);
+        Assert.Equal(("screen", "Display 1", 5000L), (recoveredTrack.TrackId, recoveredTrack.SourceName, recoveredTrack.RecoveredDurationMs));
         var item = Assert.Single((await second.ResultAsync("recovery.list")).GetProperty("items").EnumerateArray());
-        Assert.Equal(1, item.GetProperty("videoTracksTotal").GetInt32());
+        Assert.Equal("""[{"trackId":"screen","sourceName":"Display 1","recoveredDurationMs":5000}]""", item.GetProperty("videoTracks").GetRawText());
         var history = await second.Store.ReadHistoryAsync(recordingId, CancellationToken.None);
         Assert.Contains(history, h => h.Stage == "recovered" && h.Detail!.Contains("1 of 1 video track intact", StringComparison.Ordinal));
         await second.Processing.WhenIdleAsync();
@@ -379,6 +402,77 @@ public sealed class VideoRecordingTests : IDisposable
         Assert.False(File.Exists(Path.Combine(folder, "tracks", "screen.mp4")));
         var history = await _host.Store.ReadHistoryAsync(recordingId, CancellationToken.None);
         Assert.Contains(history, h => h.Stage == "video" && h.Detail!.Contains("joined the screen video's 2 parts into one file (encoded again", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ACameraAnotherAppHoldsStartsByItselfWhenItIsFree()
+    {
+        _capture.Refuse[FakeVideoCapture.Camera] = FakeVideoCapture.CameraInUse();
+        var (sessionId, _) = await _host.StartAsync("Camera later", Mic, FakeVideoCapture.Camera);
+        await _host.Sink.WaitForAsync(BridgeEventNames.RecordingVideoProblem, p => p.GetProperty("code").GetString() == "video.cameraInUse");
+        Assert.Empty(_capture.Started);
+
+        _capture.Refuse.Remove(FakeVideoCapture.Camera);
+
+        await WaitUntilAsync(() => _capture.Started.Count == 1, "the camera track to start once the camera is free", 10_000);
+        Assert.Equal("camera", _capture.Started[0].TrackId);
+        await StopAsync(sessionId);
+    }
+
+    [Fact]
+    public async Task LowerQualityReachesTheRunningTracks()
+    {
+        var (sessionId, _) = await _host.StartAsync("Busy PC", Mic, FakeVideoCapture.Display1);
+
+        var result = await _host.ResultAsync("recording.setVideoQuality", JsonSerializer.Serialize(new { sessionId, quality = "smaller" }));
+
+        Assert.Equal(["smaller"], _capture.Started[0].Qualities);
+        Assert.Equal("screen", result.GetProperty("videoTracks")[0].GetProperty("trackId").GetString());
+        var bad = await _host.CallAsync("recording.setVideoQuality", JsonSerializer.Serialize(new { sessionId, quality = "huge" }));
+        Assert.Equal("bridge.invalidParams", bad.GetProperty("error").GetProperty("code").GetString());
+        await StopAsync(sessionId);
+    }
+
+    [Fact]
+    public async Task AFailedVideoStageStaysOnTheProcessingCardWithItsRemediesUntilOneIsChosen()
+    {
+        var recordingId = await RecordWithVideoAsync();
+        var folder = _host.Store.GetProjectFolder(recordingId);
+        File.WriteAllBytes(Path.Combine(folder, "tracks", "screen.part2.mp4"), new byte[3000]);
+        await _host.Get<Memento.Core.Library.ProjectCatalog>().UpdateAsync(
+            recordingId,
+            m => m with { VideoTracks = [m.VideoTracks[0] with { Parts = [.. m.VideoTracks[0].Parts, new VideoTrackPart("tracks/screen.part2.mp4", 6000, 4000, "Microsoft H.264 software encoder", false, 120)] }] },
+            CancellationToken.None);
+        _files.FailNextJoin = new IOException("The disk is full");
+
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId, stage = "video" }));
+        await _host.Processing.WhenIdleAsync();
+
+        var card = (await _host.ResultAsync("library.processing")).GetProperty("current");
+        Assert.Equal(recordingId, card.GetProperty("recordingId").GetString());
+        var failure = card.GetProperty("failure");
+        Assert.Equal("video", failure.GetProperty("stage").GetString());
+        Assert.StartsWith("Finalising the video file stopped at", failure.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(["software", "keepRaw"], failure.GetProperty("remedies").EnumerateArray().Select(r => r.GetProperty("id").GetString()));
+
+        // Keep raw frames: the parts stay as written, each hashed, and the stage is done.
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId, stage = "video", remedyId = "keepRaw" }));
+        await _host.Processing.WhenIdleAsync();
+
+        var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
+        Assert.Equal("done", manifest.Stages.Single(s => s.Stage == "video").State);
+        Assert.Equal("tracks/screen.mp4", manifest.VideoTracks[0].File);
+        Assert.True(File.Exists(Path.Combine(folder, "tracks", "screen.part2.mp4")));
+        Assert.Contains("tracks/screen.part2.mp4", manifest.Integrity.Files.Keys);
+        Assert.False(manifest.Processing?.VideoKeepRaw ?? false);
+        Assert.Equal(JsonValueKind.Null, (await _host.ResultAsync("library.processing")).GetProperty("current").ValueKind);
+        var project = await _host.ResultAsync("project.get", JsonSerializer.Serialize(new { recordingId }));
+        Assert.Equal(2, project.GetProperty("video").GetProperty("tracks")[0].GetProperty("parts").GetArrayLength());
+
+        // Software: the parts are joined by encoding them again.
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId, stage = "video", remedyId = "software" }));
+        await _host.Processing.WhenIdleAsync();
+        Assert.True(_files.LastJoinReencoded);
     }
 
     private async Task<string> RecordWithVideoAsync()

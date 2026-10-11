@@ -40,6 +40,8 @@ internal sealed class FakeVideoTrackRecorder : IVideoTrackRecorder
 
     public List<string> Switches { get; } = [];
 
+    public List<string> Qualities { get; } = [];
+
     public bool Stopped { get; private set; }
 
     public bool Disposed { get; private set; }
@@ -63,6 +65,16 @@ internal sealed class FakeVideoTrackRecorder : IVideoTrackRecorder
             Resumes++;
             _state = "recording";
         }
+    }
+
+    public Task SetQualityAsync(string quality, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            Qualities.Add(quality);
+        }
+
+        return Task.CompletedTask;
     }
 
     public Task SwitchSourceAsync(string sourceId, CancellationToken cancellationToken)
@@ -100,19 +112,19 @@ internal sealed class FakeVideoTrackRecorder : IVideoTrackRecorder
     {
         lock (_gate)
         {
-            return new VideoTrackStatus(TrackId, Role, _state, SourceId, _sourceName, null, "Test encoder", true, 1920, 1080, 30, 7_800_000, 2_000_000, 300, 1, 4096, 10_000, 40);
+            return new VideoTrackStatus(TrackId, _state, SourceId, _sourceName, null, "Test encoder", true, 1920, 1080, 30, 7_800_000, 2_000_000, 300, 1, 4096, 10_000);
         }
     }
 
     /// <summary>The source went away or the encoder failed, as Memento.Video would say it.</summary>
-    public void Raise(string state, string code, string message, long atMs)
+    public void Raise(string state, string code, string message, long atMs, string? detail = null)
     {
         lock (_gate)
         {
             _state = state;
         }
 
-        Problem?.Invoke(this, new VideoProblemEventArgs(TrackId, Role, state, code, message, atMs));
+        Problem?.Invoke(this, new VideoProblemEventArgs(TrackId, Role, state, code, SourceId, _sourceName, detail, message, atMs));
     }
 
     public Task<VideoTrack> StopAsync(CancellationToken cancellationToken)

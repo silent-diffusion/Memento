@@ -99,8 +99,7 @@ public sealed partial class RecoveryService(
                     recovery.LastCheckpointAt,
                     recovery.RecoveredDurationMs,
                     recovery.MayBeMissingMs,
-                    recovery.VideoTracksIntact,
-                    recovery.VideoTracksTotal));
+                    recovery.VideoTracks));
             }
         }
 
@@ -233,7 +232,7 @@ public sealed partial class RecoveryService(
         var (videoTracks, videoIntact) = RecoverVideo(id, folder, manifest, state);
         var now = time.GetLocalNow();
         var recovery = interrupted
-            ? new ProjectRecovery(now, state?.LastCheckpointAt, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, Acknowledged: false, videoIntact, videoTracks.Count)
+            ? new ProjectRecovery(now, state?.LastCheckpointAt, intact, stateTracks.Count, recoveredMs, mayBeMissingMs, Acknowledged: false, videoTracks.Select(t => new RecoveredVideoTrack(t.Role, t.Name, t.DurationMs)).ToList())
             : manifest.Recovery;
         await catalog.UpdateAsync(
             id,

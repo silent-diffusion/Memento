@@ -40,7 +40,4 @@ public sealed record SettingsSetParams
 
     /// <summary>Settings › Documents (M4); each field present is changed.</summary>
     public DocumentsSettingsPatch? Documents { get; init; }
-
-    /// <summary>Settings › Recording › Video defaults (2.0); each field present is changed, the others keep their value.</summary>
-    public VideoSettingsPatch? Video { get; init; }
 }

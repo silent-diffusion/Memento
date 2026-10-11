@@ -220,19 +220,4 @@ public static class DomainErrorCodes
 
     /// <summary>The disk is (nearly) full: video stopped first; audio continues.</summary>
     public const string VideoDiskFull = "video.diskFull";
-
-    /// <summary>A captured display was disconnected (the track waits) or a captured window or camera went away (the track ended).</summary>
-    public const string VideoSourceLost = "video.sourceLost";
-
-    /// <summary>The hardware encoder failed mid-recording; the track continues with the software encoder in a new part.</summary>
-    public const string VideoEncoderFailed = "video.encoderFailed";
-
-    /// <summary>A video file could not be written (folder gone, access denied); the track ended, everything before it is kept.</summary>
-    public const string VideoWriteFailed = "video.writeFailed";
-
-    /// <summary>Video capture is not available on this PC, in this Windows session or in this copy of Memento.</summary>
-    public const string VideoUnavailable = "video.unavailable";
-
-    /// <summary><c>video.remove</c> for a recording without video files (none recorded, or already removed).</summary>
-    public const string VideoNothingToRemove = "video.nothingToRemove";
 }

@@ -589,8 +589,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         }
     }
 
-    /// <summary>2.0: the Library's video summary of <paramref name="manifest"/> (sizes read from its folder), as JSON.</summary>
-    private string? VideoJson(ProjectManifest manifest)
+    /// <summary>2.0: the Library's video summary of <paramref name="manifest"/>, as JSON.</summary>
+    private static string? VideoJson(ProjectManifest manifest)
     {
         if (manifest.VideoTracks.Count == 0)
         {
@@ -599,7 +599,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
 
         try
         {
-            return Video.VideoMapper.ToJson(Video.VideoMapper.Summarize(manifest, _store.GetProjectFolder(manifest.Id)));
+            return Video.VideoMapper.ToJson(Video.VideoMapper.Summarize(manifest));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {

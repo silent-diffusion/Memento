@@ -13,8 +13,8 @@ public sealed class UnavailableVideoCapture : IVideoCapture
     public VideoSourcesResult ListSources() => new([], [], []);
 
     public Task<VideoThumbnailResult> ThumbnailAsync(string sourceId, int width, CancellationToken cancellationToken) =>
-        Task.FromException<VideoThumbnailResult>(new VideoStartException(DomainErrorCodes.VideoUnavailable, Message));
+        Task.FromException<VideoThumbnailResult>(new VideoStartException(DomainErrorCodes.VideoSourceNotFound, Message));
 
     public Task<IVideoTrackRecorder> StartTrackAsync(VideoTrackRequest request, CancellationToken cancellationToken) =>
-        Task.FromException<IVideoTrackRecorder>(new VideoStartException(DomainErrorCodes.VideoUnavailable, Message));
+        Task.FromException<IVideoTrackRecorder>(new VideoStartException(DomainErrorCodes.VideoSourceNotFound, Message));
 }

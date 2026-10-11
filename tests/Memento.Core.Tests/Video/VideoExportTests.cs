@@ -63,7 +63,9 @@ public sealed class VideoExportTests : IDisposable
         Assert.Equal([baseName + " - screen.mp4", baseName + " - camera.mp4"], (await EstimateAsync(id, VideoOnly("mp4", "twoFiles"))).Names);
 
         // The original frames cannot have the inset burnt in: the camera comes as its own file.
-        Assert.Equal([baseName + ".mp4", baseName + " - camera.mp4"], (await EstimateAsync(id, VideoOnly("original", "oneFile"))).Names);
+        Assert.Equal([baseName + " - screen.mp4", baseName + " - camera.mp4"], (await EstimateAsync(id, VideoOnly("original", "twoFiles"))).Names);
+        var oneOriginal = await _m3.CallAsync("export.estimate", new { recordingId = id, selection = VideoOnly("original", "oneFile") });
+        Assert.Equal("bridge.invalidParams", oneOriginal.GetProperty("error").GetProperty("code").GetString());
 
         // Sizes: the recorded size plus the audio at 192 kb/s (3 s here).
         var (_, estimate) = await EstimateAsync(id, VideoOnly("original", "twoFiles"));
@@ -77,12 +79,12 @@ public sealed class VideoExportTests : IDisposable
         var audioOnly = await RecordAsync();
         var (names, estimate) = await EstimateAsync(audioOnly, VideoOnly("mp4", "oneFile"));
         Assert.Empty(names);
-        Assert.Equal("""[{"component":"video","reason":"No video was recorded"}]""", estimate.GetProperty("unavailable").GetRawText());
+        Assert.Equal("""[{"component":"video","reason":"No video"}]""", estimate.GetProperty("unavailable").GetRawText());
 
         var withVideo = await RecordAsync(FakeVideoCapture.Display1);
         await _m3.ResultAsync("video.remove", new { recordingId = withVideo });
         (_, estimate) = await EstimateAsync(withVideo, VideoOnly("mp4", "oneFile"));
-        Assert.Equal("""[{"component":"video","reason":"The video was removed"}]""", estimate.GetProperty("unavailable").GetRawText());
+        Assert.Equal("""[{"component":"video","reason":"Video was removed"}]""", estimate.GetProperty("unavailable").GetRawText());
 
         var bad = await _m3.CallAsync("export.estimate", new { recordingId = withVideo, selection = VideoOnly("mkv", "oneFile") });
         Assert.Equal("bridge.invalidParams", bad.GetProperty("error").GetProperty("code").GetString());

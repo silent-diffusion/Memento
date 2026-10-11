@@ -5,7 +5,7 @@ namespace Memento.Core.Projects;
 /// <summary>Turns stored project data into bridge contracts.</summary>
 public static class ProjectMapper
 {
-    public static RecordingSummary ToSummary(ProjectManifest manifest, long sizeBytes, VideoSummary? video = null)
+    public static RecordingSummary ToSummary(ProjectManifest manifest, long sizeBytes, RecordingVideoSummary? video = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         return BuildSummary(
@@ -34,7 +34,7 @@ public static class ProjectMapper
         IReadOnlyList<StageStatus> stages,
         string state,
         long sizeBytes,
-        VideoSummary? video = null) =>
+        RecordingVideoSummary? video = null) =>
         new(
             id,
             title,
@@ -62,7 +62,7 @@ public static class ProjectMapper
     }
 
     /// <summary>Stages that only store the audio (as opposed to adding a transcript or a document).</summary>
-    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Optimize or StageNames.Topics;
+    private static bool IsHousekeeping(string stage) => stage is StageNames.Stored or StageNames.Video or StageNames.Optimize or StageNames.Topics;
 
     public static bool IsProcessing(IReadOnlyList<StageStatus> stages) => stages.Any(s => StageStates.IsRunning(s.State));
 

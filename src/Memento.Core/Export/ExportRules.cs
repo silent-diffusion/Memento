@@ -69,9 +69,15 @@ public static class ExportRules
             return $"Video: format '{video.Format}' is not available. Choose {string.Join(", ", VideoFormats)}.";
         }
 
-        return VideoLayouts.Contains(video.Layout ?? string.Empty, StringComparer.Ordinal)
-            ? null
-            : $"Video: '{video.Layout}' is not a layout. Choose {string.Join(" or ", VideoLayouts)}.";
+        if (!VideoLayouts.Contains(video.Layout ?? string.Empty, StringComparer.Ordinal))
+        {
+            return $"Video: '{video.Layout}' is not a layout. Choose {string.Join(" or ", VideoLayouts)}.";
+        }
+
+        // Copying the recorded frames cannot burn the camera inset in, so "Original container" is for two files only.
+        return video.On && video.Format == Original && video.Layout == OneFile
+            ? "Video: \"Original container\" copies each track as it was recorded, so it writes two files; choose twoFiles, or MP4 for one file."
+            : null;
     }
 
     /// <summary>The bitrate an MP3 export uses.</summary>

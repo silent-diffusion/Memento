@@ -26,8 +26,11 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(BridgeEventEnvelope<EmptyPayload>))]
 [JsonSerializable(typeof(VideoSettingsSnapshot))]
 [JsonSerializable(typeof(VideoSettingsPatch))]
-[JsonSerializable(typeof(VideoSummary))]
-[JsonSerializable(typeof(VideoTrackInfo))]
+[JsonSerializable(typeof(RecordingVideoSummary))]
+[JsonSerializable(typeof(ProjectVideo))]
+[JsonSerializable(typeof(RecordingSetVideoQualityParams))]
+[JsonSerializable(typeof(VideoRemoveEstimateParams))]
+[JsonSerializable(typeof(VideoRemoveEstimate))]
 [JsonSerializable(typeof(ExportVideoChoice))]
 public sealed partial class VideoBridgeJsonContext : JsonSerializerContext
 {

@@ -37,7 +37,6 @@ internal static class M3SettingsBlocks
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.Anthropic) ?? false),
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.OpenAi) ?? false))),
             Storage = new LibraryStorageSettingsSnapshot(settings.Storage.ReclaimOlderThanDays, settings.Storage.RemoveVideoOlderThanDays),
-            Video = VideoSettingsBlock.ToSnapshot(settings.Video),
         };
     }
 
@@ -115,17 +114,12 @@ internal static class M3SettingsBlocks
             };
         }
 
-        if (parameters.Video is { } video)
-        {
-            next = next with { Video = VideoSettingsBlock.Merge(next.Video, video) };
-        }
-
         return next;
     }
 
     /// <summary>The first problem with the M3 blocks, worded for people, or <c>null</c>.</summary>
     public static string? Validate(AppSettings settings) =>
-        settings.General.Validate() ?? settings.Export.Validate() ?? settings.Storage.Validate() ?? settings.Video.Validate();
+        settings.General.Validate() ?? settings.Export.Validate() ?? settings.Storage.Validate();
 
     /// <summary>
     /// Changes the Windows startup entry when <c>general.startWithWindows</c> is sent, before the settings are written,

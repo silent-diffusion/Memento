@@ -28,6 +28,12 @@ public sealed record RecordingSettings
 
     public int LowSpaceGb { get; init; } = DefaultLowSpaceGb;
 
+    /// <summary>2.0, Recording mode: Audio + video when true; Audio only (false) is the product default.</summary>
+    public bool CaptureVideo { get; init; }
+
+    /// <summary>2.0, Video defaults. A setter so a 1.x file without it reads the defaults.</summary>
+    public VideoSettings Video { get; set; } = new();
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -63,6 +69,6 @@ public sealed record RecordingSettings
             return "The remembered sources list is not valid; choose the sources again.";
         }
 
-        return Storage.Validate();
+        return Storage.Validate() ?? Video.Validate();
     }
 }

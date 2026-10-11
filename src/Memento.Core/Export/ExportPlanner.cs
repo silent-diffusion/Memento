@@ -179,9 +179,8 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
     }
 
     /// <summary>
-    /// 2.0, the Video row (DESIGN.md §18.4). One file: the screen with the camera inset burnt in where it was while
-    /// recording (MP4 re-encodes; "Original container" cannot burn anything in, so it copies the screen's frames and
-    /// writes the camera as its own file), with the mixed audio as AAC. Two files: each track at its own resolution;
+    /// 2.0, the Video row (DESIGN.md §18.4). One file (MP4 only): the screen with the camera inset burnt in where it was
+    /// while recording, with the mixed audio as AAC. Two files: each track at its own resolution;
     /// the mixed audio goes with the screen file. Sizes are estimates: a re-encode lands near the recorded size.
     /// </summary>
     private void AddVideo(ProjectManifest manifest, string folder, string baseName, bool stored, ExportVideoChoice choice, List<ExportItem> items, List<ExportUnavailable> unavailable)
@@ -193,7 +192,7 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         {
             unavailable.Add(new(
                 ExportComponents.Video,
-                manifest.VideoRemoved is not null ? "The video was removed" : manifest.VideoTracks.Count == 0 ? "No video was recorded" : stored ? "The video files are missing" : "Not saved yet"));
+                manifest.VideoRemoved is not null ? "Video was removed" : manifest.VideoTracks.Count == 0 ? "No video" : stored ? "The video files are missing" : "Not saved yet"));
             return;
         }
 
@@ -240,10 +239,6 @@ public sealed class ExportPlanner(IProjectStore store, ProjectService projects, 
         if (choice.Layout == ExportRules.OneFile && screen is not null)
         {
             Add(ExportNaming.VideoFile(baseName, null), screen, reencode ? camera : null, withAudio: true);
-            if (!reencode && camera is not null)
-            {
-                Add(ExportNaming.VideoFile(baseName, VideoTrack.RoleCamera), camera, null, withAudio: false);
-            }
         }
         else if (choice.Layout == ExportRules.OneFile)
         {

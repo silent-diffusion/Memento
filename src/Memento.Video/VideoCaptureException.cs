@@ -32,6 +32,9 @@ public sealed class VideoCaptureException : Exception
 
     public VideoErrorCode Code { get; }
 
+    /// <summary>The other app holding a camera, or the privacy switch that is off; <c>null</c> otherwise.</summary>
+    public string? Detail { get; init; }
+
     /// <summary>The HRESULT behind it, when Windows gave one.</summary>
     public int? HResultCode => InnerException?.HResult;
 }

@@ -56,16 +56,21 @@ public sealed partial class VideoRemovalService(
         return result;
     }
 
-    /// <summary>Recordings older than <paramref name="days"/> that still have video files, and their size (Settings' estimate).</summary>
-    public async Task<(int Recordings, long Bytes)> EstimateOlderThanAsync(int days, CancellationToken cancellationToken)
+    /// <summary>
+    /// <c>video.removeEstimate</c>: what Remove video would free, for <paramref name="recordingIds"/>, or (null) every recording
+    /// with video older than <paramref name="olderThanDays"/> (null: every one). Settings' "Would free 11.3 GB now, from 3 recordings".
+    /// </summary>
+    public async Task<(int Recordings, long Bytes)> EstimateAsync(IReadOnlyList<string>? recordingIds, int? olderThanDays, CancellationToken cancellationToken)
     {
-        var cutoff = time.GetUtcNow() - TimeSpan.FromDays(days);
+        DateTimeOffset? cutoff = recordingIds is null && olderThanDays is { } days ? time.GetUtcNow() - TimeSpan.FromDays(days) : null;
+        var ids = recordingIds?.Distinct(StringComparer.Ordinal).ToList() ?? (IReadOnlyList<string>)store.ListIds();
         var recordingsFound = 0;
         long bytes = 0;
-        foreach (var id in store.ListIds())
+        foreach (var id in ids)
         {
-            var manifest = await TryLoadAsync(id, cancellationToken);
-            if (manifest is null || manifest.VideoRemoved is not null || manifest.CreatedAt >= cutoff)
+            cancellationToken.ThrowIfCancellationRequested();
+            var manifest = ProjectId.IsValid(id) ? await TryLoadAsync(id, cancellationToken) : null;
+            if (manifest is null || manifest.VideoRemoved is not null || (cutoff is { } before && manifest.CreatedAt >= before))
             {
                 continue;
             }
@@ -103,6 +108,12 @@ public sealed partial class VideoRemovalService(
     public async Task<int> SweepAsync(CancellationToken cancellationToken)
     {
         if (settings.Current.Storage.RemoveVideoOlderThanDays is not { } days)
+        {
+            return 0;
+        }
+
+        // Never while a recording runs or processing works (the files may be in use, and the PC is busy).
+        if (recordings.Current is not null || processing.IsProcessing)
         {
             return 0;
         }
@@ -170,7 +181,7 @@ public sealed partial class VideoRemovalService(
         if (manifest.VideoTracks.Count == 0 || manifest.VideoRemoved is not null || files.Count == 0)
         {
             throw new BridgeException(
-                DomainErrorCodes.VideoNothingToRemove,
+                BridgeErrorCodes.InvalidParams,
                 manifest.VideoRemoved is { } earlier
                     ? $"The video of \"{manifest.Details.Title}\" was already removed on {earlier.At:d}. Nothing was changed."
                     : $"\"{manifest.Details.Title}\" has no video files to remove. Nothing was changed.",
@@ -188,6 +199,7 @@ public sealed partial class VideoRemovalService(
             m => m with
             {
                 VideoRemoved = record,
+                HasVideo = false,
                 VideoTracks = m.VideoTracks.Select(t => t with { Sha256 = null }).ToList(),
                 Integrity = m.Integrity with { Files = m.Integrity.Files.Where(kv => !names.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal) },
                 Stages = Processing.StageList.Without(m.Stages, StageNames.Video),
@@ -206,7 +218,7 @@ public sealed partial class VideoRemovalService(
                 removedAt,
                 StageNames.Video,
                 "completed",
-                $"Removed the video · freed {HumanFormat.Bytes(bytes)}",
+                $"Removed the video · {HumanFormat.Bytes(bytes)} freed",
                 (reason == ProjectVideoRemoved.ByAge && settings.Current.Storage.RemoveVideoOlderThanDays is { } days
                     ? $"Settings › Storage removes video older than {HumanFormat.Count(days, "day", "days")}. "
                     : string.Empty)

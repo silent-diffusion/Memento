@@ -66,5 +66,5 @@ internal sealed class FakeVideoCapture : IVideoCapture
     };
 
     public static VideoStartException CameraInUse() =>
-        new(DomainErrorCodes.VideoCameraInUse, "Test camera is in use by another app. Recording continues with the screen and all audio tracks.");
+        new(DomainErrorCodes.VideoCameraInUse, "Test camera is in use by Zoom. Recording continues with the screen and all audio tracks.", "Zoom");
 }

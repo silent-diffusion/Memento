@@ -18,6 +18,8 @@ public static class VideoServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, RecordingSetPipMethod>();
         services.AddSingleton<IBridgeHandler, VideoOpenPrivacySettingsMethod>();
         services.AddSingleton<IBridgeHandler, VideoRemoveMethod>();
+        services.AddSingleton<IBridgeHandler, RecordingSetVideoQualityMethod>();
+        services.AddSingleton<IBridgeHandler, VideoRemoveEstimateMethod>();
         return services;
     }
 }

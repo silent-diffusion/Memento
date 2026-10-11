@@ -36,12 +36,15 @@ public static class CameraErrors
         if (hresult == AccessDenied || access is CameraAccess.DeniedForPc or CameraAccess.DeniedForUser or CameraAccess.DeniedForDesktopApps)
         {
             var where = CameraPrivacy.Where(access);
-            return Make(VideoErrorCode.CameraPrivacyDenied, $"{camera} is blocked by Windows privacy settings. Recording continues with the screen and all audio tracks. Turn on {where}, then retry the camera.");
+            var denied = Make(VideoErrorCode.CameraPrivacyDenied, $"{camera} is blocked by Windows privacy settings. Recording continues with the screen and all audio tracks. Turn on {where}, then retry the camera.");
+            return new VideoCaptureException(denied.Code, denied.Message, denied.InnerException ?? denied) { Detail = where };
         }
 
         return hresult switch
         {
-            Busy or FailedStartStreaming or DevicePreempted => Make(VideoErrorCode.CameraInUse, VideoErrors.CameraInUse(camera, otherApp)),
+            Busy or FailedStartStreaming or DevicePreempted => inner is null
+                ? new VideoCaptureException(VideoErrorCode.CameraInUse, VideoErrors.CameraInUse(camera, otherApp)) { Detail = otherApp }
+                : new VideoCaptureException(VideoErrorCode.CameraInUse, VideoErrors.CameraInUse(camera, otherApp), inner) { Detail = otherApp },
             DeviceInvalidated or DeviceNotConnected or DeviceRemoved => Make(VideoErrorCode.SourceLost, VideoErrors.CameraDisconnected(camera, atMs)),
             NoCaptureDevices => Make(VideoErrorCode.SourceNotFound, VideoErrors.CameraNotFound(camera)),
             _ => Make(VideoErrorCode.SourceNotFound, $"{camera} could not be started (0x{hresult:X8}). Recording continues with the screen and all audio tracks. Reconnect the camera and retry, or pick another camera."),

@@ -364,6 +364,10 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
                 return request;
             case Remedies.Cpu:
                 return request with { ForceCpu = true };
+            case Remedies.Software:
+                return request with { VideoSoftware = true, VideoKeepRaw = false };
+            case Remedies.KeepRaw:
+                return request with { VideoKeepRaw = true, VideoSoftware = false };
             default:
                 if (remedyId.StartsWith(Remedies.ModelPrefix, StringComparison.Ordinal))
                 {

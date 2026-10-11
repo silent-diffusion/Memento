@@ -52,8 +52,6 @@ public sealed record AppSettings
     /// <summary>Settings › Documents (M4): default template and style.</summary>
     public DocumentsSettings Documents { get; set; } = new();
 
-    /// <summary>Settings › Recording › Video defaults (2.0). Missing in 1.x files, which then read with the defaults (Audio only).</summary>
-    public VideoSettings Video { get; set; } = new();
 
     // A setter rather than init: System.Text.Json cannot bind extension data through init-only members.
     [JsonExtensionData]
