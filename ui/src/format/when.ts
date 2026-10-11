@@ -4,6 +4,8 @@
 // "This week" is the six days before yesterday, so a weekday name is never ambiguous. Formatting is
 // done by hand rather than with Intl so the text is identical on every machine and in tests.
 
+import { formatFullDate } from './dates';
+
 const WEEKDAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const MONTHS_LONG = [
@@ -67,10 +69,12 @@ export function formatClock(date: Date): string {
   return `${hour12}:${String(date.getMinutes()).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
 }
 
-/** "Sep 29", or "Sep 29, 2025" when the year differs from `now`. */
+/**
+ * "Sep 29" within the year of `now`; a full date in another year, in Settings › General's date format
+ * (2.1: "2025 September 29" by default).
+ */
 export function formatShortDate(date: Date, now: Date): string {
-  const base = `${MONTHS_SHORT[date.getMonth()] ?? ''} ${date.getDate()}`;
-  return date.getFullYear() === now.getFullYear() ? base : `${base}, ${date.getFullYear()}`;
+  return date.getFullYear() === now.getFullYear() ? `${MONTHS_SHORT[date.getMonth()] ?? ''} ${date.getDate()}` : formatFullDate(date);
 }
 
 export function weekdayShort(date: Date): string {

@@ -115,7 +115,16 @@ export const DEFAULT_EXPORT_SELECTION: ExportSelection = {
 /** The M3 blocks of the preview's settings (defaults from the README: local first, AI off, nothing written outside). */
 export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export' | 'ai' | 'storage'> {
   return {
-    general: { startWithWindows: false, keepRunningInTray: false, language: 'en', autoUpdate: true, startWithWindowsAvailable: true, startWithWindowsNote: null },
+    general: {
+      startWithWindows: false,
+      keepRunningInTray: false,
+      language: 'en',
+      autoUpdate: true,
+      startWithWindowsAvailable: true,
+      startWithWindowsNote: null,
+      dateFormat: 'yearMonthDay',
+      libraryView: 'timeline',
+    },
     export: {
       saveCopiesOutside: false,
       defaultFolder: 'D:\\Exports',
@@ -134,7 +143,7 @@ export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export'
       defaultProviderId: null,
       localModelId: MODEL_IDS.qwen,
     },
-    storage: { reclaimOlderThanDays: null, removeVideoOlderThanDays: null },
+    storage: { reclaimOlderThanDays: null, removeVideoOlderThanDays: null, deleteAudioOlderThanDays: null },
   };
 }
 
@@ -350,6 +359,8 @@ export function createMockM3(env: MockM3Environment): MockM3 {
       state: 'ready',
       sizeBytes: Math.round((durationMs / 1000) * 110_000),
       matchSnippet: null,
+      folder: null,
+      audioRemoved: null,
     };
     const track: Track = {
       id: `${id}-t1`,

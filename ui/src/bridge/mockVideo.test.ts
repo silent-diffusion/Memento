@@ -315,9 +315,9 @@ describe('the samples, the video stage, removing video and exporting it', () => 
   it('validates Remove video older than and clears it with null', async () => {
     const { bridge } = host();
     const set = await bridge.call('settings.set', { storage: { removeVideoOlderThanDays: 90 } });
-    expect(set.storage).toEqual({ reclaimOlderThanDays: null, removeVideoOlderThanDays: 90 });
+    expect(set.storage).toEqual({ reclaimOlderThanDays: null, removeVideoOlderThanDays: 90, deleteAudioOlderThanDays: null });
     expect((await failure(bridge.call('settings.set', { storage: { removeVideoOlderThanDays: 45 } }))).code).toBe('settings.invalidValue');
-    expect((await bridge.call('settings.set', { storage: { reclaimOlderThanDays: 30 } })).storage).toEqual({ reclaimOlderThanDays: 30, removeVideoOlderThanDays: 90 });
+    expect((await bridge.call('settings.set', { storage: { reclaimOlderThanDays: 30 } })).storage).toEqual({ reclaimOlderThanDays: 30, removeVideoOlderThanDays: 90, deleteAudioOlderThanDays: null });
     expect((await bridge.call('settings.set', { storage: { removeVideoOlderThanDays: null } })).storage.removeVideoOlderThanDays).toBeNull();
   });
 });

@@ -453,6 +453,8 @@ export function sampleProjects(now: Date): MockProject[] {
       sizeBytes: 0,
       matchSnippet: null,
       video: null,
+      folder: null,
+      audioRemoved: null,
     };
     summary.sizeBytes = estimateSizeBytes(summary, seed.tracks.length);
     const details: RecordingDetails = {

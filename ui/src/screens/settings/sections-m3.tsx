@@ -30,6 +30,8 @@ import { PROVIDER_NAMES } from './SettingsDialogs';
 import { AboutGroup, UpdatesGroup } from './about';
 import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
 import { RemoveVideoRow } from './RemoveVideo';
+import { DateFormatRow } from './DateFormat';
+import { DeleteAudioRow } from './DeleteAudio';
 import { AiProviderDefaults } from './sections-m4';
 
 function messageOf(error: unknown): string {
@@ -266,6 +268,8 @@ export function GeneralSectionM3(): JSX.Element {
             Change
           </button>
         </SettingsRow>
+        {/* 2.1: every full date, and new titles. */}
+        <DateFormatRow />
         <SettingsRow label="Language" description="Interface language.">
           <SelectMenu<'en'>
             label="Language"
@@ -864,6 +868,8 @@ export function StorageSectionM3(): JSX.Element {
         </SettingsRow>
         {/* 2.0 video: live, with what it would free now and an in-place confirmation. */}
         <RemoveVideoRow reload={reload} />
+        {/* 2.1: the same pattern for audio. */}
+        <DeleteAudioRow reload={reload} />
         <SettingsRow label="Review large recordings" description="Opens the library with the largest recordings first.">
           <button class="btn ghost small-btn" type="button" onClick={reviewLarge}>
             Review

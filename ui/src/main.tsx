@@ -1,4 +1,5 @@
 import { effect } from '@preact/signals';
+import { dateFormat, DEFAULT_DATE_FORMAT } from './format/dates';
 import { render } from 'preact';
 import './styles/fonts.css';
 import './styles/tokens.css';
@@ -6,6 +7,7 @@ import './styles/base.css';
 import './styles/shell.css';
 import './styles/library-empty.css';
 import './styles/library.css';
+import './styles/folders.css';
 import './styles/surfaces.css';
 import './styles/settings.css';
 import './styles/spoke.css';
@@ -41,6 +43,10 @@ connectEvents(bridge, store, {
 const router = createRouter(store, window);
 effect(() => {
   applyTheme(document.documentElement, store.isDark.value);
+});
+// 2.1: every full date follows Settings › General › Date format.
+effect(() => {
+  dateFormat.value = store.settings.value?.general.dateFormat ?? DEFAULT_DATE_FORMAT;
 });
 installPressFeedback(document);
 

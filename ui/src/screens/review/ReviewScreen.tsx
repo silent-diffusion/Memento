@@ -42,6 +42,9 @@ import { useReview20Wiring } from './Review20';
 import { RemoveVideoDialog, useVideoView, VideoArea, VideoOutlineBlock } from './ReviewVideo';
 import { metaVideoTail, removeFailedBody } from './videoCopy';
 import { rebuildMixAction } from './mixRebuild';
+import { formatFullDate } from '../../format/dates';
+import { audioRemovedLine } from '../../format/folders';
+import { requestDeleteAudio } from '../../state/folderActions';
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -621,6 +624,11 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
 
             <section class="review-centre" aria-label="Player and transcript">
               {/* The player strip does not scroll: its speed menu opens in place. */}
+              {project.audioRemoved === null ? null : (
+                <p class="review-audio-removed" role="note">
+                  {audioRemovedLine(project.audioRemoved.at, project.audioRemoved.bytesFreed, (iso) => formatFullDate(parseIso(iso)))}
+                </p>
+              )}
               <FloatingPopovers.Provider value={false}>
                 <PlayerStrip
                   player={player}
@@ -720,6 +728,30 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                 actions.setTags(tags).catch(fail('The tags were not saved'));
               }}
               onCreateDocument={createDocument}
+              onMoveToFolder={() => {
+                store.dialog.value = {
+                  kind: 'moveToFolder',
+                  recordingIds: [recordingId],
+                  title: project.summary.title,
+                  current: project.summary.folder,
+                  onMoved: () => {
+                    setReload((n) => n + 1);
+                  },
+                };
+              }}
+              onDeleteAudio={() => {
+                void requestDeleteAudio(services, project.summary).then(() => {
+                  const request = store.dialog.value;
+                  if (request?.kind === 'deleteAudio') {
+                    store.dialog.value = {
+                      ...request,
+                      onDeleted: () => {
+                        setReload((n) => n + 1);
+                      },
+                    };
+                  }
+                });
+              }}
             />
           </div>
         </FloatingPopovers.Provider>

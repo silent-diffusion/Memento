@@ -16,6 +16,9 @@ import { activeChapterIndex, chapterInsertIndex, historyTone } from '../../forma
 import { typeName } from '../../format/recording';
 import { speakerColourVar, talkShare, versionReasonText } from '../../format/transcript';
 import { calendarDaysBetween, formatClock, formatShortDate, parseIso } from '../../format/when';
+import { formatFullDate } from '../../format/dates';
+import { folderTrail } from '../../format/folders';
+import { formatSize } from '../../format/storage';
 import { detailsRemovedRow, detailsVideoRow, NEVER_SENT_NOTE, videoTrackNames } from './videoCopy';
 
 // ---------------------------------------------------------------------------------------------
@@ -530,10 +533,15 @@ const TABS: readonly { id: DetailsTab; label: string }[] = [
   { id: 'history', label: 'History' },
 ];
 
-/** "Oct 5, 2026 · 4:00 PM" for the fact grid. */
+/** 2.1: the Audio fact once Delete audio ran: "Deleted 2026 October 5 · 412 MB freed". */
+export function audioRemovedFact(iso: string, bytesFreed: number): string {
+  return `Deleted ${formatFullDate(parseIso(iso))} · ${formatSize(bytesFreed)} freed`;
+}
+
+/** "2026 October 5 · 4:00 PM" for the fact grid: the full date in Settings › General's format (2.1). */
 export function recordedWording(iso: string): string {
   const date = parseIso(iso);
-  return `${formatShortDate(date, date)}, ${date.getFullYear()} · ${formatClock(date)}`;
+  return `${formatFullDate(date)} · ${formatClock(date)}`;
 }
 
 /** "Today 4:00 PM", "Yesterday 4:00 PM", "Oct 5, 4:00 PM" in the History timeline. */
@@ -710,6 +718,9 @@ interface DetailsPaneProps {
   historyVersions?: HistoryVersions;
   /** M3: the agenda caption's Replace link. */
   onReplaceAgenda?: () => void;
+  /** 2.1: Move to folder… and Delete audio… (DESIGN.md §6.1, §6.2). */
+  onMoveToFolder?: () => void;
+  onDeleteAudio?: () => void;
 }
 
 export function DetailsPane({
@@ -727,6 +738,8 @@ export function DetailsPane({
   onRestore,
   historyVersions,
   onReplaceAgenda,
+  onMoveToFolder,
+  onDeleteAudio,
 }: DetailsPaneProps): JSX.Element {
   const { details, summary, tracks } = project;
   const agenda = details.agenda;
@@ -792,6 +805,14 @@ export function DetailsPane({
                   <dd class="fact-strong">{videoRow}</dd>
                 </>
               )}
+              {summary.audioRemoved === null ? null : (
+                <>
+                  <dt>Audio</dt>
+                  <dd class="fact-strong">{audioRemovedFact(summary.audioRemoved.at, summary.audioRemoved.bytesFreed)}</dd>
+                </>
+              )}
+              <dt>Folder</dt>
+              <dd class={summary.folder === null ? 'fact-empty' : 'fact-strong'}>{summary.folder === null ? 'Library (no folder)' : folderTrail(summary.folder)}</dd>
               <dt>Purpose</dt>
               <dd class={details.purpose === '' ? 'fact-empty' : ''}>{details.purpose === '' ? 'Not set' : details.purpose}</dd>
             </dl>
@@ -851,6 +872,19 @@ export function DetailsPane({
             <button class="btn ghost edit-details" type="button" aria-haspopup="dialog" onClick={onEditDetails}>
               Edit details
             </button>
+            {/* 2.1: where it is filed, and Delete audio (never in a toolbar: it opens the confirmation). */}
+            <div class="detail-actions">
+              {onMoveToFolder === undefined ? null : (
+                <button class="btn ghost" type="button" aria-haspopup="dialog" onClick={onMoveToFolder}>
+                  Move to folder…
+                </button>
+              )}
+              {onDeleteAudio === undefined || summary.audioRemoved !== null ? null : (
+                <button class="btn ghost" type="button" aria-haspopup="dialog" onClick={onDeleteAudio}>
+                  Delete audio…
+                </button>
+              )}
+            </div>
           </>
         ) : tab === 'documents' ? (
           // M4: the recording's documents (screens/docview/DocumentsTab.tsx).

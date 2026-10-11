@@ -51,6 +51,7 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
       'Start Memento with Windows',
       'Keep running in the tray when closed',
       'Library location',
+      'Date format',
       'Language',
       'Updates',
       'Install updates automatically',
@@ -66,7 +67,7 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
     expect(rowOf('Start Memento with Windows').textContent).toContain('Opens minimised');
     await click(button('Keep running in the tray when closed'));
     await until(() => h.callsOf('settings.set').length === 1);
-    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general).toEqual({ startWithWindows: true, keepRunningInTray: true, language: 'en', autoUpdate: true, startWithWindowsAvailable: true, startWithWindowsNote: null });
+    expect((h.callsOf('settings.set')[0] as SettingsSetParams).general).toEqual({ startWithWindows: true, keepRunningInTray: true, language: 'en', autoUpdate: true, startWithWindowsAvailable: true, startWithWindowsNote: null, dateFormat: 'yearMonthDay', libraryView: 'timeline' });
     expect(rowOf('Language').textContent).toContain('English');
   });
 

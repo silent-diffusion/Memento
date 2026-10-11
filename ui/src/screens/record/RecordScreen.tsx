@@ -50,10 +50,11 @@ import {
   type VideoSelection,
 } from './videoSelection';
 import './video.css';
+import { untitledTitle } from '../../format/dates';
 
-/** "Untitled meeting"; custom types keep their own capitalisation. */
-export function defaultTitle(type: RecordingType): string {
-  return `Untitled ${isBuiltInType(type) ? typeName(type).toLocaleLowerCase() : type}`;
+/** "Untitled meeting · 2026 February 16" (2.1: dated in Settings › General's format); custom types keep their own capitalisation. */
+export function defaultTitle(type: RecordingType, now: Date = new Date()): string {
+  return untitledTitle(isBuiltInType(type) ? typeName(type).toLocaleLowerCase() : type, now);
 }
 
 function messageOf(error: unknown, fallback: string): string {

@@ -77,8 +77,8 @@ describe('M3 contract names', () => {
     expect(ERROR_CODES.slice(h1, h1 + h1Codes.length + 1)).toEqual([...h1Codes, 'clipboard.unavailable']);
     const voices = ERROR_CODES.indexOf('voices.notFound');
     expect(ERROR_CODES.slice(voices, voices + 2)).toEqual(['voices.notFound', 'voices.newerVersion']);
-    // 2.0 video (BRIDGE.md "Error codes (2.0, proposed)") closes the list.
-    expect(ERROR_CODES.slice(voices + 2)).toEqual([
+    // 2.0 video (BRIDGE.md "Error codes (2.0, proposed)"), then the 2.1 folder codes close the list.
+    expect(ERROR_CODES.slice(voices + 2, -3)).toEqual([
       'video.sourceNotFound',
       'video.protectedContent',
       'video.captureBlocked',
@@ -87,6 +87,7 @@ describe('M3 contract names', () => {
       'video.encoderUnavailable',
       'video.diskFull',
     ]);
+    expect(ERROR_CODES.slice(-3)).toEqual(['folder.notFound', 'folder.nameTaken', 'folder.invalid']);
   });
 });
 

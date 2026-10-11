@@ -53,6 +53,7 @@ export function mergeSettings(before: SettingsSnapshot, patch: SettingsSetParams
         : {
             reclaimOlderThanDays: 'reclaimOlderThanDays' in patch.storage ? (patch.storage.reclaimOlderThanDays ?? null) : before.storage.reclaimOlderThanDays,
             removeVideoOlderThanDays: 'removeVideoOlderThanDays' in patch.storage ? (patch.storage.removeVideoOlderThanDays ?? null) : before.storage.removeVideoOlderThanDays,
+            deleteAudioOlderThanDays: 'deleteAudioOlderThanDays' in patch.storage ? (patch.storage.deleteAudioOlderThanDays ?? null) : before.storage.deleteAudioOlderThanDays,
           },
     // M4
     documents: { ...before.documents, ...definedFields(patch.documents) },
