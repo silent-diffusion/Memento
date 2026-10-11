@@ -269,7 +269,7 @@ public sealed class CameraCaptureSource : IVideoSource
             Format = Vortice.DXGI.Format.NV12,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.ShaderResource,
+            BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget, // The video processor makes input views only of render-target textures (§R).
         });
     }
 
