@@ -532,7 +532,7 @@ interface GenerationSendSummary { providerId: ProviderId; providerName: string; 
 | `styles.list` / `styles.get` / `styles.save` / `styles.duplicate` / `styles.delete` / `styles.resetBuiltIn` | likewise | likewise | Presets behave as built-in templates; delete is refused with `styles.inUse` (detail: the templates) while a template uses the style. |
 | `styles.sampleHtml` | `{ settings: StyleSettings }` | `{ html }` | The Style editor's live sample page (fixed sample minutes). |
 | `providers.list` | `{}` | `{ providers: ProviderInfo[], externalAiEnabled: boolean, defaultProviderId: ProviderId \| null }` | Readiness from Settings, keys, the model manager and free video memory. No provider is constructed and nothing is sent. |
-| `generation.preview` | `{ recordingId, template: Template }` | `{ payloadText, bytes, chunks, inputsUsed: InputSelection, warnings: string[], providerId, staysOnPc }` | "Preview exactly what will be sent" (for Local: "nothing leaves this PC"). Nothing is sent. |
+| `generation.preview` | `{ recordingId, template: Template }` | `{ payloadText, bytes, chunks, inputsUsed: InputSelection, warnings: string[], providerId, staysOnPc }` (2.0 adds `provider`, `askBeforeSend`, `inputs`, `redactions`, `passes`: see "Preview what will be sent (2.0)") | "Preview exactly what will be sent" (for Local: "nothing leaves this PC"). Nothing is sent. |
 | `generation.previewHtml` | `{ recordingId: string \| null, template: Template, styleId }` | `{ html }` | The Builder's live preview paper with skeletons; `recordingId: null` (a template edited from Settings) shows the sample title and meta line. |
 | `generation.start` | `{ recordingId, template: Template, documentId?: string /* regenerate into */ }` | `{ jobId, confirmationRequired: boolean, summary: GenerationSendSummary \| null }` | Refused with `ai.disabled` (a cloud provider while external AI is off; checked before anything is read or constructed), `ai.providerNotReady` (detail: `ai.noKey`, `ai.modelNotInstalled`, `ai.notEnoughVram`), `generation.noTranscript` (no transcript, or the transcript not among the allowed inputs), `generation.busy`, `documents.notFound` (the regenerated document). With "ask before every send" a **cloud** job returns `confirmationRequired: true` and the summary, and nothing runs until `generation.confirm`; the local model sends nothing and is not asked. |
 | `generation.confirm` / `generation.cancel` | `{ jobId, approved }` / `{ jobId }` | `{}` | `generation.notFound` for an unknown or finished job. Declining or cancelling a waiting job ends it with `stage: 'cancelled'`. |
@@ -563,7 +563,7 @@ ai: { …M3,
       localModelId: string | null;             // the local model in effect: the installed choice, else the installed one the hardware suits, else any installed one; with none installed, the choice or the hardware's (to download); null only without local models
       localModelChosen: boolean;               // localModelId was chosen in Settings
       providers: { anthropic: { hasKey: boolean; model: string; models: string[] }; openai: { hasKey: boolean; model: string; models: string[] } } }   // model in effect; models offered
-documents: { defaultTemplateId: string; defaultStyleId: string }   // "meeting-minutes" and "corporate" until chosen
+documents: { defaultTemplateId: string; defaultStyleId: string; ocrEngine: "windows" | "tesseract" }   // "meeting-minutes" and "corporate" until chosen; ocrEngine (2.0) is the engine in effect
 ```
 
 `settings.set` takes `ai.defaultProviderId` (`'anthropic' | 'openai' | 'local' | null`), `ai.localModelId` (an installed `kind: 'llm'` catalog id, or `null` for the hardware default), `ai.providers.anthropic.model` / `ai.providers.openai.model` (a model id, or `null` for the default) and `documents.defaultTemplateId` / `defaultStyleId` (an id, or `null` for the built-in). A field left out keeps its value; `null` clears it; a bad value is `settings.invalidValue` with the field as `detail`, and nothing is written. Keys still change only through `ai.setKey` / `ai.clearKey`.
@@ -855,6 +855,52 @@ interface LibraryUsage { /* … */ separateTracksBytes: number; separateTracksRe
 | `storage.keepOnlyMix` | `{ recordingIds: string[] \| null }` | `{ jobId }` | Settings › Storage and history › Keep only the mix for existing recordings, after the page's confirmation (size, what is kept, cannot be undone). `null`: every stored recording that still has separate tracks and a mix. Each recording goes through the stage step above (mix checked first); busy ones are skipped. Progress and the final message through `storage.reclaimProgress` ("2 recordings keep only the mix; 1.2 GB freed. Transcripts, speakers and the mixes were not changed."). `storage.nothingToReclaim` for `[]` or when no recording has separate tracks; `project.notFound` for an unknown id; `library.busy` during a move or another reclaim. |
 
 `export.estimate` lists `tracks` as unavailable with the reason "Only the mix was kept", and the Export dialog leaves the Individual tracks row out; Review's People pane offers Reduce but not Identify speakers again (there is nothing per track to listen to); `library.usage` counts what separate tracks use.
+
+# 2.0 — Tesseract, the follow-up email and the preview sheet
+
+## Tesseract for agenda photos and scans (2.0)
+
+Settings › Documents › Agenda photos and scans. The model manager's `tesseract-eng` (`engine: 'ocr'` in `models.list`) is installed, verified and removed like every other model (`models.install`, `models.progress`, `models.remove`); nothing new on the bridge besides the setting.
+
+- `settings.get` / `settings.set`: `documents.ocrEngine: 'windows' | 'tesseract'`. The snapshot names the engine **in effect**: `tesseract` only while its language data is installed (removing it puts Windows OCR back without changing the stored choice). `settings.set` takes `'windows'`, `'tesseract'` or `null` (Windows OCR); `'tesseract'` while `tesseract-eng` is not installed, or any other value, is `settings.invalidValue` with `detail: 'documents.ocrEngine'`, and nothing is written.
+- `agenda.importFile` / `agenda.importDropped` read images and scanned PDFs with the chosen engine first and the other as the fallback (unchanged `AgendaParsePreview.ocrEngine`: `"Windows OCR"` or `"Tesseract"`). With Tesseract, words under 0.6 confidence mark their item uncertain (`uncertainReason`: the word Tesseract was unsure of), as well as the misread-character checks both engines share; the review notice says unsure words are marked.
+- Failures keep the `agenda.*` codes: `agenda.ocrUnavailable` when the language data is missing or damaged (it is checked against its SHA-256 before use) or Memento.Worker cannot start; `agenda.unreadable` when Tesseract stops while reading. Nothing is imported either way.
+
+## Follow-up email (2.0)
+
+```ts
+type EmailTone = 'neutral' | 'warm' | 'brief';
+interface EmailModuleSettings { tone: EmailTone; signOff: string | null }   // signOff: one line, ≤ 80 characters
+interface ModuleSettings { …M4; email?: EmailModuleSettings | null }        // followUpEmail only; the host always sends it for that module
+interface DocumentModuleParams { recordingId: string; documentId: string; moduleId: string }
+```
+
+- `templates.save`, `generation.preview`, `generation.start` take `email` on a `followUpEmail` module (left out or `null`: neutral, unsigned; on another module it is ignored). An unknown tone or a sign-off of more than one line or 80 characters is `bridge.invalidParams` with `detail` `rows[r].modules[i].email.tone` / `.email.signOff`.
+- The generated module is ordinary blocks: a label/value pair (To: the participants, `; `-separated, or a note that none were listed; Subject: "Follow-up: {title} ({date})", brief "Recap: {title}"), the greeting, the opening, the recap (its own map pass, verified), **Decisions**, **Action items** ("{Owner}: {task}, {due}" or "{task} (no owner named)"), "No decisions or action items were recorded." when there are none, the closing and the sign-off. Words in the tone only change those fixed sentences.
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `documents.copyModule` | `DocumentModuleParams` | `DocumentCopyResult` | One module on the clipboard (host clipboard, as `documents.copy`): plain text without Markdown marks or timestamps (`\r\n` lines, "To: …", "- " items) and HTML of its blocks in the document's style without the module heading or timestamps, so a Follow-up email pastes into Outlook as the email. `documents.notFound`; `bridge.invalidParams` (`detail: 'moduleId'`) for a module the document does not have; `clipboard.unavailable`. Reads only. |
+
+## Preview what will be sent (2.0)
+
+```ts
+interface PreviewProviderInfo { id: ProviderId; name: string; kind: 'cloud' | 'local'; modelLabel: string | null }
+interface PreviewInput { key: keyof InputSelection | 'instructions'; label: string; ticked: boolean; included: boolean;
+                         characters: number; bytes: number; summary: string | null; note: string | null }   // note: "Held back: …", "Nothing to send: …", "Left out: …"
+interface PreviewPass { id: string /* p1… */; step: 'map' | 'verify'; title: string; system: string; user: string;
+                        characters: number; bytes: number; tokens: number /* about */; exact: boolean }
+interface GenerationPreviewResult { …M4; provider: PreviewProviderInfo; askBeforeSend: boolean; inputs: PreviewInput[]; redactions: string[]; passes: PreviewPass[] }
+interface GenerationCopyPreviewParams { recordingId: string; template: Template; passId?: string | null }
+interface PreviewCopyResult { characters: number; passes: number }
+```
+
+- `passes` are the **map requests exactly as a generation sends them** (same tasks, chunks, system prompts, user turns and Live output titles; the retries on half a chunk and the plain re-reads happen only after an answer, so they are not listed), then one `verify` request with `exact: false` that illustrates the checks built from the answers. The grammar or JSON schema that constrains an answer is not repeated, as in Live output.
+- `inputs` lists the seven checklist inputs in Builder order (and the template's instructions when it has some), ticked or not, with the size of their text in the payload. `redactions` says what is held back by the share switches, what was left out and why, and how many section-marker look-alikes were neutralised. `askBeforeSend` is Settings' switch (it holds cloud jobs only).
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `generation.copyPreview` | `GenerationCopyPreviewParams` | `PreviewCopyResult` | Puts the preview on the clipboard as text (host clipboard): the provider, the inputs with their sizes, what is held back and "Audio and video are never sent.", then each request as `=== {title} ===`, `System`, `User`; with `passId`, that request only. The preview is composed again, so the copy matches the template as sent. `bridge.invalidParams` (`detail: 'passId'`) for an unknown pass; `clipboard.unavailable`. Nothing is sent and no provider is constructed. |
 
 # Video (2.0)
 

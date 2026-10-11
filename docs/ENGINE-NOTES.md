@@ -440,3 +440,35 @@ What the draft looks like: the lines follow the speech closely ("Next, the dark 
 - **The mix reader** costs nothing measurable: file lengths every 500 ms, and one 10 s read of each track per window (4 × 0.5–1 MB).
 - **Never saved**: the e2e run checks the project folder after Stop for a draft and finds none; `LiveTranscriptTests` check the same with the scripted worker.
 - **Not verified**: Base (Small was measured; Base is only the fallback); the live transcript on the graphics card on real hardware (unit tests only: on the card when allowed and free, gives way to a full pass or a document); yielding to a full pass with the real model in the app (a recording holds the full pass back while "Pause when the PC is busy" is on, the default; unit tests cover a running pass); real WASAPI devices while live runs (the simulated engine was used, as the product owner asked for no sound); Base and a 2-thread PC.
+
+## P. Tesseract for agenda photos and scans, October 2026 (2.0)
+
+Design: ARCHITECTURE.md §1 (OCR row). Tesseract 5.5.1 through the **TesseractOCR 5.5.2** NuGet package (Apache-2.0; `x64\tesseract55.dll`, `x64\leptonica-1.85.0.dll`, which import only the VC++ runtime the worker already ships, the UCRT and system DLLs), with the catalog's `tesseract-eng` (tessdata_fast, LSTM, 4,113,088 bytes, SHA-256 `7d4322bd…70b2`). It runs in **Memento.Worker** as an `ocr` job that stays loaded for one import's passes, so a native failure in Tesseract or Leptonica cannot take down the app or a recording; the worker never decodes a file (the host sends 8-bit gray pixels, wrapped in an in-memory PGM for Leptonica).
+
+**What the measurements changed** (on the synthetic image fixtures in `tests/Memento.Documents.Tests/fixtures`, `TesseractEngineTests.ComparesTesseractWithWindowsOcr`):
+
+- **Text angle sign.** Tesseract's block `DeskewAngle` is already clockwise in radians, as Windows OCR's `TextAngle` (3.5° came back as 0.0627). Negating it, as first written, rotated the 3.5° photo to 7° and read it at 15 % CER with 8 items for 4; with the right sign, 0 %.
+- **Paper evened out first** (`GrayImage.NormalizeBackground`: the 90th percentile of each 32 px tile, the brightest of its neighbours, interpolated, every pixel divided by it). The photo-like agenda placed on a white PDF page (a scanned PDF) found **no words at all**: Tesseract's global (Otsu) threshold and page layout took the grey photo on white for a picture. Leptonica's adaptive thresholds (`thresholding_method` 1 and 2) did not help; sparse-text segmentation found 103 "items" of noise in 38 s. With the background divided out it reads the scan like the photo, with automatic page segmentation and nothing else changed.
+- **Taller words.** Upscaling stops at a median word box of 32 px for Tesseract (24 for Windows OCR), its best x-height; the 12 px fixture is read at 0 % CER either way.
+
+**Comparison** (three imports of each through `AgendaImporter`, Debug worker build, RTX 3060 Laptop PC with 16 threads; the PC was shared with other agents' builds and a transcription, so the times are on the slow side: an earlier, quieter run had Tesseract's medians at 1.8 s for the clean page, 1.8–2.0 s for the photos and 1.0 s for the small text, Windows OCR's at 0.2–0.5 s):
+
+| Input | Engine | CER | Items | Uncertain | First import | Median |
+|---|---|---|---|---|---|---|
+| ocr-clean.png (28 px Arial) | Windows OCR | 0.0 % | 5/5 | 0 | 1,133 ms | 739 ms |
+| | Tesseract | 0.0 % | 5/5 | 0 | 6,872 ms | 4,026 ms |
+| ocr-photo.jpg (warm paper, grey ink, 3.5°, noise, blur, JPEG 80) | Windows OCR | 0.0 % | 4/4 | 0 | 417 ms | 417 ms |
+| | Tesseract | 1.9 % | 4/4 | 1 | 3,671 ms | 2,812 ms |
+| ocr-photo.png (the same, lossless) | Windows OCR | 0.0 % | 4/4 | 0 | 395 ms | 395 ms |
+| | Tesseract | 0.0 % | 4/4 | 0 | 3,405 ms | 3,232 ms |
+| ocr-small.png (12 px) | Windows OCR | 0.0 % | 3/3 | 0 | 218 ms | 252 ms |
+| | Tesseract | 0.0 % | 3/3 | 0 | 1,556 ms | 1,625 ms |
+| ocr-clean.png as a scanned PDF (200 dpi render) | Windows OCR | 0.0 % | 5/5 | 2 | 1,956 ms | 573 ms |
+| | Tesseract | 3.3 % | 5/5 | 1 | 1,806 ms | 1,773 ms |
+| ocr-photo.jpg as a scanned PDF | Windows OCR | 0.0 % | 4/4 | 0 | 2,641 ms | 2,252 ms |
+| | Tesseract | 2.8 % | 5/4 | 2 | 4,168 ms | 3,262 ms |
+
+- **Where Tesseract went wrong**: list markers. "3." read as "~" (photo JPEG: "~ Volunteer rota for the summer", marked uncertain for the stray symbol), "4." as "4" and "5." as "." on the scanned clean page ("? . Close", marked), and the scanned photo's title split over two lines ("Garden Committee / agenda", the second taken for an item). Every misread item it produced was marked uncertain, which is what the review step is for; Windows OCR read every fixture exactly but marks nothing on its own (its two marks on the scanned clean page are the shared misread-character check).
+- **Speed**: each Tesseract import starts the worker and loads the language data first, **655–739 ms** of it (an empty 8 × 8 image, three runs), then recognises once per pass (up to three: as decoded, upscaled, straightened). Windows OCR runs in the app with no start-up. Tesseract is 3–8× slower per import, 1–4 s for a one-page agenda on this shared PC: fine for an import the person waits for once.
+- **Through the app** (`tools/e2e/m3-flow.mjs --tesseract` on the published build, private data root): Settings › Documents downloaded Tesseract English from GitHub in 1–2 s, its file matched the catalog SHA-256, choosing Tesseract wrote `documents.ocrEngine`, and the photographed agenda was read in 4 s (worker start included) into the four right items, with the caption "read with Tesseract on this PC".
+- **Not verified**: languages other than English (the catalog has only `tesseract-eng`, and the engine says so for another language); real camera photos and real scans (only the synthetic fixtures); the Release worker's timing on an idle PC; a Tesseract crash in the field (the error path is tested with a scripted worker failure).

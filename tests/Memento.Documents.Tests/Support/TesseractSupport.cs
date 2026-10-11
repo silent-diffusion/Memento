@@ -34,6 +34,14 @@ internal static class TesseractSupport
         return (new TesseractOcrEngine(models, new WorkerTesseractRunner(workers)), new Owner(workers, launcher));
     }
 
+    /// <summary>The worker runner alone (for timing a start and a load).</summary>
+    public static (ITesseractRunner Runner, IDisposable Owner) CreateRunner()
+    {
+        var launcher = new ProcessWorkerLauncher(new WorkerLocation(WorkerExecutable!), NullLogger<ProcessWorkerLauncher>.Instance);
+        var workers = new WorkerClient(launcher, NullLogger<WorkerClient>.Instance);
+        return (new WorkerTesseractRunner(workers), new Owner(workers, launcher));
+    }
+
     private static string? FindWorker()
     {
         if (Environment.GetEnvironmentVariable("MEMENTO_WORKER_DIR") is { Length: > 0 } forced)

@@ -117,6 +117,26 @@ public sealed class TesseractEngineTests(ITestOutputHelper output)
             {
                 output.WriteLine(line);
             }
+
+            // What every Tesseract import pays before reading: starting the worker and loading the language data.
+            var (runner, runnerOwner) = TesseractSupport.CreateRunner();
+            using (runnerOwner)
+            {
+                var starts = new List<double>();
+                for (var i = 0; i < 3; i++)
+                {
+                    var started = Stopwatch.GetTimestamp();
+                    var session = await runner.OpenAsync(Path.GetDirectoryName(TesseractSupport.LanguageData)!, "eng", CancellationToken.None);
+                    await using (session)
+                    {
+                        await session.RecognizeAsync(Core.Workers.OcrImage.Create(i, 8, 8, Enumerable.Repeat((byte)255, 64).ToArray()), CancellationToken.None);
+                    }
+
+                    starts.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                }
+
+                output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"worker start + language data load + an empty 8 × 8 image: {string.Join(", ", starts.Select(s => s.ToString("0", CultureInfo.InvariantCulture)))} ms"));
+            }
         }
     }
 
