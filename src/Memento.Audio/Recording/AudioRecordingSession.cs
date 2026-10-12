@@ -396,7 +396,7 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
                 writer.Pause(pausedSince);
             }
 
-            var run = new TrackRun(id, info?.Name ?? id.ToString(), stem, capture, writer);
+            var run = new TrackRun(id, info?.Name ?? id.ToString(), stem, capture, writer) { AddedAtQpc = gateStart };
             _runs.Add(run);
             return run;
         }
@@ -536,18 +536,36 @@ public sealed partial class AudioRecordingSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Waits (bounded) until every track has seen packets captured up to <paramref name="untilQpc"/>.</summary>
-    private async Task DrainAsync(IReadOnlyList<TrackRun> runs, long untilQpc)
+    /// <summary>
+    /// Waits (bounded) until every track has seen packets captured up to <paramref name="untilQpc"/>. The bound is
+    /// <see cref="AudioRecordingOptions.StopDrainTimeout"/> without progress, counted in the 10 ms waits this loop asks
+    /// for rather than on the clock: on a starved machine the capture threads deliver late but steadily, and a clock
+    /// deadline cut the last packets before the stop instant off every track; a source that has stopped delivering
+    /// still ends the wait after the timeout.
+    /// </summary>
+    private async Task DrainAsync(List<TrackRun> runs, long untilQpc)
     {
-        var deadline = QpcClock.Now + _options.StopDrainTimeout.Ticks;
-        while (QpcClock.Now < deadline)
+        const int pollMs = 10;
+        var idleLimit = Math.Max(1, (int)(_options.StopDrainTimeout.TotalMilliseconds / pollMs));
+        var totalLimit = 20 * idleLimit;
+        var seen = runs.Select(r => r.Writer.LastFrameEndQpc).ToArray();
+        for (int idle = 0, total = 0; idle < idleLimit && total < totalLimit; total++)
         {
             if (runs.All(r => r.Writer.LastFrameEndQpc >= untilQpc || r.Completion.IsCompleted || r.Capture.Loss is not null))
             {
                 return;
             }
 
-            await Task.Delay(10).ConfigureAwait(false);
+            await Task.Delay(pollMs).ConfigureAwait(false);
+            var progressed = false;
+            for (var i = 0; i < runs.Count; i++)
+            {
+                var now = runs[i].Writer.LastFrameEndQpc;
+                progressed |= now != seen[i];
+                seen[i] = now;
+            }
+
+            idle = progressed ? 0 : idle + 1;
         }
     }
 

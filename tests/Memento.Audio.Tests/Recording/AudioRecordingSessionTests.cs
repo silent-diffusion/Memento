@@ -18,14 +18,20 @@ public sealed class AudioRecordingSessionTests : IDisposable
     /// <summary>One synthetic packet (10 ms) plus scheduling slack inside the session.</summary>
     private const double PacketToleranceMs = 30;
 
+    /// <summary>The system timer's resolution: a <see cref="Timer"/> can fire up to one tick before its due time.</summary>
+    private static readonly TimeSpan TimerTick = TimeSpan.FromMilliseconds(16);
+
     private readonly TempDirectory _dir = new();
     private readonly SyntheticCaptureFactory _factory = new();
 
     public void Dispose() => _dir.Dispose();
 
-    [Fact]
-    public async Task PauseIsExcludedFromEveryTrackAndTracksStayAligned()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task PauseIsExcludedFromEveryTrackAndTracksStayAligned(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs); // 600: every packet handed over late, as on a starved machine
         await using var session = await Start(Mic, App);
         await Task.Delay(600);
         var beforePause = session.Elapsed;
@@ -126,8 +132,9 @@ public sealed class AudioRecordingSessionTests : IDisposable
         {
             for (var i = 0; i < checkpoints.Count; i++)
             {
-                // Raised by the timer, never early: the i-th no sooner than i intervals in, however late the timer ran.
-                Assert.True(checkpoints[i].Elapsed >= interval * (i + 1), $"checkpoint {i + 1} at {checkpoints[i].Elapsed}");
+                // Raised by the timer, never early: the i-th no sooner than i intervals in (less one tick of the system
+                // timer, which fires on its own 15.6 ms grid), however late the timer ran.
+                Assert.True(checkpoints[i].Elapsed >= (interval * (i + 1)) - TimerTick, $"checkpoint {i + 1} at {checkpoints[i].Elapsed}");
                 foreach (var info in checkpoints[i].Tracks.Where(t => t.DriftPpm is not null))
                 {
                     // Drift is only reported once a second of audio is behind it.
@@ -231,9 +238,12 @@ public sealed class AudioRecordingSessionTests : IDisposable
         Assert.True(track.Duration >= TimeSpan.FromMilliseconds(250 - PacketToleranceMs), $"Stopped at {track.Duration}, before the device went away");
     }
 
-    [Fact]
-    public async Task SourcesCanBeAddedRemovedAndReAddedMidSession()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task SourcesCanBeAddedRemovedAndReAddedMidSession(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs); // 600: every packet handed over late, as on a starved machine
         await using var session = await Start(Mic);
         await Task.Delay(300);
         var beforeAdd = session.Elapsed;

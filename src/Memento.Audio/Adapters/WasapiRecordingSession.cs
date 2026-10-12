@@ -25,7 +25,6 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
     private readonly object _sync = new();
     private readonly Dictionary<string, AudioSource> _sources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _checkpointedBytes = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, long> _addedAtMs = new(StringComparer.Ordinal);
     private readonly List<SessionPause> _pauses = [];
     private RecordingSessionState _state = RecordingSessionState.Recording;
     private Task<RecordingSessionResult>? _stop;
@@ -174,11 +173,6 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
             var status = await _session.SetSourceAsync(source.Id, enabled, cancellationToken).ConfigureAwait(false);
             if (enabled)
             {
-                lock (_sync)
-                {
-                    _addedAtMs.TryAdd(status.FileStem, addedAt);
-                }
-
                 LogTrackAdded(source.Id, status.FileStem, addedAt);
             }
             else
@@ -331,8 +325,8 @@ public sealed partial class WasapiRecordingSession : IRecordingSession
         {
             checkpointed = _checkpointedBytes.GetValueOrDefault(status.FileStem);
 
-            // A source turned on mid-session reports offset 0 until its first packet arrives.
-            startMs = !status.HasAudio && _addedAtMs.TryGetValue(status.FileStem, out var added) ? added : (long)status.StartOffset.TotalMilliseconds;
+            // A source turned on mid-session starts when it was added until its first packet arrives (TrackRun.Status).
+            startMs = (long)status.StartOffset.TotalMilliseconds;
         }
 
         return new SessionTrack(
