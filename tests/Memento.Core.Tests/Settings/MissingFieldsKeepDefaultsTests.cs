@@ -40,6 +40,25 @@ public sealed class MissingFieldsKeepDefaultsTests
     }
 
     [Fact]
+    public async Task EmptyStringsWrittenByTwoPointOneAreRepairedOnLoad()
+    {
+        // 2.1.0 read the new fields as null and wrote them back as "", after which every settings.set was refused.
+        using var directory = new Fakes.TempDirectory();
+        var path = Path.Combine(directory.Path, "settings.json");
+        await File.WriteAllTextAsync(path, """
+            { "schemaVersion": 2, "general": { "autoUpdate": false, "dateFormat": "", "libraryView": "" }, "recording": { "defaultType": "meeting" } }
+            """);
+        var store = new JsonSettingsStore(path, Microsoft.Extensions.Logging.Abstractions.NullLogger<JsonSettingsStore>.Instance);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(Memento.Core.Formatting.DateFormats.Default, settings.General.DateFormat);
+        Assert.Equal(GeneralSettings.TimelineView, settings.General.LibraryView);
+        Assert.False(settings.General.AutoUpdate);
+        Assert.Null(settings.General.Validate());
+    }
+
+    [Fact]
     public void EmptyBlocksReadExactlyAsNewInstances()
     {
         // Every block is a record, so this compares every property, including the ones with defaults.

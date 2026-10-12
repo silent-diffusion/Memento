@@ -3,6 +3,10 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.1.2
+
+- **Fixed: settings still could not be changed after 2.1.1 on a PC that had run 2.1.0.** 2.1.1 read a missing date format or library view as its default, but 2.1.0 had already written them into the settings file as empty text, and an empty value was still refused, so reinstalling did not help either. Memento now repairs an empty or unknown date format or library view to its default when it reads the file, and says so in the log. Your other settings are kept as they are.
+
 ## 2.1.1
 
 - **Fixed: no setting could be changed after updating to 2.1.0.** Every switch answered with "Date format '' is not available. Choose …" or "Library view '' is not available", and the default recording type would not change. A settings file written by 2.0.0 has no date format or library view yet; those fields read as empty instead of their defaults, and since the page sends a whole block back on any change, every save was refused. Fields added in a new version now always read as their defaults from an older file. Nothing in your settings was lost; the file is read correctly as it is.

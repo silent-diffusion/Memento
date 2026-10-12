@@ -120,8 +120,44 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             Transcription = NormalizeTranscription(settings.Transcription),
             Speakers = NormalizeSpeakers(settings.Speakers),
             History = NormalizeHistory(settings.History),
+            General = NormalizeGeneral(settings.General),
         };
         return settings.SchemaVersion < 2 ? UpgradeToVersion2(normalized) : normalized;
+    }
+
+    /// <summary>
+    /// Replaces an empty or unknown date format or library view with its default. 2.1.0 read these as null from a 2.0.0
+    /// file and wrote them back as empty strings, after which every settings change was refused (2.1.1 fixed the
+    /// reading; this repairs the files it wrote).
+    /// </summary>
+    private GeneralSettings NormalizeGeneral(GeneralSettings? general)
+    {
+        var defaults = new GeneralSettings();
+        if (general is null)
+        {
+            return defaults;
+        }
+
+        var result = general;
+        if (!Formatting.DateFormats.IsKnown(result.DateFormat))
+        {
+            LogInvalidValue("general.dateFormat", result.DateFormat ?? "null", defaults.DateFormat);
+            result = result with { DateFormat = defaults.DateFormat };
+        }
+
+        if (result.LibraryView is not (GeneralSettings.TimelineView or GeneralSettings.FoldersView))
+        {
+            LogInvalidValue("general.libraryView", result.LibraryView ?? "null", defaults.LibraryView);
+            result = result with { LibraryView = defaults.LibraryView };
+        }
+
+        if (result.Validate() is { } problem)
+        {
+            LogInvalidValue("general", problem, "defaults");
+            result = defaults with { AutoUpdate = result.AutoUpdate, StartWithWindows = result.StartWithWindows, KeepRunningInTray = result.KeepRunningInTray };
+        }
+
+        return result;
     }
 
     /// <summary>
