@@ -24,4 +24,22 @@ public sealed record OpenAiOptions
     public int MaxOutputTokens { get; init; } = 128_000;
 
     public CloudHttpOptions Http { get; init; } = new();
+
+    /// <summary>
+    /// The options for a model from Settings (<see cref="Memento.Core.Ai.AiModelDefaults.Describe"/>): its context and
+    /// answer limit, and <c>reasoning.effort</c> only when the model is in Memento's list (a model typed by hand may not reason).
+    /// </summary>
+    public static OpenAiOptions For(Memento.Core.Ai.CloudModel model, Uri? baseUrl = null)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        var defaults = new OpenAiOptions();
+        return defaults with
+        {
+            BaseUrl = baseUrl ?? DefaultBaseUrl,
+            Model = model.Id,
+            ReasoningEffort = model.SendsEffort ? defaults.ReasoningEffort : null,
+            ContextTokens = model.ContextTokens,
+            MaxOutputTokens = model.MaxOutputTokens,
+        };
+    }
 }

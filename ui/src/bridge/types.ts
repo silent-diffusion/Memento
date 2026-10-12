@@ -104,6 +104,7 @@ export const ERROR_CODES = [
   'ai.network',
   'ai.providerError',
   'ai.contentTooLong',
+  'ai.unknownModel',
   'ai.modelNotInstalled',
   'ai.notEnoughVram',
   'ai.workerCrashed',
@@ -971,7 +972,7 @@ export interface SettingsSetParams {
   documents?: Partial<DocumentsSettings> | null;
 }
 
-/** settings.set's `ai` block: each field optional, `share` merged field by field; never `providers`. */
+/** settings.set's `ai` block: each field optional, `share` merged field by field; `providers` carries only the models (keys go through ai.setKey). */
 export interface AiSettingsPatch {
   enabled?: boolean;
   askBeforeSend?: boolean;
@@ -981,6 +982,8 @@ export interface AiSettingsPatch {
   defaultProviderId?: ProviderId | null;
   /** M4: a model catalog id (engine `llm`). */
   localModelId?: string;
+  /** M4: the cloud models; a provider left out keeps its model, `model: null` goes back to the default. */
+  providers?: AiProvidersPatch;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1768,6 +1771,31 @@ export interface AiShareSettings {
 
 export interface AiProviderStatus {
   hasKey: boolean;
+  /** M4: the model in effect: the one chosen in Settings, or the list's first. */
+  model: string;
+  /** M4: the models Settings lists, the default first. */
+  models: string[];
+  /** After 2.1: the same models with their notes, in the same order. */
+  choices: AiModelChoice[];
+  /** After 2.1: `model` was typed under "Other model…" and is not in `models`. */
+  custom: boolean;
+  /** After 2.1: the note for `model`, or what Memento assumes about a model it does not know. */
+  modelNote: string;
+}
+
+/** After 2.1: a model Settings › AI and privacy lists under a provider's key. */
+export interface AiModelChoice {
+  id: string;
+  /** "The fastest and cheapest." */
+  note: string;
+  /** Prompt plus answer tokens one request may use. */
+  contextTokens: number;
+}
+
+/** settings.set's `ai.providers`: each provider's model, or null for the default. */
+export interface AiProvidersPatch {
+  anthropic?: { model: string | null };
+  openai?: { model: string | null };
 }
 
 /** What settings.set accepts for `ai`: the providers are read-only (keys go through ai.setKey). */
@@ -1949,6 +1977,8 @@ export interface ProviderInfo {
   detail: string | null;
   /** The local model's catalog id. */
   modelId: string | null;
+  /** After 2.1, cloud only: the model is in Memento's list (false: typed under "Other model…"); null for the local model. */
+  modelListed: boolean | null;
   /** Local only: the discrete card's memory and who holds it; null for cloud providers and on PCs without a card. */
   gpuMemory: GpuMemoryInfo | null;
   /** Local only: why a graphics-card model does not run on the card now (DESIGN §17); it also starts `detail`. */

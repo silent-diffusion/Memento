@@ -140,6 +140,7 @@ public static class DomainErrorCodes
     public const string AiNetwork = "ai.network";
     public const string AiProviderError = "ai.providerError";
     public const string AiContentTooLong = "ai.contentTooLong";
+    public const string AiUnknownModel = "ai.unknownModel";
     public const string AiModelNotInstalled = "ai.modelNotInstalled";
     public const string AiNotEnoughVram = "ai.notEnoughVram";
     public const string AiWorkerCrashed = "ai.workerCrashed";

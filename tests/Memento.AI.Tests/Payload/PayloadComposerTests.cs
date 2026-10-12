@@ -105,7 +105,7 @@ public sealed class PayloadComposerTests
 
         var preview = payload.RenderPreview(claude);
 
-        Assert.StartsWith("Exactly what will be sent to Claude\nIncluded: Recording details; Attachments (1 file); Transcript (3 segments, 3 speakers)\n", preview.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.StartsWith("Exactly what will be sent to Claude (claude-opus-5-5)\nIncluded: Recording details; Attachments (1 file); Transcript (3 segments, 3 speakers)\n", preview.ReplaceLineEndings("\n"), StringComparison.Ordinal);
         Assert.Contains("- Attachment \"call.m4a\": audio and video are never sent", preview, StringComparison.Ordinal);
         Assert.Contains("- Agenda: not ticked", preview, StringComparison.Ordinal);
         Assert.Contains("Audio and video are never sent.", preview, StringComparison.Ordinal);

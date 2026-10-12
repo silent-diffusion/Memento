@@ -162,7 +162,7 @@ describe('Live output (DESIGN.md §10, §11, against the browser-preview host)',
     await click(button('Show live output'));
     await until(() => document.querySelector('.live-request') !== null, 10_000);
 
-    expect(document.querySelector('.live-sub')?.textContent).toBe('Claude · Sending and receiving');
+    expect(document.querySelector('.live-sub')?.textContent).toBe('Claude · claude-opus-5-5 · Sending and receiving');
     expect(document.querySelector('.live-whole')?.textContent).toBe('Replies from Claude arrive whole');
     expect(document.querySelector('#live-request-label')?.textContent).toBe('Request · sent to Claude');
     expect(document.querySelector('.live-caret')).toBeNull();

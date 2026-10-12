@@ -57,6 +57,7 @@ describe('M4 contract names (BRIDGE.md, M4 sections)', () => {
       'ai.network',
       'ai.providerError',
       'ai.contentTooLong',
+      'ai.unknownModel',
       'ai.modelNotInstalled',
       'ai.notEnoughVram',
       'ai.workerCrashed',

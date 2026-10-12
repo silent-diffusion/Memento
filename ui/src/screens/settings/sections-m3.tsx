@@ -2,6 +2,7 @@
 // startup and moving the library, AI and privacy, Export, and Storage and history. Every row keeps
 // its one-sentence description; nothing here sends anything anywhere.
 import type { JSX } from 'preact';
+import { Fragment } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type {
   AiProvider,
@@ -33,6 +34,7 @@ import { RemoveVideoRow } from './RemoveVideo';
 import { DateFormatRow } from './DateFormat';
 import { DeleteAudioRow } from './DeleteAudio';
 import { AiProviderDefaults } from './sections-m4';
+import { CloudModelSetting } from './CloudModelSetting';
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Memento did not answer.';
@@ -329,7 +331,7 @@ export function AiPrivacySection(): JSX.Element {
       .then(({ hasKey }) => {
         const current = store.settings.value;
         if (current !== null) {
-          store.settings.value = { ...current, ai: { ...current.ai, providers: { ...current.ai.providers, [provider]: { hasKey } } } };
+          store.settings.value = { ...current, ai: { ...current.ai, providers: { ...current.ai.providers, [provider]: { ...current.ai.providers[provider], hasKey } } } };
         }
       })
       .catch((e: unknown) => {
@@ -378,43 +380,46 @@ export function AiPrivacySection(): JSX.Element {
           const hasKey = ai.providers[provider].hasKey;
           const name = PROVIDER_NAMES[provider];
           return (
-            <SettingsRow
-              key={provider}
-              label={name}
-              description={hasKey ? description : 'Not configured.'}
-              below={index === PROVIDERS.length - 1 ? <InlineMessage message={keyError} /> : undefined}
-            >
-              {hasKey ? (
-                <span class="mono settings-key" aria-label={`${name} key stored`}>
-                  {MASKED_KEY}
-                </span>
-              ) : (
-                <span class="settings-note">No key</span>
-              )}
-              {hasKey ? (
+            <Fragment key={provider}>
+              <SettingsRow
+                label={name}
+                description={hasKey ? description : 'Not configured.'}
+                below={index === PROVIDERS.length - 1 ? <InlineMessage message={keyError} /> : undefined}
+              >
+                {hasKey ? (
+                  <span class="mono settings-key" aria-label={`${name} key stored`}>
+                    {MASKED_KEY}
+                  </span>
+                ) : (
+                  <span class="settings-note">No key</span>
+                )}
+                {hasKey ? (
+                  <button
+                    class="btn ghost small-btn"
+                    type="button"
+                    aria-label={`Remove the ${name} key`}
+                    onClick={() => {
+                      removeKey(provider);
+                    }}
+                  >
+                    Remove
+                  </button>
+                ) : null}
                 <button
                   class="btn ghost small-btn"
                   type="button"
-                  aria-label={`Remove the ${name} key`}
+                  aria-haspopup="dialog"
+                  aria-label={hasKey ? `Replace the ${name} key` : `Add a ${name} key`}
                   onClick={() => {
-                    removeKey(provider);
+                    store.dialog.value = { kind: 'aiKey', provider, replacing: hasKey };
                   }}
                 >
-                  Remove
+                  {hasKey ? 'Replace' : 'Add'}
                 </button>
-              ) : null}
-              <button
-                class="btn ghost small-btn"
-                type="button"
-                aria-haspopup="dialog"
-                aria-label={hasKey ? `Replace the ${name} key` : `Add a ${name} key`}
-                onClick={() => {
-                  store.dialog.value = { kind: 'aiKey', provider, replacing: hasKey };
-                }}
-              >
-                {hasKey ? 'Replace' : 'Add'}
-              </button>
-            </SettingsRow>
+              </SettingsRow>
+              {/* After 2.1: the model this provider is sent, under its key. */}
+              <CloudModelSetting provider={provider} />
+            </Fragment>
           );
         })}
       </SettingsGroup>

@@ -196,6 +196,86 @@
   color: var(--text-3);
 }
 
+/* After 2.1: Settings › AI and privacy › each cloud provider's model (DESIGN.md §11), a two-column radio list (one below 640 px) with
+   the id in mono and its note under it, then "Other model…" with its field. */
+.model-choices {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  padding-top: 4px;
+}
+
+.model-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.model-choice .chk {
+  margin-top: 2px;
+  flex: none;
+}
+
+.model-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.model-choice-id {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.model-choice-note {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.model-other {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-other-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 360px;
+  font-size: 13px;
+}
+
+.cloud-model-in-use {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.cloud-model-in-use .mono {
+  color: var(--text);
+}
+
+.model-unlisted {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .model-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .settings-inline {
   flex: 1 1 100%;
   margin: 0;

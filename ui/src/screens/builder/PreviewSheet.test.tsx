@@ -50,10 +50,10 @@ describe('Preview what will be sent (against the browser-preview host)', () => {
     expect(el?.getAttribute('role')).toBe('dialog');
     expect(el?.getAttribute('aria-modal')).toBe('true');
     expect(el?.querySelector('h2')?.textContent).toBe('What will be sent');
-    expect(el?.querySelector('#preview-sub')?.textContent).toBe('Claude · Claude Sonnet 4.5 · Ask before every send on');
+    expect(el?.querySelector('#preview-sub')?.textContent).toBe('Claude · claude-opus-5-5 · Ask before every send on');
     expect(current()).toBe('Inputs and what is held back');
     const facts = [...(el?.querySelectorAll('.preview-facts dt') ?? [])].map((dt) => `${dt.textContent}: ${dt.nextElementSibling?.textContent ?? ''}`);
-    expect(facts[0]).toBe('Sent to: Claude (Anthropic) · Claude Sonnet 4.5');
+    expect(facts[0]).toBe('Sent to: Claude (Anthropic) · claude-opus-5-5');
     expect(facts[1]).toBe('Ask before every send: On: you confirm before anything is sent');
     expect(facts[2]).toMatch(/^Requests: \d+ to read the transcript, then the checks built from their answers$/);
     const transcript = el?.querySelector('[data-input="transcript"]');

@@ -38,7 +38,7 @@ export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest
         if (settings !== null) {
           store.settings.value = {
             ...settings,
-            ai: { ...settings.ai, providers: { ...settings.ai.providers, [request.provider]: { hasKey } } },
+            ai: { ...settings.ai, providers: { ...settings.ai.providers, [request.provider]: { ...settings.ai.providers[request.provider], hasKey } } },
           };
         }
         setKey('');

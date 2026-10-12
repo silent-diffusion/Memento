@@ -72,19 +72,35 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
     {
         var name = ProviderIds.DisplayName(id);
         var configured = id == ProviderIds.Anthropic ? settings.Current.Ai.Providers.Anthropic.Model : settings.Current.Ai.Providers.Openai.Model;
-        var model = configured ?? (id == ProviderIds.Anthropic ? AiModelDefaults.AnthropicModel : AiModelDefaults.OpenAiModel);
+        var cloud = AiModelDefaults.Describe(id, AiModelDefaults.Effective(id, configured));
+        var model = cloud.Id;
         if (!settings.Current.Ai.Enabled)
         {
             return new ProviderStatus(id, false, Core.Bridge.DomainErrorCodes.AiDisabled, "External AI is off",
-                $"External AI is off, so nothing is sent to {name}. Turn on \"Allow external AI services\" in Settings › AI and privacy.", model, model);
+                $"External AI is off, so nothing is sent to {name}. Turn on \"Allow external AI services\" in Settings › AI and privacy.", model, model) { Cloud = cloud };
         }
 
         if (!secrets.HasKey(id))
         {
-            return new ProviderStatus(id, false, AiErrorCodes.NoKey, "No key saved", AiErrors.NoKey(name).Message, model, model);
+            return new ProviderStatus(id, false, AiErrorCodes.NoKey, "No key saved", AiErrors.NoKey(name).Message, model, model) { Cloud = cloud };
         }
 
-        return new ProviderStatus(id, true, null, null, $"Sends the ticked inputs to {name} ({model}) when you press Generate.", model, model);
+        var status = new ProviderStatus(id, true, null, null, null, model, model) { Cloud = cloud };
+        return status with { Detail = CloudDetail(name, cloud, status.ChunkTokens) };
+    }
+
+    /// <summary>
+    /// The ready card's note: where the inputs go, how much the model reads, and what Memento does with a long transcript
+    /// (it is split, so no transcript is refused for its length); for a model typed by hand, what Memento assumes.
+    /// </summary>
+    internal static string CloudDetail(string name, CloudModel cloud, int chunkTokens)
+    {
+        var size = cloud.Listed
+            ? $"{cloud.Id} reads up to {AiModelDefaults.Tokens(cloud.ContextTokens)} tokens a request"
+            : $"{cloud.Id} is not in Memento's list, so Memento assumes it reads up to {AiModelDefaults.Tokens(cloud.ContextTokens)} tokens a request and sends it no effort setting";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Sends the ticked inputs to {name} ({cloud.Id}) when you press Generate. {size}; a long transcript is split into segments of up to {chunkTokens:N0} tokens, so it always fits.");
     }
 
     private ProviderStatus LocalStatus()

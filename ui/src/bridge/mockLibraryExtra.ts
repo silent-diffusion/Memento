@@ -2,6 +2,7 @@
 // importing audio or video, library usage, moving the library, reclaiming space, the AI keys
 // (only whether one is stored), Start with Windows, and the M3 settings blocks. It composes the
 // agenda and export parts into one set of handlers for mock.ts.
+import { providerState } from './cloudModels';
 import { createMockAgenda, type AgendaFlag, type MockAgenda, type PendingOriginal } from './mockAgenda';
 import { isoWithOffset, type MockProject } from './mockData';
 import { createMockExport, type ExportFlag, type MockExport } from './mockExport';
@@ -155,7 +156,7 @@ export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export'
       keepRecord: true,
       share: { transcript: true, details: true, participants: true, agenda: true, highlights: true, attachments: false },
       // The preview pretends a Claude key is stored so the masked row and Replace can be seen.
-      providers: { anthropic: { hasKey: true }, openai: { hasKey: false } },
+      providers: { anthropic: providerState('anthropic', true, null), openai: providerState('openai', false, null) },
       // M4
       defaultProviderId: null,
       localModelId: MODEL_IDS.qwen,
@@ -484,7 +485,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
 
   const setProvider = (provider: AiProvider, hasKey: boolean): { hasKey: boolean } => {
     const settings = env.settings();
-    env.setSettings({ ...settings, ai: { ...settings.ai, providers: { ...settings.ai.providers, [provider]: { hasKey } } } });
+    env.setSettings({ ...settings, ai: { ...settings.ai, providers: { ...settings.ai.providers, [provider]: { ...settings.ai.providers[provider], hasKey } } } });
     return { hasKey };
   };
   const checkProvider = (provider: string): AiProvider => {

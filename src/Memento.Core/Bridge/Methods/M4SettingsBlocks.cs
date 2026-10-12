@@ -3,6 +3,7 @@ using Memento.Core.Ai;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Engines;
 using Memento.Core.Models;
+using Memento.Core.Secrets;
 using Memento.Core.Settings;
 
 namespace Memento.Core.Bridge.Methods;
@@ -37,13 +38,28 @@ internal static class M4SettingsBlocks
                 LocalModelId = localModel,
                 LocalModelChosen = ai.LocalModelId is not null && localModel == ai.LocalModelId,
                 Providers = new AiProvidersSnapshot(
-                    snapshot.Ai.Providers.Anthropic with { Model = ai.Providers.Anthropic.Model ?? AiModelDefaults.AnthropicModel, Models = AiModelDefaults.AnthropicModels },
-                    snapshot.Ai.Providers.Openai with { Model = ai.Providers.Openai.Model ?? AiModelDefaults.OpenAiModel, Models = AiModelDefaults.OpenAiModels }),
+                    WithModel(snapshot.Ai.Providers.Anthropic, AiProviders.Anthropic, ai.Providers.Anthropic.Model),
+                    WithModel(snapshot.Ai.Providers.Openai, AiProviders.OpenAi, ai.Providers.Openai.Model)),
             },
             Documents = new DocumentsSettingsSnapshot(settings.Documents.DefaultTemplateId ?? BuiltInTemplateId, settings.Documents.DefaultStyleId ?? BuiltInStyleId)
             {
                 OcrEngine = EffectiveOcrEngine(settings.Documents.OcrEngine, selector.IsInstalled(OcrEngines.TesseractEnglishModelId)),
             },
+        };
+    }
+
+    /// <summary>A cloud provider's model in effect, the models Settings lists with their notes, and whether it was typed by hand.</summary>
+    internal static AiProviderKeyState WithModel(AiProviderKeyState state, string providerId, string? configured)
+    {
+        var model = AiModelDefaults.Describe(providerId, AiModelDefaults.Effective(providerId, configured));
+        var catalog = AiModelDefaults.Catalog(providerId);
+        return state with
+        {
+            Model = model.Id,
+            Models = catalog.Select(m => m.Id).ToList(),
+            Choices = catalog.Select(m => new AiModelChoice(m.Id, m.Note, m.ContextTokens)).ToList(),
+            Custom = !model.Listed,
+            ModelNote = model.Note,
         };
     }
 

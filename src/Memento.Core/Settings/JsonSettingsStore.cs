@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Memento.Core.Ai;
 using Memento.Core.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -121,8 +122,47 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             Speakers = NormalizeSpeakers(settings.Speakers),
             History = NormalizeHistory(settings.History),
             General = NormalizeGeneral(settings.General),
+            Ai = NormalizeAi(settings.Ai),
         };
         return settings.SchemaVersion < 2 ? UpgradeToVersion2(normalized) : normalized;
+    }
+
+    /// <summary>
+    /// The cloud models: a missing block reads as the defaults, and an empty or implausible model id (Memento never
+    /// writes one, but a hand-edited file may hold one) reads as <c>null</c>, the provider's default, so it is never sent.
+    /// </summary>
+    private AiSettings NormalizeAi(AiSettings? ai)
+    {
+        if (ai is null)
+        {
+            return new AiSettings();
+        }
+
+        var providers = ai.Providers ?? new AiProviderModels();
+        return ai with
+        {
+            Providers = providers with
+            {
+                Anthropic = NormalizeModel("ai.providers.anthropic.model", providers.Anthropic, AiModelDefaults.AnthropicModel),
+                Openai = NormalizeModel("ai.providers.openai.model", providers.Openai, AiModelDefaults.OpenAiModel),
+            },
+        };
+    }
+
+    private AiProviderModel NormalizeModel(string field, AiProviderModel? model, string fallback)
+    {
+        if (model is null)
+        {
+            return new AiProviderModel();
+        }
+
+        if (model.Model is { } id && !AiModelDefaults.IsValidModelId(id))
+        {
+            LogInvalidValue(field, id, fallback);
+            return model with { Model = null };
+        }
+
+        return model;
     }
 
     /// <summary>

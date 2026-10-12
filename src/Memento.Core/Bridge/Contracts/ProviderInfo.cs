@@ -17,6 +17,12 @@ public sealed record ProviderInfo(string Id, string Name, string Vendor, string 
     /// <summary>The catalog id of the local model to download when <see cref="Code"/> is <c>ai.modelNotInstalled</c>.</summary>
     public string? ModelId { get; init; }
 
+    /// <summary>
+    /// Cloud only (after 2.1): <c>true</c> when the model in <see cref="ModelLabel"/> is in Memento's list, <c>false</c>
+    /// when it was typed under "Other model…"; <c>null</c> for the local model.
+    /// </summary>
+    public bool? ModelListed { get; init; }
+
     /// <summary>Local only: the discrete graphics card's memory and who holds it; <c>null</c> for cloud providers and on PCs without a card.</summary>
     public GpuMemoryInfo? GpuMemory { get; init; }
 

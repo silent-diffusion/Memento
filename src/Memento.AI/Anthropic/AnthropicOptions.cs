@@ -33,4 +33,24 @@ public sealed record AnthropicOptions
     public int MaxOutputTokens { get; init; } = 128_000;
 
     public CloudHttpOptions Http { get; init; } = new();
+
+    /// <summary>
+    /// The options for a model from Settings (<see cref="Memento.Core.Ai.AiModelDefaults.Describe"/>): its context and
+    /// answer limit, the effort only when the model is in Memento's list, and the server-side fallback only for a model
+    /// that has one (not Claude Haiku 5.5, nor a model typed by hand).
+    /// </summary>
+    public static AnthropicOptions For(Memento.Core.Ai.CloudModel model, Uri? baseUrl = null)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        var defaults = new AnthropicOptions();
+        return defaults with
+        {
+            BaseUrl = baseUrl ?? DefaultBaseUrl,
+            Model = model.Id,
+            Effort = model.SendsEffort ? defaults.Effort : null,
+            UseServerSideFallback = model.ServerSideFallback,
+            ContextTokens = model.ContextTokens,
+            MaxOutputTokens = model.MaxOutputTokens,
+        };
+    }
 }

@@ -123,6 +123,7 @@ public sealed class CloudPlumbingTests
             AiErrors.NoNetwork("Claude"),
             AiErrors.ServerFailed("Claude", 500),
             AiErrors.ContentTooLong("Claude", 10, 5),
+            AiErrors.UnknownModel("Claude", "claude-x", 404),
             AiErrors.Cancelled("Claude"),
             AiErrors.ModelNotInstalled("Local model", "Qwen3.5 4B"),
             AiErrors.NotEnoughVram("Local model", "Qwen3.5 4B", 2L << 30, 3L << 30),
@@ -132,7 +133,7 @@ public sealed class CloudPlumbingTests
         Assert.Equal(AiErrorCodes.All.ToHashSet(), errors.Select(e => e.Code).ToHashSet());
         Assert.All(errors, e => Assert.Contains("no document was changed", e.Message, StringComparison.OrdinalIgnoreCase));
         Assert.Equal("Claude could not be reached: no network. Nothing was sent twice and no document was changed.", AiErrors.NoNetwork("Claude").Message);
-        Assert.Equal("The graphics card has 2.0 GB of free memory and Qwen3.5 4B needs 3.0 GB. Nothing left this PC and no document was changed. Close apps that use the graphics card, or run the model on the processor.", errors[8].Message);
+        Assert.Equal("The graphics card has 2.0 GB of free memory and Qwen3.5 4B needs 3.0 GB. Nothing left this PC and no document was changed. Close apps that use the graphics card, or run the model on the processor.", errors[9].Message);
         Assert.Contains("Try again in 30 seconds.", errors[2].Message, StringComparison.Ordinal);
     }
 }

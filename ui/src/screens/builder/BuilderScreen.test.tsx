@@ -253,7 +253,7 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
     await until(() => document.querySelector('#confirm-send-title') !== null);
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.querySelector('h2')?.textContent).toBe('Send to Claude?');
-    expect(dialog?.textContent).toContain('Claude (Anthropic) · Claude Sonnet 4.5');
+    expect(dialog?.textContent).toContain('Claude (Anthropic) · claude-opus-5-5');
     expect(dialog?.textContent).toMatch(/\d+ KB in 1 chunk/);
     expect([...(dialog?.querySelectorAll('.pill') ?? [])].map((p) => p.textContent)).toEqual(['Transcript', 'Details', 'Participants', 'Agenda', 'Highlights']);
     await click(dialog?.querySelector('.btn.g'));

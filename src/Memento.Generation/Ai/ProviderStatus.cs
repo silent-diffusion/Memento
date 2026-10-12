@@ -1,4 +1,5 @@
 using Memento.AI.Local;
+using Memento.Core.Ai;
 using Memento.Core.Bridge.Contracts;
 
 namespace Memento.Generation.Ai;
@@ -38,10 +39,19 @@ public sealed record ProviderStatus(
     /// </summary>
     public string? GpuNote { get; init; }
 
-    /// <summary>Transcript tokens per chunk: the model profile scaled to the context it gets (Local), or 24,000 (cloud).</summary>
+    /// <summary>Cloud only: the model chosen in Settings, its context and what is sent with it (after 2.1).</summary>
+    public CloudModel? Cloud { get; init; }
+
+    /// <summary>The most transcript tokens one cloud request carries; a quarter of the model's context when that is less.</summary>
+    public const int CloudChunkTokens = 24_000;
+
+    /// <summary>
+    /// Transcript tokens per chunk: the model profile scaled to the context it gets (Local), or 24,000 for a cloud model,
+    /// less when a quarter of the chosen model's context is smaller (the transcript is split, never refused for its length).
+    /// </summary>
     public int ChunkTokens => LocalModel is { } entry && Plan is { } plan
         ? Math.Max(256, entry.Llm.ChunkTokens * plan.ContextTokens / Math.Max(1, entry.Llm.ContextTokens))
-        : 24_000;
+        : Math.Max(256, Math.Min(CloudChunkTokens, (Cloud?.ContextTokens ?? int.MaxValue) / 4));
 
     /// <summary>The answer limit of a map request: about a quarter of a local context, at most 1,400 tokens (the spike's).</summary>
     public int MapOutputTokens => Plan is { } plan ? Math.Min(1400, plan.ContextTokens / 4) : 8000;

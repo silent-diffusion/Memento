@@ -37,7 +37,7 @@ public sealed record ComposedPayload(
         var builder = new StringBuilder();
         builder.AppendLine(provider.Kind == AiProviderKind.Local
             ? "Exactly what the local model will read (nothing leaves this PC)"
-            : $"Exactly what will be sent to {provider.DisplayName}");
+            : string.IsNullOrEmpty(provider.Model) ? $"Exactly what will be sent to {provider.DisplayName}" : $"Exactly what will be sent to {provider.DisplayName} ({provider.Model})");
         builder.Append("Included: ")
             .AppendLine(Sections.Count == 0 ? "nothing" : string.Join("; ", Sections.Select(s => s.Summary.Length == 0 ? s.Title : $"{s.Title} ({s.Summary})")));
         if (Excluded.Count > 0)

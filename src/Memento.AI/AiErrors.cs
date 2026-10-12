@@ -111,6 +111,17 @@ public static class AiErrors
         HttpStatus: status,
         Diagnostic: status is { } s ? Http(s) : null);
 
+    /// <summary>
+    /// The service does not know the model chosen in Settings (or the key's account may not use it). Memento never tries
+    /// another model in its place: the person chooses.
+    /// </summary>
+    public static AiError UnknownModel(string provider, string model, int status, string? errorType = null) => new(
+        AiErrorCodes.UnknownModel,
+        provider,
+        $"{provider} does not offer a model called '{model}'. Nothing was generated and no document was changed. Choose one from the list in Settings › AI and privacy, or check the id.",
+        HttpStatus: status,
+        Diagnostic: Http(status, errorType));
+
     public static AiError LocalContentTooLong(string provider, int tokens, int limit) => new(
         AiErrorCodes.ContentTooLong,
         provider,

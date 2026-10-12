@@ -257,6 +257,8 @@ public sealed partial class AnthropicProvider : IAiProvider
 
     private AiError MapFailure(CloudHttpFailure failure) => failure.Status switch
     {
+        // Never another model in its place: the person chooses one (DESIGN.md §17).
+        400 or 404 when failure.IsUnknownModel(Model) => AiErrors.UnknownModel(DisplayName, Model, failure.Status, failure.ErrorType),
         401 => AiErrors.InvalidKey(DisplayName, failure.Status),
         403 => AiErrors.NotPermitted(DisplayName, failure.Status, failure.ErrorType),
         402 => AiErrors.QuotaExhausted(DisplayName, failure.Status, failure.ErrorType),
