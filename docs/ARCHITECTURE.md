@@ -222,6 +222,13 @@ Low-confidence threshold for the dotted underline: word confidence < 0.6 (settab
 6. Unhandled exceptions flush recording checkpoints before the process exits, and write a crash report to the logs folder.
 7. No personal data in the repository: no real names, emails, paths with user names, keys, or recordings. Test fixtures are synthetic.
 8. Every bridge method, parser, exporter and the grounding validator has unit tests. Long-recording soak tests run before a release.
+9. Tests never depend on the wall clock. CI runners (and a loaded PC) stall for tens of seconds, so:
+   - **Wait for a signal or a condition, never for time.** Await the event, `TaskCompletionSource`, `WhenIdleAsync` or a polled condition, with `Patience.Ceiling` (30 s) as a ceiling that only fails a test when the signal never comes. No `Task.Delay` as a wait for work, and no event or job wait with a shorter limit.
+   - **Assert on order, counts and readings taken around the action**, never "finished within N ms": bracket a time between two readings (`before ≤ mark ≤ after`), check that the i-th timer event comes no sooner than i intervals (less one 16 ms timer tick), and wait for the state the assertion needs (a checkpoint that already reports drift or has audio on every track), not for the clock to pass the point where it usually exists.
+   - **Measure work, not time, for performance limits.** The parser hardening and fuzz tests count the processor cycles a parse used (`QueryThreadCycleTime`, `tests/Memento.Documents.Tests/Support/Work.cs`; the thread's own cycles plus every `ParseGuard` parse), with patterns run without their wall-clock match timeout inside a `RegexGuard.StartTally`, against budgets stated in cycles. A stall changes elapsed time, not cycles.
+   - **Inject the delay instead of hoping for one.** Reproduce a starvation flake before fixing it: the synthetic capture's `DeliveryDelay` hands every packet over late, a probe delay in the product (removed before committing) widens a race, or the test host process is frozen in bursts. Keep the starved case as a test case when it is cheap (the recording-session tests run punctual and with packets 600 ms late).
+   - **Order races with signals.** To show a race is closed, hold one side on a `TaskCompletionSource` (a held index write, a file released in the first retry wait) rather than sleeping.
+   - **Counted retries in the product.** Retry budgets that wait on other programs count the waits they ask for, not the clock (`AtomicReplace`, project delete, the recording drain on stop), so a starved machine still gets every try; a regex match stopped by its timeout after less work than a 1 GHz processor does in that time is retried as a stall (`RegexGuard`).
 
 ## 10. Accessibility and theming
 
