@@ -64,7 +64,7 @@ public sealed class FolderTests : IDisposable
     {
         var plain = JsonNode.Parse("""{"schemaVersion":4,"id":"x","videoTracks":[]}""")!.AsObject();
         var migrated = ProjectManifestMigrator.Default.Migrate(plain);
-        Assert.Equal((5, true), (migrated.Manifest["schemaVersion"]!.GetValue<int>(), migrated.Migrated));
+        Assert.Equal((ProjectManifest.CurrentSchemaVersion, true), (migrated.Manifest["schemaVersion"]!.GetValue<int>(), migrated.Migrated));
         Assert.True(migrated.Manifest.ContainsKey("folder"));
         Assert.Null(migrated.Manifest["folder"]);
 
@@ -87,9 +87,9 @@ public sealed class FolderTests : IDisposable
 
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
         Assert.Null(manifest.Folder);
-        Assert.Equal(5, manifest.SchemaVersion);
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, manifest.SchemaVersion);
         await _host.Store.UpdateAsync(recordingId, m => m, CancellationToken.None);
-        Assert.Equal(5, JsonNode.Parse(await File.ReadAllTextAsync(path))!["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, JsonNode.Parse(await File.ReadAllTextAsync(path))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Fact]
