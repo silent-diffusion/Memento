@@ -5,6 +5,13 @@ packed into the installer package, and the release workflow uses it as the GitHu
 
 ## 2.2.0
 
+### Choose the model behind Claude or ChatGPT
+
+- **Settings › AI and privacy** now lists the models each service offers, under its key, with a short note on each: for Claude, `claude-opus-5-5` (the default), `claude-fable-5-1` (Anthropic's top tier; costs more and needs their 30-day data retention), `claude-sonnet-5-5` and `claude-haiku-5-5`; for ChatGPT, `gpt-6-astra` (the default), `gpt-6.1-sol` and `gpt-6-luna`. **Other model…** takes an id typed by hand, saved as typed and marked as not in Memento's list.
+- The chosen model is sent with every request and named everywhere a request is described: the Builder's provider card, Preview exactly what will be sent, the send confirmation, Live output, "How this was made" (a new Model row) and History.
+- A model the service does not know gets its own answer, never a silent switch to another model: "Claude does not offer a model called 'x'. Nothing was generated and no document was changed. Choose one from the list in Settings › AI and privacy, or check the id." with **Choose a model** leading to Settings.
+- Long transcripts fit every listed model: the pipeline already splits a transcript into pieces, now capped at a quarter of the chosen model's context when that is smaller.
+
 ### Fixed
 
 - **Identify speakers again, Transcribe again and retries no longer race the pass they replace.** A stage that was stopped to run again could restart before its new settings were written, so a second pass ran with the old ones and a third followed; and a request that landed as a pass ended could be lost. The run now waits for the new settings and queues the recording again when a request lands late.
