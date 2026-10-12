@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Memento.Documents.Agenda;
 using Memento.Documents.Render;
@@ -8,12 +7,13 @@ namespace Memento.Documents.Tests.Fuzz;
 
 /// <summary>
 /// Generated worst cases for the text parsers and the viewer's HTML reader: inputs that make naive regexes,
-/// string slicing and recursion quadratic, cubic or stack-deep. Each must finish in under <see cref="Limit"/> with a
+/// string slicing and recursion quadratic, cubic or stack-deep. Each must finish within <see cref="Limit"/> of work (<see cref="Work.Budget"/> of 5 s,
+/// counted in processor cycles, so a stalled runner cannot fail it) with a
 /// result or an agenda error, never a crash.
 /// </summary>
 public sealed class PathologicalInputTests
 {
-    private static readonly TimeSpan Limit = WallClock.Limit(5);
+    private static readonly long Limit = Work.Budget(5);
 
     public static TheoryData<string> TextCases => new(TextInputs.Keys);
 
@@ -53,7 +53,7 @@ public sealed class PathologicalInputTests
     public async Task PastedTextFinishesQuickly(string name)
     {
         var text = TextInputs[name]();
-        await Within(() => Agendas.Importer().ParseTextAsync(text, null, CancellationToken.None));
+        await Within(() => Agendas.Importer().ParseTextAsync(text, Work.Unlimited, CancellationToken.None));
     }
 
     [Theory]
@@ -63,7 +63,7 @@ public sealed class PathologicalInputTests
         var bytes = Encoding.UTF8.GetBytes(TextInputs[name]());
         foreach (var file in new[] { "agenda.txt", "agenda.md", "agenda.csv", "agenda.tsv" })
         {
-            await Within(() => Agendas.ImportAsync(bytes, file), file);
+            await Within(() => Agendas.ImportAsync(bytes, file, options: Work.Unlimited), file);
         }
     }
 
@@ -72,26 +72,26 @@ public sealed class PathologicalInputTests
     public async Task ViewerMarkupFinishesQuicklyWithoutACrash(string name)
     {
         var html = HtmlInputs[name]();
-        await Within(() => Task.Run(() =>
+        // On this thread, so its cycles are counted.
+        await Within(() =>
         {
             HtmlToBlocks.ParseBlocks(html);
             HtmlToBlocks.ParsePaper(html);
-        }));
+            return Task.CompletedTask;
+        });
     }
 
     private static async Task Within(Func<Task> parse, string what = "parsing")
     {
-        var watch = Stopwatch.StartNew();
-        try
+        // A ceiling against a hang, never an expectation: the limit is checked on the work done.
+        var (cycles, error) = await Work.OfRunAsync(() => parse().WaitAsync(TimeSpan.FromMinutes(10)));
+
+        // Refusing the input is fine; crashing or hanging is not.
+        if (error is not null and not AgendaImportException)
         {
-            await parse().WaitAsync(Limit * 6);
-        }
-        catch (AgendaImportException)
-        {
-            // Refusing the input is fine; crashing or hanging is not.
+            throw new InvalidOperationException($"{what} failed", error);
         }
 
-        watch.Stop();
-        Assert.True(watch.Elapsed < Limit, $"{what} took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.True(cycles < Limit, $"{what} did {cycles / 1e9:0.0} G cycles of work");
     }
 }
