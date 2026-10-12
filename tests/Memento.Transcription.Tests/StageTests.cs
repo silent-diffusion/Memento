@@ -780,7 +780,7 @@ public sealed class StageTests : IDisposable
         var id = await _host.RecordAsync("Busy again and again", 2, Mic, SystemAudio);
         foreach (var start in started)
         {
-            await start.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await start.Task.WaitAsync(Patience.Ceiling);
             _host.Gate.SetManual(true);
             await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Speakers).Label == "Paused · Paused by you", "speakers to pause");
             _host.Gate.SetManual(false);

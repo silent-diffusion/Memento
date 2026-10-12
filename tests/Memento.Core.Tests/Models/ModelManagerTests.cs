@@ -368,7 +368,7 @@ public sealed class ModelManagerTests : IDisposable
         // The first look does not hash on the caller's thread: not installed yet.
         Assert.False(manager.IsInstalled("test"));
 
-        Assert.Equal("test", await installed.Task.WaitAsync(TimeSpan.FromSeconds(20)));
+        Assert.Equal("test", await installed.Task.WaitAsync(Patience.Ceiling));
         Assert.True(manager.IsInstalled("test"));
         Assert.Equal(ModelPath, manager.Resolve("test"));
         Assert.True(File.Exists(ModelPath + ".verified.json"));

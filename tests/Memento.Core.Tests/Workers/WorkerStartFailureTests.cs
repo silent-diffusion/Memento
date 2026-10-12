@@ -17,7 +17,7 @@ public sealed class WorkerStartFailureTests
         var launcher = new ScriptedWorkerLauncher { InputFailure = new IOException("The pipe has been ended.") };
         using var client = new WorkerClient(launcher, NullLogger<WorkerClient>.Instance);
 
-        var crash = await Assert.ThrowsAsync<WorkerCrashedException>(() => client.RunAsync(Job, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)));
+        var crash = await Assert.ThrowsAsync<WorkerCrashedException>(() => client.RunAsync(Job, null, CancellationToken.None).WaitAsync(Patience.Ceiling));
 
         Assert.Equal(unchecked((int)0xC0000005), crash.ExitCode);
         Assert.False(crash.Hung);

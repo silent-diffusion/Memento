@@ -83,7 +83,7 @@ public sealed class WorkerLocalLlmJobClientTests : IDisposable
         using var cancel = new CancellationTokenSource();
         var session = await provider.OpenSessionAsync(cancel.Token);
         var running = session.GenerateManyAsync([AiRequest.Create("map.decisions", "Extract.", "first", 100)], null, cancel.Token);
-        await _engines.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await _engines.Started.Task.WaitAsync(Patience.Ceiling);
 
         await cancel.CancelAsync();
 

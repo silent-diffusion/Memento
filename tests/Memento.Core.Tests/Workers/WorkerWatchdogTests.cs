@@ -31,7 +31,7 @@ public sealed class WorkerWatchdogTests
         };
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, Short);
 
-        var crash = await Assert.ThrowsAsync<WorkerCrashedException>(() => client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)));
+        var crash = await Assert.ThrowsAsync<WorkerCrashedException>(() => client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling));
 
         Assert.True(crash.Hung);
         Assert.Equal(Short.QuietLimit, crash.QuietFor);
@@ -57,8 +57,8 @@ public sealed class WorkerWatchdogTests
         };
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, Short);
 
-        await Assert.ThrowsAsync<WorkerCrashedException>(() => client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)));
-        var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.ThrowsAsync<WorkerCrashedException>(() => client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling));
+        var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling);
 
         Assert.Equal(WorkerMessageTypes.Result, reply.Type);
     }
@@ -80,7 +80,7 @@ public sealed class WorkerWatchdogTests
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, Short);
 
         // 4 s in all, twice the 2 s limit, but never 2 s without a line.
-        var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling);
 
         Assert.Equal(WorkerMessageTypes.Result, reply.Type);
         Assert.False(Assert.Single(_launcher.Started).Killed);
@@ -98,7 +98,7 @@ public sealed class WorkerWatchdogTests
         };
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, Short);
 
-        var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling);
 
         Assert.Equal(WorkerMessageTypes.Result, reply.Type);
         Assert.True(Assert.Single(_launcher.Started).Killed);
