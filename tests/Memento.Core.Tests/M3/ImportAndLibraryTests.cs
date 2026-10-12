@@ -341,6 +341,8 @@ public sealed class ImportAndLibraryTests : IDisposable
         var id = await _m3.RecordAsync();
         var transcript = _m3.WriteTranscript(id);
         var transcriptBytes = File.ReadAllBytes(transcript);
+        // Reclaim skips a recording whose stages are still queued or running; on a slow machine they may still be.
+        await _m3.Host.Processing.WhenIdleAsync().WaitAsync(Patience.Ceiling);
 
         var jobId = (await _m3.ResultAsync("storage.reclaim", new { recordingIds = new[] { id }, downmixMono = false, codec = "aac", bitrateKbps = 128 })).GetProperty("jobId").GetString();
         await _m3.Get<StorageReclaimService>().WhenIdleAsync();

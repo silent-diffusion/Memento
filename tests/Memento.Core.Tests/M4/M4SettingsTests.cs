@@ -54,10 +54,13 @@ public sealed class M4SettingsTests : IDisposable
     public async Task EachCloudProviderCarriesItsModelChoicesWithNotes()
     {
         var anthropic = (await _host.ResultAsync("settings.get")).GetProperty("ai").GetProperty("providers").GetProperty("anthropic");
+        // Whether a key is stored depends on the machine's key store (none on the build runner), not on this contract.
+        var withoutKey = System.Text.Json.Nodes.JsonNode.Parse(anthropic.GetRawText())!.AsObject();
+        withoutKey.Remove("hasKey");
 
         Assert.Equal(
-            """{"hasKey":true,"model":"claude-opus-5-5","models":["claude-opus-5-5","claude-fable-5-1","claude-sonnet-5-5","claude-haiku-5-5"],"choices":[{"id":"claude-opus-5-5","note":"The most capable for long transcripts. Memento\u0027s default.","contextTokens":1000000},{"id":"claude-fable-5-1","note":"Anthropic\u0027s top tier: the newest and most intelligent. Costs more and takes longer; the account needs 30-day data retention.","contextTokens":1000000},{"id":"claude-sonnet-5-5","note":"Fast and strong, at about half the price of Opus.","contextTokens":1000000},{"id":"claude-haiku-5-5","note":"The fastest and cheapest.","contextTokens":1000000}],"custom":false,"modelNote":"The most capable for long transcripts. Memento\u0027s default."}""",
-            anthropic.GetRawText());
+            """{"model":"claude-opus-5-5","models":["claude-opus-5-5","claude-fable-5-1","claude-sonnet-5-5","claude-haiku-5-5"],"choices":[{"id":"claude-opus-5-5","note":"The most capable for long transcripts. Memento\u0027s default.","contextTokens":1000000},{"id":"claude-fable-5-1","note":"Anthropic\u0027s top tier: the newest and most intelligent. Costs more and takes longer; the account needs 30-day data retention.","contextTokens":1000000},{"id":"claude-sonnet-5-5","note":"Fast and strong, at about half the price of Opus.","contextTokens":1000000},{"id":"claude-haiku-5-5","note":"The fastest and cheapest.","contextTokens":1000000}],"custom":false,"modelNote":"The most capable for long transcripts. Memento\u0027s default."}""",
+            withoutKey.ToJsonString());
     }
 
     [Fact]
