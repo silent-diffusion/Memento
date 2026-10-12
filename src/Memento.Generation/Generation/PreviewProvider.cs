@@ -24,7 +24,7 @@ internal sealed class PreviewProvider(ProviderStatus status) : IAiProvider
 
     public string Model => status.Model ?? string.Empty;
 
-    public AiCapabilities Capabilities { get; } = new(status.Plan?.ContextTokens ?? 1_000_000, 8000, true, !status.IsCloud, true, false);
+    public AiCapabilities Capabilities { get; } = new(status.Plan?.ContextTokens ?? status.Cloud?.ContextTokens ?? 1_000_000, 8000, true, !status.IsCloud, true, false);
 
     public int CountTokens(string text) => _counter.Count(text);
 

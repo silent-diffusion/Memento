@@ -252,6 +252,8 @@ public sealed partial class OpenAiProvider : IAiProvider
 
     private AiError MapFailure(CloudHttpFailure failure) => failure.Status switch
     {
+        // Never another model in its place: the person chooses one (DESIGN.md §17).
+        400 or 404 when failure.IsUnknownModel(Model) => AiErrors.UnknownModel(DisplayName, Model, failure.Status, failure.ErrorCode ?? failure.ErrorType),
         401 => AiErrors.InvalidKey(DisplayName, failure.Status),
         403 => AiErrors.NotPermitted(DisplayName, failure.Status, failure.ErrorCode ?? failure.ErrorType),
         429 when failure.ErrorCode is "insufficient_quota" || failure.ErrorType is "insufficient_quota" => AiErrors.QuotaExhausted(DisplayName, failure.Status, "insufficient_quota"),

@@ -21,6 +21,9 @@ public static class AiErrorCodes
     /// <summary>The prompt and the output limit do not fit the model's context.</summary>
     public const string ContentTooLong = "ai.contentTooLong";
 
+    /// <summary>The provider does not offer the model chosen in Settings (HTTP 404, or 400 naming the model).</summary>
+    public const string UnknownModel = "ai.unknownModel";
+
     /// <summary>The user cancelled. <see cref="IAiProvider.GenerateAsync"/> throws <see cref="OperationCanceledException"/>; this code is for copy and records.</summary>
     public const string Cancelled = "ai.cancelled";
 
@@ -34,5 +37,5 @@ public static class AiErrorCodes
     public const string WorkerCrashed = "ai.workerCrashed";
 
     public static IReadOnlyList<string> All { get; } =
-        [NoKey, InvalidKey, RateLimited, Network, ProviderError, ContentTooLong, Cancelled, ModelNotInstalled, NotEnoughVram, WorkerCrashed];
+        [NoKey, InvalidKey, RateLimited, Network, ProviderError, ContentTooLong, UnknownModel, Cancelled, ModelNotInstalled, NotEnoughVram, WorkerCrashed];
 }
