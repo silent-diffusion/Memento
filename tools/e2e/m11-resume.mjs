@@ -102,7 +102,7 @@ try {
   await sleep(2000);
   const manifest = readJson(join(folder, 'project.json'));
   const history = readFileSync(join(folder, 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  check(manifest.schemaVersion === 5, `schema 5 (${manifest.schemaVersion})`);
+  check(manifest.schemaVersion === 6, `schema 6 (${manifest.schemaVersion})`);
   check(manifest.segments.length === 2, `two segments (${manifest.segments.length})`);
   const [s1, s2] = manifest.segments;
   check(s2.offsetMs === s1.durationMs, `segment 2 starts where segment 1 ends (${s2.offsetMs} vs ${s1.durationMs})`);

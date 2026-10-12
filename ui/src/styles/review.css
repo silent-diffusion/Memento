@@ -298,6 +298,7 @@
 /* 2.1: "Resumed at 10:42 AM" on the header's meta line. */
 .review-meta-resumed {
   color: var(--text-2);
+  font-size: 13px;
 }
 
 /* 2.1: where the recording was resumed after a Stop (DESIGN.md §9): a thin dashed line through the bars and a
