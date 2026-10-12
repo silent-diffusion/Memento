@@ -112,6 +112,7 @@ function FailureCard({
   onSwitch,
   onDismiss,
   onShowLiveOutput,
+  onChooseModel,
 }: {
   job: ActiveGeneration;
   alternative: ProviderInfo | null;
@@ -119,10 +120,13 @@ function FailureCard({
   onSwitch: (provider: ProviderInfo) => void;
   onDismiss: () => void;
   onShowLiveOutput?: (() => void) | undefined;
+  onChooseModel: () => void;
 }): JSX.Element {
   const lead = failureLead(job);
+  // After 2.1: the service does not offer the model chosen in Settings; the specific fix comes first (DESIGN.md §17).
+  const unknownModel = job.failureCode === null && job.progress?.code === 'ai.unknownModel';
   return (
-    <div class="ai-failure" role="alert">
+    <div class="ai-failure" role="alert" data-code={job.progress?.code ?? job.failureCode ?? undefined}>
       <div class="ai-failure-text">
         <AlertIcon size={18} class="ai-failure-icon" />
         <span>
@@ -130,6 +134,11 @@ function FailureCard({
         </span>
       </div>
       <div class="ai-failure-actions">
+        {unknownModel ? (
+          <button class="btn g" type="button" onClick={onChooseModel}>
+            Choose a model
+          </button>
+        ) : null}
         <button class="btn g" type="button" onClick={onRetry}>
           Try again
         </button>
@@ -161,7 +170,12 @@ function providerNote(p: ProviderInfo): string {
   if (!p.ready) {
     return `${p.vendor} · ${(p.reason ?? 'not ready').toLocaleLowerCase()}`;
   }
-  return p.kind === 'local' ? `${p.modelLabel ?? 'Installed'} · on this PC` : `${p.vendor} · key saved`;
+  if (p.kind === 'local') {
+    return `${p.modelLabel ?? 'Installed'} · on this PC`;
+  }
+  // After 2.1: the model chosen in Settings › AI and privacy, and whether it was typed by hand.
+  const model = p.modelLabel === null ? '' : ` · ${p.modelLabel}${p.modelListed === false ? ' (not in Memento’s list)' : ''}`;
+  return `${p.vendor}${model} · key saved`;
 }
 
 export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
@@ -207,7 +221,7 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
 
       {running ? <ProgressCard job={job} moduleName={props.moduleName} onCancel={props.onCancel} onShowLiveOutput={props.onShowLiveOutput} /> : null}
       {failed ? (
-        <FailureCard job={job} alternative={props.alternative} onRetry={props.onRetry} onSwitch={props.onSwitch} onDismiss={props.onDismissFailure} onShowLiveOutput={props.onShowLiveOutput} />
+        <FailureCard job={job} alternative={props.alternative} onRetry={props.onRetry} onSwitch={props.onSwitch} onDismiss={props.onDismissFailure} onShowLiveOutput={props.onShowLiveOutput} onChooseModel={props.onOpenAiSettings} />
       ) : null}
 
       {tab === 'preview' ? (

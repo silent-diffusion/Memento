@@ -61,6 +61,7 @@ export function localProviderInfo(models: readonly ModelInfo[], chosen: string |
       code: 'ai.modelNotInstalled',
       detail: `The local model ${nameOf(id)} is not installed. Nothing was sent anywhere. Download it in Settings › AI and privacy.`,
       modelId: id,
+      modelListed: null,
       gpuMemory: mockGpuMemory(vram),
       gpuNote: null,
     };
@@ -91,6 +92,7 @@ export function localProviderInfo(models: readonly ModelInfo[], chosen: string |
     code: null,
     detail: notes.join(' '),
     modelId: writer,
+    modelListed: null,
     gpuMemory: mockGpuMemory(vram),
     gpuNote,
   };

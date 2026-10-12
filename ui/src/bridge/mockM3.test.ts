@@ -315,7 +315,7 @@ describe('browser-preview host: library, storage, keys and startup (M3)', () => 
 
   it('stores only whether a key exists, sets startup, and validates the M3 settings blocks', async () => {
     const bridge = client();
-    expect((await bridge.call('settings.get')).ai.providers).toEqual({ anthropic: { hasKey: true }, openai: { hasKey: false } });
+    expect((await bridge.call('settings.get')).ai.providers).toMatchObject({ anthropic: { hasKey: true }, openai: { hasKey: false } });
     expect(await bridge.call('ai.setKey', { provider: 'openai', key: 'sk-test-0123456789abcdefghij' })).toEqual({ hasKey: true });
     const snapshot = await bridge.call('settings.get');
     expect(JSON.stringify(snapshot)).not.toContain('sk-test');

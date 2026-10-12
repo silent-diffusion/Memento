@@ -52,7 +52,8 @@ describe('Document viewer (DESIGN.md §12, against the browser-preview host)', (
     expect(article.querySelector('.paper-meta')?.getAttribute('contenteditable')).toBe('false');
     expect(markupProblems(article)).toEqual([]);
     const how = document.querySelector('.how-made');
-    expect([...(how?.querySelectorAll('dt') ?? [])].map((d) => d.textContent)).toEqual(['Template', 'Style', 'Provider', 'Generated']);
+    expect([...(how?.querySelectorAll('dt') ?? [])].map((d) => d.textContent)).toEqual(['Template', 'Style', 'Provider', 'Model', 'Generated']);
+    expect(how?.querySelector('.how-model')?.textContent).toBe('claude-opus-5-5');
     expect(how?.textContent).toContain('Claude (Anthropic)');
     expect(how?.textContent).toMatch(/Yesterday, \d+:\d\d (AM|PM) · 38 s/);
     expect([...(how?.querySelectorAll('.pill') ?? [])].map((p) => p.textContent)).toEqual(['Transcript', 'Details', 'Participants', 'Agenda', 'Highlights']);

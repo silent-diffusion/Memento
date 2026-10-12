@@ -41,6 +41,13 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
         <dd>{styleName}</dd>
         <dt>Provider</dt>
         <dd>{local ? `${record.modelLabel} (this PC)` : PROVIDER_FULL[record.providerId]}</dd>
+        {/* After 2.1: the cloud model the requests went to, as chosen in Settings › AI and privacy. */}
+        {local || record.modelLabel === '' ? null : (
+          <>
+            <dt>Model</dt>
+            <dd class="mono how-model">{record.modelLabel}</dd>
+          </>
+        )}
         <dt>Generated</dt>
         <dd>
           {whenWords(record.startedAt, now)} · {shortDuration(record.durationMs)}

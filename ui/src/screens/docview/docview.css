@@ -217,6 +217,12 @@
   min-width: 0;
 }
 
+/* After 2.1: the cloud model the requests went to. */
+.how-facts dd.how-model {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .how-sent {
   display: flex;
   flex-direction: column;

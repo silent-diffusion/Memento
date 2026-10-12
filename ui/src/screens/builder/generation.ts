@@ -140,6 +140,8 @@ export function failureLead(job: Pick<ActiveGeneration, 'template' | 'provider' 
       return `${name} could not be reached`;
     case 'ai.notEnoughVram':
       return `${name} ran out of video memory`;
+    case 'ai.unknownModel':
+      return `${name} does not offer ${job.provider.modelLabel ?? 'this model'}`;
     case 'ai.contentTooLong':
       return `Too much for ${job.provider.kind === 'local' ? 'the local model' : name}`;
     case 'ai.workerCrashed':

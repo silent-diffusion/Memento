@@ -3,7 +3,23 @@
 // agree with the host. `recording` is replaced whole; the M2 and M3 blocks merge field by field,
 // where a missing or null field keeps its value; `export.defaultFolder: null` and
 // `storage.reclaimOlderThanDays: null` clear theirs; `export.defaults` is replaced whole.
-import type { ExportSettings, SettingsSetParams, SettingsSnapshot } from './types';
+import { providerState } from './cloudModels';
+import type { AiProvidersPatch, AiSettings, ExportSettings, SettingsSetParams, SettingsSnapshot } from './types';
+
+/** The cloud models: each provider named in the patch takes its model (null: the default); keys never change here. */
+export function mergeProviders(before: AiSettings['providers'], patch: AiProvidersPatch | null | undefined): AiSettings['providers'] {
+  if (patch == null) {
+    return before;
+  }
+  const next = { ...before };
+  for (const provider of ['anthropic', 'openai'] as const) {
+    const change = patch[provider];
+    if (change !== undefined && 'model' in change) {
+      next[provider] = providerState(provider, before[provider].hasKey, change.model);
+    }
+  }
+  return next;
+}
 
 /** The fields of a patch that carry a value: missing and null ones keep the stored value. */
 export function definedFields<T extends object>(patch: Partial<T> | null | undefined): Partial<T> {
@@ -37,12 +53,12 @@ export function mergeSettings(before: SettingsSnapshot, patch: SettingsSetParams
     ai:
       patch.ai == null
         ? before.ai
-        : // The providers are read-only here; only ai.setKey and ai.clearKey change them.
+        : // Only the providers' models change here; ai.setKey and ai.clearKey change the keys.
           {
             ...before.ai,
             ...definedFields(patch.ai),
             share: { ...before.ai.share, ...definedFields(patch.ai.share) },
-            providers: before.ai.providers,
+            providers: mergeProviders(before.ai.providers, patch.ai.providers),
             // M4: a null default provider clears it.
             defaultProviderId: 'defaultProviderId' in patch.ai ? (patch.ai.defaultProviderId ?? null) : before.ai.defaultProviderId,
           },

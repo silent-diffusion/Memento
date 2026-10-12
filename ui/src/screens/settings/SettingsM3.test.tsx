@@ -151,7 +151,9 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
       'Ask before every send',
       'Keep a record of what was sent',
       'Claude (Anthropic)',
+      'Claude model',
       'ChatGPT (OpenAI)',
+      'ChatGPT model',
       'Allowed data',
       // M4
       'Default provider',

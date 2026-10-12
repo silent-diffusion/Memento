@@ -1,6 +1,7 @@
 import type { BridgeLogger, BridgeTransport } from './client';
 import { formatSize } from '../format/storage';
 import { formatDuration } from '../format/duration';
+import { modelIdProblem } from './cloudModels';
 import { mockSegments, mockWhyNotResume } from './mockResume';
 import { estimateSizeBytes, isoWithOffset, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
 import { advanceStages, processingOf, queryLibrary, visibleStages } from './mockLibrary';
@@ -763,6 +764,14 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         history: mergeBlock(settings.history, params.history),
       };
       validateM2Settings(m2);
+      // A cloud model typed by hand must be a plausible id (the host's AiModelDefaults.IsValidModelId).
+      for (const provider of ['anthropic', 'openai'] as const) {
+        const change = params.ai?.providers?.[provider];
+        const problem = change?.model == null ? null : modelIdProblem(change.model);
+        if (problem !== null) {
+          throw settingsInvalid(`ai.providers.${provider}.model: ${problem}`, `ai.providers.${provider}.model`);
+        }
+      }
       const themeBefore = isDark();
       const modelBefore = settings.transcription.modelId;
       settings = {

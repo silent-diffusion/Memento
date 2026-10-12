@@ -5,6 +5,7 @@
 // set for mock.ts. URL flags: `?ai=off|nokey|ready|local` set the starting AI settings, keys and
 // the local model; `?gen=fail|rate` make the first generation fail (no network, rate limited).
 import { formatDuration } from '../format/duration';
+import { tokenSize } from './cloudModels';
 import { definedFields } from './settingsMerge';
 import { isoWithOffset, type MockProject } from './mockData';
 import { createMockDocuments, type MockDocuments, type TranscriptLine } from './mockDocuments';
@@ -111,7 +112,7 @@ export function m4Settings(base: SettingsSnapshot, flag: AiFlag, vram: VramFlag 
     ai: {
       ...base.ai,
       enabled,
-      providers: flag === 'nokey' ? { anthropic: { hasKey: false }, openai: { hasKey: false } } : base.ai.providers,
+      providers: flag === 'nokey' ? { anthropic: { ...base.ai.providers.anthropic, hasKey: false }, openai: { ...base.ai.providers.openai, hasKey: false } } : base.ai.providers,
       defaultProviderId: flag === 'local' ? 'local' : null,
       localModelId: recommendedLocalModelId(vram),
       localModelChosen: false,
@@ -121,10 +122,13 @@ export function m4Settings(base: SettingsSnapshot, flag: AiFlag, vram: VramFlag 
 }
 
 const PROVIDER_LABELS: Record<ProviderId, { name: string; vendor: string; model: string }> = {
-  anthropic: { name: 'Claude', vendor: 'Anthropic', model: 'Claude Sonnet 4.5' },
-  openai: { name: 'ChatGPT', vendor: 'OpenAI', model: 'GPT-5 mini' },
+  anthropic: { name: 'Claude', vendor: 'Anthropic', model: 'claude-opus-5-5' },
+  openai: { name: 'ChatGPT', vendor: 'OpenAI', model: 'gpt-6-astra' },
   local: { name: 'Local model', vendor: 'This PC', model: 'Qwen3.5 4B' },
 };
+
+/** Models not in Memento's list that the preview's pretend services still serve (any other typed id is "unknown"). */
+const MOCK_ALSO_SERVED: readonly string[] = ['claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5'];
 
 const INPUT_NAMES: Record<keyof InputSelection, string> = {
   transcript: 'Transcript',
@@ -191,8 +195,29 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     const ai = env.settings().ai;
     const cloud = (id: 'anthropic' | 'openai'): ProviderInfo => {
       const label = PROVIDER_LABELS[id];
-      const reason = !ai.enabled ? 'External AI is off' : ai.providers[id].hasKey ? null : 'No key saved';
-      return { id, name: label.name, vendor: label.vendor, kind: 'cloud', ready: reason === null, reason, modelLabel: label.model, code: !ai.enabled ? 'ai.disabled' : reason === null ? null : 'ai.noKey', detail: null, modelId: null, gpuMemory: null, gpuNote: null };
+      const state = ai.providers[id];
+      const reason = !ai.enabled ? 'External AI is off' : state.hasKey ? null : 'No key saved';
+      const model = state.model;
+      const reads = state.custom
+        ? `${model} is not in Memento's list, so Memento assumes it reads up to ${id === 'anthropic' ? '200k' : '128k'} tokens a request and sends it no effort setting`
+        : `${model} reads up to ${tokenSize(state.choices.find((c) => c.id === model)?.contextTokens ?? 1_000_000)} tokens a request`;
+      const detail =
+        reason === null ? `Sends the ticked inputs to ${label.name} (${model}) when you press Generate. ${reads}; a long transcript is split into segments of up to 24,000 tokens, so it always fits.` : null;
+      return {
+        id,
+        name: label.name,
+        vendor: label.vendor,
+        kind: 'cloud',
+        ready: reason === null,
+        reason,
+        modelLabel: model,
+        code: !ai.enabled ? 'ai.disabled' : reason === null ? null : 'ai.noKey',
+        detail,
+        modelId: null,
+        modelListed: !state.custom,
+        gpuMemory: null,
+        gpuNote: null,
+      };
     };
     const local = localProviderInfo(env.models.list(), chosenLocalModel(ai), env.flags.vram);
     return [cloud('anthropic'), cloud('openai'), local];
@@ -324,8 +349,16 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     };
   };
 
-  const emitProgress = (job: Job, stage: EventPayload<'generation.progress'>['stage'], percent: number, moduleId: string | null, message: string | null, documentId: string | null = null): void => {
-    env.emit('generation.progress', { jobId: job.jobId, recordingId: job.recordingId, documentId, stage, moduleId, percent: Math.round(percent), message });
+  const emitProgress = (
+    job: Job,
+    stage: EventPayload<'generation.progress'>['stage'],
+    percent: number,
+    moduleId: string | null,
+    message: string | null,
+    documentId: string | null = null,
+    code: string | null = null,
+  ): void => {
+    env.emit('generation.progress', { jobId: job.jobId, recordingId: job.recordingId, documentId, stage, moduleId, percent: Math.round(percent), message, ...(code === null ? {} : { code }) });
   };
 
   const finish = (job: Job): void => {
@@ -364,6 +397,21 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     });
     generated.forEach((m, i) => {
       steps.push(() => {
+        // A model typed by hand that the preview's "service" does not offer: the host's ai.unknownModel, nothing else tried.
+        if (i === 0 && job.provider.kind === 'cloud' && job.provider.modelListed === false && !MOCK_ALSO_SERVED.includes(job.provider.modelLabel ?? '')) {
+          finish(job);
+          const model = job.provider.modelLabel ?? '';
+          emitProgress(
+            job,
+            'failed',
+            8,
+            m.id,
+            `${job.provider.name} does not offer a model called '${model}'. Nothing was generated and no document was changed. Choose one from the list in Settings › AI and privacy, or check the id.`,
+            null,
+            'ai.unknownModel',
+          );
+          return false;
+        }
         if (failuresLeft > 0 && i === Math.min(2, generated.length - 1)) {
           failuresLeft -= 1;
           finish(job);
@@ -409,7 +457,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
             at: nowIso(),
             stage: 'minutes',
             event: 'completed',
-            summary: `${job.template.name} generated with ${job.provider.name}`,
+            summary: `${job.template.name} generated with ${job.provider.name} (${job.provider.modelLabel ?? label.model})`,
             detail: `${job.provider.kind === 'local' ? 'Read on this PC' : 'Sent'}: ${sent.join(', ')} · ${job.chunks} ${job.chunks === 1 ? 'chunk' : 'chunks'}. Audio and video were not sent.`,
           },
         ];
