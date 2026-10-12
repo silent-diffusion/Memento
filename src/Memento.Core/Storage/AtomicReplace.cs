@@ -11,12 +11,15 @@ namespace Memento.Core.Storage;
 /// <c>project.json</c>, an indexer, a scanner) neither blocks the write nor sees a torn file: it keeps the old document
 /// until it closes. Where that is unsupported (FAT, exFAT, some network shares, older Windows) it falls back to
 /// <see cref="File.Move(string, string, bool)"/>. Either way, a reader that does not share delete is waited out for
-/// about two seconds of waits between tries, with jitter, before the write fails; the waits are counted, not the clock,
+/// about ten seconds of waits between tries, with jitter, before the write fails; the waits are counted, not the clock,
 /// so a machine too busy to wake the retry loop on time still gets every try.
+/// Ten, not two: on a loaded machine a virus scanner reading the file Memento has just written (it opens it without
+/// sharing delete) can hold it for seconds, and a write given up then is lost; a program that really keeps the file
+/// only makes the error come later.
 /// </summary>
 public static class AtomicReplace
 {
-    internal static readonly TimeSpan DefaultBudget = TimeSpan.FromSeconds(2);
+    internal static readonly TimeSpan DefaultBudget = TimeSpan.FromSeconds(10);
 
     private const int ErrorAccessDenied = 5;
     private const int ErrorSharingViolation = 32;

@@ -136,7 +136,7 @@ public sealed class AtomicReplaceTests : IDisposable
             }));
 
         Assert.Equal((int)AtomicReplace.DefaultBudget.TotalMilliseconds, waits.Sum());
-        Assert.InRange(waits.Count, 20, 60);
+        Assert.InRange(waits.Count, 100, 250); // about ten seconds of waits of 50–100 ms after the first few
         Assert.All(waits, w => Assert.InRange(w, 1, 100));
         Assert.Equal("old", await File.ReadAllTextAsync(target));
     }
