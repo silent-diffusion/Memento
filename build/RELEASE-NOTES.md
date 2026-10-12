@@ -3,6 +3,17 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.1.0
+
+Small things that make the Library and recordings easier to live with. Memento updates itself to it.
+
+### Library
+
+- **New recordings carry their date in the title**: "Untitled meeting · 2026 February 16". **Settings › General › Date format** chooses how full dates are written everywhere in Memento: 2026 February 16 (the default), 16 February 2026, February 16, 2026, 2026-02-16, or the Windows setting. Existing titles and times are untouched.
+- **Folders.** The Library gains a **Folders** view beside the Timeline, remembered as you left it: a nested folder tree with counts, New, Rename, Move and Delete (deleting a folder moves its recordings up a level and deletes nothing), drag a recording onto a folder or use **Move to folder…** from the row menu or Review's details, and search and the type filters still work inside a folder. Folders are data in the recording's file; nothing on disk moves.
+- **Delete audio.** Like Remove video: from Review's details or the row menu, after a confirmation that names the recording, its length, what it frees and what stays (the transcript, documents and video). The recording stays readable and Export says the audio was deleted. Refused while the recording is still being saved or processed.
+- **Settings › Storage and history › Delete audio tracks older than**: a day, a week, a month, 90 days, a year, two, three, four or five years, or Never (the default), with an estimate, the same confirmation, and a sweep at start and daily that never runs while recording or processing.
+
 ## 2.0.0
 
 Video. Memento now records your screen, a window or your camera beside the audio, keeps every frame up to the last third of a second if the PC crashes, plays it in Review in step with the transcript, and exports it as one file with the camera inset or as separate files. Everything from 1.1.0 to 1.3.0 is in it, and Memento updates itself to it. This is the 2.0.0-beta.1 pre-release plus what its first testing found:
