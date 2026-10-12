@@ -15,7 +15,7 @@ public sealed record StorageSettings
 
     public static IReadOnlyList<string> Codecs { get; } = [Flac, Aac, Mp3];
 
-    public string Codec { get; init; } = Flac;
+    public string Codec { get; set; } = Flac;
 
     /// <summary>Lossy codecs only; <c>null</c> for FLAC.</summary>
     public int? BitrateKbps { get; init; }

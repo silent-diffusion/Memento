@@ -10,7 +10,7 @@ public sealed record SpeakerSettings
     public const int MaxExpectedSpeakers = 20;
 
     /// <summary>Identify who speaks after transcription.</summary>
-    public bool Identify { get; init; } = true;
+    public bool Identify { get; set; } = true;
 
     /// <summary>How many speakers to look for; <c>null</c> finds out automatically.</summary>
     public int? ExpectedSpeakers { get; init; }
@@ -27,7 +27,7 @@ public sealed record SpeakerSettings
     /// </summary>
     public bool RememberVoices { get; init; }
 
-    public string EmbeddingModelId { get; init; } = DefaultEmbeddingModelId;
+    public string EmbeddingModelId { get; set; } = DefaultEmbeddingModelId;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

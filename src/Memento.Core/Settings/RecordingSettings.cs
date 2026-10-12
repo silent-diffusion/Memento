@@ -14,19 +14,19 @@ public sealed record RecordingSettings
     public const int MaxLowSpaceGb = 500;
     public const string DefaultRecordingType = "meeting";
 
-    public string DefaultType { get; init; } = DefaultRecordingType;
+    public string DefaultType { get; set; } = DefaultRecordingType;
 
     /// <summary>The remembered source selection.</summary>
-    public IReadOnlyList<string> DefaultSourceIds { get; init; } = [];
+    public IReadOnlyList<string> DefaultSourceIds { get; set; } = [];
 
     /// <summary>Fixed to <c>true</c> in M1: every source is its own track.</summary>
-    public bool KeepSeparateTracks { get; init; } = true;
+    public bool KeepSeparateTracks { get; set; } = true;
 
-    public StorageSettings Storage { get; init; } = new();
+    public StorageSettings Storage { get; set; } = new();
 
-    public int CheckpointSeconds { get; init; } = DefaultCheckpointSeconds;
+    public int CheckpointSeconds { get; set; } = DefaultCheckpointSeconds;
 
-    public int LowSpaceGb { get; init; } = DefaultLowSpaceGb;
+    public int LowSpaceGb { get; set; } = DefaultLowSpaceGb;
 
     /// <summary>2.0, Recording mode: Audio + video when true; Audio only (false) is the product default.</summary>
     public bool CaptureVideo { get; init; }

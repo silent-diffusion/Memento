@@ -23,16 +23,16 @@ public sealed record GeneralSettings
     /// check reaches the network; Settings › General's Check now still does. Installing always waits for a click or
     /// the next start.
     /// </summary>
-    public bool AutoUpdate { get; init; } = true;
+    public bool AutoUpdate { get; set; } = true;
 
     /// <summary>2.1: one of <see cref="Formatting.DateFormats"/>; how full dates read everywhere (new titles, lists, exports, History).</summary>
-    public string DateFormat { get; init; } = Formatting.DateFormats.Default;
+    public string DateFormat { get; set; } = Formatting.DateFormats.Default;
 
     public const string TimelineView = "timeline";
     public const string FoldersView = "folders";
 
     /// <summary>2.1: the Library's Folders / Timeline switch, remembered for this Windows user; <c>timeline</c> by default.</summary>
-    public string LibraryView { get; init; } = TimelineView;
+    public string LibraryView { get; set; } = TimelineView;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

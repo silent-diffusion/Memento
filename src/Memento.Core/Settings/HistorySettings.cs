@@ -10,9 +10,9 @@ public sealed record HistorySettings
     public const int MinKeepDays = 1;
     public const int MaxKeepDays = 3650;
 
-    public bool KeepVersions { get; init; } = true;
+    public bool KeepVersions { get; set; } = true;
 
-    public int KeepDays { get; init; } = DefaultKeepDays;
+    public int KeepDays { get; set; } = DefaultKeepDays;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

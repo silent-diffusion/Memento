@@ -12,28 +12,28 @@ public sealed record AppSettings
     /// <summary>2 (2.0): keep-only-the-mix and the live transcript saved by 1.x do not carry over (<see cref="JsonSettingsStore"/>).</summary>
     public const int CurrentSchemaVersion = 2;
 
-    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     /// <summary>One of <see cref="ThemePreference"/>.</summary>
-    public string Theme { get; init; } = ThemePreference.System;
+    public string Theme { get; set; } = ThemePreference.System;
 
     /// <summary>Library location; <c>null</c> means <see cref="AppPaths.DefaultLibrary"/>.</summary>
     public string? LibraryPath { get; init; }
 
     /// <summary>One of <see cref="Settings.ListDensity"/>.</summary>
-    public string ListDensity { get; init; } = Settings.ListDensity.Comfortable;
+    public string ListDensity { get; set; } = Settings.ListDensity.Comfortable;
 
     /// <summary>Settings › Recording (M1). Missing in M0 files, which then read with the defaults.</summary>
-    public RecordingSettings Recording { get; init; } = new();
+    public RecordingSettings Recording { get; set; } = new();
 
     /// <summary>Settings › Transcription (M2). Missing in M1 files, which then read with the defaults.</summary>
-    public TranscriptionSettings Transcription { get; init; } = new();
+    public TranscriptionSettings Transcription { get; set; } = new();
 
     /// <summary>Settings › Speakers (M2).</summary>
-    public SpeakerSettings Speakers { get; init; } = new();
+    public SpeakerSettings Speakers { get; set; } = new();
 
     /// <summary>Settings › Documents › History (M2).</summary>
-    public HistorySettings History { get; init; } = new();
+    public HistorySettings History { get; set; } = new();
 
     // The M3 blocks have setters, not init: source-generated JSON sets a missing init-only member to null.
 

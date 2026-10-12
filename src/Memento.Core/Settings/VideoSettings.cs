@@ -26,21 +26,21 @@ public sealed record VideoSettings
 
     public static IReadOnlyList<string> Qualities { get; } = [QualitySmaller, QualityBalanced, QualityBest];
 
-    public string DefaultSource { get; init; } = SourceScreenAndCamera;
+    public string DefaultSource { get; set; } = SourceScreenAndCamera;
 
-    public string Resolution { get; init; } = ResolutionDisplay;
+    public string Resolution { get; set; } = ResolutionDisplay;
 
-    public int FrameRate { get; init; } = 30;
+    public int FrameRate { get; set; } = 30;
 
-    public string Quality { get; init; } = QualityBalanced;
+    public string Quality { get; set; } = QualityBalanced;
 
     public string? DefaultCameraId { get; init; }
 
-    public string PipCorner { get; init; } = VideoPipChange.BottomRight;
+    public string PipCorner { get; set; } = VideoPipChange.BottomRight;
 
-    public bool HardwareEncoder { get; init; } = true;
+    public bool HardwareEncoder { get; set; } = true;
 
-    public bool IncludePointer { get; init; } = true;
+    public bool IncludePointer { get; set; } = true;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
