@@ -537,3 +537,23 @@ The product owner tried the OBS Virtual Camera on 2.0.0-beta.1 and Memento did n
 **Not verified**: a real webcam or capture card through DirectShow (device-path ids, the privacy check, `EC_DEVICE_LOST` on unplugging, in-use errors), MJPG through DirectShow's decoder and YUY2 or RGB from a real device (OBS sends NV12; the conversions are unit-tested), other virtual cameras (NDI, Snap Camera, Camo), OBS crashing rather than closing (the stalled write index is unit-tested only), and the processor cost of converting a 1080p RGB or YUY2 camera.
 
 Commands: `VideoCheck probe` (both lists), `VideoCheck capture --camera "OBS" --seconds 10 [--png still.png]`, `VideoCheck record --camera "OBS" --seconds 20 --out x.mp4`, `dotnet test tests/Memento.Video.Tests --filter "Category=Hardware&FullyQualifiedName~ObsVirtualCamera"` (skipped unless OBS's virtual camera runs), `node tools/e2e/m8-camera.mjs [--stop-obs-after 8 --obs-pid <pid of an OBS started for the test>]`.
+
+## S. Choosing the cloud model, October 2026 (after 2.1)
+
+Which model ids Settings lists, where they come from, and what is sent with each (`AiModelDefaults`, BRIDGE.md "Cloud models").
+
+| Provider | Model | Context / answer | Effort | Server-side fallback | Source |
+|---|---|---|---|---|---|
+| Claude | `claude-opus-5-5` (default) | 1M / 128k | `high` (its own default is `medium`) | `"default"` | claude-api skill, model table cached 2026-10-06 |
+| Claude | `claude-fable-5-1` | 1M / 128k | `high` | `"default"` | same; Anthropic's top tier, always thinks, $10/$50 per MTok against Opus 5.5's $4/$20, needs 30-day data retention (a zero-data-retention organisation gets a 400) |
+| Claude | `claude-sonnet-5-5` | 1M / 128k | `high` | `"default"` (Claude API only) | same; $2/$10 |
+| Claude | `claude-haiku-5-5` | 1M / 128k | `high` (its default is `medium`) | none: Claude Haiku 5.5 refusals have no server-side fallback, so `fallbacks` is not sent | same; $0.10/$0.50 up to 100k tokens |
+| ChatGPT | `gpt-6-astra` (default) | 1.05M (922k in) / 128k | `high` | n/a | developers.openai.com/api/docs/models/gpt-6-astra, read 2026-10-12 |
+| ChatGPT | `gpt-6.1-sol` | 1.05M (922k in) / 128k | `high` (low to max; no `none`) | n/a | developers.openai.com/api/docs/models/gpt-6.1-sol, read 2026-10-12 |
+| ChatGPT | `gpt-6-luna` | 1.05M (922k in) / 128k | `high` (none to max) | n/a | developers.openai.com/api/docs/models/gpt-6-luna, read 2026-10-12 |
+
+OpenAI's model index (developers.openai.com/api/docs/models; platform.openai.com/docs/models redirects there) lists these three as its flagship text models; the others on that page are specialised (cybersecurity, image, realtime, speech, transcription) and are not offered. All three take structured outputs on the Responses API, which is what the provider uses.
+
+- **A model typed by hand** is sent exactly as typed, with a profile every model accepts: no effort and no `fallbacks` (Claude Haiku 4.5 rejects effort; an unknown model may reject the fallback beta), an assumed context of 200k for Claude (Claude Haiku 4.5's, the smallest current one) and 128k for ChatGPT (GPT-4o's), and an answer limit of 32,000 (Claude) or 16,384 (ChatGPT) tokens.
+- **Context.** Every listed model takes about a million tokens, so the choice changes no size note in practice; the product owner's example of a 200k Haiku is Claude Haiku 4.5, not Claude Haiku 5.5. A cloud request carries at most 24,000 transcript tokens, less when a quarter of the model's context is smaller: a long transcript is split into segments rather than refused. A request's answer limit is the pass's limit plus 16,000 tokens of thinking headroom, capped at the model's answer limit.
+- **A model the service does not offer.** Anthropic answers an unknown model with HTTP 404 `not_found_error` ("model: claude-x"); OpenAI with 404 and code `model_not_found` ("The model `x` does not exist or you do not have access to it."). Both, and a 400 whose message names the model as missing, are `ai.unknownModel`; a 404 without a JSON error (a proxy, a wrong address) is not. Nothing is retried and no other model is tried. Tested against the fake servers only (`CloudModelRequestTests`, the e2e's fake Messages API); no real key or request was used.

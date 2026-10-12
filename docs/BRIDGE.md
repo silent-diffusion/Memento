@@ -503,6 +503,7 @@ type ProviderId = 'anthropic' | 'openai' | 'local';
 interface ProviderInfo { id: ProviderId; name: string; vendor: string /* "Anthropic", "OpenAI", "This PC" */; kind: 'cloud' | 'local'; ready: boolean;
                          reason: string | null /* "External AI is off", "No key saved", "Model not installed", "Not enough video memory" */; modelLabel: string | null;
                          code: string | null /* ai.disabled | ai.noKey | ai.modelNotInstalled | ai.notEnoughVram */; detail: string | null /* the §17 sentence, or a note when ready */; modelId: string | null /* local catalog id */;
+                         modelListed: boolean | null /* after 2.1, cloud only: the model is in Memento's list (false: typed by hand) */;
                          gpuMemory: GpuMemoryInfo | null /* local only, after 1.1.0 */; gpuNote: string | null /* local only: why a card model is off the card; also starts detail */ }
 interface StyleSettings { headingFace: 'sans' | 'serif'; bodyFace: 'sans' | 'serif'; baseSize: 'small' | 'normal' | 'large'; headingCase: 'normal' | 'smallCaps'; numberedHeadings: boolean; headingColor: 'navy' | 'ink' | 'forest' | 'burgundy'; tableHeaderFill: boolean; ruleUnderTitle: boolean; linesBetweenSections: boolean; spacing: 'tight' | 'normal' | 'airy'; paper: 'letter' | 'a4'; pageNumbers: boolean; runningHeader: boolean }
 interface Style { id: string; name: string; builtIn: boolean; settings: StyleSettings; usedByTemplates: number; modifiedAt: string | null; customized?: boolean }
@@ -563,19 +564,44 @@ ai: { …M3,
       defaultProviderId: ProviderId | null;    // null: the local model
       localModelId: string | null;             // the local model in effect: the installed choice, else the installed one the hardware suits, else any installed one; with none installed, the choice or the hardware's (to download); null only without local models
       localModelChosen: boolean;               // localModelId was chosen in Settings
-      providers: { anthropic: { hasKey: boolean; model: string; models: string[] }; openai: { hasKey: boolean; model: string; models: string[] } } }   // model in effect; models offered
+      providers: { anthropic: AiProviderState; openai: AiProviderState } }
+interface AiProviderState {
+  hasKey: boolean;
+  model: string;                 // the model in effect: the one chosen, or the list's first
+  models: string[];              // the models Settings lists, the default first
+  choices: AiModelChoice[];      // after 2.1: the same models with their notes, in the same order
+  custom: boolean;               // after 2.1: model was typed under "Other model…" (not in models)
+  modelNote: string;             // after 2.1: model's note, or what Memento assumes about a model it does not know
+}
+interface AiModelChoice { id: string; note: string; contextTokens: number }   // "The fastest and cheapest.", 1000000
 documents: { defaultTemplateId: string; defaultStyleId: string; ocrEngine: "windows" | "tesseract" }   // "meeting-minutes" and "corporate" until chosen; ocrEngine (2.0) is the engine in effect
 ```
 
-`settings.set` takes `ai.defaultProviderId` (`'anthropic' | 'openai' | 'local' | null`), `ai.localModelId` (an installed `kind: 'llm'` catalog id, or `null` for the hardware default), `ai.providers.anthropic.model` / `ai.providers.openai.model` (a model id, or `null` for the default) and `documents.defaultTemplateId` / `defaultStyleId` (an id, or `null` for the built-in). A field left out keeps its value; `null` clears it; a bad value is `settings.invalidValue` with the field as `detail`, and nothing is written. Keys still change only through `ai.setKey` / `ai.clearKey`.
+`settings.set` takes `ai.defaultProviderId` (`'anthropic' | 'openai' | 'local' | null`), `ai.localModelId` (an installed `kind: 'llm'` catalog id, or `null` for the hardware default), `ai.providers.anthropic.model` / `ai.providers.openai.model` (a model id, or `null` for the default: one of `models` or any other plausible id, saved trimmed and exactly as typed: letters, digits and `. _ : / -`, starting with a letter or digit, at most 100 characters; an empty string is refused, so none is ever written) and `documents.defaultTemplateId` / `defaultStyleId` (an id, or `null` for the built-in). A field left out keeps its value; `null` clears it; a bad value is `settings.invalidValue` with the field as `detail`, and nothing is written. Keys still change only through `ai.setKey` / `ai.clearKey`.
 
 "Allow external AI services" (`ai.enabled`) governs the cloud providers only. The local model sends nothing and is available whenever its model is installed, whatever `ai.enabled` says. The share switches (`ai.share`) limit what a cloud provider receives; a template's ticks never exceed them.
 
-Model defaults: Claude **`claude-opus-5-5`** (the claude-api skill's default and Anthropic's most capable generally available Opus) with `claude-fable-5-1` offered (Anthropic's most capable model: higher price, always thinks, needs 30-day data retention); ChatGPT `gpt-6-astra` (M4a's choice from OpenAI's documentation). The local model by hardware: Qwen3.5 4B (`qwen3.5-4b-q4`) when the discrete card has 3.3 GB free, otherwise Ministral 3 3B (`ministral-3-3b-q4`); both are `kind: 'llm'` entries of `models.list` (`engine: 'llm'`), installed like every other model.
+Cloud models (after 2.1; `AiModelDefaults`, the first of each list is the default):
+
+| Provider | Model | Note in Settings | Context | Sent with it |
+|---|---|---|---|---|
+| Claude | **`claude-opus-5-5`** | The most capable for long transcripts. Memento's default. | 1M | `effort: high`, `fallbacks: "default"` |
+| Claude | `claude-fable-5-1` | Anthropic's top tier: the newest and most intelligent. Costs more and takes longer; the account needs 30-day data retention. | 1M | `effort: high`, `fallbacks: "default"` |
+| Claude | `claude-sonnet-5-5` | Fast and strong, at about half the price of Opus. | 1M | `effort: high`, `fallbacks: "default"` |
+| Claude | `claude-haiku-5-5` | The fastest and cheapest. | 1M | `effort: high` (Haiku has no server-side fallback) |
+| ChatGPT | **`gpt-6-astra`** | OpenAI's most capable model. Memento's default. | 1.05M | `reasoning.effort: high` |
+| ChatGPT | `gpt-6.1-sol` | Nearly as capable, at a lower cost. | 1.05M | `reasoning.effort: high` |
+| ChatGPT | `gpt-6-luna` | OpenAI's most efficient: the fastest and cheapest. | 1.05M | `reasoning.effort: high` |
+
+Sources: the claude-api skill's model table (cached 2026-10-06) and OpenAI's model pages (developers.openai.com/api/docs/models, read 2026-10-12); see ENGINE-NOTES.md. A model typed under "Other model…" is sent exactly as typed, with no effort or fallback setting (a model Memento does not know may reject them), an assumed context of 200k (Claude) or 128k (ChatGPT) and an answer limit of 32,000 or 16,384 tokens. Every cloud request carries at most 24,000 transcript tokens (less when a quarter of the model's context is smaller): a long transcript is split into segments, so no transcript is refused for its length. A model the service does not offer (HTTP 404, or 400 naming the model) fails the generation with `ai.unknownModel`: "Claude does not offer a model called 'x'. Nothing was generated and no document was changed. Choose one from the list in Settings › AI and privacy, or check the id." No other model is tried in its place.
+
+`ProviderInfo.modelListed` (after 2.1): for Claude and ChatGPT, whether `modelLabel` is in Memento's list (`false` for a model typed by hand); `null` for the local model. A ready cloud provider's `detail` names the model, what it reads and the split: "Sends the ticked inputs to Claude (claude-haiku-5-5) when you press Generate. claude-haiku-5-5 reads up to 1M tokens a request; a long transcript is split into segments of up to 24,000 tokens, so it always fits."
+
+The local model by hardware: Qwen3.5 4B (`qwen3.5-4b-q4`) when the discrete card has 3.3 GB free, otherwise Ministral 3 3B (`ministral-3-3b-q4`); both are `kind: 'llm'` entries of `models.list` (`engine: 'llm'`), installed like every other model.
 
 ## Error codes (M4)
 
-`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.workerCrashed`, `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
+`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.unknownModel`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.workerCrashed`, `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
 
 The `ai.*` provider codes reach the UI as the code of a failed generation progress event, with the provider's own §17 message ("Claude could not be reached: no network. Nothing was sent twice and no document was changed."); a failure never changes an existing document.
 
