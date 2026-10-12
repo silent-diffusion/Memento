@@ -261,6 +261,9 @@ public sealed class ProjectMethodTests : IDisposable
     public async Task ProcessingCardListsEveryStageWhileRowsHideFinishedStoredAndOptimize()
     {
         var recordingId = await _host.RecordAsync("Smaller", 1);
+
+        // The stages below are set by hand: let the processing queued by the recording finish first.
+        await _host.Processing.WhenIdleAsync().WaitAsync(Patience.Ceiling);
         var catalog = _host.Get<ProjectCatalog>();
         await catalog.UpdateAsync(
             recordingId,
