@@ -577,23 +577,32 @@ async function builderWithClaude() {
  * transcript.json (two invented speakers, invented words) is written beside it, as a finished transcription would.
  */
 async function seedTranscribedRecording() {
-  check(play && existsSync(play), '--play names the audio file to import when --data has no transcribed recording');
-  await openSettings('Transcription');
-  if ((await page.eval(`document.querySelector('[aria-label="Transcribe automatically"]')?.getAttribute('aria-checked')`)) === 'true') {
-    await page.click({ name: 'Transcribe automatically' });
+  // An earlier seeding that stopped before the transcript was written left its import: use it.
+  let [id] = projectIds();
+  if (id === undefined) {
+    check(play && existsSync(play), '--play names the audio file to import when --data has no transcribed recording');
+    await openSettings('Transcription');
+    if ((await page.eval(`document.querySelector('[aria-label="Transcribe automatically"]')?.getAttribute('aria-checked')`)) === 'true') {
+      await page.click({ name: 'Transcribe automatically' });
+    }
+    await home();
+    const answered = answerDialog('Import audio or video', play);
+    if (await page.locate({ name: 'Import audio or video' })) {
+      await page.click({ name: 'Import audio or video' });
+    } else {
+      await page.click({ name: 'More library actions' });
+      await page.click({ name: 'Import audio or video…' });
+    }
+    await answered;
+    await page.waitFor(`document.querySelectorAll('.lib-item').length >= 1`, 'the imported recording', 60_000);
+    [id] = projectIds();
   }
-  await home();
-  const answered = answerDialog('Import audio or video', play);
-  if (await page.locate({ name: 'Import audio or video' })) {
-    await page.click({ name: 'Import audio or video' });
-  } else {
-    await page.click({ name: 'More library actions' });
-    await page.click({ name: 'Import audio or video…' });
+  // With automatic transcription off, storing is the only stage.
+  const deadline = Date.now() + 10 * 60_000;
+  while (manifestOf(id).stages.find((s) => s.stage === 'stored')?.state !== 'done') {
+    if (Date.now() > deadline) throw new Error(`${id} was not stored after 10 min`);
+    await sleep(1000);
   }
-  await answered;
-  await page.waitFor(`document.querySelectorAll('.lib-item').length >= 1`, 'the imported recording', 60_000);
-  const [id] = projectIds();
-  await waitProcessed(id, 10);
   await app.close();
   const lines = [
     ['spk1', 'Good morning. Today we choose the venue for the spring workshop.'],
@@ -672,6 +681,9 @@ if (flag('--cloud-model')) {
     await page.click({ role: 'radio', name: 'claude-haiku-5-5' });
     await page.waitFor(`/Requests to Claude go to claude-haiku-5-5\\./.test(document.body.innerText)`, 'claude-haiku-5-5 chosen', 15_000);
     summary.settingsModelLine = await claudeModelLine();
+    // The line follows the page's copy at once; the host writes settings.json when settings.set returns.
+    const savedBy = Date.now() + 30_000;
+    while (!readFileSync(join(app.memento, 'settings.json'), 'utf8').includes('"claude-haiku-5-5"') && Date.now() < savedBy) await sleep(250);
     check(readFileSync(join(app.memento, 'settings.json'), 'utf8').includes('"claude-haiku-5-5"'), 'the choice is saved in settings.json');
     await shot('settings-claude-haiku');
     log('Settings › AI and privacy', summary.settingsModelLine);
