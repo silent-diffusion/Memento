@@ -42,6 +42,7 @@ public static class BridgeServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, RecordingMarkHighlightMethod>();
         services.AddSingleton<IBridgeHandler, RecordingStopMethod>();
         services.AddSingleton<IBridgeHandler, RecordingCurrentMethod>();
+        services.AddSingleton<IBridgeHandler, RecordingResumeStoppedMethod>();
         services.AddSingleton<IBridgeHandler, RecoveryListMethod>();
         services.AddSingleton<IBridgeHandler, RecoveryAcknowledgeMethod>();
         services.AddSingleton<IBridgeHandler, DialogPickFolderMethod>();
@@ -92,6 +93,7 @@ public static class BridgeServiceCollectionExtensions
         // Self-update (H1): the app replaces the client with Velopack; tests and build folders keep "cannot update".
         services.AddSingleton<IBridgeHandler, UpdatesStatusMethod>();
         services.AddSingleton<IBridgeHandler, UpdatesCheckMethod>();
+        services.AddSingleton<IBridgeHandler, UpdatesDownloadMethod>();
         services.AddSingleton<IBridgeHandler, UpdatesApplyMethod>();
         services.TryAddSingleton<IUpdateClient>(sp => new NoUpdateClient(sp.GetRequiredService<Host.IAppInfo>().Version));
         services.TryAddSingleton<UpdateStatusBoard>();

@@ -70,7 +70,12 @@ public sealed partial class ProjectFinalizationService(
             cancellationToken);
 
         var folder = store.GetProjectFolder(recordingId);
+
+        // 2.1, "Resume recording": tracks of earlier segments are finalized (hashed) and read-only; only the new
+        // segment's capture files are encoded, and the mix is then built again over the whole timeline.
+        var resumed = manifest.Tracks.Any(t => t.Sha256 is not null) && manifest.Tracks.Any(t => t.Sha256 is null);
         var inputs = manifest.Tracks
+            .Where(t => !resumed || t.Sha256 is null)
             .Select(t => new FinalizeTrackInput(t.Id, t.CaptureFile ?? t.File, t.StartOffsetMs, t.EndedEarlyAtMs))
             .ToList();
 
@@ -84,6 +89,10 @@ public sealed partial class ProjectFinalizationService(
             // "Even out source levels" (Settings › Recording › Storage, on by default) applies to the mix only.
             var evenLevels = settings?.Current.Recording.Storage.EvenLevels ?? false;
             audio = await finalizer.FinalizeAsync(new FinalizeRequest(folder, inputs, storage) { EvenLevels = evenLevels }, progress, cancellationToken);
+            if (resumed)
+            {
+                audio = await MixOverSegmentsAsync(manifest, folder, audio, evenLevels, cancellationToken);
+            }
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -91,7 +100,14 @@ public sealed partial class ProjectFinalizationService(
         }
 
         var finalized = audio.Tracks.ToDictionary(t => t.TrackId, StringComparer.Ordinal);
-        var integrity = new Dictionary<string, string>(StringComparer.Ordinal);
+        var integrity = resumed
+            ? new Dictionary<string, string>(manifest.Integrity.Files, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+        if (resumed && manifest.Mix is { } previousMix)
+        {
+            integrity.Remove(previousMix.File);
+        }
+
         foreach (var track in audio.Tracks)
         {
             integrity[track.File] = track.Sha256;
@@ -127,7 +143,10 @@ public sealed partial class ProjectFinalizationService(
                 },
                 Peaks = audio.PeaksFile,
                 Integrity = new ProjectIntegrity { ComputedAt = audio.ComputedAt, Files = integrity },
-                Stages = WithFollowingQueued(m, WithStored(m.Stages, StageStates.Done, null, "Done")),
+                Stages = WithFollowingQueued(m, WithStored(resumed ? WithStagesAgain(m.Stages) : m.Stages, StageStates.Done, null, "Done")),
+                Processing = resumed && StageList.Find(m.Stages, StageNames.Transcript) is { State: StageStates.Done }
+                    ? (m.Processing ?? new ProcessingRequest()) with { Retranscribe = true }
+                    : m.Processing,
             },
             cancellationToken);
 
@@ -158,6 +177,37 @@ public sealed partial class ProjectFinalizationService(
                 cancellationToken);
         }
 
+        if (resumed)
+        {
+            var again = saved.Stages.Where(s => s.Stage is not (StageNames.Stored or StageNames.Mix) && StageStates.IsRunning(s.State)).Select(s => s.Stage).ToList();
+            await AppendQuietlyAsync(
+                recordingId,
+                new HistoryEntry(
+                    audio.ComputedAt,
+                    StageNames.Stored,
+                    "info",
+                    $"Resumed recording saved · {HumanFormat.Count(saved.Segments.Count, "segment", "segments")}, {HumanFormat.Clock(saved.DurationMs)} in all",
+                    "The earlier tracks were kept as they were and the mix was built again over the whole recording"
+                        + (again.Count > 0
+                            ? $" · {string.Join(", ", again)} run again over the whole recording, because a pass over only the new segment is not available; the current transcript stays until the new one replaces it"
+                            : string.Empty)),
+                cancellationToken);
+            if (manifest.Mix is { } oldMix && !string.Equals(oldMix.File, audio.Mix.File, StringComparison.OrdinalIgnoreCase))
+            {
+                // A smaller mix (mix.mp3) the whole-timeline mix replaced goes only now that the manifest points at the new one.
+                try
+                {
+                    var oldPath = ProjectPaths.Resolve(folder, oldMix.File);
+                    ClearReadOnly(oldPath);
+                    File.Delete(oldPath);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    LogCaptureNotDeleted(ex, oldMix.File);
+                }
+            }
+        }
+
         store.DeleteRecordingState(recordingId);
         DeleteReplacedCaptures(folder, audio.ObsoleteCaptureFiles);
         publisher.PublishProcessingProgress(new ProcessingProgressPayload(recordingId, saved.Stages));
@@ -165,6 +215,60 @@ public sealed partial class ProjectFinalizationService(
         LogStored(recordingId, audio.Tracks.Count, size, stopwatch.ElapsedMilliseconds);
         return saved;
     }
+
+    /// <summary>
+    /// A resumed recording (2.1): the mix <see cref="ITrackFinalizer.FinalizeAsync"/> wrote covers only the new segment, so
+    /// every track (the earlier segments' stored files and the new ones) is mixed again over the whole timeline into
+    /// <see cref="SegmentsMixStem"/>, which then replaces the mix and the peaks. The tracks are only read.
+    /// </summary>
+    private async Task<FinalizedAudio> MixOverSegmentsAsync(ProjectManifest manifest, string folder, FinalizedAudio audio, bool evenLevels, CancellationToken cancellationToken)
+    {
+        var fresh = audio.Tracks.ToDictionary(t => t.TrackId, StringComparer.Ordinal);
+        var tracks = manifest.Tracks
+            .Where(t => fresh.ContainsKey(t.Id) || t.Sha256 is not null)
+            .Select(t => new MixRebuildTrack(t.Id, fresh.TryGetValue(t.Id, out var f) ? f.File : t.File, t.StartOffsetMs, t.EndedEarlyAtMs))
+            .ToList();
+        var rebuilt = await finalizer.RebuildMixAsync(new MixRebuildRequest(folder, tracks, evenLevels && tracks.Count > 1, SegmentsMixStem), null, cancellationToken);
+        var target = ProjectLayout.MixBaseName + Path.GetExtension(rebuilt.Mix.File);
+        var targetPath = ProjectPaths.Resolve(folder, target);
+        ClearReadOnly(targetPath);
+        File.Move(ProjectPaths.Resolve(folder, rebuilt.Mix.File), targetPath, overwrite: true);
+        File.SetAttributes(targetPath, File.GetAttributes(targetPath) | FileAttributes.ReadOnly);
+        File.Move(ProjectPaths.Resolve(folder, rebuilt.PeaksFile), ProjectPaths.Resolve(folder, audio.PeaksFile), overwrite: true);
+
+        // The segment-only mix finalize wrote under another extension, if any, is not the recording's mix.
+        if (!string.Equals(audio.Mix.File, target, StringComparison.OrdinalIgnoreCase))
+        {
+            var segmentMix = ProjectPaths.Resolve(folder, audio.Mix.File);
+            ClearReadOnly(segmentMix);
+            File.Delete(segmentMix);
+        }
+
+        return audio with
+        {
+            Mix = rebuilt.Mix with { File = target },
+            MixGains = rebuilt.Gains,
+            Notes = audio.Notes.Append($"mix built again over {HumanFormat.Count(manifest.Segments.Count, "segment", "segments")}").ToList(),
+        };
+    }
+
+    /// <summary>The name of the whole-timeline mix of a resumed recording until it replaces the mix.</summary>
+    public const string SegmentsMixStem = "mix.segments";
+
+    private static void ClearReadOnly(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.SetAttributes(path, File.GetAttributes(path) & ~FileAttributes.ReadOnly);
+        }
+    }
+
+    /// <summary>
+    /// After a resumed segment is stored: the stages that already ran over the earlier segments are queued again over
+    /// the whole recording (a transcript pass replaces the transcript; it is kept as a version when history is on).
+    /// </summary>
+    private static List<StageStatus> WithStagesAgain(IReadOnlyList<StageStatus> stages) =>
+        stages.Where(s => s.Stage is StageNames.Stored or StageNames.Mix || s.State != StageStates.Done).ToList();
 
     /// <summary>History is a log; failing to append one line must not fail saving the audio.</summary>
     private async Task AppendQuietlyAsync(string recordingId, HistoryEntry entry, CancellationToken cancellationToken)

@@ -37,4 +37,10 @@ public sealed record AudioRecordingOptions(string TracksDirectory, IReadOnlyList
     public Func<AudioSourceId, AudioSourceInfo?>? Describe { get; init; }
 
     public ILoggerFactory? LoggerFactory { get; init; }
+
+    /// <summary>
+    /// 2.1, "Resume recording": file stems the project already uses (its finalized tracks are FLAC, so the WAV a
+    /// new track would get is free on disk); a new track never takes one of these.
+    /// </summary>
+    public IReadOnlyCollection<string> ReservedStems { get; init; } = [];
 }

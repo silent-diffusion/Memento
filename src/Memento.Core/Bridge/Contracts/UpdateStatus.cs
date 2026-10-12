@@ -5,12 +5,14 @@ namespace Memento.Core.Bridge.Contracts;
 /// </summary>
 /// <param name="CurrentVersion">The running version.</param>
 /// <param name="State"><c>unavailable</c> (this copy cannot update itself), <c>idle</c>, <c>checking</c>,
-/// <c>downloading</c>, <c>ready</c> (downloaded; restart to update) or <c>failed</c> (the last check by hand failed).</param>
+/// <c>available</c> (found by "Check now"; downloads only on <c>updates.download</c>), <c>downloading</c>, <c>ready</c> (downloaded; restart to update) or <c>failed</c> (the last check by hand failed).</param>
 /// <param name="AvailableVersion">The newer version found, while downloading or ready.</param>
 /// <param name="Percent">Download progress while <c>downloading</c>.</param>
 /// <param name="LastCheckedAt">When the feed last answered, or <c>null</c>.</param>
 /// <param name="Message">What happened, in words, after a check by hand (none found, or why it failed); else <c>null</c>.</param>
 /// <param name="Deferred">A newer version waits to download until no recording or processing is running.</param>
+/// <param name="ReleaseNotes">The release notes (Markdown, read-only text) of <paramref name="AvailableVersion"/> when the
+/// feed has them (2.1.0); else <c>null</c>.</param>
 public sealed record UpdateStatus(
     string CurrentVersion,
     string State,
@@ -18,4 +20,5 @@ public sealed record UpdateStatus(
     int? Percent,
     DateTimeOffset? LastCheckedAt,
     string? Message,
-    bool Deferred);
+    bool Deferred,
+    string? ReleaseNotes = null);

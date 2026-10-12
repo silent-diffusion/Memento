@@ -671,22 +671,26 @@ interface GenerationOutput {
 
 Memento updates itself from the project's GitHub releases (Velopack's `releases.win.json` feed). The host checks once the page has sent `ui.ready` and then every 24 hours while it runs, never while a recording or a processing stage is queued, waiting or running (it waits until both are idle), downloads in the background and then offers a restart. Nothing installs until the person chooses "Restart to update", or the next time Memento starts. A pre-release is offered only to a pre-release build (a SemVer suffix, or a version before 0.5.0); from 0.5.0 on only full releases count. With `general.autoUpdate` off nothing is checked automatically; `updates.check` still works. A copy not installed with Setup (a build folder) never checks.
 
+Manual versus automatic (2.1.0): the automatic check still downloads a newer version by itself. "Check now" (`updates.check`) only checks: a newer version becomes `state: 'available'` with `availableVersion` and `releaseNotes`, and nothing downloads until "Update now" (`updates.download`). `releaseNotes` is the release's Markdown (Velopack's `TargetFullRelease.NotesMarkdown`, the GitHub release body); the UI shows it read-only as plain text (headings, lists, paragraphs; marks, links and HTML stripped).
+
 ```ts
 interface UpdateStatus {
   currentVersion: string;
-  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';   // failed: only after updates.check
-  availableVersion: string | null;   // while downloading or ready, and while a download is deferred
+  state: 'unavailable' | 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'failed';   // failed: only after updates.check / updates.download; available (2.1.0): found by updates.check, waits for updates.download
+  availableVersion: string | null;   // while available, downloading or ready, and while a download is deferred
   percent: number | null;            // while downloading
   lastCheckedAt: string | null;      // ISO 8601, when the feed last answered
-  message: string | null;            // after updates.check: "Memento 0.5.0 is the newest version.", why it failed, or that the download waits
+  message: string | null;            // after updates.check: "You are on the newest version (2.0.0).", why it failed, or that the download waits
   deferred: boolean;                 // a newer version waits to download until no recording or processing runs
+  releaseNotes?: string | null;      // 2.1.0: the release notes (Markdown) of availableVersion, when the feed has them
 }
 ```
 
 | Method | Params | Result | Notes |
 |---|---|---|---|
 | `updates.status` | `{}` | `UpdateStatus` | |
-| `updates.check` | `{}` | `UpdateStatus` | "Check now": answers once the feed did; a newer version then downloads in the background (once idle). A failed check is not an error: `state: 'failed'` with the reason in `message`. `updates.unavailable` for a copy that cannot update itself. |
+| `updates.check` | `{}` | `UpdateStatus` | "Check now": answers once the feed did. It only checks (2.1.0): a newer version is `available` with its `releaseNotes` and is not downloaded; the newest says so in `message`. A failed check is not an error: `state: 'failed'` with the reason in `message`. `updates.unavailable` for a copy that cannot update itself. |
+| `updates.download` | `{}` | `UpdateStatus` | 2.1.0, "Update now": downloads the `available` version in the background (once no recording or processing runs; `deferred` meanwhile); `updates.progress` follows it to `ready`. A failed download is `state: 'failed'` with the reason in `message`. `updates.nothingToDownload` when nothing is `available`; `updates.unavailable` for a copy that cannot update itself. |
 | `updates.apply` | `{}` | `{}` | "Restart to update": Memento closes normally, the update installs and Memento starts again. `updates.notReady` when nothing is downloaded, `updates.busy` while recording. |
 
 | Event | Payload |
@@ -698,7 +702,7 @@ Settings snapshot: `general` adds `autoUpdate: boolean` (default `true`), merged
 
 ## Error codes (H1)
 
-`library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead).
+`library.unavailable` (the library folder chosen in Settings is missing: its drive is not connected, or it was moved or renamed; `library.list` and `recording.start` answer it and nothing is created in its place; detail: the folder. The default library is created on first run as before. Once the folder is back, the next `library.list` opens it, recovers interrupted recordings and resumes processing), `updates.unavailable` (this copy was not installed with Setup, so it cannot update itself), `updates.notReady` (`updates.apply` with nothing downloaded), `updates.busy` (`updates.apply` while recording; the update installs at the next start instead), `updates.nothingToDownload` (2.1.0: `updates.download` before Check now found a newer version; nothing was downloaded).
 
 ## Clipboard and transcript text options (after 1.2.0)
 
@@ -1142,3 +1146,24 @@ Folder changes and filed recordings send `library.changed` (`recordingIds` empty
 ## Error codes (2.1)
 
 `folder.notFound` (the folder named is not in the Library any more; detail: the path), `folder.nameTaken` (a folder with that name, ignoring case, is already there; detail: the name), `folder.invalid` (the name is empty, too long or has `/` or `\`, or the move would put a folder in itself or nest deeper than 8; nothing was changed).
+## Resume recording (2.1)
+
+A stopped recording can take more segments: the Recording session's stopped state and Review's header offer **Resume recording** for a recording started **today** (local date) that was recorded (not imported), is saved (`ready` or `recovered`) and still has its separate tracks (not "Keep only the mix"), while nothing else records. The earlier tracks are finalized and read-only and are never opened again: the new session writes new track files (`tracks/mic-2.wav`, `tracks/screen-2.mp4`; the engines skip every id the project already uses) placed after the recorded time so far. Segments sit end to end on the timeline; the real time between Stop and Resume is a pause (`pauses[]`, at the segment's offset, with the gap as its duration), never recorded silence. There is no undo: a segment ends with Stop like any recording, and a crash mid-segment is recovered like any recording (only the segment's own files are repaired).
+
+```ts
+interface RecordingResumeStoppedParams { recordingId: string; sourceIds?: string[] }  // without sourceIds: the last segment's sources still connected (audio and video)
+interface RecordingSegment { index: number; startedAt: string; offsetMs: number; durationMs: number; gapMs: number }
+interface Project { /* … */ segments: RecordingSegment[]; canResume: boolean; resumeNote: string | null }  // [] for an import; resumeNote: why not, as a §17 sentence
+interface RecordingSummary { /* … */ resumedAt: string[] }   // when each segment after the first started; [] when recorded in one go
+interface RecordingStatePayload { /* … */ segment: number | null; segmentOffsetMs: number }  // segment null for a recording's first; elapsedMs and track offsets stay the session's own; total = segmentOffsetMs + elapsedMs
+```
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `recording.resumeStopped` | `RecordingResumeStoppedParams` | `{ sessionId, recordingId, startedAt }` | 2.1. Starts a new session in the same recording; it is then driven like `recording.start`'s (`recording.pause`, `recording.resume`, `recording.stop`, `recording.markHighlight` at the recording-timeline time, `recording.setSource`, video). Any processing of the recording is stopped first. On Stop only the new segment's tracks are encoded and hashed; the mix and `peaks.json` are built again over every track of every segment (`mixUrl` then carries `?v=`), and every stage that had run (`transcript`, `speakers`, `topics`, `video`, `optimize`) is queued again over the **whole recording**, because a pass over only the new segment is not available; the current transcript stays until the new one replaces it (kept as a version when history is on). History: `recorded` `started` "Recording resumed at 10:42" (detail "Segment 2, after 12:40 recorded and a pause of 8:03 · …"), `recorded` `completed` "Recorded 5:10 more · 17:50 in all", `stored` `info` "Resumed recording saved · 2 segments, 17:50 in all" (which stages run again and why). Refused with `recording.cannotResume` (the message says why: imported, not today, not saved completely, keeps only its mix, still saving), `recording.alreadyActive`, `recording.sourceUnavailable` (none of the last sources is connected, or one cannot open), `recording.noSources` (explicit `sourceIds` without audio), `recording.diskFull`, `project.notFound`, `library.busy`. |
+
+`project.json` schema **6**: `segments: [{ index, startedAt, offsetMs, durationMs, gapMs, endedAt }]`; each track and video track of a later segment carries `segment` (absent for the first). The v5 → v6 step writes one segment from `createdAt` and `durationMs`. `recording.state.json` (schema 1, optional fields) gains `segment` and `segmentOffsetMs`; its tracks, pauses and video parts are on the recording timeline. `library.db` schema 5 adds `resumedAt` (the index is rebuilt from the project folders on the first start).
+
+## Error codes (resume)
+
+`recording.cannotResume` (`recording.resumeStopped` for a recording that cannot take another segment; nothing was changed).

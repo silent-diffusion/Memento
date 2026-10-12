@@ -1,5 +1,7 @@
 import type { BridgeLogger, BridgeTransport } from './client';
 import { formatSize } from '../format/storage';
+import { formatDuration } from '../format/duration';
+import { mockSegments, mockWhyNotResume } from './mockResume';
 import { estimateSizeBytes, isoWithOffset, mockTracks, SAMPLE_SOURCES, sampleProjects, type MockProject } from './mockData';
 import { advanceStages, processingOf, queryLibrary, visibleStages } from './mockLibrary';
 import { mockMediaUrls } from './mockMedia';
@@ -265,8 +267,12 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     mixLevels: project.mixLevels ?? null,
     video: project.video ?? null,
     audioRemoved: project.summary.audioRemoved,
+    segments: mockSegments(project),
+    canResume: whyNotResume(project) === null,
+    resumeNote: whyNotResume(project),
     };
   };
+  const whyNotResume = (project: MockProject): string | null => mockWhyNotResume(project, now(), session.activeRecordingId());
 
   // The host assigns annotation ids on add (c…, h…, t…); any id the page sends with an add is ignored.
   let idCounter = 0;
@@ -407,6 +413,26 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       emitFooter();
     },
     onStarted: (result) => {
+      const resumedProject = result.resume === null ? undefined : projects.get(result.recordingId);
+      if (resumedProject !== undefined && result.resume !== null) {
+        // 2.1: another segment of an existing recording; the earlier tracks stay as they are.
+        const segments = mockSegments(resumedProject);
+        const last = segments.at(-1);
+        const lastEnd = last === undefined ? Date.parse(resumedProject.summary.createdAt) : Date.parse(last.startedAt) + last.durationMs;
+        const gapMs = Math.max(0, Date.parse(result.startedAt) - lastEnd);
+        resumedProject.segments = [
+          ...segments,
+          { index: result.resume.segment, startedAt: result.startedAt, offsetMs: result.resume.offsetMs, durationMs: 0, gapMs },
+        ];
+        resumedProject.summary = { ...resumedProject.summary, state: 'recording' };
+        const at = new Date(result.startedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        resumedProject.history = [
+          ...resumedProject.history,
+          { at: result.startedAt, stage: 'recorded', event: 'started', summary: `Recording resumed at ${at}`, detail: `Segment ${result.resume.segment} · the earlier tracks are kept as they were` },
+        ];
+        changed(resumedProject.summary.id);
+        return;
+      }
       const summary: RecordingSummary = {
         id: result.recordingId,
         title: result.title,
@@ -466,11 +492,28 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       if (project === undefined) {
         return;
       }
+      // 2.1: a resumed segment's tracks go after the earlier ones on the timeline; the mix covers both.
+      const offsetMs = result.resume?.offsetMs ?? 0;
+      const priorTracks = result.resume === null ? [] : (project.tracks ?? []);
+      const priorHistory = result.resume === null ? [] : project.history;
+      const totalMs = offsetMs + result.durationMs;
+      project.segments =
+        result.resume === null
+          ? [{ index: 1, startedAt: result.startedAt, offsetMs: 0, durationMs: result.durationMs, gapMs: 0 }]
+          : mockSegments(project).map((s) => (s.index === result.resume?.segment ? { ...s, durationMs: result.durationMs } : s));
       const trackCount = result.tracks.length;
-      const recordedVideo = video.finalize(result.recordingId, result.durationMs);
+      const recordedVideo = video.finalize(result.recordingId, totalMs);
       project.video = recordedVideo?.project ?? project.video ?? null;
-      project.tracks = result.tracks.map((t) => ({ ...t, file: t.file.replace(/\.wav$/, '.flac') }));
-      project.trackSources = result.tracks.map((t) => t.sourceKind);
+      project.tracks = [
+        ...priorTracks,
+        ...result.tracks.map((t) => ({
+          ...t,
+          file: t.file.replace(/\.wav$/, '.flac'),
+          startOffsetMs: t.startOffsetMs + offsetMs,
+          endedEarlyAtMs: t.endedEarlyAtMs === null ? null : t.endedEarlyAtMs + offsetMs,
+        })),
+      ];
+      project.trackSources = project.tracks.map((t) => t.sourceKind);
       // Finalize always stores lossless FLAC; a smaller format in Settings queues the optimize stage after it.
       const smaller = settings.recording.storage.codec !== 'flac';
       // The transcript, speakers and topics stages wait for the stored one (Settings › Transcription, Speakers).
@@ -485,21 +528,26 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       project.stages = pipeline;
       project.summary = {
         ...project.summary,
-        durationMs: result.durationMs,
+        durationMs: totalMs,
         stages: visibleStages(pipeline),
         isProcessing: true,
         state: 'ready',
-        hasVideo: recordedVideo !== null,
-        video: recordedVideo?.summary ?? null,
+        hasVideo: recordedVideo !== null || (result.resume !== null && project.summary.hasVideo),
+        video: recordedVideo?.summary ?? (result.resume === null ? null : project.summary.video),
+        resumedAt: project.segments.filter((s) => s.index > 1).map((s) => s.startedAt),
       };
-      project.summary.sizeBytes = estimateSizeBytes({ ...project.summary, hasVideo: false }, trackCount) + (recordedVideo?.project.sizeBytes ?? 0);
+      project.summary.sizeBytes = estimateSizeBytes({ ...project.summary, hasVideo: false }, project.tracks.length) + (recordedVideo?.project.sizeBytes ?? 0);
       project.history = [
+        ...priorHistory,
         {
-          at: result.startedAt,
+          at: result.stoppedAt,
           stage: 'recorded',
           event: 'completed',
-          summary: `Recorded ${trackCount} ${trackCount === 1 ? 'track' : 'tracks'}`,
-          detail: result.tracks.map((t) => t.name).join(', '),
+          summary:
+            result.resume === null
+              ? `Recorded ${trackCount} ${trackCount === 1 ? 'track' : 'tracks'}`
+              : `Recorded ${formatDuration(result.durationMs)} more · ${formatDuration(totalMs)} in all`,
+          detail: (result.resume === null ? '' : `Segment ${result.resume.segment} · `) + result.tracks.map((t) => t.name).join(', '),
         },
       ];
       changed(project.summary.id);
@@ -964,6 +1012,35 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     'recording.markHighlight': (params) => ({ highlight: session.markHighlight(params.sessionId, params.note) }),
     'recording.stop': (params) => session.stop(params.sessionId),
     'recording.current': () => ({ session: session.current() }),
+    'recording.resumeStopped': (params) => {
+      m3.throwIfMoving();
+      const project = find(params.recordingId);
+      const why = whyNotResume(project);
+      if (why !== null) {
+        throw new MockHostError(session.activeRecordingId() !== null && session.activeRecordingId() !== project.summary.id ? 'recording.alreadyActive' : 'recording.cannotResume', why, params.recordingId);
+      }
+      const segments = mockSegments(project);
+      const lastIndex = segments.at(-1)?.index ?? 1;
+      const lastSources = (project.tracks ?? []).map((t) => t.sourceId);
+      const wanted = params.sourceIds ?? (lastSources.length > 0 ? lastSources : settings.recording.defaultSourceIds);
+      const available = new Set(SAMPLE_SOURCES.map((s) => s.id));
+      const ids = video.splitSourceIds([...new Set(wanted)]);
+      const audio = params.sourceIds === undefined ? ids.audio.filter((id) => available.has(id)) : ids.audio;
+      if (audio.length === 0) {
+        throw new MockHostError(
+          'recording.sourceUnavailable',
+          `None of the audio sources "${project.summary.title}" was recorded from is connected now, so it was not resumed. Connect one, or choose the sources on the Recording screen; the recording is unchanged.`,
+          params.recordingId,
+        );
+      }
+      const started = session.start(
+        { title: project.summary.title, type: project.summary.type, sourceIds: audio },
+        { recordingId: project.summary.id, segment: lastIndex + 1, offsetMs: project.summary.durationMs },
+      );
+      video.started(started.sessionId, started.recordingId, ids.video);
+      startLiveDraft(started.sessionId);
+      return started;
+    },
     'recovery.list': () => ({ items: [...recovered] }),
     'recovery.acknowledge': (params) => {
       const index = recovered.findIndex((r) => r.recordingId === params.recordingId);

@@ -35,6 +35,9 @@ public static class BridgeMethodNames
     public const string RecordingMarkHighlight = "recording.markHighlight";
     public const string RecordingStop = "recording.stop";
     public const string RecordingCurrent = "recording.current";
+
+    /// <summary>2.1: "Resume recording" after Stop: a new segment in the same recording.</summary>
+    public const string RecordingResumeStopped = "recording.resumeStopped";
     public const string RecoveryList = "recovery.list";
     public const string RecoveryAcknowledge = "recovery.acknowledge";
     public const string DialogPickFolder = "dialog.pickFolder";
@@ -140,6 +143,7 @@ public static class BridgeMethodNames
     // H1: updates.
     public const string UpdatesStatus = "updates.status";
     public const string UpdatesCheck = "updates.check";
+    public const string UpdatesDownload = "updates.download";
     public const string UpdatesApply = "updates.apply";
 
     // 2.0 Review: known voices, suggested chapters, selection mode.

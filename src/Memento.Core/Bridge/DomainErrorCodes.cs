@@ -32,6 +32,9 @@ public static class DomainErrorCodes
     /// <summary>A second <c>recording.start</c> while one session is active.</summary>
     public const string RecordingAlreadyActive = "recording.alreadyActive";
 
+    /// <summary>2.1: <c>recording.resumeStopped</c> for a recording that cannot take another segment (the message says why).</summary>
+    public const string RecordingCannotResume = "recording.cannotResume";
+
     /// <summary>The recording has no transcript yet (M2).</summary>
     public const string TranscriptNone = "transcript.none";
 
@@ -186,6 +189,9 @@ public static class DomainErrorCodes
 
     /// <summary><c>updates.apply</c> with no update downloaded.</summary>
     public const string UpdatesNotReady = "updates.notReady";
+
+    /// <summary><c>updates.download</c> when "Check now" has not found a newer version to download (2.1.0).</summary>
+    public const string UpdatesNothingToDownload = "updates.nothingToDownload";
 
     /// <summary><c>updates.apply</c> while a recording runs; it is never interrupted for an update.</summary>
     public const string UpdatesBusy = "updates.busy";

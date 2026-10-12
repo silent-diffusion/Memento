@@ -5,8 +5,8 @@ using Memento.Core.Updates;
 namespace Memento.Core.Bridge.Methods;
 
 /// <summary>
-/// <c>updates.check</c> → <see cref="UpdateStatus"/> once the feed answered ("Check now"). A newer version then downloads
-/// in the background (once no recording or processing runs); <c>updates.progress</c> follows it. A failed check is not
+/// <c>updates.check</c> → <see cref="UpdateStatus"/> once the feed answered ("Check now"). It only checks: a newer version
+/// is <c>available</c> with its release notes and downloads only on <c>updates.download</c> ("Update now"). A failed check is not
 /// an error: the status is <c>failed</c> with the reason in <c>message</c>.
 /// </summary>
 public sealed class UpdatesCheckMethod(UpdateService updates) : BridgeMethod<EmptyParams, UpdateStatus>

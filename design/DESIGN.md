@@ -404,6 +404,8 @@ Canvas artboards: *Recording session · light / dark*. Opened from "New recordin
 
 **Keyboard**: Space = pause/resume, Ctrl+M = mark highlight, Esc does nothing (no accidental stop). Stop asks for no confirmation; it is not destructive because everything is already saved.
 
+**Resume after Stop** (2.1): while the stopped recording is being saved (Finalizing…), the stage card shows a ghost **Resume recording** button (with the record dot) and the note "Stopped by mistake? Resume records more into this recording; the pause is kept on its timeline." Pressed, it reads "Resumes once saved…" (disabled) and the note "Recording continues in the same recording as soon as the tracks are saved. What is recorded so far stays as it is."; when saving finishes the screen stays and records the next segment instead of opening Review. During a resumed segment the timer shows the recording's total and the sub-line reads "Resumed 10:42 AM · …". The same sources are used (those still connected). There is no Undo for a resume: Stop ends the segment like any recording. If the host refuses (a §17 reason), a warning toast says why and Review opens. A host-stopped or failed save ("Stopped") offers no resume.
+
 ---
 
 ## 9. Screen: Review and transcript
@@ -411,6 +413,8 @@ Canvas artboards: *Recording session · light / dark*. Opened from "New recordin
 Canvas artboards: *Review and transcript · light / dark*. Opened from a Library row or by stopping a recording. Three panes fill the window below the header; from 1024 px the screen is fixed to the window height and the outline, the transcript (under the pinned player strip) and the details each scroll on their own with thin scrollbars, and menus inside a pane float above their trigger when there is no room below (1.1.0); at narrow widths they stack (outline, then player and transcript, then details) and the page scrolls.
 
 **Header**: back to Library · title 16/700 over a meta line (type · when · duration · people · audio/video) · right: the **Undo** status and button (below), ghost **Export**, primary **Create document** (opens the Builder), 36 px **More** (⋯: rename, change type, reprocess, copy transcript, delete).
+
+**Resume recording** (2.1): a ghost **Resume recording** button before Export, shown only when the host says the recording can take another segment (`project.canResume`): recorded (not imported) and started **today**, saved, its tracks kept, nothing else recording. Decided: any recording of the current day rather than only the latest one, because a day's meeting stopped by mistake is often not the last thing recorded; older recordings are left as they are (a new recording is the clearer record of another day). Pressed, it reads "Resuming…" and opens the Recording session on the new segment; a refusal is a warning toast with the host's §17 sentence. A resumed recording's meta line adds "Resumed at 10:42 AM" (or "Resumed 2 times · last at 4:05 PM") in `text-2`, and the waveform shows each resume as a 1 px dashed `text-3` line at the segment's start with an 11 px caption "Resumed at 10:42 AM · paused 12 min" on `surface`: the gap is a pause on the timeline, not recorded silence. The Library row's meta line ends with the same "· Resumed at 10:42 AM".
 
 **Undo** (after 1.1.0; also in the Builder and the viewer headers): a ghost button (§5.1, 36 px) with a counter-clockwise arrow and the word "Undo", shown only while there is a step to undo; its tooltip and accessible name name the step ("Undo merge speakers"). Before it, a 12 px `text-3` live region says "Undone: merge speakers", "Redone: …" or "Saved" for 4 s (a refusal reads "Not undone: …" in `danger` and also gets a warning toast with the host's §17 message; the step stays). No toast for a success. Ctrl+Z undoes and Ctrl+Y / Ctrl+Shift+Z redo anywhere on the screen, except in a text field that holds changes since it was focused (its own undo goes first), and never while a dialog is open. The stack belongs to the open recording (Review), template draft (Builder, kept across a trip to the Style editor) or document (viewer), holds 50 steps and starts empty when another one opens. Implementation: `ui/src/state/undo.ts`.
 
@@ -509,6 +513,18 @@ Canvas artboards: *Settings · light / dark* (the AI and privacy section is show
 Rules: every row has a description that says what the setting does in one sentence; defaults match the README (local first, AI off, nothing written outside the library). API key fields are password inputs and never echo the key. The checklists are the single source of truth for what the Builder may send.
 
 **Graphics card line** (after 1.1.0; not on the canvas): under the Transcription › Engine row and under the local model's "Documents are written with …" line, a full-width row with the host's sentence at 13 px `text-2` ("The graphics card has 4.0 GB of 6 GB free. Windows desktop (dwm.exe) is using 0.4 GB.") and a **Check again** small button (§5.1, `neo-sm`) at its right; while checking the button reads "Checking…" and is disabled. When the model in effect cannot use the card the sentence is the §17 one (the amount, who holds the memory, what runs meanwhile, the fix) in `accent-text`, the colour of the other warning states. Under 640 px the button drops below the text. The Builder's Local provider card shows the same §17 sentence on its own line under the name (12 px `accent-text`).
+
+**Updates** (Settings › General, H1; Check now and Update now separated in 2.1.0; not on the canvas): the Updates row shows "Version {x}" and one button at its right, with the state below it.
+
+- *Idle*: ghost **Check now**; the quiet line "Last checked {when}." or "Not checked yet in this session."
+- *Checking*: the button reads "Checking…" and is disabled.
+- *Newest*: after Check now, the ok line "You are on the newest version ({running version})."
+- *Available*: Check now only checks and never downloads. The ok line "Memento {version} is available. Nothing is downloaded until you choose Update now." sits over the release notes of that version (the feed's notes, the GitHub release body) in a read-only, scrollable block (max 240 px, 13 px `text-2`, 1 px `line` border, radius 12): headings (600, `text`), bullet lists and paragraphs only; bold, code and links stripped to their words, HTML dropped, nothing clickable. "This release has no release notes." when there are none. The button becomes primary **Update now**.
+- *Downloading*: the progress bar "Downloading Memento {version} · {n}%", Check now disabled. While a recording or processing runs the download waits and the line says "Memento {version} is available. It downloads once the recording and processing have finished."
+- *Ready*: primary **Restart to update to {version}** and "Memento {version} is downloaded and installs when you restart."
+- *Failed*: the §17 sentence as an alert ("Memento could not check for updates: {reason}. Nothing was downloaded and this version keeps working as it is. Check the internet connection, then choose Check now again.", or "Memento {version} could not be downloaded: {reason}. Nothing was changed and this version keeps working as it is. Choose Check now to try again.") with **Check now**.
+
+The automatic daily check (Install updates automatically on) still downloads by itself and ends in *Ready* with the restart toast.
 
 ---
 

@@ -23,4 +23,17 @@ public sealed record Project(
     MixOnlyInfo? MixOnly = null,
     ProjectVideo? Video = null,
     MixLevelsInfo? MixLevels = null,
-    AudioRemovedInfo? AudioRemoved = null);
+    AudioRemovedInfo? AudioRemoved = null)
+{
+    /// <summary>2.1: the recorded stretches, one per Stop ("Resume recording" adds one); <c>[]</c> for an import.</summary>
+    public IReadOnlyList<RecordingSegment> Segments { get; init; } = [];
+
+    /// <summary>
+    /// 2.1: "Resume recording" may add a segment now (recorded today, saved, tracks kept, nothing else recording);
+    /// <see cref="ResumeNote"/> says why not otherwise.
+    /// </summary>
+    public bool CanResume { get; init; }
+
+    /// <summary>2.1: why the recording cannot be resumed (§17 sentence), or <c>null</c>.</summary>
+    public string? ResumeNote { get; init; }
+}

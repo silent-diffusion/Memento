@@ -57,6 +57,8 @@ export const ERROR_CODES = [
   'recording.noSession',
   'recording.diskFull',
   'recording.alreadyActive',
+  // 2.1: resume a stopped recording
+  'recording.cannotResume',
   // M2
   'transcript.none',
   'transcript.segmentNotFound',
@@ -139,6 +141,8 @@ export const ERROR_CODES = [
   'folder.notFound',
   'folder.nameTaken',
   'folder.invalid',
+  // 2.1.0 updates: Check now and Update now separated
+  'updates.nothingToDownload',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -216,6 +220,8 @@ export interface RecordingSummary {
   matchSnippet: string | null;
   /** 2.0 video: the recording's video tracks and whether they were removed; null when it never had video. */
   video: RecordingVideoSummary | null;
+  /** 2.1: when each "Resume recording" segment started (ISO 8601); [] when recorded in one go. Hosts before 2.1 leave it out. */
+  resumedAt?: string[];
   /** 2.1: the Library folder it is filed in ("Clients/Acme"); null at the root. */
   folder: string | null;
   /** 2.1: set once "Delete audio" removed its tracks and mix; null while they are kept. */
@@ -366,6 +372,21 @@ export interface Project {
   mixLevels: MixLevelsInfo | null;
   /** 2.1: "Delete audio" removed the tracks, mix and peaks (mixUrl and peaksUrl are then null); null while they are kept. */
   audioRemoved: AudioRemovedInfo | null;
+  /** 2.1: the recorded stretches, one per Stop; [] for an import. Hosts before 2.1 leave it out. */
+  segments?: RecordingSegment[];
+  /** 2.1: "Resume recording" may add a segment now; resumeNote says why not otherwise. */
+  canResume?: boolean;
+  /** 2.1: why the recording cannot be resumed, as a sentence; null when it can. */
+  resumeNote?: string | null;
+}
+
+/** 2.1: one recorded stretch; segments sit end to end, gapMs is the real time since the previous Stop (shown as a pause). */
+export interface RecordingSegment {
+  index: number;
+  startedAt: string;
+  offsetMs: number;
+  durationMs: number;
+  gapMs: number;
 }
 
 /** 2.0: when the separate track files were removed, how many, and their size. */
@@ -1112,6 +1133,12 @@ export interface RecordingStartResult {
   startedAt: string;
 }
 
+/** 2.1 recording.resumeStopped: without sourceIds the last segment's sources that are still connected. */
+export interface RecordingResumeStoppedParams {
+  recordingId: string;
+  sourceIds?: string[];
+}
+
 export interface SessionParams {
   sessionId: string;
 }
@@ -1150,6 +1177,10 @@ export interface RecordingStatePayload {
   tracks: Track[];
   lastCheckpointAt: string | null;
   highlightsCount: number;
+  /** 2.1: the segment after "Resume recording" (2, 3, …); null or absent for a recording's first. */
+  segment?: number | null;
+  /** 2.1: recorded time of the earlier segments; the recording's total is segmentOffsetMs + elapsedMs. */
+  segmentOffsetMs?: number;
 }
 
 export interface RecordingCurrentResult {
@@ -1241,8 +1272,11 @@ export interface FooterUpdateStatus {
 /** updates.status / updates.check result and the updates.progress payload (BRIDGE.md "Updates"). */
 export interface UpdateStatus {
   currentVersion: string;
-  /** failed: only after updates.check ("Check now"); automatic checks that fail stay idle. */
-  state: 'unavailable' | 'idle' | 'checking' | 'downloading' | 'ready' | 'failed';
+  /**
+   * failed: only after updates.check ("Check now"); automatic checks that fail stay idle. available (2.1.0): Check now
+   * found a newer version; it downloads only on updates.download ("Update now").
+   */
+  state: 'unavailable' | 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'failed';
   availableVersion: string | null;
   percent: number | null;
   lastCheckedAt: string | null;
@@ -1250,6 +1284,8 @@ export interface UpdateStatus {
   message: string | null;
   /** A newer version waits to download until no recording or processing runs. */
   deferred: boolean;
+  /** Release notes (Markdown) of availableVersion when the feed has them (2.1.0); shown read-only as plain text. */
+  releaseNotes?: string | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2752,6 +2788,7 @@ export interface BridgeMethods {
   'recording.markHighlight': { params: RecordingMarkHighlightParams; result: RecordingMarkHighlightResult };
   'recording.stop': { params: SessionParams; result: RecordingStopResult };
   'recording.current': { params: EmptyParams; result: RecordingCurrentResult };
+  'recording.resumeStopped': { params: RecordingResumeStoppedParams; result: RecordingStartResult };
   'recovery.list': { params: EmptyParams; result: RecoveryListResult };
   'recovery.acknowledge': { params: RecordingIdParams; result: EmptyResult };
   'dialog.pickFolder': { params: PickFolderParams; result: PickFolderResult };
@@ -2852,6 +2889,7 @@ export interface BridgeMethods {
   'updates.status': { params: EmptyParams; result: UpdateStatus };
   'updates.check': { params: EmptyParams; result: UpdateStatus };
   'updates.apply': { params: EmptyParams; result: EmptyResult };
+  'updates.download': { params: EmptyParams; result: UpdateStatus };
   // 2.0 Review
   'voices.list': { params: EmptyParams; result: KnownVoicesResult };
   'voices.setSuggest': { params: VoiceSuggestParams; result: KnownVoicesResult };
@@ -3032,6 +3070,7 @@ export const METHOD_NAMES = [
   'recording.markHighlight',
   'recording.stop',
   'recording.current',
+  'recording.resumeStopped',
   'recovery.list',
   'recovery.acknowledge',
   'dialog.pickFolder',
@@ -3161,6 +3200,8 @@ export const METHOD_NAMES = [
   // 2.0 documents: the follow-up email and the preview sheet
   'documents.copyModule',
   'generation.copyPreview',
+  // 2.1.0 updates: Check now and Update now separated
+  'updates.download',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [

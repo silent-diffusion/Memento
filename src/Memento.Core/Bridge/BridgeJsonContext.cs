@@ -39,6 +39,7 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(TopicsResult))]
 [JsonSerializable(typeof(SourcesListResult))]
 [JsonSerializable(typeof(RecordingStartParams))]
+[JsonSerializable(typeof(RecordingResumeStoppedParams))]
 [JsonSerializable(typeof(RecordingStartResult))]
 [JsonSerializable(typeof(RecordingSetSourceParams))]
 [JsonSerializable(typeof(TracksResult))]

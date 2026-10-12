@@ -35,4 +35,8 @@ public sealed record RecordingSummary(
     string? MatchSnippet = null,
     RecordingVideoSummary? Video = null,
     string? Folder = null,
-    AudioRemovedInfo? AudioRemoved = null);
+    AudioRemovedInfo? AudioRemoved = null)
+{
+    /// <summary>2.1: when each "Resume recording" segment started, in order; <c>[]</c> for a recording made in one go.</summary>
+    public IReadOnlyList<DateTimeOffset> ResumedAt { get; init; } = [];
+}

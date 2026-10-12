@@ -46,6 +46,17 @@ public sealed record RecordingStateDocument
     /// </summary>
     public IReadOnlyList<VideoTrackCheckpoint> VideoTracks { get; set; } = [];
 
+    /// <summary>
+    /// 2.1: the segment being recorded ("Resume recording"); <c>null</c> means the first. The tracks, pauses and video
+    /// parts here are always on the recording timeline (a resumed segment's are shifted by <see cref="SegmentOffsetMs"/>);
+    /// the tracks of earlier segments are finalized, listed only in <c>project.json</c>, and recovery leaves them alone.
+    /// An optional field within schema 1.
+    /// </summary>
+    public int? Segment { get; init; }
+
+    /// <summary>2.1: where the segment being recorded starts on the recording timeline; 0 for the first.</summary>
+    public long SegmentOffsetMs { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

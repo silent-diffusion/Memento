@@ -248,7 +248,7 @@ public sealed class BridgeRouterTests
             "ai.clearKey", "ai.setKey", "app.setStartup", "attachments.add", "attachments.list", "attachments.open", "attachments.remove",
             "export.cancel", "export.estimate", "export.openFolder", "export.run", "library.importMedia", "library.move",
             "library.rebuildIndex", "library.usage", "project.changeType", "storage.keepOnlyMix", "storage.reclaim",
-            "updates.apply", "updates.check", "updates.status",
+            "updates.apply", "updates.check", "updates.status", "updates.download",
             // 2.0 Review: known voices, suggested chapters, selection mode.
             "voices.list", "voices.setSuggest", "voices.forget", "voices.forgetAll", "voices.remember", "voices.revert",
             "voices.matches", "voices.decline", "voices.acceptMatch", "annotations.suggestChapters", "annotations.dismissSuggestion",
@@ -259,6 +259,8 @@ public sealed class BridgeRouterTests
             // 2.1 folders and Delete audio.
             "folders.list", "folders.create", "folders.rename", "folders.move", "folders.delete", "library.moveToFolder",
             "audio.remove", "audio.removeEstimate",
+            // 2.1: resume a stopped recording.
+            "recording.resumeStopped",
         ];
 
         Assert.Equal(expected.Order(StringComparer.Ordinal), host.Router.MethodNames.Order(StringComparer.Ordinal));

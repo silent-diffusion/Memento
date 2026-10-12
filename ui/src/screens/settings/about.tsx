@@ -8,6 +8,7 @@ import type { UpdateStatus } from '../../bridge/types';
 import { Toggle } from '../../components/Controls';
 import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
+import { parseReleaseNotes, type NotesBlock } from './releaseNotes';
 import { OnOff, SettingsGroup, SettingsRow } from './SettingsParts';
 
 /** One block of THIRD-PARTY.md: a paragraph, or a table's rows (without the header and separator). */
@@ -94,6 +95,31 @@ function checkedLine(status: UpdateStatus): string {
   return `Last checked ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.`;
 }
 
+/** The release notes of an available update: read-only plain text, scrollable (2.1.0). */
+function ReleaseNotes({ blocks, version }: { blocks: NotesBlock[]; version: string }): JSX.Element {
+  return (
+    <div class="update-notes" role="region" aria-label={`Release notes for Memento ${version}`} tabIndex={0}>
+      {blocks.map((block, i) =>
+        block.kind === 'heading' ? (
+          <p key={i} class="update-notes-heading">
+            {block.text}
+          </p>
+        ) : block.kind === 'paragraph' ? (
+          <p key={i} class="update-notes-text">
+            {block.text}
+          </p>
+        ) : (
+          <ul key={i} class="update-notes-list">
+            {block.items.map((item, j) => (
+              <li key={j}>{item}</li>
+            ))}
+          </ul>
+        ),
+      )}
+    </div>
+  );
+}
+
 export function UpdatesGroup(): JSX.Element | null {
   const services = useServices();
   const { bridge, store } = services;
@@ -143,10 +169,23 @@ export function UpdatesGroup(): JSX.Element | null {
       setError(e instanceof Error ? e.message : 'Memento did not answer.');
     });
   };
+  const updateNow = (): void => {
+    setError(null);
+    bridge
+      .call('updates.download')
+      .then((result) => {
+        store.updates.value = result;
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : 'Memento did not answer.');
+      });
+  };
   const ready = status?.state === 'ready' && status.availableVersion !== null;
+  const available = status?.state === 'available' && status.availableVersion !== null && !status.deferred;
   const downloading = status?.state === 'downloading';
   const message = error ?? status?.message ?? null;
   const failed = error !== null || status?.state === 'failed';
+  const notes = available ? parseReleaseNotes(status.releaseNotes) : [];
   return (
     <SettingsGroup label="Updates">
       <SettingsRow
@@ -154,10 +193,22 @@ export function UpdatesGroup(): JSX.Element | null {
         description={
           unavailable
             ? 'This copy of Memento was not installed with Setup, so it cannot update itself.'
-            : 'Memento looks for a newer version on GitHub, downloads it in the background and installs it when you restart.'
+            : 'Check now looks for a newer version on GitHub; Update now downloads it, and it installs when you restart.'
         }
         below={
           <>
+            {available ? (
+              <div class="update-available">
+                <p class="settings-inline settings-inline--ok" role="status">
+                  Memento {status.availableVersion} is available. Nothing is downloaded until you choose Update now.
+                </p>
+                {notes.length === 0 ? (
+                  <p class="update-notes-empty">This release has no release notes.</p>
+                ) : (
+                  <ReleaseNotes blocks={notes} version={status.availableVersion ?? ''} />
+                )}
+              </div>
+            ) : null}
             {downloading ? (
               <div class="settings-progress" role="status">
                 <span class="settings-progress-label">
@@ -186,6 +237,10 @@ export function UpdatesGroup(): JSX.Element | null {
         {ready ? (
           <button class="btn p small-btn" type="button" onClick={restart}>
             Restart to update to {status.availableVersion}
+          </button>
+        ) : available ? (
+          <button class="btn p small-btn" type="button" onClick={updateNow}>
+            Update now
           </button>
         ) : (
           <button class="btn ghost small-btn" type="button" disabled={unavailable || checking || downloading || status?.state === 'checking'} onClick={checkNow}>

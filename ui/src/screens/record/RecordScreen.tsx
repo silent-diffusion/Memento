@@ -61,7 +61,12 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-const ACTIVE_STATES = new Set<RecordingStatePayload['state']>(['recording', 'paused', 'finalizing']);
+/** 2.1: "Started 10:00 AM", or "Resumed 10:42 AM" for a later segment of the same recording. */
+export function startedWord(state: RecordingStatePayload): string {
+  return state.segment != null && state.segment > 1 ? 'Resumed' : 'Started';
+}
+
+const ACTIVE_STATES =new Set<RecordingStatePayload['state']>(['recording', 'paused', 'finalizing']);
 
 export function RecordScreen(): JSX.Element {
   const services = useServices();
@@ -89,6 +94,9 @@ export function RecordScreen(): JSX.Element {
   const [pendingSources, setPendingSources] = useState<ReadonlySet<string>>(new Set());
   const [sourcesError, setSourcesError] = useState<string | null>(null);
   const routed = useRef<string | null>(null);
+  // 2.1: Resume recording pressed while the stopped segment is being saved.
+  const [resumeQueued, setResumeQueued] = useState(false);
+  const resumeQueuedRef = useRef(false);
   // 2.0 video
   const [videoAvailable, setVideoAvailable] = useState(true);
   const [videoSources, setVideoSources] = useState<VideoListSourcesResult | null>(null);
@@ -118,7 +126,8 @@ export function RecordScreen(): JSX.Element {
       effect(() => {
         const state = store.recording.value;
         if (state !== null) {
-          clock.observe(state.sessionId, state.elapsedMs, state.state === 'recording', performance.now());
+          // 2.1: a resumed segment's timer shows the recording's total (earlier segments + this one).
+          clock.observe(state.sessionId, state.elapsedMs + (state.segmentOffsetMs ?? 0), state.state === 'recording', performance.now());
         }
       }),
     [store, clock],
@@ -175,16 +184,34 @@ export function RecordScreen(): JSX.Element {
     }
   }, [live]);
 
-  // Finalize finished: open Review for this recording.
+  // Finalize finished: open Review for this recording, or (2.1) resume it when Resume was pressed meanwhile.
   useEffect(() => {
     if (own?.state === 'ready' && routed.current !== own.recordingId) {
       routed.current = own.recordingId;
       const recordingId = own.recordingId;
+      const resume = resumeQueuedRef.current;
+      resumeQueuedRef.current = false;
       void saver.flush().finally(() => {
-        router.navigate({ name: 'review', recordingId });
+        if (!resume) {
+          router.navigate({ name: 'review', recordingId });
+          return;
+        }
+        bridge
+          .call('recording.resumeStopped', { recordingId })
+          .then((result) => {
+            routed.current = null;
+            setResumeQueued(false);
+            setStopping(false);
+            setOwnSessionId(result.sessionId);
+          })
+          .catch((error: unknown) => {
+            setResumeQueued(false);
+            store.toasts.show({ tone: 'warning', title: 'The recording was not resumed', body: messageOf(error, 'Memento did not answer.') });
+            router.navigate({ name: 'review', recordingId });
+          });
       });
     }
-  }, [own, router, saver]);
+  }, [own, router, saver, bridge, store]);
 
   // Sources: enumerate on open; Add enumerates again (2.0: displays, windows and cameras too).
   const loadVideoSources = useCallback(() => {
@@ -666,8 +693,8 @@ export function RecordScreen(): JSX.Element {
           : phase === 'stopped'
             ? `Everything up to ${formatTimecode(own.elapsedMs)} is saved on this PC.`
             : videoParts
-              ? `Started ${formatClock(parseIso(own.startedAt))} · ${sublineSources(effective, liveTracks.length)}`
-              : `Started ${formatClock(parseIso(own.startedAt))} · ${liveTracks.length} audio ${liveTracks.length === 1 ? 'track' : 'tracks'} · audio only`;
+              ? `${startedWord(own)} ${formatClock(parseIso(own.startedAt))} · ${sublineSources(effective, liveTracks.length)}`
+              : `${startedWord(own)} ${formatClock(parseIso(own.startedAt))} · ${liveTracks.length} audio ${liveTracks.length === 1 ? 'track' : 'tracks'} · audio only`;
 
   const formats: TrackFormat[] = live
     ? liveTracks.map((t) => ({ sampleRate: t.sampleRate, channels: t.channels }))
@@ -821,6 +848,15 @@ export function RecordScreen(): JSX.Element {
               onTogglePause={togglePause}
               onStop={stop}
               onMark={mark}
+              {...(own !== null && phase === 'finalizing'
+                ? {
+                    onResume: () => {
+                      resumeQueuedRef.current = true;
+                      setResumeQueued(true);
+                    },
+                    resumeQueued,
+                  }
+                : {})}
               onOpenRecording={() => {
                 if (own !== null) {
                   router.navigate({ name: 'review', recordingId: own.recordingId });

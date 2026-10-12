@@ -292,6 +292,36 @@
   align-items: center;
   gap: 2px;
   cursor: pointer;
+  position: relative;
+}
+
+/* 2.1: "Resumed at 10:42 AM" on the header's meta line. */
+.review-meta-resumed {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* 2.1: where the recording was resumed after a Stop (DESIGN.md §9): a thin dashed line through the bars and a
+   small caption at its top. The gap itself is a pause, so no bars stand for it. */
+.wave-resume {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 0;
+  border-left: 1px dashed var(--text-3);
+  pointer-events: auto;
+}
+
+.wave-resume-label {
+  position: absolute;
+  top: -16px;
+  left: 4px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-2);
+  background: var(--surface);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .wave-bar {

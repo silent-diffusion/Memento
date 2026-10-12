@@ -12,6 +12,7 @@ import type {
   MixLevelsInfo,
   ProjectVideo,
   RecordingDetails,
+  RecordingSegment,
   RecordingSummary,
   StageStatus,
   Topic,
@@ -63,6 +64,8 @@ export interface MockProject {
   mixLevels?: MixLevelsInfo | null;
   /** 2.0 video: the recording's video (mockVideo.ts); missing or null without video. */
   video?: ProjectVideo | null;
+  /** 2.1: the segments of a recording made (and resumed) in the preview; samples have one (mockResume.ts). */
+  segments?: RecordingSegment[];
 }
 
 const s = (h: number, m: number, sec: number): number => ((h * 60 + m) * 60 + sec) * 1000;

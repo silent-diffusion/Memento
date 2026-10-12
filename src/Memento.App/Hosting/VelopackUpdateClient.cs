@@ -61,6 +61,8 @@ internal sealed partial class VelopackUpdateClient : IUpdateClient
 
     public string? PendingVersion => _manager is { IsInstalled: true } manager ? manager.UpdatePendingRestart?.Version?.ToString() : null;
 
+    public string? ReleaseNotes => _found?.TargetFullRelease.NotesMarkdown is { Length: > 0 } notes ? notes : null;
+
     public async Task<string?> CheckAsync(CancellationToken cancellationToken)
     {
         var manager = _manager ?? throw new UpdateCheckException("this copy cannot update itself");

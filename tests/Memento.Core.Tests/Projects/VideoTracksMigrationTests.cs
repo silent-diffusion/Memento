@@ -28,7 +28,7 @@ public sealed class VideoTracksMigrationTests : IDisposable
     {
         var migrated = ProjectManifestMigrator.Default.Migrate(new JsonObject { ["schemaVersion"] = 3, ["videoTracks"] = new JsonArray() });
 
-        // 2.1 adds the v4 → v5 folder step after it.
+        // 2.1 adds the v4 → v5 folder and v5 → v6 segments steps after it.
         Assert.Equal(ProjectManifest.CurrentSchemaVersion, migrated.Manifest["schemaVersion"]!.GetValue<int>());
         Assert.Empty(migrated.Manifest["videoTracks"]!.AsArray());
         Assert.True(migrated.Migrated);

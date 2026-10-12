@@ -21,7 +21,24 @@ public static class ProjectMapper
             sizeBytes,
             video,
             Library.FolderPaths.TryNormalize(manifest.Folder, out var folder) ? folder : null,
-            manifest.AudioRemoved is { } audio ? new AudioRemovedInfo(audio.At, audio.BytesFreed) : null);
+            manifest.AudioRemoved is { } audio ? new AudioRemovedInfo(audio.At, audio.BytesFreed) : null) with
+        {
+            ResumedAt = ResumedAt(manifest),
+        };
+    }
+
+    /// <summary>2.1: when each resumed segment started (every segment after the first).</summary>
+    public static IReadOnlyList<DateTimeOffset> ResumedAt(ProjectManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        return manifest.Segments.Where(s => s.Index > 1).OrderBy(s => s.Index).Select(s => s.StartedAt).ToList();
+    }
+
+    /// <summary>2.1: the segments for <c>project.get</c>.</summary>
+    public static IReadOnlyList<RecordingSegment> ToSegments(ProjectManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        return manifest.Segments.OrderBy(s => s.Index).Select(s => new RecordingSegment(s.Index, s.StartedAt, s.OffsetMs, s.DurationMs, s.GapMs)).ToList();
     }
 
     /// <summary>Builds a summary, applying the Library's stage visibility rule (see <see cref="VisibleStages"/>).</summary>

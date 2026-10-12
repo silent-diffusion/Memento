@@ -17,4 +17,14 @@ public sealed record RecordingStatePayload(
 {
     /// <summary>Never null on the wire: <c>[]</c> for a session without video.</summary>
     public IReadOnlyList<VideoTrackStatus> VideoTracks { get; init; } = VideoTracks ?? [];
+
+    /// <summary>
+    /// 2.1: the segment this session records after "Resume recording" (2, 3, …); <c>null</c> for a recording's first.
+    /// <see cref="ElapsedMs"/> and the tracks' offsets stay this session's own; the recording's total is
+    /// <see cref="SegmentOffsetMs"/> + <see cref="ElapsedMs"/>.
+    /// </summary>
+    public int? Segment { get; init; }
+
+    /// <summary>2.1: the recorded time of the earlier segments (0 for a recording's first).</summary>
+    public long SegmentOffsetMs { get; init; }
 }

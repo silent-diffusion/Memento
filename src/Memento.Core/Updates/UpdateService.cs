@@ -112,7 +112,7 @@ public sealed partial class UpdateService : IDisposable
             await uiReady.WaitAsync(token);
             while (!token.IsCancellationRequested)
             {
-                if (_settings.Current.General.AutoUpdate && Status.State is UpdateStates.Idle or UpdateStates.Failed)
+                if (_settings.Current.General.AutoUpdate && !Status.Deferred && Status.State is UpdateStates.Idle or UpdateStates.Failed or UpdateStates.Available)
                 {
                     await WaitUntilIdleAsync(token);
                     await CheckCoreAsync(manual: false, token);
@@ -127,18 +127,15 @@ public sealed partial class UpdateService : IDisposable
         }
     }
 
-    /// <summary><c>updates.check</c>: checks now and, when a newer version exists, downloads it (once idle).</summary>
+    /// <summary>
+    /// <c>updates.check</c> ("Check now"): only checks. A newer version becomes <see cref="UpdateStates.Available"/> with
+    /// its release notes and downloads only on <see cref="DownloadNowAsync"/>.
+    /// </summary>
     /// <exception cref="BridgeException"><c>updates.unavailable</c> for a copy that cannot update itself.</exception>
     public async Task<UpdateStatus> CheckNowAsync(CancellationToken cancellationToken)
     {
-        if (!_client.CanUpdate)
-        {
-            throw new BridgeException(
-                DomainErrorCodes.UpdatesUnavailable,
-                "This copy of Memento was not installed with Setup, so it cannot update itself. Install the latest release from GitHub to get updates; your recordings are not affected.");
-        }
-
-        if (Status.State is UpdateStates.Checking or UpdateStates.Downloading or UpdateStates.Ready)
+        ThrowIfCannotUpdate();
+        if (Status.State is UpdateStates.Checking or UpdateStates.Downloading or UpdateStates.Ready || Status.Deferred)
         {
             return Status;
         }
@@ -146,6 +143,37 @@ public sealed partial class UpdateService : IDisposable
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
         await CheckCoreAsync(manual: true, linked.Token);
         return Status;
+    }
+
+    /// <summary>
+    /// <c>updates.download</c> ("Update now"): downloads the version "Check now" found, in the background once no
+    /// recording or processing runs. Returns the status as the download starts (or waits).
+    /// </summary>
+    /// <exception cref="BridgeException"><c>updates.unavailable</c> or <c>updates.nothingToDownload</c>.</exception>
+    public Task<UpdateStatus> DownloadNowAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfCannotUpdate();
+        cancellationToken.ThrowIfCancellationRequested();
+        string version;
+        lock (_gate)
+        {
+            if (_status.State is UpdateStates.Downloading or UpdateStates.Ready || _status.Deferred)
+            {
+                return Task.FromResult(_status);
+            }
+
+            if (_status.State != UpdateStates.Available || _status.AvailableVersion is null)
+            {
+                throw new BridgeException(
+                    DomainErrorCodes.UpdatesNothingToDownload,
+                    $"No newer version has been found to download, so nothing was downloaded. Choose Check now first; Memento {_client.CurrentVersion} keeps working as it is.");
+            }
+
+            version = _status.AvailableVersion;
+        }
+
+        StartDownload(version, manual: true);
+        return Task.FromResult(Status);
     }
 
     /// <summary><c>updates.apply</c>: closes Memento, installs the downloaded version and starts it again.</summary>
@@ -169,6 +197,30 @@ public sealed partial class UpdateService : IDisposable
 
         LogApplying(status.CurrentVersion, status.AvailableVersion ?? "?");
         _client.ApplyAndRestart();
+    }
+
+    private void ThrowIfCannotUpdate()
+    {
+        if (!_client.CanUpdate)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.UpdatesUnavailable,
+                "This copy of Memento was not installed with Setup, so it cannot update itself. Install the latest release from GitHub to get updates; your recordings are not affected.");
+        }
+    }
+
+    private void StartDownload(string version, bool manual)
+    {
+        if (!IsBusy)
+        {
+            // Downloading at once: say so before the call returns, so "Update now" turns into the progress bar.
+            Set(s => s with { State = UpdateStates.Downloading, Deferred = false, Percent = 0, Message = null });
+        }
+
+        lock (_gate)
+        {
+            _download = Task.Run(() => DownloadAsync(version, manual, _stopping.Token), CancellationToken.None);
+        }
     }
 
     public void Dispose()
@@ -206,18 +258,24 @@ public sealed partial class UpdateService : IDisposable
             {
                 State = UpdateStates.Idle,
                 AvailableVersion = null,
+                ReleaseNotes = null,
                 LastCheckedAt = now,
-                Message = manual ? $"Memento {_client.CurrentVersion} is the newest version." : null,
+                Message = manual ? $"You are on the newest version ({_client.CurrentVersion})." : null,
             });
             return;
         }
 
         LogFound(available, _client.CurrentVersion);
-        Set(s => s with { State = UpdateStates.Idle, AvailableVersion = available, LastCheckedAt = now });
-        lock (_gate)
+        var notes = _client.ReleaseNotes;
+        if (manual)
         {
-            _download = Task.Run(() => DownloadAsync(available, manual, _stopping.Token), CancellationToken.None);
+            // "Check now" only checks; the download waits for "Update now".
+            Set(s => s with { State = UpdateStates.Available, AvailableVersion = available, ReleaseNotes = notes, LastCheckedAt = now, Message = null });
+            return;
         }
+
+        Set(s => s with { State = UpdateStates.Idle, AvailableVersion = available, ReleaseNotes = notes, LastCheckedAt = now });
+        StartDownload(available, manual: false);
     }
 
     private async Task DownloadAsync(string version, bool manual, CancellationToken cancellationToken)

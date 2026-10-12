@@ -10,11 +10,12 @@ namespace Memento.Core.Projects;
 /// v1 files carried the same array untyped, and <see cref="ProjectManifestMigrator"/> drops entries it cannot read. v3 (after
 /// 1.2.0) adds <see cref="ProjectDetails.WhoSpoke"/> (<see cref="WhoSpokeMigration"/>). v4 (2.0) types
 /// <see cref="VideoTracks"/> (<see cref="VideoTracksMigration"/>) and adds <see cref="VideoRemoved"/>. v5 (2.1) adds the
-/// Library <see cref="Folder"/> (<see cref="FolderMigration"/>) and <see cref="AudioRemoved"/>.
+/// Library <see cref="Folder"/> (<see cref="FolderMigration"/>) and <see cref="AudioRemoved"/>. v6 (2.1) adds
+/// <see cref="Segments"/> for "Resume recording" (<see cref="SegmentsMigration"/>).
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -60,6 +61,12 @@ public sealed record ProjectManifest
 
     /// <summary>Where the camera inset was over the recording (<c>recording.setPip</c>), in time order; empty without a camera.</summary>
     public IReadOnlyList<ProjectPipChange> VideoPip { get; set; } = [];
+
+    /// <summary>
+    /// The recorded stretches (schema v5, 2.1): one for a recording made in one go, one more for each "Resume recording".
+    /// A setter rather than init, so a manifest without the field reads as an empty list.
+    /// </summary>
+    public IReadOnlyList<ProjectSegment> Segments { get; set; } = [];
 
     /// <summary>Pauses, so transcript timings stay continuous across the gap.</summary>
     public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];

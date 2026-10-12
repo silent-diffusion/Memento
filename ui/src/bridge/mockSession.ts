@@ -37,13 +37,30 @@ export interface SessionEnvironment {
   lostAfterMs: number | null;
   onFooterChange(recording: { active: boolean; lastCheckpointAt: string | null; lostSource: string | null }): void;
   /** The session opened its project folder: the project exists (state 'recording') from now on. */
-  onStarted(result: { recordingId: string; title: string; type: string; startedAt: string; tracks: Track[] }): void;
+  onStarted(result: { recordingId: string; title: string; type: string; startedAt: string; tracks: Track[]; resume: MockResume | null }): void;
   /** A highlight was marked; it belongs to the project straight away. */
   onHighlight(recordingId: string, highlight: Highlight): void;
   /** Stop was pressed: the project is finalizing. */
   onFinalizing(recordingId: string, durationMs: number): void;
   /** The session finished finalizing: add it to the library. */
-  onFinalized(result: { recordingId: string; title: string; type: string; startedAt: string; durationMs: number; tracks: Track[] }): void;
+  onFinalized(result: {
+    recordingId: string;
+    title: string;
+    type: string;
+    startedAt: string;
+    durationMs: number;
+    tracks: Track[];
+    resume: MockResume | null;
+    stoppedAt: string;
+  }): void;
+}
+
+/** 2.1: a session that records another segment into an existing recording (recording.resumeStopped). */
+export interface MockResume {
+  recordingId: string;
+  segment: number;
+  /** Recorded time of the earlier segments: where this session's time 0 sits on the recording. */
+  offsetMs: number;
 }
 
 interface LevelState {
@@ -56,7 +73,7 @@ const LEVEL_INTERVAL_MS = 50;
 const STATE_INTERVAL_MS = 1000;
 
 export interface MockSession {
-  start(params: RecordingStartParams): RecordingStartResult;
+  start(params: RecordingStartParams, resume?: MockResume): RecordingStartResult;
   pause(sessionId: string): void;
   resume(sessionId: string): void;
   markHighlight(sessionId: string, note: string | undefined): Highlight;
@@ -86,6 +103,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
         levels: Map<string, LevelState>;
         stateTimer: ReturnType<typeof setInterval> | null;
         levelTimer: ReturnType<typeof setInterval> | null;
+        resume: MockResume | null;
       }
     | null = null;
   let counter = 0;
@@ -111,6 +129,8 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       tracks: session.tracks.map((t) => ({ ...t, durationMs: t.endedEarlyAtMs ?? at })),
       lastCheckpointAt: session.lastCheckpointAt,
       highlightsCount: session.highlights.length,
+      segment: session.resume?.segment ?? null,
+      segmentOffsetMs: session.resume?.offsetMs ?? 0,
     };
   };
 
@@ -233,7 +253,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
   };
 
   return {
-    start(params) {
+    start(params, resume) {
       if (session !== null && (session.state === 'recording' || session.state === 'paused')) {
         throw new MockHostError(
           'recording.alreadyActive',
@@ -262,7 +282,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       const stamp = isoWithOffset(startedAt).slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
       session = {
         sessionId: `session-${counter}`,
-        recordingId: `${stamp}-new${String(counter).padStart(3, '0')}`,
+        recordingId: resume?.recordingId ?? `${stamp}-new${String(counter).padStart(3, '0')}`,
         title: params.title,
         type: params.type,
         state: 'recording',
@@ -278,6 +298,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
         levels: new Map(),
         stateTimer: null,
         levelTimer: null,
+        resume: resume ?? null,
       };
       session.tracks = chosen.map(newTrack);
       session.stateTimer = setInterval(tickState, STATE_INTERVAL_MS);
@@ -288,6 +309,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
         type: session.type,
         startedAt: session.startedAt,
         tracks: session.tracks.map((t) => ({ ...t })),
+        resume: session.resume,
       });
       emitState();
       emitFooter();
@@ -323,7 +345,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       counter += 1;
       const highlight: Highlight = {
         id: `highlight-${counter}`,
-        atMs: elapsed(),
+        atMs: elapsed() + (active.resume?.offsetMs ?? 0),
         note: note ?? '',
         origin: 'user',
         segmentId: null,
@@ -363,6 +385,7 @@ export function createMockSession(env: SessionEnvironment): MockSession {
       emitState();
       emitFooter();
       const finished = active;
+      const stoppedAt = isoWithOffset(new Date(env.now()));
       setTimeout(() => {
         finished.state = 'ready';
         emitState();
@@ -373,6 +396,8 @@ export function createMockSession(env: SessionEnvironment): MockSession {
           startedAt: finished.startedAt,
           durationMs: finished.accumulatedMs,
           tracks: finished.tracks.map((t) => ({ ...t, durationMs: t.endedEarlyAtMs ?? finished.accumulatedMs })),
+          resume: finished.resume,
+          stoppedAt,
         });
       }, 1200);
       return { recordingId: active.recordingId };

@@ -22,6 +22,12 @@ public interface IUpdateClient
     /// <exception cref="UpdateCheckException">The feed could not be reached or read.</exception>
     Task<string?> CheckAsync(CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The release notes (Markdown, as published with the release) of the version the last <see cref="CheckAsync"/>
+    /// found, or <c>null</c> when none was found or the release has none.
+    /// </summary>
+    string? ReleaseNotes { get; }
+
     /// <summary>Downloads the version the last <see cref="CheckAsync"/> found, reporting 0–100.</summary>
     /// <exception cref="UpdateCheckException">The download failed.</exception>
     Task DownloadAsync(IProgress<int> progress, CancellationToken cancellationToken);
