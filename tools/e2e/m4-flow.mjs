@@ -3,7 +3,7 @@
 // Automation (answer-dialog.ps1). Each step saves a screenshot; the run ends with a JSON summary.
 //
 //   node tools/e2e/m4-flow.mjs --play <speech file> --models <dir> [--seconds 180] [--data <dir>] [--out <dir>]
-//                              [--port <n>] [--from-review] [--simulate]
+//                              [--port <n>] [--from-review] [--simulate] [--email-preview | --cloud-model]
 //
 // --play is a public-domain recording of two readers that plays through the default output while Memento records the
 // microphone and system audio. --models is a folder with whisper/, sherpa-onnx/ and llama/ (Qwen3.5 4B, Ministral 3 3B or
@@ -16,7 +16,7 @@
 // then imports --play through "Import audio or video", so every later step reads real speech.
 
 import { execFileSync, spawn } from 'node:child_process';
-import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { App, repoRoot } from './app.mjs';
@@ -211,14 +211,31 @@ async function drag(fromSelector, toSelector) {
   await page.send('Input.setInterceptDrags', { enabled: false });
 }
 
-/** A Messages API stand-in on this PC that refuses every key, as Anthropic does an unknown one. */
+/** The Claude models the fake service offers (Memento's list); any other model id is answered as Anthropic does an unknown one. */
+const FAKE_CLAUDE_MODELS = ['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
+
+/**
+ * A Messages API stand-in on this PC: a model it does not offer gets 404 not_found_error ("model: …"), as Anthropic
+ * answers one; every other request is refused for its key, as Anthropic does an unknown one. Each request's model is kept.
+ */
 function startFakeAnthropic() {
   const requests = [];
   const server = createServer((request, response) => {
     let body = '';
     request.on('data', (d) => (body += d));
     request.on('end', () => {
-      requests.push({ method: request.method, url: request.url, key: request.headers['x-api-key'] === FAKE_KEY, bytes: body.length });
+      let model = null;
+      try {
+        model = JSON.parse(body).model ?? null;
+      } catch {
+        // Not JSON: refused for its key below.
+      }
+      requests.push({ method: request.method, url: request.url, key: request.headers['x-api-key'] === FAKE_KEY, bytes: body.length, model });
+      if (model !== null && !FAKE_CLAUDE_MODELS.includes(model)) {
+        response.writeHead(404, { 'content-type': 'application/json', 'request-id': 'req_fake_e2e' });
+        response.end(JSON.stringify({ type: 'error', error: { type: 'not_found_error', message: `model: ${model}` } }));
+        return;
+      }
       response.writeHead(401, { 'content-type': 'application/json', 'request-id': 'req_fake_e2e' });
       response.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }));
     });
@@ -502,6 +519,225 @@ if (flag('--email-preview')) {
       await page.waitFor(`!!document.querySelector('[aria-label="Claude (Anthropic) key stored"]')`, 'the masked key');
     }
     await emailAndPreviewSheet(recordingId);
+    summary.result = 'passed';
+    console.log(JSON.stringify(summary, null, 2));
+    await app.close();
+  } catch (error) {
+    summary.error = error.message;
+    console.error(error);
+    try {
+      await shot('failure');
+    } catch {
+      // The page is gone.
+    }
+    console.log(JSON.stringify(summary, null, 2));
+    await app.kill();
+    process.exitCode = 1;
+  } finally {
+    fake?.server.close();
+  }
+  process.exit();
+}
+
+/** Settings › AI and privacy: external AI on and the fake key saved for Claude (it only ever reaches the fake server). */
+async function claudeReady() {
+  await openSettings('AI and privacy');
+  await page.waitFor(`!!document.querySelector('[aria-label="Allow external AI services"]') && document.body.innerText.includes('Claude (Anthropic)')`, 'AI and privacy', 20_000);
+  if ((await page.eval(`document.querySelector('[aria-label="Allow external AI services"]')?.getAttribute('aria-checked')`)) !== 'true') {
+    await page.click({ name: 'Allow external AI services' });
+  }
+  if (!(await page.eval(`!!document.querySelector('[aria-label="Claude (Anthropic) key stored"]')`))) {
+    await page.click({ name: 'Add a Claude (Anthropic) key' });
+    await page.waitFor(`!!document.querySelector('#ai-key-input')`, 'the key dialog');
+    await page.click({ selector: '#ai-key-input' });
+    await page.type(FAKE_KEY);
+    await page.click({ name: 'Save key' });
+    await page.waitFor(`!!document.querySelector('[aria-label="Claude (Anthropic) key stored"]')`, 'the masked key');
+  }
+}
+
+/** The text of Claude's "Requests to Claude go to …" line under its model list. */
+const claudeModelLine = () => page.eval(`(document.querySelector('[role="radiogroup"][aria-label="Claude model"]')?.closest('.settings-row')?.querySelector('.cloud-model-in-use')?.innerText ?? '').replace(/\\s+/g, ' ').trim()`);
+
+/** The Builder for the recording, on Inputs and output with Claude chosen; returns the Claude card's text. */
+async function builderWithClaude() {
+  await openReview();
+  await page.click({ name: 'Create document' });
+  await page.waitFor(`!!document.querySelector('[data-card="m01"]')`, 'the Builder', 30_000);
+  await page.click({ name: 'Inputs and output' });
+  const claude = await page.eval(`(() => { const label = [...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Claude'); const radio = label?.querySelector('input[type=radio]'); if (!radio) return null; radio.scrollIntoView({ block: 'center' }); const r = radio.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, checked: radio.checked }; })()`);
+  check(claude !== null, 'Claude is offered in the Builder');
+  if (!claude.checked) await clickAt(claude);
+  return page.eval(`([...document.querySelectorAll('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.innerText.trim() === 'Claude')?.innerText ?? '').replace(/\\s+/g, ' ').trim()`);
+}
+
+/**
+ * A recording with a transcript for --cloud-model when --data has none: --play is imported through "Import audio or
+ * video" with automatic transcription off (no transcription model is needed), then Memento is closed and a synthetic
+ * transcript.json (two invented speakers, invented words) is written beside it, as a finished transcription would.
+ */
+async function seedTranscribedRecording() {
+  check(play && existsSync(play), '--play names the audio file to import when --data has no transcribed recording');
+  await openSettings('Transcription');
+  if ((await page.eval(`document.querySelector('[aria-label="Transcribe automatically"]')?.getAttribute('aria-checked')`)) === 'true') {
+    await page.click({ name: 'Transcribe automatically' });
+  }
+  await home();
+  const answered = answerDialog('Import audio or video', play);
+  if (await page.locate({ name: 'Import audio or video' })) {
+    await page.click({ name: 'Import audio or video' });
+  } else {
+    await page.click({ name: 'More library actions' });
+    await page.click({ name: 'Import audio or video…' });
+  }
+  await answered;
+  await page.waitFor(`document.querySelectorAll('.lib-item').length >= 1`, 'the imported recording', 60_000);
+  const [id] = projectIds();
+  await waitProcessed(id, 10);
+  await app.close();
+  const lines = [
+    ['spk1', 'Good morning. Today we choose the venue for the spring workshop.'],
+    ['spk2', 'The hall by the river holds sixty people and is free in April.'],
+    ['spk1', 'Then we book the river hall for the second week of April.'],
+    ['spk2', 'I will send the booking form to the venue by Friday.'],
+    ['spk1', 'We still need someone to plan the catering.'],
+    ['spk2', 'Let us decide the catering at the next meeting.'],
+    ['spk1', 'Agreed. The next meeting is on Tuesday at ten.'],
+    ['spk2', 'Thank you, that is all for today.'],
+  ];
+  const segments = lines.map(([speaker, text], i) => ({
+    id: `s${String(i + 1).padStart(4, '0')}`,
+    start: i * 6,
+    end: i * 6 + 5,
+    track: 'imported',
+    speaker,
+    speakerConfidence: 0.9,
+    text,
+    confidence: 0.95,
+    words: [],
+    edited: null,
+  }));
+  const transcript = {
+    schemaVersion: 1,
+    language: 'en',
+    languageDetected: false,
+    engine: { name: 'e2e seed', model: 'none', device: 'none', version: '1', durationMs: 0 },
+    speakers: [
+      { id: 'spk1', name: 'Speaker 1', renamed: false, color: 1, talkTimeMs: 24_000 },
+      { id: 'spk2', name: 'Speaker 2', renamed: false, color: 2, talkTimeMs: 24_000 },
+    ],
+    segments,
+    reviewed: false,
+    version: 1,
+    lowConfidenceThreshold: 0.5,
+    coverageGaps: [],
+    complete: true,
+  };
+  writeFileSync(join(projectFolder(id), 'transcript.json'), JSON.stringify(transcript, null, 2));
+  page = await app.start();
+  return id;
+}
+
+/**
+ * --cloud-model (after 2.1): the model chosen for Claude in Settings › AI and privacy, against the fake Messages API.
+ * claude-haiku-5-5 is chosen from the list and the Builder's Claude card and "Preview exactly what will be sent" name
+ * it (nothing is sent); then "Other model…" saves claude-nonexistent-9, Generate sends it (the confirmation names it),
+ * the fake service answers 404 not_found_error, and the Builder shows the "does not offer a model" card with Choose a
+ * model; every request the fake server got named that model, so no other model was tried. The list goes back to
+ * the default at the end. With --from-review the recording with a transcript in --data is used (seeded from --play
+ * when there is none).
+ */
+if (flag('--cloud-model')) {
+  const UNKNOWN = 'claude-nonexistent-9';
+  try {
+    rmSync(out, { recursive: true, force: true });
+    mkdirSync(out, { recursive: true });
+    fake = await startFakeAnthropic();
+    process.env.MEMENTO_TEST_ANTHROPIC_URL = fake.url;
+    if (flag('--from-review')) forgetEarlierDocuments();
+    page = await app.start();
+    let [recordingId] = projectIds().filter((id) => existsSync(join(projectFolder(id), 'transcript.json')));
+    if (recordingId === undefined) {
+      recordingId = await seedTranscribedRecording();
+      log('seeded', `${recordingId} with a synthetic transcript`);
+    }
+    reviewTitle = manifestOf(recordingId).details.title;
+    log('recording', `${recordingId} (${reviewTitle})`);
+
+    // 1. The list, and claude-haiku-5-5 chosen from it.
+    await claudeReady();
+    await page.waitFor(`!!document.querySelector('[role="radiogroup"][aria-label="Claude model"]')`, 'the Claude model list', 20_000);
+    const listed = await page.eval(`[...document.querySelectorAll('[role="radiogroup"][aria-label="Claude model"] label')].map((l) => l.querySelector('.model-choice-id')?.innerText.trim())`);
+    check(JSON.stringify(listed) === JSON.stringify(['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'Other model…']), `Settings lists Claude's models, the default first, then Other model… (${listed.join(', ')})`);
+    await page.click({ role: 'radio', name: 'claude-haiku-5-5' });
+    await page.waitFor(`/Requests to Claude go to claude-haiku-5-5\\./.test(document.body.innerText)`, 'claude-haiku-5-5 chosen', 15_000);
+    summary.settingsModelLine = await claudeModelLine();
+    check(readFileSync(join(app.memento, 'settings.json'), 'utf8').includes('"claude-haiku-5-5"'), 'the choice is saved in settings.json');
+    await shot('settings-claude-haiku');
+    log('Settings › AI and privacy', summary.settingsModelLine);
+
+    // 2. The Builder's card and the preview name it; nothing is sent.
+    const sentBefore = fake.requests.length;
+    const card = await builderWithClaude();
+    summary.builderCard = card;
+    check(card.includes('claude-haiku-5-5 · key saved'), `the Builder's Claude card names the model (${card})`);
+    await page.click({ name: 'Preview exactly what will be sent' });
+    await page.waitFor(`!!document.querySelector('.preview-sheet .preview-inputs')`, 'the preview sheet for Claude', 60_000);
+    summary.previewSub = await page.eval(`document.querySelector('#preview-sub').innerText`);
+    check(/^Claude · claude-haiku-5-5 · Ask before every send on/.test(summary.previewSub), `the preview names Claude and claude-haiku-5-5 (${summary.previewSub})`);
+    await shot('preview-claude-haiku');
+    check(fake.requests.length === sentBefore, 'nothing was sent while previewing');
+    await page.click({ name: 'Done', within: '.preview-sheet' });
+    await page.waitFor(`!document.querySelector('.preview-sheet')`, 'the sheet to close', 10_000);
+    log('preview', `${summary.previewSub}; nothing sent`);
+
+    // 3. Other model…: an id the service does not offer.
+    await openSettings('AI and privacy');
+    await page.waitFor(`!!document.querySelector('[role="radiogroup"][aria-label="Claude model"]')`, 'the Claude model list', 20_000);
+    await page.click({ role: 'radio', name: 'other', within: '[role="radiogroup"][aria-label="Claude model"]' });
+    await page.click({ selector: '#anthropic-model-other' });
+    await page.type(UNKNOWN);
+    await page.click({ name: 'Use this model', within: '.settings-row:has([aria-label="Claude model"])' });
+    await page.waitFor(`/Requests to Claude go to ${UNKNOWN}\\. Not in Memento's list\\./.test(document.body.innerText.replace(/\\s+/g, ' '))`, 'the typed model saved', 15_000);
+    summary.settingsTypedLine = await claudeModelLine();
+    await shot('settings-claude-other-model');
+    log('Other model…', summary.settingsTypedLine);
+
+    // 4. Generate: the confirmation names it, the fake service does not offer it, the card says so.
+    const unknownCard = await builderWithClaude();
+    check(unknownCard.includes(`${UNKNOWN} (not in Memento’s list) · key saved`), `the Builder's Claude card marks the typed model (${unknownCard})`);
+    const before = fake.requests.length;
+    let result = await generate('unknown-model');
+    if (result.ended === 'confirm') {
+      summary.confirmation = await page.eval(`(document.querySelector('[role="dialog"]')?.innerText ?? '').replace(/\\s+/g, ' ')`);
+      check(summary.confirmation.includes(`Claude (Anthropic) · ${UNKNOWN}`), `the send confirmation names the model (${summary.confirmation})`);
+      await shot('confirm-send-unknown-model');
+      await page.click({ name: 'Send', within: '[role="dialog"]' });
+      await page.waitFor(`!!document.querySelector('.ai-failure')`, 'the failure card', 120_000);
+      result = { ended: 'failed' };
+    }
+    check(result.ended === 'failed', `the generation stopped (${result.ended})`);
+    const failure = await page.eval(`(() => { const c = document.querySelector('.ai-failure'); return { code: c?.dataset.code ?? null, lead: c?.querySelector('.ai-failure-lead')?.innerText ?? '', body: c?.querySelector('.ai-failure-body')?.innerText ?? '', actions: [...(c?.querySelectorAll('.ai-failure-actions button') ?? [])].map((b) => b.innerText.trim()) }; })()`);
+    summary.failure = failure;
+    await shot('builder-unknown-model-card');
+    check(failure.code === 'ai.unknownModel', `the card is the unknown-model one (${failure.code})`);
+    check(failure.lead === `Claude does not offer ${UNKNOWN}`, `the card's lead names the model (${failure.lead})`);
+    check(
+      failure.body === `Claude does not offer a model called '${UNKNOWN}'. Nothing was generated and no document was changed. Choose one from the list in Settings › AI and privacy, or check the id.`,
+      `the card says what happened, what is safe and the fix (${failure.body})`,
+    );
+    check(failure.actions[0] === 'Choose a model', `Choose a model comes first (${failure.actions.join(', ')})`);
+    const sent = fake.requests.slice(before);
+    summary.unknownModelRequests = sent.map((r) => ({ url: r.url, model: r.model, key: r.key }));
+    check(sent.length >= 1 && sent.every((r) => r.url === '/v1/messages' && r.model === UNKNOWN && r.key), `every request went to the fake server with ${UNKNOWN} and nothing else was tried (${sent.length})`);
+    log('unknown model', `${failure.lead}; ${sent.length} request(s), all ${UNKNOWN}`);
+    await page.click({ name: 'Choose a model', within: '.ai-failure' });
+    await page.waitFor(`!!document.querySelector('[role="radiogroup"][aria-label="Claude model"]')`, 'Settings › AI and privacy from the card', 20_000);
+    await shot('settings-from-choose-a-model');
+
+    // 5. Back to the default, so the data root is left as it was found.
+    await page.click({ role: 'radio', name: 'claude-opus-5-5' });
+    await page.waitFor(`/Requests to Claude go to claude-opus-5-5\\./.test(document.body.innerText)`, 'the default chosen again', 15_000);
     summary.result = 'passed';
     console.log(JSON.stringify(summary, null, 2));
     await app.close();
