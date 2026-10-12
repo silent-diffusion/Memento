@@ -347,7 +347,7 @@ public sealed partial class XlsxAgendaParser : IAgendaParser
                 return NumberKind.Number;
             }
 
-            var bare = QuotedPattern().Replace(code, string.Empty).ToLowerInvariant();
+            var bare = RegexGuard.Replace(QuotedPattern(), code, string.Empty).ToLowerInvariant();
             var hasDate = bare.Contains('d') || bare.Contains('y');
             var hasTime = bare.Contains('h') || bare.Contains('s');
             return hasDate ? NumberKind.Date : hasTime ? NumberKind.Time : NumberKind.Number;

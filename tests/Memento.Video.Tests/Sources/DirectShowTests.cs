@@ -250,7 +250,7 @@ public sealed class DirectShowTests
         await source.StartAsync(CancellationToken.None);
 
         feed.Fail(CameraErrors.DeviceRemoved);
-        var e = await lost.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var e = await lost.Task.WaitAsync(Patience.Ceiling);
 
         Assert.Equal(VideoErrorCode.SourceLost, e.Error.Code);
         Assert.Equal(VideoSourceState.Lost, source.State);
@@ -265,7 +265,7 @@ public sealed class DirectShowTests
         var lost = Lost(source);
         await source.StartAsync(CancellationToken.None);
 
-        var e = await lost.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var e = await lost.Task.WaitAsync(Patience.Ceiling);
 
         Assert.Equal(VideoErrorCode.SourceLost, e.Error.Code);
         Assert.Contains("Silent was disconnected", e.Error.Message, StringComparison.Ordinal);
@@ -290,7 +290,7 @@ public sealed class DirectShowTests
         var lost = Lost(source);
         await source.StartAsync(CancellationToken.None);
         header = (2, 3);
-        var e = await lost.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var e = await lost.Task.WaitAsync(Patience.Ceiling);
 
         Assert.Equal((VideoErrorCode.SourceLost, "OBS"), (e.Error.Code, e.Error.Detail));
         Assert.StartsWith("OBS Virtual Camera stopped: OBS is no longer sending it a picture.", e.Error.Message, StringComparison.Ordinal);

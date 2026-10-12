@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,11 +12,11 @@ namespace Memento.Documents.Tests.Hardening;
 /// every one carries a match timeout as the last line of defence.
 /// </summary>
 /// <remarks>
-/// These tests measure work, not time: a linear pattern does a few steps per character and never comes near its 250 ms
-/// limit, while the regressions they guard against (cubic on long leaders, quadratic on markers) ran far past it, so they
-/// count the matches that ran past the limit (<see cref="RegexGuard.StartTally"/>) and require none. A stopwatch here
-/// failed on a loaded machine (security audit 2, SA2-70). The whole-parse checks also require that the parse was not
-/// stopped by the product's own ceiling (<see cref="AgendaLimits.ParseTimeout"/>), which a quadratic text pass would hit.
+/// These tests measure work, never time (<see cref="Work"/>). A stopwatch failed on a loaded machine (security audit 2,
+/// SA2-70), and so did counting the matches that ran past the 250 ms timeout: the timeout is wall-clock time, so a
+/// runner that stalls mid-match cuts a linear match short. The hostile text now runs without the timeout and the
+/// processor cycles it used must fit in the timeout (or the parse ceiling) on a 1 GHz processor. The regressions these
+/// guard against (cubic on long leaders, quadratic on markers) cost hundreds of times that.
 /// </remarks>
 public sealed class RegexHardeningTests
 {
@@ -35,7 +34,33 @@ public sealed class RegexHardeningTests
         {
             var regex = (Regex)pattern.Invoke(null, null)!;
             Assert.True(regex.MatchTimeout == TimeSpan.FromMilliseconds(RegexGuard.TimeoutMilliseconds), $"{pattern.DeclaringType!.Name}.{pattern.Name} has no match timeout");
+            Assert.Same(regex, RegexGuard.Use(regex));
         }
+    }
+
+    [Fact]
+    public void AMatchThatRunsPastItsTimeoutCountsAsNoMatchAndIsTallied()
+    {
+        // Exponential on purpose, with a 1 ms limit: a stall can only make the timeout come sooner.
+        var catastrophic = new Regex("^(a+)+$", RegexOptions.None, TimeSpan.FromMilliseconds(1));
+        var tally = RegexGuard.StartTally(untimed: false);
+
+        Assert.False(RegexGuard.IsMatch(catastrophic, new string('a', 40) + "!"));
+        Assert.Equal(1, tally.Timeouts);
+    }
+
+    [Theory]
+    [InlineData(10_000_000L, 1, true)]
+    [InlineData(10_000_000L, RegexGuard.MaxAttempts - 1, true)]
+    [InlineData(10_000_000L, RegexGuard.MaxAttempts, false)]
+    [InlineData(249_000_000L, 1, true)]
+    [InlineData(250_000_000L, 1, false)]
+    [InlineData(4_000_000_000L, 1, false)]
+    public void AMatchStoppedWhileWaitingToRunRunsAgainButAMatchThatWorkedItsTimeoutDoesNot(long cyclesSpent, int attempts, bool again)
+    {
+        // A loaded PC stalled a 250 ms match on "**bold**" and the line kept its markup; a stall is told from work by the
+        // processor cycles the thread used: under what a 1 GHz processor does in the timeout means it mostly waited.
+        Assert.Equal(again, RegexGuard.StalledRatherThanSlow(TimeSpan.FromMilliseconds(RegexGuard.TimeoutMilliseconds), cyclesSpent, attempts));
     }
 
     [Theory]
@@ -46,10 +71,12 @@ public sealed class RegexHardeningTests
     public void ALongLeaderWithNoTimeAfterItIsQuick(char leader)
     {
         var text = "Welcome" + new string(leader, 3_900) + "x9";
-        var tally = RegexGuard.StartTally();
+        var found = true;
 
-        Assert.False(MarkerParser.TryParseTrailingTime(text, out _, out _));
-        Assert.Equal(0, tally.Value);
+        var cycles = Work.Of(() => found = MarkerParser.TryParseTrailingTime(text, out _, out _));
+
+        Assert.False(found);
+        Assert.InRange(cycles, 1, Work.MatchBudget);
     }
 
     [Theory]
@@ -69,7 +96,7 @@ public sealed class RegexHardeningTests
     {
         var text = string.Concat(Enumerable.Repeat("1. Item " + new string('.', 3_900) + " x9\n", 1_000));
 
-        await Quickly(() => Agendas.PasteAsync(text));
+        await Quickly(() => Agendas.PasteAsync(text, Work.Unlimited));
     }
 
     [Fact]
@@ -77,20 +104,21 @@ public sealed class RegexHardeningTests
     {
         var text = string.Concat(Enumerable.Repeat("# a" + new string(' ', 3_900) + "b\n", 2_000)) + "- [ ] item\n";
 
-        await Quickly(() => Agendas.ImportAsync(Encoding.UTF8.GetBytes(text), "agenda.md"));
+        await Quickly(() => Agendas.ImportAsync(Encoding.UTF8.GetBytes(text), "agenda.md", options: Work.Unlimited));
     }
 
-    [Fact]
-    public void EmphasisMarkersInALongLineAreQuick()
+    [Theory]
+    [InlineData("*a ", 1_300)]
+    [InlineData("[a](", 900)]
+    [InlineData("<a ", 1_300)]
+    [InlineData("`", 3_900)]
+    public void EmphasisMarkersInALongLineAreQuick(string marker, int count)
     {
-        var tally = RegexGuard.StartTally();
+        var line = string.Concat(Enumerable.Repeat(marker, count));
 
-        MarkdownInline.Strip(string.Concat(Enumerable.Repeat("*a ", 1_300)));
-        MarkdownInline.Strip(string.Concat(Enumerable.Repeat("[a](", 900)));
-        MarkdownInline.Strip(string.Concat(Enumerable.Repeat("<a ", 1_300)));
-        MarkdownInline.Strip(new string('`', 3_900));
+        var cycles = Work.Of(() => MarkdownInline.Strip(line));
 
-        Assert.Equal(0, tally.Value);
+        Assert.InRange(cycles, 1, Work.MatchBudget);
     }
 
     [Theory]
@@ -118,26 +146,23 @@ public sealed class RegexHardeningTests
     public void ManyBlankLinesDoNotLookLikeMarkdownSlowly()
     {
         var text = new string('\n', 1_000_000) + "x";
-        var watch = Stopwatch.StartNew();
+        var looksLikeMarkdown = true;
 
-        Assert.False(MarkdownAgendaParser.LooksLikeMarkdown(text));
-        Assert.True(watch.Elapsed < WallClock.Limit(2), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        var cycles = Work.Of(() => looksLikeMarkdown = MarkdownAgendaParser.LooksLikeMarkdown(text));
+
+        Assert.False(looksLikeMarkdown);
+        Assert.InRange(cycles, 1, 2_000 * Work.CyclesPerMillisecond);
     }
 
-    /// <summary>The parse ends (a refusal is fine) without a pattern running past its limit and without hitting the parse ceiling.</summary>
+    /// <summary>
+    /// The parse (a refusal is fine) does no more work than the product's parse ceiling allows on a slow processor, and
+    /// no single match more than its timeout allows.
+    /// </summary>
     private static async Task Quickly(Func<Task> parse)
     {
-        var tally = RegexGuard.StartTally();
-        try
-        {
-            await parse();
-        }
-        catch (AgendaImportException e)
-        {
-            // Refusing is fine; being stopped for taking too long is not.
-            Assert.DoesNotContain("took longer than", e.Message, StringComparison.Ordinal);
-        }
+        var (cycles, longestMatch) = await Work.OfParseAsync(parse);
 
-        Assert.Equal(0, tally.Value);
+        Assert.InRange(cycles, 1, Work.ParseBudget);
+        Assert.InRange(longestMatch, 1, Work.MatchBudget);
     }
 }

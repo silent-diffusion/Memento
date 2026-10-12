@@ -18,14 +18,20 @@ public sealed class AudioRecordingSessionTests : IDisposable
     /// <summary>One synthetic packet (10 ms) plus scheduling slack inside the session.</summary>
     private const double PacketToleranceMs = 30;
 
+    /// <summary>The system timer's resolution: a <see cref="Timer"/> can fire up to one tick before its due time.</summary>
+    private static readonly TimeSpan TimerTick = TimeSpan.FromMilliseconds(16);
+
     private readonly TempDirectory _dir = new();
     private readonly SyntheticCaptureFactory _factory = new();
 
     public void Dispose() => _dir.Dispose();
 
-    [Fact]
-    public async Task PauseIsExcludedFromEveryTrackAndTracksStayAligned()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task PauseIsExcludedFromEveryTrackAndTracksStayAligned(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs); // 600: every packet handed over late, as on a starved machine
         await using var session = await Start(Mic, App);
         await Task.Delay(600);
         var beforePause = session.Elapsed;
@@ -91,50 +97,56 @@ public sealed class AudioRecordingSessionTests : IDisposable
         Assert.InRange((Assert.Single(mic.Gaps).At - Assert.Single(app.Gaps).At).Duration().TotalMilliseconds, 0, 0.05); // within a frame
     }
 
-    [Fact]
-    public async Task CheckpointsAreRaisedOnTheIntervalWithDrift()
+    /// <remarks>
+    /// The second case hands every packet over 600 ms late, as a starved capture or consumer thread does: the checkpoint
+    /// taken 1.4 s into the recording then has 0.75 s of timestamps and no drift yet, which is what failed on CI when the
+    /// test waited for 1.4 s of the session's clock. It waits for the checkpoint that reports drift instead.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task CheckpointsAreRaisedOnTheIntervalWithDrift(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs);
+        var interval = TimeSpan.FromMilliseconds(300);
         var checkpoints = new List<SessionCheckpoint>();
-        await using var session = await Start(new AudioRecordingOptions(_dir.Path, [Mic]) { CheckpointInterval = TimeSpan.FromMilliseconds(300) }, s => s.Checkpointed += (_, e) =>
+        var withDrift = new TaskCompletionSource<SessionCheckpoint>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await Start(new AudioRecordingOptions(_dir.Path, [Mic]) { CheckpointInterval = interval }, s => s.Checkpointed += (_, e) =>
         {
             lock (checkpoints)
             {
                 checkpoints.Add(e.Checkpoint);
+                if (checkpoints.Count >= 3 && e.Checkpoint.Tracks.All(t => t.DriftPpm is not null))
+                {
+                    withDrift.TrySetResult(e.Checkpoint);
+                }
             }
         });
 
-        // Drift needs a second of timestamps: wait for three checkpoints and at least 1.4 s of recording.
-        var waited = Stopwatch.StartNew();
-        while ((Count() < 3 || session.Elapsed < TimeSpan.FromMilliseconds(1_400)) && waited.Elapsed < Patience.Ceiling)
-        {
-            await Task.Delay(50);
-        }
-
-        var elapsed = session.Elapsed;
+        // Drift needs a second of timestamps the session has consumed, which a starved machine reaches later than a
+        // second of its clock: wait for the checkpoint that reports it.
+        var reported = await withDrift.Task.WaitAsync(Patience.Ceiling);
         await session.StopAsync();
 
-        SessionCheckpoint last;
         lock (checkpoints)
         {
-            // At least three, and never more often than the 300 ms interval allows (+1 for rounding, +1 at stop).
-            Assert.InRange(checkpoints.Count, 3, (int)(elapsed.TotalMilliseconds / 300) + 2);
-            last = checkpoints[^1];
-        }
-
-        var track = Assert.Single(last.Tracks);
-        Assert.Equal(Mic, track.SourceId);
-        Assert.True(track.Frames > 0);
-        Assert.NotNull(track.DriftPpm);
-        Assert.InRange(track.DriftPpm!.Value, -100, 100);
-        Assert.NotNull(session.LastCheckpointAt);
-
-        int Count()
-        {
-            lock (checkpoints)
+            for (var i = 0; i < checkpoints.Count; i++)
             {
-                return checkpoints.Count;
+                // Raised by the timer, never early: the i-th no sooner than i intervals in (less one tick of the system
+                // timer, which fires on its own 15.6 ms grid), however late the timer ran.
+                Assert.True(checkpoints[i].Elapsed >= (interval * (i + 1)) - TimerTick, $"checkpoint {i + 1} at {checkpoints[i].Elapsed}");
+                foreach (var info in checkpoints[i].Tracks.Where(t => t.DriftPpm is not null))
+                {
+                    // Drift is only reported once a second of audio is behind it.
+                    Assert.True(info.Frames >= 48_000, $"drift at {info.Frames} frames");
+                }
             }
         }
+
+        var track = Assert.Single(reported.Tracks);
+        Assert.Equal(Mic, track.SourceId);
+        Assert.InRange(track.DriftPpm!.Value, -100, 100);
+        Assert.NotNull(session.LastCheckpointAt);
     }
 
     [Fact]
@@ -226,9 +238,12 @@ public sealed class AudioRecordingSessionTests : IDisposable
         Assert.True(track.Duration >= TimeSpan.FromMilliseconds(250 - PacketToleranceMs), $"Stopped at {track.Duration}, before the device went away");
     }
 
-    [Fact]
-    public async Task SourcesCanBeAddedRemovedAndReAddedMidSession()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task SourcesCanBeAddedRemovedAndReAddedMidSession(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs); // 600: every packet handed over late, as on a starved machine
         await using var session = await Start(Mic);
         await Task.Delay(300);
         var beforeAdd = session.Elapsed;

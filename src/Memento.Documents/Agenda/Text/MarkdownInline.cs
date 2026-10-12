@@ -19,18 +19,18 @@ internal static partial class MarkdownInline
 
         try
         {
-            var result = HtmlCommentPattern().Replace(text, string.Empty);
-            result = ImagePattern().Replace(result, "${alt}");
-            result = LinkPattern().Replace(result, "${text}");
-            result = AutoLinkPattern().Replace(result, "${url}");
-            result = CodePattern().Replace(result, "${code}");
-            result = BoldPattern().Replace(result, "${inner}");
-            result = ItalicStarPattern().Replace(result, "${inner}");
-            result = ItalicUnderscorePattern().Replace(result, "${inner}");
-            result = StrikePattern().Replace(result, "${inner}");
-            result = BreakTagPattern().Replace(result, " ");
-            result = HtmlTagPattern().Replace(result, string.Empty);
-            result = EscapePattern().Replace(result, "${c}");
+            var result = RegexGuard.Replace(HtmlCommentPattern(), text, string.Empty);
+            result = RegexGuard.Replace(ImagePattern(), result, "${alt}");
+            result = RegexGuard.Replace(LinkPattern(), result, "${text}");
+            result = RegexGuard.Replace(AutoLinkPattern(), result, "${url}");
+            result = RegexGuard.Replace(CodePattern(), result, "${code}");
+            result = RegexGuard.Replace(BoldPattern(), result, "${inner}");
+            result = RegexGuard.Replace(ItalicStarPattern(), result, "${inner}");
+            result = RegexGuard.Replace(ItalicUnderscorePattern(), result, "${inner}");
+            result = RegexGuard.Replace(StrikePattern(), result, "${inner}");
+            result = RegexGuard.Replace(BreakTagPattern(), result, " ");
+            result = RegexGuard.Replace(HtmlTagPattern(), result, string.Empty);
+            result = RegexGuard.Replace(EscapePattern(), result, "${c}");
             return result.Replace("&amp;", "&", StringComparison.Ordinal).Replace("&nbsp;", " ", StringComparison.Ordinal);
         }
         catch (RegexMatchTimeoutException)

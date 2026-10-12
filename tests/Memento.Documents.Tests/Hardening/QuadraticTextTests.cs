@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Memento.Documents.Agenda;
 using Memento.Documents.Agenda.Tables;
@@ -10,7 +9,8 @@ namespace Memento.Documents.Tests.Hardening;
 /// <summary>Text handling stays linear: quote marks, wrapped lines and wide or long tables cost per character, not per character squared.</summary>
 public sealed class QuadraticTextTests
 {
-    private static readonly TimeSpan Quick = WallClock.Limit(5);
+    /// <summary>The old 5 s limit as processor cycles (<see cref="Work.Budget"/>), not on a stopwatch a stalled runner stretches.</summary>
+    private static readonly long Quick = Work.Budget(5);
 
     [Theory]
     [InlineData("> > Welcome", "Welcome")]
@@ -25,11 +25,15 @@ public sealed class QuadraticTextTests
     [Fact]
     public void AHundredThousandQuoteMarksAreQuick()
     {
-        var watch = Stopwatch.StartNew();
+        var marks = new string('>', 100_000) + "x";
+        var spaced = string.Concat(Enumerable.Repeat("> ", 100_000)) + "x";
+        string? stripped = null;
+        string? strippedSpaced = null;
 
-        Assert.Equal("x", TextLines.StripQuote(new string('>', 100_000) + "x"));
-        Assert.Equal("x", TextLines.StripQuoteMarks(string.Concat(Enumerable.Repeat("> ", 100_000)) + "x"));
-        Assert.True(watch.Elapsed < WallClock.Limit(1), $"took {watch.Elapsed.TotalMilliseconds:0} ms");
+        var cycles = Work.Of(() => (stripped, strippedSpaced) = (TextLines.StripQuote(marks), TextLines.StripQuoteMarks(spaced)));
+
+        Assert.Equal(("x", "x"), (stripped, strippedSpaced));
+        Assert.InRange(cycles, 1, Work.Budget(1));
     }
 
     [Fact]
@@ -37,11 +41,10 @@ public sealed class QuadraticTextTests
     {
         // Enough marked items after the wrapped lines that the text reads as a list, so the lines are joined until the cap.
         var text = "1. Start\n" + string.Concat(Enumerable.Repeat("  continued words\n", 3_000)) + string.Concat(Enumerable.Range(2, 3_100).Select(i => $"{i}. Item\n"));
-        var watch = Stopwatch.StartNew();
 
-        var result = await Agendas.PasteAsync(text);
+        var (result, cycles) = await Work.OfAsync(() => Agendas.PasteAsync(text, Work.Unlimited));
 
-        Assert.True(watch.Elapsed < Quick, $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.InRange(cycles, 1, Quick);
         Assert.All(result.Items, i => Assert.True(i.Text.Length < 2_100, $"{i.Text.Length} characters"));
         Assert.Contains(result.Warnings, w => w.Code == AgendaWarningCodes.TooManyItems);
     }
@@ -62,11 +65,10 @@ public sealed class QuadraticTextTests
     public async Task OneRowOfAMillionCommasIsQuickAndSaysWhatWasLeftOut()
     {
         var csv = Encoding.UTF8.GetBytes("Item,Time\nWelcome,9:00\n" + new string(',', 1_000_000) + "\n" + string.Concat(Enumerable.Repeat("Topic,10:00\n", 50_000)));
-        var watch = Stopwatch.StartNew();
 
-        var result = await Agendas.ImportAsync(csv, "agenda.csv");
+        var (result, cycles) = await Work.OfAsync(() => Agendas.ImportAsync(csv, "agenda.csv", options: Work.Unlimited));
 
-        Assert.True(watch.Elapsed < Quick, $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.InRange(cycles, 1, Quick);
         Assert.Contains(result.Warnings, w => w.Code == AgendaWarningCodes.Unparsed && w.Message.Contains("first 10,000 rows and 64 columns", StringComparison.Ordinal));
     }
 
@@ -94,11 +96,12 @@ public sealed class QuadraticTextTests
             new(["Item"], new AgendaSourceLocation { Row = 1 }),
             new([cell], new AgendaSourceLocation { Row = 2 }),
         };
-        var watch = Stopwatch.StartNew();
+        TableReadResult? table = null;
 
-        var table = AgendaTableReader.Read(rows, CancellationToken.None);
+        var cycles = Work.Of(() => table = AgendaTableReader.Read(rows, CancellationToken.None), runs: 1, warmUp: false);
 
-        Assert.True(watch.Elapsed < Quick, $"took {watch.Elapsed.TotalSeconds:0.0} s");
-        Assert.Equal(("more words ".Length * 100_000) - 1, table.Lines.Single(l => l.Text.StartsWith("more", StringComparison.Ordinal)).Text.Length);
+        Assert.InRange(cycles, 1, Quick);
+        Assert.NotNull(table);
+        Assert.Equal(("more words ".Length * 100_000) - 1, table!.Lines.Single(l => l.Text.StartsWith("more", StringComparison.Ordinal)).Text.Length);
     }
 }

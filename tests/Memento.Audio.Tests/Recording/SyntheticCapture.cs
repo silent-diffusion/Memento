@@ -17,13 +17,19 @@ internal sealed class SyntheticCapture : IAudioCapture
     private readonly TimeSpan _latency;
     private readonly TimeSpan? _loseAfter;
     private readonly long _lead;
+    private readonly long _deliveryDelay;
     private volatile bool _stop;
     private long _startedAt;
     private long _frames;
     private long _packets;
 
-    public SyntheticCapture(AudioSourceId source, Func<long, float> signal, TimeSpan? loseAfter = null, TimeSpan? latency = null, TimeSpan? timestampLead = null)
+    /// <param name="deliveryDelay">
+    /// Hand each packet over this long after its last frame was captured (stamps unchanged): a starved capture or
+    /// consumer thread, so the session's view of the audio lags its clock as it does on a stalled CI runner.
+    /// </param>
+    public SyntheticCapture(AudioSourceId source, Func<long, float> signal, TimeSpan? loseAfter = null, TimeSpan? latency = null, TimeSpan? timestampLead = null, TimeSpan? deliveryDelay = null)
     {
+        _deliveryDelay = deliveryDelay?.Ticks ?? 0;
         Source = source;
         _signal = signal;
         _loseAfter = loseAfter;
@@ -128,7 +134,7 @@ internal sealed class SyntheticCapture : IAudioCapture
                     return;
                 }
 
-                if (now >= PacketEnd())
+                if (now >= PacketEnd() + _deliveryDelay)
                 {
                     Emit();
                     continue;

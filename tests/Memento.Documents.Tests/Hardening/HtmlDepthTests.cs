@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Memento.Documents.Render;
 using Memento.Documents.Render.Html;
 using Memento.Documents.Tests.Support;
@@ -16,12 +15,13 @@ public sealed class HtmlDepthTests
     public void AMegabyteOfNestingIsReadWithoutACrash(string open)
     {
         var html = string.Concat(Enumerable.Repeat(open, 1_000_000 / open.Length)) + "deep text";
-        var watch = Stopwatch.StartNew();
+        object? blocks = null;
+        object? paper = null;
 
-        var blocks = HtmlToBlocks.ParseBlocks(html);
-        var paper = HtmlToBlocks.ParsePaper(html);
+        // Work, not time (Work.Budget). Its own thread has the default 1 MB stack, as the host's do.
+        var cycles = Work.Of(() => (blocks, paper) = (HtmlToBlocks.ParseBlocks(html), HtmlToBlocks.ParsePaper(html)), runs: 1, warmUp: false);
 
-        Assert.True(watch.Elapsed < WallClock.Limit(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.InRange(cycles, 1, Work.Budget(5));
         Assert.NotNull(blocks);
         Assert.NotNull(paper);
     }
@@ -53,11 +53,11 @@ public sealed class HtmlDepthTests
     public void ManyTextNodesMergeInLinearTime()
     {
         var html = "<p>" + string.Concat(Enumerable.Repeat("a<!---->", 125_000)) + "</p>";
-        var watch = Stopwatch.StartNew();
+        IReadOnlyCollection<object>? blocks = null;
 
-        var blocks = HtmlToBlocks.ParseBlocks(html);
+        var cycles = Work.Of(() => blocks = HtmlToBlocks.ParseBlocks(html).Cast<object>().ToList(), runs: 1, warmUp: false);
 
-        Assert.True(watch.Elapsed < WallClock.Limit(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
-        Assert.Single(blocks);
+        Assert.InRange(cycles, 1, Work.Budget(5));
+        Assert.Single(blocks!);
     }
 }

@@ -16,7 +16,7 @@ public sealed class LateActivationTests
         Assert.False(released.Task.IsCompleted);
         activation.SetResult(client);
 
-        Assert.Same(client, await released.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Same(client, await released.Task.WaitAsync(Patience.Ceiling));
     }
 
     [Fact]

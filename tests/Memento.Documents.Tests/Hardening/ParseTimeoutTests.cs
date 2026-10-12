@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Memento.Documents.Agenda;
 using Memento.Documents.Tests.Support;
 
@@ -10,14 +9,14 @@ public sealed class ParseTimeoutTests
     [Fact]
     public async Task ASlowParseIsStoppedAtTheLimit()
     {
-        var engine = new FakeOcrEngine("fake", available: true, FakeOcrEngine.Lines("Welcome")) { Delay = TimeSpan.FromSeconds(30) };
+        // The engine does not answer for a day, so the import can only end by being stopped at the limit: no stopwatch
+        // needed (one failed here when a stalled runner took over 10 s). The ceiling only guards against a hang.
+        var engine = new FakeOcrEngine("fake", available: true, FakeOcrEngine.Lines("Welcome")) { Delay = TimeSpan.FromDays(1) };
         var options = new AgendaParseOptions { FileName = "photo.png", ParseTimeout = TimeSpan.FromMilliseconds(300) };
-        var watch = Stopwatch.StartNew();
 
         var error = await Assert.ThrowsAsync<AgendaImportException>(() =>
-            Agendas.Importer(engine).ImportAsync(new MemoryStream(Agendas.Fixture("ocr-small.png")), options, CancellationToken.None));
+            Agendas.Importer(engine).ImportAsync(new MemoryStream(Agendas.Fixture("ocr-small.png")), options, CancellationToken.None).WaitAsync(TimeSpan.FromMinutes(5)));
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"took {watch.Elapsed.TotalSeconds:0.0} s");
         Assert.Equal(AgendaErrorCodes.Unreadable, error.Code);
         Assert.Equal(
             "photo.png took longer than 0.3 seconds to read as an image, so reading it was stopped. Nothing was imported. Copy just the agenda into a new file and import that, or paste the items as text.",

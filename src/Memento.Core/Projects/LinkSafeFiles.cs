@@ -20,8 +20,12 @@ public static class LinkSafeFiles
     /// Deletes <paramref name="folder"/> and everything in it (or only its contents with <paramref name="keepFolder"/>):
     /// junctions and symbolic links are removed as links first (their targets are never entered), read-only files are made
     /// writable, then the rest goes. .NET's recursive delete refuses a folder that holds a junction ("access denied").
+    /// A file another program holds briefly is retried (<see cref="DeleteBudget"/>).
     /// </summary>
-    public static void DeleteTree(string folder, bool keepFolder = false)
+    public static void DeleteTree(string folder, bool keepFolder = false) => DeleteTree(folder, keepFolder, wait: null);
+
+    /// <param name="wait">Sleeps between tries (tests replace it).</param>
+    internal static void DeleteTree(string folder, bool keepFolder, Action<int>? wait)
     {
         if (!Directory.Exists(folder))
         {
@@ -71,7 +75,7 @@ public static class LinkSafeFiles
 
         if (!keepFolder)
         {
-            Directory.Delete(folder, recursive: true);
+            Retrying(() => Directory.Delete(folder, recursive: true), () => !Directory.Exists(folder), wait);
             return;
         }
 
@@ -79,11 +83,50 @@ public static class LinkSafeFiles
         {
             if (Directory.Exists(entry))
             {
-                Directory.Delete(entry, recursive: true);
+                Retrying(() => Directory.Delete(entry, recursive: true), () => !Directory.Exists(entry), wait);
             }
             else
             {
-                File.Delete(entry);
+                Retrying(() => File.Delete(entry), () => !File.Exists(entry), wait);
+            }
+        }
+    }
+
+    /// <summary>
+    /// How long a delete keeps retrying a file another program holds, counted in the waits between tries (not on the
+    /// clock, so a starved machine still gets every try): a virus scanner or indexer reading a file Memento just wrote,
+    /// or a reader that shares delete (the file then stays "delete pending" and the folder is not empty until it
+    /// closes). Under load such a read outlasts a single try; a program that really keeps the file fails as before.
+    /// </summary>
+    internal static readonly TimeSpan DeleteBudget = TimeSpan.FromSeconds(10);
+
+    private static void Retrying(Action delete, Func<bool> gone, Action<int>? wait)
+    {
+        wait ??= Thread.Sleep;
+        var waited = 0;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                delete();
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && ex is not PathTooLongException)
+            {
+                if (gone())
+                {
+                    // Removed in between (the last reader closed a delete-pending file): nothing left to do.
+                    return;
+                }
+
+                if (waited >= DeleteBudget.TotalMilliseconds || Audio.DiskErrors.IsDiskFull(ex))
+                {
+                    throw;
+                }
+
+                var ms = Math.Min(100, 5 << Math.Min(attempt - 1, 5));
+                waited += ms;
+                wait(ms);
             }
         }
     }

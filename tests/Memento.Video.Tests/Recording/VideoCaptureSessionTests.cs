@@ -49,7 +49,7 @@ public sealed class VideoCaptureSessionTests : IDisposable
     }
 
     private static async Task<VideoSessionEventArgs> Next(TaskCompletionSource<VideoSessionEventArgs> problem) =>
-        await problem.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await problem.Task.WaitAsync(Patience.Ceiling);
 
     private static TaskCompletionSource<VideoSessionEventArgs> Watch(VideoCaptureSession session)
     {

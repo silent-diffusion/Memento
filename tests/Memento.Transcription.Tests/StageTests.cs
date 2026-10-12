@@ -780,7 +780,7 @@ public sealed class StageTests : IDisposable
         var id = await _host.RecordAsync("Busy again and again", 2, Mic, SystemAudio);
         foreach (var start in started)
         {
-            await start.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await start.Task.WaitAsync(Patience.Ceiling);
             _host.Gate.SetManual(true);
             await WaitUntilAsync(async () => Stage(await ManifestAsync(id), StageNames.Speakers).Label == "Paused · Paused by you", "speakers to pause");
             _host.Gate.SetManual(false);
@@ -847,7 +847,11 @@ public sealed class StageTests : IDisposable
         // Nothing was heard yet when it started over, so it listens again; the diarizer never gets the count.
         Assert.Equal([-1, -1], jobs.Select(j => j.Diarize!.NumClusters));
         var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
-        Assert.Contains(history, h => h.Stage == "speakers" && h.Event == "started" && h.Detail!.EndsWith(" · 3 expected (Settings)", StringComparison.Ordinal));
+        // It starts over exactly once, with the new count: the run waits for the retry's writes, so a starved machine
+        // cannot start it with the old settings or run it a third time because the Queued status landed after it ended.
+        var starts = history.Where(h => h.Stage == "speakers" && h.Event == "started").ToList();
+        Assert.Equal(2, starts.Count);
+        Assert.EndsWith(" · 3 expected (Settings)", starts[1].Detail, StringComparison.Ordinal);
         Assert.Equal(StageStates.Done, Stage(await ManifestAsync(id), StageNames.Speakers).State);
         Assert.Empty((await ManifestAsync(id)).Failures);
     }

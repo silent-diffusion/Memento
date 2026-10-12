@@ -22,6 +22,12 @@ internal sealed class TrackRun(AudioSourceId id, string name, string fileStem, I
 
     public DriftMeter Drift { get; } = new(capture.Format.SampleRate);
 
+    /// <summary>
+    /// When the track joined the session (its write gate opens here): the session start, or the moment a source was
+    /// turned on mid-session. A track with no audio yet starts here, not at 0.
+    /// </summary>
+    public long? AddedAtQpc { get; init; }
+
     /// <summary>Completes when the pump has drained the channel, the writer is closed and the capture disposed.</summary>
     public Task Completion { get; set; } = Task.CompletedTask;
 
@@ -197,7 +203,9 @@ internal sealed class TrackRun(AudioSourceId id, string name, string fileStem, I
             Writer.StorageFormat.SampleRate,
             Writer.StorageFormat.Channels,
             Writer.Duration,
-            first is { } f ? timeline.ToTimeline(f) : TimeSpan.Zero,
+            // No audio yet (a starved capture thread, a silent app, a source turned off before its first packet): the
+            // track starts when it was added, which is final if it never gets any.
+            first is { } f ? timeline.ToTimeline(f) : AddedAtQpc is { } added ? timeline.ToTimeline(added) : TimeSpan.Zero,
             EndReason is null or TrackEndReason.SessionStopped || EndedAtQpc is null ? null : timeline.ToTimeline(EndedAtQpc.Value),
             EndReason,
             Writer.StorageFormat.BitsPerSample,

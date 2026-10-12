@@ -30,9 +30,12 @@ public sealed class WasapiRecordingSessionTests : IDisposable
 
     public void Dispose() => _dir.Dispose();
 
-    [Fact]
-    public async Task ASessionMapsTracksPausesAndEventsAndStopsOnce()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task ASessionMapsTracksPausesAndEventsAndStopsOnce(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs); // 600: every packet handed over late, as on a starved machine
         var states = new List<(RecordingSessionState State, bool OnPool)>();
         var checkpoints = new List<CheckpointEventArgs>();
         var levels = new List<SourceLevel>();
@@ -58,9 +61,13 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         var pausedAtLeast = inner.Elapsed;
         await session.ResumeAsync(CancellationToken.None);
         var pausedAtMost = outer.Elapsed;
+        var beforeMark = session.ElapsedMs;
         var mark = await session.MarkAsync(CancellationToken.None);
-        Assert.InRange(mark, session.ElapsedMs - 50, session.ElapsedMs);
-        await WaitUntil(() => Count(checkpoints) >= 1, "a checkpoint");
+        Assert.InRange(mark, beforeMark, session.ElapsedMs);
+
+        // A checkpoint taken before a track's first packet has nothing of it on disk yet (a starved capture thread can
+        // get there late): wait for one that has both tracks' audio.
+        await WaitUntil(() => Any(checkpoints, c => c.Tracks.Count == 2 && c.Tracks.All(t => t.CheckpointedBytes > 0)), "a checkpoint with audio on both tracks");
         var tracks = await session.SetSourceAsync(App, enabled: false, CancellationToken.None);
         Assert.Equal(Core.Recording.TrackEndReason.Disabled, tracks.Single(t => t.Source.Id == AppId).EndReason);
         await Task.Delay(200);
@@ -99,9 +106,14 @@ public sealed class WasapiRecordingSessionTests : IDisposable
 
         lock (checkpoints)
         {
-            var first = checkpoints[0];
-            Assert.Equal(2, first.Tracks.Count);
-            Assert.All(first.Tracks, t => Assert.True(t.CheckpointedBytes > 0));
+            Assert.Equal(2, checkpoints[0].Tracks.Count);
+            foreach (var track in result.Tracks)
+            {
+                // What a checkpoint says is durable only grows, and never passes what the track ends with.
+                var durable = checkpoints.Select(c => c.Tracks.SingleOrDefault(t => t.TrackId == track.TrackId)?.CheckpointedBytes).OfType<long>().ToList();
+                Assert.Equal(durable.Order(), durable);
+                Assert.All(durable, b => Assert.InRange(b, 0, track.DataBytes));
+            }
         }
 
         lock (levels)
@@ -110,9 +122,12 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         }
     }
 
-    [Fact]
-    public async Task AMidSessionSourceGetsItsOffsetBeforeItsFirstPacket()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(600)]
+    public async Task AMidSessionSourceGetsItsOffsetBeforeItsFirstPacket(int deliveryDelayMs)
     {
+        _factory.DeliveryDelay = TimeSpan.FromMilliseconds(deliveryDelayMs); // 600: every packet handed over late, as on a starved machine
         await using var session = await StartAsync(TimeSpan.FromSeconds(30), Mic);
         await Task.Delay(300);
         var before = session.ElapsedMs;
@@ -123,11 +138,34 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         var app = tracks.Single(t => t.Source.Id == AppId);
         Assert.Equal("app-4242", app.TrackId);
         Assert.Same(App, app.Source);
-        Assert.InRange(app.StartOffsetMs, before, after + 60);
+        Assert.InRange(app.StartOffsetMs, before, after);
         Assert.True(app.IsOpen);
         await Task.Delay(200);
         var result = await session.StopAsync(CancellationToken.None);
-        Assert.True(result.Tracks.Single(t => t.TrackId == "app-4242").StartOffsetMs >= before);
+        Assert.InRange(result.Tracks.Single(t => t.TrackId == "app-4242").StartOffsetMs, before, result.ElapsedMs);
+    }
+
+    [Fact]
+    public async Task ASourceWithNoAudioYetStartsWhenItWasAddedEvenAfterItEnds()
+    {
+        // No packet arrives at all (a starved capture thread, or an app that plays nothing): the track starts when it
+        // was turned on, in the live list, in the final result and once it is turned off again, never at 0.
+        _factory.DeliveryDelay = TimeSpan.FromHours(1);
+        await using var session = await StartAsync(TimeSpan.FromSeconds(30), Mic);
+        await WaitUntil(() => session.ElapsedMs >= 100, "the recording to be under way");
+        var before = session.ElapsedMs;
+        var tracks = await session.SetSourceAsync(App, enabled: true, CancellationToken.None);
+        var after = session.ElapsedMs;
+
+        Assert.InRange(tracks.Single(t => t.Source.Id == AppId).StartOffsetMs, before, after);
+        var ended = await session.SetSourceAsync(App, enabled: false, CancellationToken.None);
+        Assert.InRange(ended.Single(t => t.Source.Id == AppId).StartOffsetMs, before, after);
+        var result = await session.StopAsync(CancellationToken.None);
+
+        var app = result.Tracks.Single(t => t.TrackId == "app-4242");
+        Assert.InRange(app.StartOffsetMs, before, after);
+        Assert.Equal(0, app.DataBytes);
+        Assert.Equal(0, result.Tracks.Single(t => t.TrackId == "mic").StartOffsetMs);
     }
 
     [Fact]
@@ -259,6 +297,14 @@ public sealed class WasapiRecordingSessionTests : IDisposable
         lock (list)
         {
             list.Add(item);
+        }
+    }
+
+    private static bool Any<T>(List<T> list, Func<T, bool> match)
+    {
+        lock (list)
+        {
+            return list.Any(match);
         }
     }
 

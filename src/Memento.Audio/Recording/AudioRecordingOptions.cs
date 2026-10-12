@@ -27,7 +27,10 @@ public sealed record AudioRecordingOptions(string TracksDirectory, IReadOnlyList
     /// </summary>
     public bool PadLateTracks { get; init; }
 
-    /// <summary>How long stop waits for the last packets captured before the stop instant.</summary>
+    /// <summary>
+    /// How long stop (or turning a source off) waits for the last packets captured before the stop instant while no
+    /// track makes progress; counted in the drain's own waits, so a starved machine that delivers late is waited for.
+    /// </summary>
     public TimeSpan StopDrainTimeout { get; init; } = TimeSpan.FromMilliseconds(500);
 
     /// <summary>Opens captures; defaults to WASAPI. Tests substitute synthetic sources.</summary>

@@ -215,7 +215,7 @@ internal static partial class MarkerParser
         return true;
     }
 
-    private static string NormalizeTime(string time) => WhitespacePattern().Replace(time.Trim(), " ");
+    private static string NormalizeTime(string time) => RegexGuard.Replace(WhitespacePattern(), time.Trim(), " ");
 
     [GeneratedRegex(@"^(?:[-*+]\s+)?(?:\[[ xX✓✔]\]|[☐☑☒])\s*(?=\S)", RegexOptions.None, RegexGuard.TimeoutMilliseconds)]
     private static partial Regex CheckboxPattern();

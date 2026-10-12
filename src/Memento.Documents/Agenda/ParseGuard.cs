@@ -1,3 +1,5 @@
+using Memento.Documents.Agenda.Text;
+
 namespace Memento.Documents.Agenda;
 
 /// <summary>
@@ -30,7 +32,7 @@ internal static class ParseGuard
         // caller is answered at the limit either way. The source is disposed only once the work has really ended.
         var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(options.ParseTimeout);
-        var work = Task.Run(() => parse(limit.Token), limit.Token);
+        var work = Task.Run(() => RegexGuard.Tally is { } tally ? Counted(tally, parse, limit.Token) : parse(limit.Token), limit.Token);
         _ = work.ContinueWith(_ => limit.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         try
         {
@@ -43,6 +45,20 @@ internal static class ParseGuard
         catch (Exception e) when (IsDamage(e, cancellationToken))
         {
             throw AgendaErrors.Unreadable(options, what, e);
+        }
+    }
+
+    /// <summary>Runs <paramref name="parse"/> and adds the processor cycles its synchronous part used to <paramref name="tally"/> (tests only).</summary>
+    private static Task<AgendaParseResult> Counted(WorkTally tally, Func<CancellationToken, Task<AgendaParseResult>> parse, CancellationToken token)
+    {
+        var start = ThreadCycles.Now();
+        try
+        {
+            return parse(token);
+        }
+        finally
+        {
+            tally.AddParseCycles(ThreadCycles.Now() - start);
         }
     }
 

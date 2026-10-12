@@ -196,34 +196,43 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         var manifest = await _store.LoadAsync(recordingId, cancellationToken);
         RefuseWithoutAudio(manifest);
         var current = StageList.Find(manifest.Stages, stage);
-        if (RunningStage(recordingId) == stage)
+        IDisposable? hold = null;
+        try
         {
-            // Running now with the settings it started with (Identify speakers again after changing the expected
-            // count): stop it and run it again from the start of the queue, with the settings as they are now.
-            await CancelStageAsync(recordingId, stage, StageStopReason.Requeued);
-            manifest = await _store.LoadAsync(recordingId, cancellationToken);
-        }
-        else if (current is { State: StageStates.Active or StageStates.Queued })
-        {
-            // Waiting its turn: it reads the settings when it starts.
+            if (RunningStage(recordingId) == stage)
+            {
+                // Running now with the settings it started with (Identify speakers again after changing the expected
+                // count): stop it and run it again from the start of the queue, with the settings as they are now. The
+                // run waits for the writes below before it starts over (StopForRequeueAsync).
+                hold = await StopForRequeueAsync(recordingId, stage);
+                manifest = await _store.LoadAsync(recordingId, cancellationToken);
+            }
+            else if (current is { State: StageStates.Active or StageStates.Queued })
+            {
+                // Waiting its turn: it reads the settings when it starts.
+                Schedule(recordingId);
+                return;
+            }
+
+            var request = ApplyRemedy(manifest.Processing ?? new ProcessingRequest(), remedyId, _models?.Catalog);
+            await _status.SetAsync(recordingId, StageStatusWriter.QueuedStatus(registered.Name), cancellationToken);
+            if (!ReferenceEquals(request, manifest.Processing))
+            {
+                await _store.UpdateAsync(recordingId, m => m with { Processing = request }, cancellationToken);
+            }
+
+            if (stage == StageNames.Transcript)
+            {
+                await QueueDependentsAsync(recordingId, cancellationToken);
+            }
+
+            LogRetry(recordingId, stage, remedyId ?? "retry");
             Schedule(recordingId);
-            return;
         }
-
-        var request = ApplyRemedy(manifest.Processing ?? new ProcessingRequest(), remedyId, _models?.Catalog);
-        await _status.SetAsync(recordingId, StageStatusWriter.QueuedStatus(registered.Name), cancellationToken);
-        if (!ReferenceEquals(request, manifest.Processing))
+        finally
         {
-            await _store.UpdateAsync(recordingId, m => m with { Processing = request }, cancellationToken);
+            hold?.Dispose();
         }
-
-        if (stage == StageNames.Transcript)
-        {
-            await QueueDependentsAsync(recordingId, cancellationToken);
-        }
-
-        LogRetry(recordingId, stage, remedyId ?? "retry");
-        Schedule(recordingId);
     }
 
     /// <summary>
@@ -239,11 +248,7 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         }
 
         RefuseWithoutAudio(await _store.LoadAsync(recordingId, cancellationToken));
-        if (RunningStage(recordingId) == StageNames.Transcript)
-        {
-            await CancelStageAsync(recordingId, StageNames.Transcript, StageStopReason.Requeued);
-        }
-
+        using var hold = await StopForRequeueAsync(recordingId, StageNames.Transcript);
         await _store.UpdateAsync(recordingId, m => m with { Processing = request with { Retranscribe = true } }, cancellationToken);
         await _status.SetAsync(recordingId, StageStatusWriter.QueuedStatus(StageNames.Transcript), cancellationToken);
         await QueueDependentsAsync(recordingId, cancellationToken);
@@ -262,8 +267,51 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
         }
     }
 
-    /// <summary>Stops <paramref name="stage"/> if it is running for the recording, so it can start over with new options.</summary>
-    public Task StopForRequeueAsync(string recordingId, string stage) => CancelStageAsync(recordingId, stage, StageStopReason.Requeued);
+    /// <summary>
+    /// Stops <paramref name="stage"/> if it is running for the recording, so it can start over with new options, and
+    /// holds the recording's run until the returned hold is disposed: the caller writes the new options and queues the
+    /// stage first, so the run starts over exactly once, with them. (Starting over at once raced those writes: on a
+    /// starved machine the stage could start with the old options, or finish before its Queued status landed and run a
+    /// third time.)
+    /// </summary>
+    public async Task<IDisposable> StopForRequeueAsync(string recordingId, string stage)
+    {
+        Running? held = null;
+        lock (_sync)
+        {
+            if (_running is { } running && running.RecordingId == recordingId && running.Stage == stage)
+            {
+                held = running;
+                running.Holds++;
+                running.Released ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+
+        var hold = new RequeueHold(this, held);
+        try
+        {
+            await CancelStageAsync(recordingId, stage, StageStopReason.Requeued);
+        }
+        catch
+        {
+            hold.Dispose();
+            throw;
+        }
+
+        return hold;
+    }
+
+    private void Release(Running running)
+    {
+        lock (_sync)
+        {
+            if (--running.Holds == 0)
+            {
+                running.Released?.TrySetResult();
+                running.Released = null;
+            }
+        }
+    }
 
     /// <summary>
     /// <c>processing.cancel</c>: stops the stage (it keeps what it made) and records it as failed with "cancelled", so
@@ -564,6 +612,15 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
                     {
                         running.Again = false;
                         await RunStagesAsync(running, cancel.Token);
+
+                        // A stage stopped to start over waits until its requester has written the new options.
+                        Task released;
+                        lock (_sync)
+                        {
+                            released = running.Released?.Task ?? Task.CompletedTask;
+                        }
+
+                        await released.WaitAsync(cancel.Token);
                     }
                     while (running.Again && !cancel.IsCancellationRequested);
                 }
@@ -583,12 +640,32 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
                 }
                 finally
                 {
+                    var again = false;
                     lock (_sync)
                     {
                         _running = null;
-                        if (_pending.Count == 0)
+
+                        // Scheduled again after the loop last looked (Schedule only sets Again while this run is
+                        // current): queue it, or the request would be lost.
+                        if (running.Again && !cancel.IsCancellationRequested && _pending.Add(recordingId))
+                        {
+                            again = true;
+                        }
+                        else if (_pending.Count == 0)
                         {
                             _idle.TrySetResult();
+                        }
+                    }
+
+                    if (again && !_queue.Writer.TryWrite(recordingId))
+                    {
+                        lock (_sync)
+                        {
+                            _pending.Remove(recordingId);
+                            if (_pending.Count == 0)
+                            {
+                                _idle.TrySetResult();
+                            }
                         }
                     }
 
@@ -844,5 +921,25 @@ public sealed partial class ProcessingOrchestrator : IAsyncDisposable, IDisposab
 
         /// <summary>Scheduled again while it ran (retry, retranscribe): run the stage loop once more.</summary>
         public bool Again { get; set; }
+
+        /// <summary>Requesters still writing the options a stopped stage starts over with (<see cref="StopForRequeueAsync"/>).</summary>
+        public int Holds { get; set; }
+
+        /// <summary>Completes when the last hold is released.</summary>
+        public TaskCompletionSource? Released { get; set; }
+    }
+
+    /// <summary>Releases the run held by <see cref="StopForRequeueAsync"/> (nothing when no stage was running).</summary>
+    private sealed class RequeueHold(ProcessingOrchestrator owner, Running? running) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (running is not null && Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                owner.Release(running);
+            }
+        }
     }
 }

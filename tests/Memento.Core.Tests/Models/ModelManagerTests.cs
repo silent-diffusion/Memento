@@ -39,7 +39,7 @@ public sealed class ModelManagerTests : IDisposable
             """);
         _manager = new ModelManager(
             catalog,
-            new ModelStoreOptions(Path.Combine(_directory.Path, "models")) { SpaceMarginBytes = 0, ConnectTimeout = TimeSpan.FromSeconds(5) },
+            new ModelStoreOptions(Path.Combine(_directory.Path, "models")) { SpaceMarginBytes = 0, ConnectTimeout = Patience.Ceiling },
             _client,
             _freeSpace,
             new BridgeEventPublisher(_sink),
@@ -368,7 +368,7 @@ public sealed class ModelManagerTests : IDisposable
         // The first look does not hash on the caller's thread: not installed yet.
         Assert.False(manager.IsInstalled("test"));
 
-        Assert.Equal("test", await installed.Task.WaitAsync(TimeSpan.FromSeconds(20)));
+        Assert.Equal("test", await installed.Task.WaitAsync(Patience.Ceiling));
         Assert.True(manager.IsInstalled("test"));
         Assert.Equal(ModelPath, manager.Resolve("test"));
         Assert.True(File.Exists(ModelPath + ".verified.json"));

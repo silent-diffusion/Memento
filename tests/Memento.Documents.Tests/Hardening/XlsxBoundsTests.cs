@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Memento.Documents.Agenda;
 using Memento.Documents.Agenda.OpenXml;
 using Memento.Documents.Tests.Support;
@@ -55,11 +54,9 @@ public sealed class XlsxBoundsTests
         var xlsx = WithExtraRow(
             "<x:row r=\"9\"><x:c r=\"XFD9\" t=\"inlineStr\"><x:is><x:t>Corner</x:t></x:is></x:c></x:row>" +
             "<x:row r=\"10000\"><x:c r=\"A10000\" t=\"inlineStr\"><x:is><x:t>Bottom</x:t></x:is></x:c><x:c r=\"BL10000\" t=\"inlineStr\"><x:is><x:t>Edge</x:t></x:is></x:c></x:row>");
-        var watch = Stopwatch.StartNew();
+        var (result, cycles) = await Work.OfAsync(() => Parse(xlsx));
 
-        var result = await Parse(xlsx);
-
-        Assert.True(watch.Elapsed < WallClock.Limit(5), $"took {watch.Elapsed.TotalSeconds:0.0} s");
+        Assert.InRange(cycles, 1, Work.Budget(5)); // work, not time (Work)
         Assert.Contains(result.Items, i => i.Text == "Bottom");
     }
 

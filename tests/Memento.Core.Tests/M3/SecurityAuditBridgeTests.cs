@@ -1,7 +1,9 @@
 using System.Text.Json.Nodes;
 using Memento.Core.Agendas;
 using Memento.Core.Bridge;
+using Memento.Core.Maintenance;
 using Memento.Core.Projects;
+using Memento.Core.Tests.Fakes;
 
 namespace Memento.Core.Tests.M3;
 
@@ -39,9 +41,9 @@ public sealed class SecurityAuditBridgeTests : IDisposable
 
         var error = await _m3.ErrorAsync("project.get", new { recordingId = id });
 
-        // Reclaim (lossy re-encode, then delete the original) runs as a job: give it time to try.
+        // Reclaim (lossy re-encode, then delete the original) runs as a job: wait until it has finished trying.
         await _m3.ResultAsync("storage.reclaim", new { recordingIds = new[] { id }, codec = "mp3", bitrateKbps = 128, downmixMono = false });
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        await _m3.Get<StorageReclaimService>().WhenIdleAsync().WaitAsync(Patience.Ceiling);
 
         Assert.Equal(DomainErrorCodes.ProjectNotFound, error.GetProperty("code").GetString());
         await Assert.ThrowsAsync<ProjectNotFoundException>(() => _m3.Host.Store.LoadAsync(id, CancellationToken.None));
