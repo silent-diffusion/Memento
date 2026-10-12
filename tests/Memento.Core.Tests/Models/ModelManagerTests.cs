@@ -39,7 +39,7 @@ public sealed class ModelManagerTests : IDisposable
             """);
         _manager = new ModelManager(
             catalog,
-            new ModelStoreOptions(Path.Combine(_directory.Path, "models")) { SpaceMarginBytes = 0, ConnectTimeout = TimeSpan.FromSeconds(5) },
+            new ModelStoreOptions(Path.Combine(_directory.Path, "models")) { SpaceMarginBytes = 0, ConnectTimeout = Patience.Ceiling },
             _client,
             _freeSpace,
             new BridgeEventPublisher(_sink),

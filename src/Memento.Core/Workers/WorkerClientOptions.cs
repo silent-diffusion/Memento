@@ -18,4 +18,10 @@ public sealed record WorkerClientOptions
 
     /// <summary>How long a killed worker is waited for; after that it is logged and left to Windows (its job object).</summary>
     public TimeSpan KillGrace { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// The clock of <see cref="QuietLimit"/>. Tests move it by hand: on a stalled runner a scripted worker that answers
+    /// at once could otherwise stay silent past a short test limit and be stopped as hung.
+    /// </summary>
+    public TimeProvider Time { get; init; } = TimeProvider.System;
 }

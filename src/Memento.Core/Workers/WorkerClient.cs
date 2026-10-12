@@ -143,7 +143,7 @@ public sealed partial class WorkerClient(IWorkerLauncher launcher, ILogger<Worke
                 var read = reader.ReadLineAsync(CancellationToken.None).AsTask();
                 try
                 {
-                    line = await read.WaitAsync(_options.QuietLimit, CancellationToken.None);
+                    line = await read.WaitAsync(_options.QuietLimit, _options.Time, CancellationToken.None);
                 }
                 catch (IOException)
                 {
