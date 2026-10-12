@@ -24,8 +24,9 @@ public sealed class M4SettingsTests : IDisposable
         Assert.Equal("ministral-3-3b-q4", ai.GetProperty("localModelId").GetString());
         Assert.False(ai.GetProperty("localModelChosen").GetBoolean());
         Assert.Equal(AiModelDefaults.AnthropicModel, ai.GetProperty("providers").GetProperty("anthropic").GetProperty("model").GetString());
-        Assert.Equal(["claude-opus-5-5", "claude-fable-5-1"], ai.GetProperty("providers").GetProperty("anthropic").GetProperty("models").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal(["claude-opus-5-5", "claude-fable-5-1", "claude-sonnet-5-5", "claude-haiku-5-5"], ai.GetProperty("providers").GetProperty("anthropic").GetProperty("models").EnumerateArray().Select(m => m.GetString()));
         Assert.Equal(AiModelDefaults.OpenAiModel, ai.GetProperty("providers").GetProperty("openai").GetProperty("model").GetString());
+        Assert.Equal(["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"], ai.GetProperty("providers").GetProperty("openai").GetProperty("models").EnumerateArray().Select(m => m.GetString()));
         Assert.Equal("""{"defaultTemplateId":"meeting-minutes","defaultStyleId":"corporate","ocrEngine":"windows"}""", settings.GetProperty("documents").GetRawText());
     }
 
@@ -49,7 +50,35 @@ public sealed class M4SettingsTests : IDisposable
         Assert.Null(_host.Settings.Current.Ai.Providers.Anthropic.Model);
     }
 
+    [Fact]
+    public async Task EachCloudProviderCarriesItsModelChoicesWithNotes()
+    {
+        var anthropic = (await _host.ResultAsync("settings.get")).GetProperty("ai").GetProperty("providers").GetProperty("anthropic");
+
+        Assert.Equal(
+            """{"hasKey":true,"model":"claude-opus-5-5","models":["claude-opus-5-5","claude-fable-5-1","claude-sonnet-5-5","claude-haiku-5-5"],"choices":[{"id":"claude-opus-5-5","note":"The most capable for long transcripts. Memento\u0027s default.","contextTokens":1000000},{"id":"claude-fable-5-1","note":"Anthropic\u0027s top tier: the newest and most intelligent. Costs more and takes longer; the account needs 30-day data retention.","contextTokens":1000000},{"id":"claude-sonnet-5-5","note":"Fast and strong, at about half the price of Opus.","contextTokens":1000000},{"id":"claude-haiku-5-5","note":"The fastest and cheapest.","contextTokens":1000000}],"custom":false,"modelNote":"The most capable for long transcripts. Memento\u0027s default."}""",
+            anthropic.GetRawText());
+    }
+
+    [Fact]
+    public async Task AModelTypedByHandIsSavedAsTypedAndMarkedCustom()
+    {
+        var set = await _host.ResultAsync("settings.set", """{"ai":{"providers":{"anthropic":{"model":"  claude-opus-4-8 "},"openai":{"model":"gpt-6-luna"}}}}""");
+
+        var anthropic = set.GetProperty("ai").GetProperty("providers").GetProperty("anthropic");
+        var openai = set.GetProperty("ai").GetProperty("providers").GetProperty("openai");
+        Assert.Equal("claude-opus-4-8", anthropic.GetProperty("model").GetString());
+        Assert.True(anthropic.GetProperty("custom").GetBoolean());
+        Assert.StartsWith("Not in Memento's list.", anthropic.GetProperty("modelNote").GetString(), StringComparison.Ordinal);
+        Assert.Equal("gpt-6-luna", openai.GetProperty("model").GetString());
+        Assert.False(openai.GetProperty("custom").GetBoolean());
+        Assert.Equal("claude-opus-4-8", _host.Settings.Current.Ai.Providers.Anthropic.Model);
+        Assert.DoesNotContain("\"model\": \"\"", await File.ReadAllTextAsync(_host.SettingsFile), StringComparison.Ordinal);
+    }
+
     [Theory]
+    [InlineData("""{"ai":{"providers":{"anthropic":{"model":""}}}}""", "ai.providers.anthropic.model")]
+    [InlineData("""{"ai":{"providers":{"anthropic":{"model":"   "}}}}""", "ai.providers.anthropic.model")]
     [InlineData("""{"ai":{"defaultProviderId":"gemini"}}""", "ai.defaultProviderId")]
     [InlineData("""{"ai":{"defaultProviderId":3}}""", "ai.defaultProviderId")]
     [InlineData("""{"ai":{"localModelId":"whisper-small"}}""", "ai.localModelId")]
