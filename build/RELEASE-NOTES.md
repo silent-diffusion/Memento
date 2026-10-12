@@ -14,6 +14,14 @@ Small things that make the Library and recordings easier to live with. Memento u
 - **Delete audio.** Like Remove video: from Review's details or the row menu, after a confirmation that names the recording, its length, what it frees and what stays (the transcript, documents and video). The recording stays readable and Export says the audio was deleted. Refused while the recording is still being saved or processed.
 - **Settings › Storage and history › Delete audio tracks older than**: a day, a week, a month, 90 days, a year, two, three, four or five years, or Never (the default), with an estimate, the same confirmation, and a sweep at start and daily that never runs while recording or processing.
 
+### Recording
+
+- **Resume a stopped recording.** While a recording is saving, and from Review for any recording made today that still has its tracks, **Resume recording** continues it in the same project as a new segment. The earlier tracks stay exactly as saved and keep their hashes; new track files start with their own offsets, the real time in between is shown as a pause ("Resumed at 6:13 PM · paused 4 min") on the waveform, in Review's header and in the Library row, the mix is rebuilt over both segments, and the transcript and speakers run again over the whole recording with the earlier transcript kept as a version. A crash during the new segment repairs only that segment. Imported recordings, mix-only recordings and recordings whose audio was deleted cannot be resumed, and the reason is stated.
+
+### Updates
+
+- **Check now** now only checks, and says either "You are on the newest version (2.1.0)" or "2.2.0 is available" with that version's release notes shown in place. **Update now** then downloads with progress and offers **Restart to update**. The automatic daily check still downloads in the background as before.
+
 ## 2.0.0
 
 Video. Memento now records your screen, a window or your camera beside the audio, keeps every frame up to the last third of a second if the PC crashes, plays it in Review in step with the transcript, and exports it as one file with the camera inset or as separate files. Everything from 1.1.0 to 1.3.0 is in it, and Memento updates itself to it. This is the 2.0.0-beta.1 pre-release plus what its first testing found:
