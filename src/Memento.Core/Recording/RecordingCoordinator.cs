@@ -253,9 +253,18 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 throw new BridgeException(DomainErrorCodes.ProjectNotFound, "That recording is no longer in the Library, so it cannot be resumed. Start a new recording instead.", recordingId);
             }
 
-            if (_finalizing.ContainsKey(recordingId))
+            if (_finalizing.TryGetValue(recordingId, out var finalizing))
             {
-                manifest = manifest with { State = ProjectStates.Finalizing };
+                if (finalizing.Finished)
+                {
+                    // Saved and announced; its processing is being queued. Let that finish, then cancel it below.
+                    await finalizing.Task;
+                    manifest = await _store.LoadAsync(recordingId, cancellationToken);
+                }
+                else
+                {
+                    manifest = manifest with { State = ProjectStates.Finalizing };
+                }
             }
 
             if (ResumePolicy.WhyNot(manifest, _time.GetLocalNow()) is { } why)
