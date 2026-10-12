@@ -444,8 +444,9 @@ public sealed partial class TranscriptService(
             throw Invalid($"Language '{language}' is not available. Choose auto or a two- or three-letter language code such as en.");
         }
 
-        // The new pass starts from scratch: stop a running one and drop its partial results first.
-        await processing.StopForRequeueAsync(recordingId, StageNames.Transcript);
+        // The new pass starts from scratch: stop a running one and drop its partial results first; it starts over once
+        // the new options are written.
+        using var hold = await processing.StopForRequeueAsync(recordingId, StageNames.Transcript);
         Transcripts.DeletePartial(recordingId);
         await processing.RetranscribeAsync(recordingId, new ProcessingRequest(modelId, language), cancellationToken);
         await HistoryAsync(
