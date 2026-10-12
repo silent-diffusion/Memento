@@ -118,7 +118,7 @@ try {
   await run.shot('move-to-folder');
   await run.page.click({ name: 'Move to “Clients”' });
   await run.until(() => run.manifest(second.id).folder === 'Clients', 'project.json to name the folder');
-  run.check('Move to folder writes the folder into project.json (schema 5)', run.manifest(second.id).schemaVersion === 5 && run.manifest(second.id).folder === 'Clients');
+  run.check('Move to folder writes the folder into project.json (schema 5 or later)', run.manifest(second.id).schemaVersion >= 5 && run.manifest(second.id).folder === 'Clients');
   run.check('filing a recording moves no file', JSON.stringify(filesOf(second.id)) === JSON.stringify(before), Object.keys(before).join(', '));
   run.check('folders.json keeps the folder', existsSync(join(run.memento, 'Library', 'folders.json')));
   await run.page.click({ name: 'Clients, 1 recording' });
