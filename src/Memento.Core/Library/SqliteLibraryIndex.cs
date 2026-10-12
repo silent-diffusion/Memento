@@ -15,8 +15,8 @@ namespace Memento.Core.Library;
 public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
 {
     public const string DatabaseFileName = "library.db";
-    /// <summary>3 (2.0): the <c>video</c> column (the Library's video summary as JSON).</summary>
-    public const int SchemaVersion = 3;
+    /// <summary>3 (2.0): the <c>video</c> column (the Library's video summary as JSON). 4 (2.1): <c>folder</c> and <c>audioRemoved*</c>.</summary>
+    public const int SchemaVersion = 4;
 
     private const int SqliteCorrupt = 11;
     private const int SqliteNotADatabase = 26;
@@ -36,8 +36,12 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             isProcessing INTEGER NOT NULL,
             sizeBytes INTEGER NOT NULL,
             modifiedAt TEXT NOT NULL,
-            video TEXT);
+            video TEXT,
+            folder TEXT,
+            audioRemovedAt TEXT,
+            audioRemovedBytes INTEGER);
         CREATE INDEX IF NOT EXISTS ix_recordings_createdAtUtc ON recordings (createdAtUtc);
+        CREATE INDEX IF NOT EXISTS ix_recordings_folder ON recordings (folder COLLATE NOCASE);
         CREATE TABLE IF NOT EXISTS people (
             recordingId TEXT NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
             ordinal INTEGER NOT NULL,
@@ -60,7 +64,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         """;
 
     private const string SelectColumns =
-        "r.id, r.title, r.type, r.createdAt, r.durationMs, r.hasVideo, r.state, r.sizeBytes, r.video";
+        "r.id, r.title, r.type, r.createdAt, r.durationMs, r.hasVideo, r.state, r.sizeBytes, r.video, r.folder, r.audioRemovedAt, r.audioRemovedBytes";
 
     private readonly ILibraryLocation _library;
     private readonly IProjectStore _store;
@@ -182,11 +186,14 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             SELECT {SelectColumns} FROM recordings r
             WHERE r.state <> 'recording'
               AND ($type IS NULL OR r.type = $type)
+              AND ($byFolder = 0 OR ($folder IS NULL AND r.folder IS NULL) OR r.folder = $folder COLLATE NOCASE)
               AND ($match IS NULL OR r.id IN (SELECT id FROM recordings_fts WHERE recordings_fts MATCH $match))
             ORDER BY {order}
             """;
         command.Parameters.AddWithValue("$type", (object?)type ?? DBNull.Value);
         command.Parameters.AddWithValue("$match", (object?)match ?? DBNull.Value);
+        command.Parameters.AddWithValue("$byFolder", query.ByFolder ? 1 : 0);
+        command.Parameters.AddWithValue("$folder", (object?)query.Folder ?? DBNull.Value);
         var rows = await ReadRowsAsync(command, cancellationToken);
         var recordings = await AttachDetailsAsync(connection, rows, cancellationToken);
         var snippets = match is null || rows.Count == 0
@@ -206,6 +213,23 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         command.CommandText = $"SELECT {SelectColumns} FROM recordings r WHERE r.isProcessing = 1 ORDER BY r.createdAtUtc DESC, r.id DESC";
         var rows = await ReadRowsAsync(command, cancellationToken);
         return await AttachDetailsAsync(connection, rows, cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<string, int>> CountByFolderAsync(CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COALESCE(folder, ''), count(*) FROM recordings WHERE state <> 'recording' GROUP BY COALESCE(folder, '')";
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var folder = reader.GetString(0);
+            counts[folder] = counts.GetValueOrDefault(folder) + reader.GetInt32(1);
+        }
+
+        return counts;
     }
 
     public async Task<IReadOnlyList<string>> ListIdsByStateAsync(string state, CancellationToken cancellationToken)
@@ -364,8 +388,8 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         {
             insert.Transaction = transaction;
             insert.CommandText = """
-                INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt, video)
-                VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt, $video);
+                INSERT INTO recordings (id, title, type, createdAt, createdAtUtc, durationMs, participantCount, hasVideo, state, isProcessing, sizeBytes, modifiedAt, video, folder, audioRemovedAt, audioRemovedBytes)
+                VALUES ($id, $title, $type, $createdAt, $createdAtUtc, $durationMs, $participantCount, $hasVideo, $state, $isProcessing, $sizeBytes, $modifiedAt, $video, $folder, $audioRemovedAt, $audioRemovedBytes);
                 INSERT INTO recordings_fts (id, title, people, transcript) VALUES (
                     $id,
                     $title,
@@ -386,6 +410,9 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
             insert.Parameters.AddWithValue("$modifiedAt", manifest.ModifiedAt.ToString("o", CultureInfo.InvariantCulture));
             insert.Parameters.AddWithValue("$people", string.Join(' ', people));
             insert.Parameters.AddWithValue("$video", (object?)videoJson ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$folder", FolderPaths.TryNormalize(manifest.Folder, out var folder) ? (object)folder : DBNull.Value);
+            insert.Parameters.AddWithValue("$audioRemovedAt", (object?)manifest.AudioRemoved?.At.ToString("o", CultureInfo.InvariantCulture) ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$audioRemovedBytes", (object?)manifest.AudioRemoved?.BytesFreed ?? DBNull.Value);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -445,7 +472,11 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
                 reader.GetInt64(5) != 0,
                 reader.GetString(6),
                 reader.GetInt64(7),
-                reader.IsDBNull(8) ? null : reader.GetString(8)));
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.IsDBNull(9) ? null : reader.GetString(9),
+                reader.IsDBNull(10) ? null : new AudioRemovedInfo(
+                    DateTimeOffset.Parse(reader.GetString(10), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+                    reader.IsDBNull(11) ? 0 : reader.GetInt64(11))));
         }
 
         return rows;
@@ -514,7 +545,7 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
         {
             IReadOnlyList<string> rowPeople = people.TryGetValue(row.Id, out var p) ? p : [];
             IReadOnlyList<StageStatus> rowStages = stages.TryGetValue(row.Id, out var s) ? s : [];
-            var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes, Video.VideoMapper.FromJson(row.VideoJson));
+            var summary = ProjectMapper.BuildSummary(row.Id, row.Title, row.Type, row.CreatedAt, row.DurationMs, row.HasVideo, rowPeople, rowStages, row.State, row.SizeBytes, Video.VideoMapper.FromJson(row.VideoJson), row.Folder, row.AudioRemoved);
             if (speakers.TryGetValue(row.Id, out var named))
             {
                 summary = summary with { People = rowPeople.Concat(named.Where(n => !rowPeople.Contains(n, StringComparer.OrdinalIgnoreCase))).ToList() };
@@ -672,5 +703,5 @@ public sealed partial class SqliteLibraryIndex : ILibraryIndex, IDisposable
     [LoggerMessage(Level = LogLevel.Warning, Message = "Project {RecordingId} was left out of the library index because its project.json could not be read")]
     private partial void LogSkipped(string recordingId);
 
-    private sealed record Row(string Id, string Title, string Type, DateTimeOffset CreatedAt, long DurationMs, bool HasVideo, string State, long SizeBytes, string? VideoJson);
+    private sealed record Row(string Id, string Title, string Type, DateTimeOffset CreatedAt, long DurationMs, bool HasVideo, string State, long SizeBytes, string? VideoJson, string? Folder, AudioRemovedInfo? AudioRemoved);
 }

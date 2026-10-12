@@ -17,6 +17,8 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="SizeBytes">Size of the project folder on disk, kept in the index and refreshed on every project write.</param>
 /// <param name="MatchSnippet">For a <c>library.list</c> search that matched the transcript (M2): the words around the match; otherwise <c>null</c>.</param>
 /// <param name="Video">2.0: the recording's video tracks and whether they were removed; <c>null</c> when it never had video.</param>
+/// <param name="Folder">2.1: the Library folder it is filed in (<c>Clients/Acme</c>); <c>null</c> at the root.</param>
+/// <param name="AudioRemoved">2.1: set once "Delete audio" removed its tracks and mix; <c>null</c> while they are kept.</param>
 public sealed record RecordingSummary(
     string Id,
     string Title,
@@ -31,4 +33,6 @@ public sealed record RecordingSummary(
     string State,
     long SizeBytes,
     string? MatchSnippet = null,
-    RecordingVideoSummary? Video = null);
+    RecordingVideoSummary? Video = null,
+    string? Folder = null,
+    AudioRemovedInfo? AudioRemoved = null);

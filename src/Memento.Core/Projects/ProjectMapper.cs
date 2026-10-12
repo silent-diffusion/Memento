@@ -19,7 +19,9 @@ public static class ProjectMapper
             manifest.Stages,
             manifest.State,
             sizeBytes,
-            video);
+            video,
+            Library.FolderPaths.TryNormalize(manifest.Folder, out var folder) ? folder : null,
+            manifest.AudioRemoved is { } audio ? new AudioRemovedInfo(audio.At, audio.BytesFreed) : null);
     }
 
     /// <summary>Builds a summary, applying the Library's stage visibility rule (see <see cref="VisibleStages"/>).</summary>
@@ -34,7 +36,9 @@ public static class ProjectMapper
         IReadOnlyList<StageStatus> stages,
         string state,
         long sizeBytes,
-        RecordingVideoSummary? video = null) =>
+        RecordingVideoSummary? video = null,
+        string? folder = null,
+        AudioRemovedInfo? audioRemoved = null) =>
         new(
             id,
             title,
@@ -48,7 +52,9 @@ public static class ProjectMapper
             IsProcessing(stages),
             state,
             sizeBytes,
-            Video: video);
+            Video: video,
+            Folder: folder,
+            AudioRemoved: audioRemoved);
 
     /// <summary>
     /// Row and card pills: a finished <c>stored</c>, <c>topics</c> or <c>optimize</c> stage is left out, so a recording with no

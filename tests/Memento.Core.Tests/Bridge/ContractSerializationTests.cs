@@ -185,7 +185,7 @@ public sealed class ContractSerializationTests : IDisposable
             BridgeJsonContext.Default.LibraryListResult);
 
         Assert.Equal(
-            """{"recordings":[{"id":"20261006-100000-k3f9ab","title":"Q3 planning sync","type":"meeting","createdAt":"2026-10-06T10:00:00+01:00","durationMs":3734000,"participantCount":5,"hasVideo":false,"stages":[{"stage":"transcript","state":"active","percent":64,"label":"64% \u00B7 local GPU"},{"stage":"speakers","state":"queued","percent":null,"label":"Queued"}],"people":["Avery","Rowan"],"isProcessing":true,"state":"ready","sizeBytes":123456789,"matchSnippet":null,"video":null}],"totalDurationMs":3734000,"totalCount":1}""",
+            """{"recordings":[{"id":"20261006-100000-k3f9ab","title":"Q3 planning sync","type":"meeting","createdAt":"2026-10-06T10:00:00+01:00","durationMs":3734000,"participantCount":5,"hasVideo":false,"stages":[{"stage":"transcript","state":"active","percent":64,"label":"64% \u00B7 local GPU"},{"stage":"speakers","state":"queued","percent":null,"label":"Queued"}],"people":["Avery","Rowan"],"isProcessing":true,"state":"ready","sizeBytes":123456789,"matchSnippet":null,"video":null,"folder":null,"audioRemoved":null}],"totalDurationMs":3734000,"totalCount":1}""",
             json);
     }
 
@@ -208,7 +208,7 @@ public sealed class ContractSerializationTests : IDisposable
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(project, BridgeJsonContext.Default.Project));
         var root = document.RootElement;
-        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly,video,mixLevels", Names(root));
+        Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly,video,mixLevels,audioRemoved", Names(root));
         Assert.Equal(JsonValueKind.Null, root.GetProperty("video").ValueKind);
         Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda,whoSpoke", Names(root.GetProperty("details")));
         Assert.Equal("""{"count":null,"names":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());

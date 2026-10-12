@@ -91,7 +91,8 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(container.querySelector('.lbl')?.textContent).toBe('Audio sources');
     expect(container.textContent).toContain('Ready to record');
     expect(container.querySelector('.rec-timer')?.textContent).toBe('00:00:00');
-    expect(container.querySelector<HTMLInputElement>('#rec-title')?.value).toBe('Untitled meeting');
+    // 2.1: dated in Settings › General's format ("2026 February 16" by default).
+    expect(container.querySelector<HTMLInputElement>('#rec-title')?.value).toMatch(/^Untitled meeting · \d{4} [A-Z][a-z]+ \d{1,2}$/);
     expect(container.querySelector('.rec-subline')?.textContent).toBe('3 audio sources selected · audio only');
     const switches = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')];
     expect(switches.map((s) => [s.getAttribute('aria-label'), s.getAttribute('aria-checked'), s.disabled])).toEqual([
@@ -134,7 +135,7 @@ describe('Recording session (against the browser-preview host)', () => {
 
     await until(() => store.route.value.name === 'review', 4000);
     expect(store.route.value).toEqual({ name: 'review', recordingId: session?.recordingId });
-    await until(() => container.querySelector('.spoke-title')?.textContent === 'Untitled meeting');
+    await until(() => (container.querySelector('.spoke-title')?.textContent ?? '').startsWith('Untitled meeting · '));
     // The transcript waits for the stored tracks, then runs on its own (Settings › Transcription).
     await until(() => container.textContent.includes('Waiting to transcribe'));
     // Still storing: no peaks yet, and the sunk empty track says why.

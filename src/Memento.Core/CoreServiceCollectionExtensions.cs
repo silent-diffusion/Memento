@@ -53,6 +53,9 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<VideoStage>();
         services.AddSingleton<IProcessingStage>(sp => sp.GetRequiredService<VideoStage>());
         services.AddSingleton<Video.VideoRemovalService>();
+        services.AddSingleton<Audio.AudioRemovalService>();
+        services.AddSingleton<FolderStore>();
+        services.AddSingleton<FolderService>();
         services.AddSingleton<Video.VideoSourceWatch>();
         services.AddSingleton<StageStatusWriter>();
         services.AddSingleton<ProcessingOrchestrator>();

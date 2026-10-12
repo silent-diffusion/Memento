@@ -516,7 +516,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         return value;
     }
 
-    private static string ValidateTitle(string? title, string type)
+    private string ValidateTitle(string? title, string type)
     {
         var value = (title ?? string.Empty).Trim();
         if (value.Length > MaxTitleLength)
@@ -524,7 +524,8 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             throw new BridgeException(BridgeErrorCodes.InvalidParams, $"A title can be at most {MaxTitleLength} characters; this one has {value.Length}.");
         }
 
-        return value.Length == 0 ? $"Untitled {type}" : value;
+        // 2.1: "Untitled meeting · 2026 February 16", in Settings › General's date format.
+        return value.Length == 0 ? Formatting.DateFormats.UntitledTitle(type, _time.GetLocalNow(), _settings.Current.General.DateFormat) : value;
     }
 
     private static BridgeException SourceUnavailable(string name, string sourceId, string reason, bool recording) =>

@@ -1089,3 +1089,56 @@ interface Project { /* … */ mixLevels: { at: string; tracks: { trackId: string
 ## Error codes (even levels)
 
 `project.mixUnavailable` (the mix cannot be built again: the recording keeps only its mix, or a track file is not in its folder; nothing was changed).
+
+---
+
+# 2.1 — Folders, dates and Delete audio
+
+Three additions for 2.1: a date format chosen in Settings (new titles are dated with it), Library folders beside the timeline and type filters, and Delete audio (by hand and by age), built on the Remove video pattern. Contracts: `LibraryBridgeJsonContext` (host) and `ui/src/bridge/types.ts`; strict JSON pinned by `FolderTests`, `AudioRemovalTests` and `DateFormatTests`.
+
+## Settings snapshot (2.1)
+
+```ts
+type DateFormat = 'yearMonthDay' | 'dayMonthYear' | 'monthDayYear' | 'iso' | 'windows';
+interface GeneralSettings { /* … */ dateFormat: DateFormat; libraryView: 'timeline' | 'folders' }
+interface StorageReclaimSettings { /* … */ deleteAudioOlderThanDays: number | null } // null = Never, else 1, 7, 30, 90, 365, 730, 1095, 1460 or 1825
+```
+
+- `general.dateFormat` (Settings › General › Date format; default `yearMonthDay`): `2026 February 16`, `16 February 2026`, `February 16, 2026`, `2026-02-16`, or the long date of Windows' region settings. It is how every full date reads: the date in a new recording's title, the Library (a date in another year), Review's header and details, History and the documents' meta line and running header. Times and timecodes are unchanged; a title already given is never rewritten. Merged field by field like the rest of `general`; an unknown preset answers `settings.invalidValue`.
+- `general.libraryView` (default `timeline`): the Library's Folders / Timeline switch, remembered for this Windows user. `settings.invalidValue` for anything else.
+- `storage.deleteAudioOlderThanDays` (Settings › Storage and history › Delete audio tracks older than; default Never): merged like `removeVideoOlderThanDays`; exactly the nine ages above (a day, a week, a month, 90 days, a year, two to five years), JSON `null` for Never; any other value answers `settings.invalidValue` and changes nothing. With an age set, the host deletes the audio of recordings older than that, each with its History line (`audioRemoved.reason: 'age'`), once the page is ready, then once a day, and at once when the age is changed (the Settings confirmation comes first); never while a recording runs or processing works. It is the same loop as Remove video older than.
+
+`recording.start` with an empty title names the recording "Untitled {type} · {date}" in `general.dateFormat` ("Untitled meeting · 2026 February 16"); the Record screen sends the same title itself.
+
+## Shared types (2.1)
+
+```ts
+interface RecordingSummary { /* … */ folder: string | null; audioRemoved: AudioRemovedInfo | null }
+interface Project { /* … */ audioRemoved: AudioRemovedInfo | null } // then mixUrl and peaksUrl are null
+interface AudioRemovedInfo { at: string; bytesFreed: number }
+interface FolderInfo { path: string; name: string; parent: string | null; count: number; totalCount: number }
+```
+
+A **folder path** is names joined by `/` ("Clients/Acme"); `null` is the root (no folder). A name is 1–80 characters after trimming, without `/`, `\` or control characters, and not `.` or `..`; folders nest 8 deep at most; names compare without case. A folder's path is its id in every method. `count` is the recordings filed directly in it, `totalCount` those in it and every folder below it.
+
+## Methods (2.1)
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `library.list` | (as before) `+ folder?: string \| null` | (as before) | Left out: every folder (the timeline). `null`: only recordings at the root. A path: only the recordings filed directly in that folder. Search, the type filter and the sort apply inside it. A value that is not a folder path answers `bridge.invalidParams`. |
+| `folders.list` | `{}` | `{ folders: FolderInfo[], rootCount: number }` | Every folder sorted by path (`folders.json` together with every folder a recording names, with their parents), with its counts; `rootCount` counts the recordings at the root. Reads only. |
+| `folders.create` | `{ parent: string \| null, name: string }` | `{ path }` | A new empty folder. `folder.notFound` (no such parent), `folder.nameTaken` (the parent already holds that name), `folder.invalid` (a bad name, or deeper than 8). |
+| `folders.rename` | `{ path, name }` | `{ path }` | Renames in place; the recordings and folders inside follow. Changing only the case is allowed. `folder.notFound`, `folder.nameTaken`, `folder.invalid`. |
+| `folders.move` | `{ path, parent: string \| null }` | `{ path }` | Moves the folder with what it holds into another folder or the top level. `folder.invalid` for a move into itself or one of its own folders, or one that would nest deeper than 8; `folder.nameTaken`; `folder.notFound`. |
+| `folders.delete` | `{ path }` | `{ recordingsMoved, foldersMoved }` | After the page's confirmation. Removes the folder; the recordings and the folders in it move up into its parent (the root for a top-level folder). **No recording is deleted.** `folder.notFound`. |
+| `library.moveToFolder` | `{ recordingIds: string[], folder: string \| null }` | `{ moved }` | Files 1–1000 recordings in a folder or (`null`) the root; `moved` leaves out those already there. `folder.notFound`, `project.notFound`, `project.recording` (still being recorded or saved; nothing is moved), `bridge.invalidParams` (no ids). |
+| `audio.remove` | `{ recordingId }` | `{ freedBytes }` | The Delete audio dialog's action, after the page's confirmation (DESIGN.md §6.2). Writes `audioRemoved` into `project.json` **first** (the tracks stay listed without their hashes; `mix`, `peaks` and the audio hashes are cleared), **then** deletes every audio file: the files the tracks and the mix name (audio files directly in `tracks/`, and the mix and peaks at the top of the folder only), and the audio leftovers in `tracks/` (`*.wav`, `*.flac`, `*.m4a`, `*.aac`, `*.mp3`, parts and `.tmp` files), then writes History `stored` `completed` "Deleted the audio · 412 MB freed" ("2 audio tracks and the mix removed. The transcript and documents are kept; the audio can't be brought back."). The transcript, documents, attachments, annotations and any video are never touched; the recording stays in the Library and opens for reading. Errors: `project.notFound`, `project.recording`, `library.busy` (a stage of this recording is queued or running: every stage reads the audio), `bridge.invalidParams` (already deleted, or no audio files). |
+| `audio.removeEstimate` | `{ recordingIds: string[] \| null, olderThanDays: number \| null }` | `{ recordings, bytes }` | What Delete audio would free: the named recordings, or (ids null) every stored recording with audio older than `olderThanDays` (null: every one). Feeds Settings' "Would free 3.1 GB now, from 12 recordings" and the Delete audio dialog. Reads only. |
+
+Folder changes and filed recordings send `library.changed` (`recordingIds` empty when only folders changed), so the page reads `folders.list` and `library.list` again. After `audio.remove`: `processing.retry` and `transcript.retranscribe` answer `bridge.invalidParams` for the recording (nothing can be heard again), export lists the mixed audio and the tracks as unavailable with "Audio was deleted", and `library.usage` no longer counts them.
+
+**On disk.** `project.json` schema **5**: `folder` (`null` at the root) and `audioRemoved: { at, trackIds, bytesFreed, reason: 'user' | 'age' }`; the v4 → v5 step writes `folder: null` and sets an unreadable `folder` to the root. The folder is data only: filing, renaming, moving or deleting folders never moves or deletes a file. `<library>\folders.json` (`{ schemaVersion: 1, folders: string[] }`, written atomically) keeps empty folders through restarts and index rebuilds; the index (`library.db` schema 4) caches `folder` and `audioRemoved` per row.
+
+## Error codes (2.1)
+
+`folder.notFound` (the folder named is not in the Library any more; detail: the path), `folder.nameTaken` (a folder with that name, ignoring case, is already there; detail: the name), `folder.invalid` (the name is empty, too long or has `/` or `\`, or the move would put a folder in itself or nest deeper than 8; nothing was changed).

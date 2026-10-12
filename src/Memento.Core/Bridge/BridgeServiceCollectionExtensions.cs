@@ -87,6 +87,7 @@ public static class BridgeServiceCollectionExtensions
 
         // 2.0 video: sources, thumbnails, the recording's video tracks and inset, removing video.
         services.AddMementoVideoBridge();
+        services.AddMementoLibraryBridge();
 
         // Self-update (H1): the app replaces the client with Velopack; tests and build folders keep "cannot update".
         services.AddSingleton<IBridgeHandler, UpdatesStatusMethod>();

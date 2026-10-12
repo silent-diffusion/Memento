@@ -12,6 +12,7 @@ import { RestoreVersionDialog, RetranscribeDialog } from './TranscriptDialogs';
 import { RemoveAttachmentDialog } from './attachments/RemoveAttachmentDialog';
 import { ExportDialog } from '../screens/export/ExportDialog';
 import { AiKeyDialog, LibraryMoveDialog } from '../screens/settings/SettingsDialogs';
+import { DeleteAudioDialog, DeleteFolderDialog, FolderNameDialog, MoveToFolderDialog } from './FolderDialogs';
 
 function DialogError({ message }: { message: string | null }): JSX.Element | null {
   return message === null ? null : (
@@ -317,6 +318,15 @@ export function DialogHost(): JSX.Element | null {
         return <AiKeyDialog key={request.provider} request={request} close={close} />;
       case 'libraryMove':
         return <LibraryMoveDialog key={request.to} request={request} close={close} />;
+      // 2.1
+      case 'folderName':
+        return <FolderNameDialog key={request.mode === 'rename' ? request.path : `new:${request.parent ?? ''}`} request={request} close={close} />;
+      case 'deleteFolder':
+        return <DeleteFolderDialog key={request.folder.path} request={request} close={close} />;
+      case 'moveToFolder':
+        return <MoveToFolderDialog key={request.folderPath ?? request.recordingIds.join(',')} request={request} close={close} />;
+      case 'deleteAudio':
+        return <DeleteAudioDialog key={request.recordingId} request={request} close={close} />;
     }
   }
   const recovered = store.recoveryQueue.value[0];

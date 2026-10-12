@@ -60,7 +60,7 @@ export function updateLibraryView(bridge: BridgeClient, store: AppStore, action:
   if (action.type === 'search') {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(refetch, SEARCH_DEBOUNCE_MS);
-  } else if (action.type === 'filter' || action.type === 'sort' || action.type === 'clear') {
+  } else if (action.type === 'filter' || action.type === 'sort' || action.type === 'clear' || action.type === 'mode' || action.type === 'folder') {
     clearTimeout(searchTimer);
     refetch();
   }
@@ -82,6 +82,11 @@ export async function loadInitialData(bridge: BridgeClient, store: AppStore): Pr
     store.version.value = version;
     store.isDark.value = version.isDarkTheme;
     store.settings.value = settings;
+    // 2.1: the Library opens in the view it was left in (Folders or Timeline).
+    const mode = settings.general.libraryView;
+    if (store.libraryView.value.mode !== mode) {
+      updateLibraryView(bridge, store, { type: 'mode', mode });
+    }
     // A footer event may already have arrived; status.get is the same payload, so either is current.
     store.footer.value ??= status;
     adoptCurrentSession(store.recording, recordingBefore, current.session);

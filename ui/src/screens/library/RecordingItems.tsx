@@ -20,6 +20,7 @@ import { heightLabel, rolesLabel } from '../../format/video';
 import { snippetParts } from '../../format/transcript';
 import { waveformBars } from '../../format/waveform';
 import { ActionMenu, type MenuAction } from '../../components/Menus';
+import { DRAG_RECORDING } from './FolderTree';
 import { CheckIcon, ChevronRightIcon, MoreIcon, TypeIcon, VideoIcon, VideoRemovedIcon } from '../../components/icons';
 
 export interface ItemHandlers {
@@ -29,12 +30,26 @@ export interface ItemHandlers {
   remove: (recording: RecordingSummary) => void;
   /** processing.retry for a failed stage ("Transcript failed · Retry"). */
   retry: (recording: RecordingSummary, stage: StageName) => void;
+  /** 2.1: Move to folder… (DESIGN.md §6.1). */
+  moveToFolder?: (recording: RecordingSummary) => void;
+  /** 2.1: Delete audio… (DESIGN.md §6.2); not offered once the audio is gone. */
+  deleteAudio?: (recording: RecordingSummary) => void;
 }
 
-function Pills({ pills, onRetry, videoRemoved = false }: { pills: Pill[]; onRetry: (stage: StageName) => void; videoRemoved?: boolean }): JSX.Element {
+/** 2.1: a row or card can be dragged onto a folder in the Folders view. */
+function dragProps(recording: RecordingSummary): { draggable: boolean; onDragStart: (event: DragEvent) => void } {
+  return {
+    draggable: true,
+    onDragStart: (event: DragEvent) => {
+      event.dataTransfer?.setData(DRAG_RECORDING, recording.id);
+    },
+  };
+}
+
+function Pills({ pills, onRetry, videoRemoved = false, audioRemoved = false }: { pills: Pill[]; onRetry: (stage: StageName) => void; videoRemoved?: boolean; audioRemoved?: boolean }): JSX.Element {
   if (pills.length === 0) {
-    // A removed video's caption takes the place a pill would have (DESIGN.md §18.7).
-    return <span class="audio-only">{videoRemoved ? 'Video removed · audio kept' : 'Audio only'}</span>;
+    // A removed video's caption takes the place a pill would have (DESIGN.md §18.7); 2.1: so does deleted audio.
+    return <span class="audio-only">{audioRemoved ? 'Audio deleted' : videoRemoved ? 'Video removed · audio kept' : 'Audio only'}</span>;
   }
   return (
     <>
@@ -133,6 +148,10 @@ function actionsFor(recording: RecordingSummary, handlers: ItemHandlers): MenuAc
         handlers.retry(recording, s.stage);
       },
     })),
+    ...(handlers.moveToFolder === undefined ? [] : [{ label: 'Move to folder…', run: () => { handlers.moveToFolder?.(recording); } }]),
+    ...(handlers.deleteAudio === undefined || recording.audioRemoved !== null || recording.state === 'finalizing'
+      ? []
+      : [{ label: 'Delete audio…', run: () => { handlers.deleteAudio?.(recording); } }]),
     { label: 'Delete', run: () => { handlers.remove(recording); } },
   ];
 }
@@ -153,6 +172,7 @@ export function RecordingRow({ recording, selected, now, handlers, query }: Item
         class={selected ? 'row lib-row selected' : 'row lib-row'}
         type="button"
         data-recording-id={recording.id}
+        {...dragProps(recording)}
         onClick={() => {
           handlers.open(recording);
         }}
@@ -177,6 +197,7 @@ export function RecordingRow({ recording, selected, now, handlers, query }: Item
           <Pills
             pills={stagePills(recording.stages)}
             videoRemoved={isVideoRemoved(recording)}
+            audioRemoved={recording.audioRemoved !== null}
             onRetry={(stage) => {
               handlers.retry(recording, stage);
             }}

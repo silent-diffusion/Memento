@@ -166,4 +166,14 @@ public static class BridgeMethodNames
     public const string VideoRemoveEstimate = "video.removeEstimate";
     public const string VideoOpenPrivacySettings = "video.openPrivacySettings";
     public const string VideoRemove = "video.remove";
+
+    // 2.1: Library folders and Delete audio.
+    public const string FoldersList = "folders.list";
+    public const string FoldersCreate = "folders.create";
+    public const string FoldersRename = "folders.rename";
+    public const string FoldersMove = "folders.move";
+    public const string FoldersDelete = "folders.delete";
+    public const string LibraryMoveToFolder = "library.moveToFolder";
+    public const string AudioRemove = "audio.remove";
+    public const string AudioRemoveEstimate = "audio.removeEstimate";
 }

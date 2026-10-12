@@ -76,7 +76,8 @@ describe('{when} wording', () => {
     expect(dateBucket(at(2027, 1, 1, 22, 0), newYear).label).toBe('Yesterday');
     expect(formatWhen(at(2026, 12, 30, 16, 45), newYear)).toBe('Wed, 4:45 PM');
     expect(dateBucket(at(2026, 12, 30, 16, 45), newYear).label).toBe('Earlier this week');
-    expect(formatWhen(at(2026, 12, 20, 9, 0), newYear)).toBe('Dec 20, 2026');
+    // 2.1: a date in another year is a full date, in Settings › General's format (2026 December 20 by default).
+    expect(formatWhen(at(2026, 12, 20, 9, 0), newYear)).toBe('2026 December 20');
     expect(dateBucket(at(2026, 12, 20, 9, 0), newYear).label).toBe('December 2026');
   });
 

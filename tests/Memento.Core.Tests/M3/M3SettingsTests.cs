@@ -23,14 +23,14 @@ public sealed class M3SettingsTests : IDisposable
     {
         var result = await _m3.ResultAsync("settings.get", new { });
 
-        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true,"startWithWindowsAvailable":true,"startWithWindowsNote":null}""", result.GetProperty("general").GetRawText());
+        Assert.Equal("""{"startWithWindows":false,"keepRunningInTray":false,"language":"en","autoUpdate":true,"startWithWindowsAvailable":true,"startWithWindowsNote":null,"dateFormat":"yearMonthDay","libraryView":"timeline"}""", result.GetProperty("general").GetRawText());
         Assert.Equal(
             """{"saveCopiesOutside":false,"defaultFolder":null,"askWhereEachTime":true,"createSubfolder":true,"defaults":{"audioMixed":{"on":true,"format":"flac","bitrateKbps":null},"tracks":{"on":false,"format":"flac","bitrateKbps":null},"transcript":{"on":true,"formats":["json","markdown"],"options":{"timestamps":true,"speakers":true,"layout":"auto"}},"documents":{"on":false,"documentIds":[],"format":"docx"},"details":{"on":false},"attachments":{"on":false},"video":{"on":false,"format":"mp4","layout":"oneFile"}}}""",
             result.GetProperty("export").GetRawText());
         Assert.Equal(
             """{"enabled":false,"askBeforeSend":true,"keepRecord":true,"share":{"transcript":true,"details":true,"participants":true,"agenda":true,"highlights":true,"attachments":false},"providers":{"anthropic":{"hasKey":false,"model":"claude-opus-5-5","models":["claude-opus-5-5","claude-fable-5-1"]},"openai":{"hasKey":false,"model":"gpt-6-astra","models":["gpt-6-astra"]}},"defaultProviderId":null,"localModelId":"ministral-3-3b-q4","localModelChosen":false}""",
             result.GetProperty("ai").GetRawText());
-        Assert.Equal("""{"reclaimOlderThanDays":null,"removeVideoOlderThanDays":null}""", result.GetProperty("storage").GetRawText());
+        Assert.Equal("""{"reclaimOlderThanDays":null,"removeVideoOlderThanDays":null,"deleteAudioOlderThanDays":null}""", result.GetProperty("storage").GetRawText());
     }
 
     [Fact]

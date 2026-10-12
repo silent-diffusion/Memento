@@ -296,7 +296,7 @@ describe('Library, populated (against the browser-preview host)', () => {
     await act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="More actions for Customer call: onboarding feedback"]')?.click();
     });
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Rename', 'Change type', 'Retry transcript', 'Delete']);
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).toEqual(['Rename', 'Change type', 'Retry transcript', 'Move to folder…', 'Delete audio…', 'Delete']);
     await act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="More actions for Customer call: onboarding feedback"]')?.click();
     });

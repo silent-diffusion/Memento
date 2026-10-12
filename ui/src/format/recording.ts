@@ -68,7 +68,9 @@ export function isVideoRemoved(recording: RecordingSummary): boolean {
 /** A Library row's meta: "Presentation · 3 people · Sep 29 · video removed" after Remove video (DESIGN.md §18.7). */
 export function rowMetaLine(recording: RecordingSummary, now: Date): string {
   const meta = metaLine(recording, now);
-  return isVideoRemoved(recording) ? `${meta} · video removed` : meta;
+  const video = isVideoRemoved(recording) ? `${meta} · video removed` : meta;
+  // 2.1: still listed for its transcript once the audio was deleted.
+  return recording.audioRemoved != null ? `${video} · audio deleted` : video;
 }
 
 /** "10 recordings · 8 h 38 min · all on this PC". Reflects whatever the list currently shows. */

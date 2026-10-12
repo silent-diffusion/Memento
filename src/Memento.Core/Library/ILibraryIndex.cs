@@ -33,6 +33,9 @@ public interface ILibraryIndex
 
     Task<IReadOnlyList<string>> ListIdsByStateAsync(string state, CancellationToken cancellationToken);
 
+    /// <summary>2.1: listed recordings per folder path (<c>""</c> for the root), for <c>folders.list</c>.</summary>
+    Task<IReadOnlyDictionary<string, int>> CountByFolderAsync(CancellationToken cancellationToken);
+
     /// <summary>Empties the index and re-reads every project folder; returns how many recordings were indexed.</summary>
     Task<int> RebuildAsync(CancellationToken cancellationToken);
 }

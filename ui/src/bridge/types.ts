@@ -135,6 +135,10 @@ export const ERROR_CODES = [
   'video.cameraInUse',
   'video.encoderUnavailable',
   'video.diskFull',
+  // 2.1 Library folders (BRIDGE.md "2.1 — Folders, dates and Delete audio")
+  'folder.notFound',
+  'folder.nameTaken',
+  'folder.invalid',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -212,6 +216,16 @@ export interface RecordingSummary {
   matchSnippet: string | null;
   /** 2.0 video: the recording's video tracks and whether they were removed; null when it never had video. */
   video: RecordingVideoSummary | null;
+  /** 2.1: the Library folder it is filed in ("Clients/Acme"); null at the root. */
+  folder: string | null;
+  /** 2.1: set once "Delete audio" removed its tracks and mix; null while they are kept. */
+  audioRemoved: AudioRemovedInfo | null;
+}
+
+/** 2.1: when "Delete audio" ran and what it freed. */
+export interface AudioRemovedInfo {
+  at: string;
+  bytesFreed: number;
 }
 
 /** `imported` (M3): the one track of a recording made with library.importMedia (`sourceId: 'imported'`). */
@@ -350,6 +364,8 @@ export interface Project {
   video: ProjectVideo | null;
   /** After 2.0.0-beta.1: the gains "Even out source levels" gave each track in the mix; null when the mix sums them as recorded. */
   mixLevels: MixLevelsInfo | null;
+  /** 2.1: "Delete audio" removed the tracks, mix and peaks (mixUrl and peaksUrl are then null); null while they are kept. */
+  audioRemoved: AudioRemovedInfo | null;
 }
 
 /** 2.0: when the separate track files were removed, how many, and their size. */
@@ -958,6 +974,8 @@ export interface LibraryListParams {
   query?: string;
   type?: RecordingType | 'all';
   sort?: LibrarySort;
+  /** 2.1: left out = every folder (the timeline); null = the root only; a path = that folder only. */
+  folder?: string | null;
 }
 
 /** The result reflects the filter: count and total are for the matching recordings only. */
@@ -1682,7 +1700,17 @@ export interface GeneralSettings {
   startWithWindowsAvailable: boolean;
   /** 2.0, read only: why it is not available; null when it is. */
   startWithWindowsNote: string | null;
+  /** 2.1: how full dates read everywhere. Default 'yearMonthDay' ("2026 February 16"). */
+  dateFormat: DateFormat;
+  /** 2.1: the Library's Folders / Timeline switch. Default 'timeline'. */
+  libraryView: LibraryViewMode;
 }
+
+/** 2.1: Settings › General › Date format. */
+export type DateFormat = 'yearMonthDay' | 'dayMonthYear' | 'monthDayYear' | 'iso' | 'windows';
+
+/** 2.1: the Library's view. */
+export type LibraryViewMode = 'timeline' | 'folders';
 
 export interface ExportSettings {
   saveCopiesOutside: boolean;
@@ -1734,6 +1762,8 @@ export interface StorageReclaimSettings {
   reclaimOlderThanDays: number | null;
   /** 2.0 video: "Remove video older than"; null = Never, else 30, 90, 180 or 365. */
   removeVideoOlderThanDays: number | null;
+  /** 2.1: "Delete audio tracks older than"; null = Never, else 1, 7, 30, 90, 365, 730, 1095, 1460 or 1825. */
+  deleteAudioOlderThanDays: number | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2845,6 +2875,91 @@ export interface BridgeMethods {
   'video.openPrivacySettings': { params: VideoOpenPrivacySettingsParams; result: EmptyResult };
   'video.remove': { params: RecordingIdParams; result: VideoRemoveResult };
   'video.removeEstimate': { params: VideoRemoveEstimateParams; result: VideoRemoveEstimate };
+  // 2.1 Library folders and Delete audio
+  'folders.list': { params: EmptyParams; result: FoldersListResult };
+  'folders.create': { params: FolderCreateParams; result: FolderPathResult };
+  'folders.rename': { params: FolderRenameParams; result: FolderPathResult };
+  'folders.move': { params: FolderMoveParams; result: FolderPathResult };
+  'folders.delete': { params: FolderPathParams; result: FolderDeleteResult };
+  'library.moveToFolder': { params: LibraryMoveToFolderParams; result: LibraryMoveToFolderResult };
+  'audio.remove': { params: RecordingIdParams; result: AudioRemoveResult };
+  'audio.removeEstimate': { params: AudioRemoveEstimateParams; result: AudioRemoveEstimate };
+}
+
+// ---------------------------------------------------------------------------------------------
+// 2.1: Library folders and Delete audio (docs/BRIDGE.md "2.1 — Folders, dates and Delete audio")
+// ---------------------------------------------------------------------------------------------
+
+/** One Library folder. `path` ("Clients/Acme") is its id in every folder method. */
+export interface FolderInfo {
+  path: string;
+  name: string;
+  /** null at the top level. */
+  parent: string | null;
+  /** Recordings filed directly in it. */
+  count: number;
+  /** Recordings in it and its folders. */
+  totalCount: number;
+}
+
+export interface FoldersListResult {
+  /** Sorted by path. */
+  folders: FolderInfo[];
+  /** Recordings at the root. */
+  rootCount: number;
+}
+
+export interface FolderCreateParams {
+  parent: string | null;
+  name: string;
+}
+
+export interface FolderRenameParams {
+  path: string;
+  name: string;
+}
+
+export interface FolderMoveParams {
+  path: string;
+  parent: string | null;
+}
+
+export interface FolderPathParams {
+  path: string;
+}
+
+export interface FolderPathResult {
+  path: string;
+}
+
+/** What moved up into the parent; no recording is deleted. */
+export interface FolderDeleteResult {
+  recordingsMoved: number;
+  foldersMoved: number;
+}
+
+export interface LibraryMoveToFolderParams {
+  recordingIds: string[];
+  /** null: the root. */
+  folder: string | null;
+}
+
+export interface LibraryMoveToFolderResult {
+  moved: number;
+}
+
+export interface AudioRemoveResult {
+  freedBytes: number;
+}
+
+export interface AudioRemoveEstimateParams {
+  recordingIds: string[] | null;
+  olderThanDays: number | null;
+}
+
+export interface AudioRemoveEstimate {
+  recordings: number;
+  bytes: number;
 }
 
 /** Every host event: name -> payload. Mirrors BridgeEventNames.cs. */
@@ -3034,6 +3149,15 @@ export const METHOD_NAMES = [
   'video.openPrivacySettings',
   'video.remove',
   'video.removeEstimate',
+  // 2.1 Library folders and Delete audio
+  'folders.list',
+  'folders.create',
+  'folders.rename',
+  'folders.move',
+  'folders.delete',
+  'library.moveToFolder',
+  'audio.remove',
+  'audio.removeEstimate',
   // 2.0 documents: the follow-up email and the preview sheet
   'documents.copyModule',
   'generation.copyPreview',

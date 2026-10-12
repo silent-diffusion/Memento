@@ -24,6 +24,8 @@ const rec = (id: string, createdAt: Date, extra: Partial<RecordingSummary> = {})
   state: 'ready',
   sizeBytes: 0,
   matchSnippet: null,
+  folder: null,
+  audioRemoved: null,
   video: null,
   ...extra,
 });
@@ -45,7 +47,7 @@ describe('libraryViewReducer', () => {
   });
 
   it('clear resets search and filter but keeps sort, layout and position', () => {
-    const busy: LibraryViewState = { query: 'x', type: 'lecture', sort: 'title', layout: 'grid', scrollY: 400, selectedId: 'a' };
+    const busy: LibraryViewState = { query: 'x', type: 'lecture', sort: 'title', layout: 'grid', scrollY: 400, selectedId: 'a', mode: 'timeline', folder: null };
     expect(libraryViewReducer(busy, { type: 'clear' })).toEqual({ ...busy, query: '', type: 'all' });
   });
 

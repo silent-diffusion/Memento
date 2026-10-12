@@ -1,0 +1,245 @@
+/* 2.1: the Library's Folders view (DESIGN.md §6.1) and the Move to folder list. Tokens only; the
+   pane is a card (neo-card), rows sink when chosen (neo-in-xs), drop targets take accent-soft. */
+
+.lib-folders {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.lib-folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.lib-folder-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.folder-pane {
+  position: sticky;
+  top: 16px;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--neo-card);
+  padding: 12px 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+}
+
+.folder-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 0 10px;
+}
+
+.folder-pane-head .lbl {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.folder-new {
+  width: 32px;
+  height: 32px;
+}
+
+.folder-tree,
+.folder-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  border-radius: 14px;
+  padding-right: 4px;
+}
+
+.folder-row:hover {
+  background: var(--surface-2);
+}
+
+.folder-row.on {
+  box-shadow: var(--neo-in-xs);
+  background: var(--surface);
+}
+
+.folder-row.drop {
+  background: var(--accent-soft);
+  outline: 1px dashed var(--accent-text);
+}
+
+.folder-disclosure,
+.folder-disclosure-space {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.folder-disclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.folder-disclosure svg {
+  transition: transform 160ms ease;
+}
+
+.folder-disclosure.open svg {
+  transform: rotate(90deg);
+}
+
+.folder-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-row.on .folder-select {
+  color: var(--text);
+}
+
+.folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.folder-more {
+  width: 28px;
+  height: 28px;
+  opacity: 0;
+}
+
+.folder-row:hover .folder-more,
+.folder-row:focus-within .folder-more,
+.folder-more[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.folder-hint,
+.folder-error {
+  margin: 6px 10px 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.folder-error {
+  color: var(--danger);
+}
+
+/* Move to folder… */
+.move-list {
+  margin: 0 0 10px;
+  padding: 6px;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--neo-in);
+  max-height: 300px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.move-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.move-option:hover {
+  background: var(--surface-2);
+}
+
+.move-option input {
+  accent-color: var(--text);
+}
+
+.move-note {
+  margin-left: auto;
+  padding-right: 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* Review › Details: Move to folder… and Delete audio…; the line in place of playback once the audio is gone. */
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-actions:empty {
+  display: none;
+}
+
+.review-audio-removed {
+  margin: 0 0 10px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  box-shadow: var(--neo-in-xs);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+@media (max-width: 900px) {
+  .lib-folders {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .folder-pane {
+    position: static;
+    max-height: none;
+  }
+}

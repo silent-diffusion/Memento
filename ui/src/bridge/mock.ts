@@ -16,6 +16,7 @@ import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { linkHistory } from './mockHistory';
 import { localModelsInstalled } from './mockLocalModel';
 import { createMockVideo, videoFlagsFromQuery, videoRecordingSettings, type VideoFlag } from './mockVideo';
+import { createMockFolders, filterByFolder, SAMPLE_FOLDERS, sampleFolderOf } from './mockFolders';
 import type {
   AnnotationOrigin,
   BridgeEventEnvelope,
@@ -164,6 +165,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
   const projects = new Map<string, MockProject>();
   if (options.library !== 'empty') {
     for (const project of sampleProjects(new Date(now()))) {
+      // 2.1: a few samples are filed in folders, so the Folders view has something to show.
+      project.summary = { ...project.summary, folder: sampleFolderOf(project.summary.id) };
       projects.set(project.summary.id, project);
     }
   }
@@ -249,8 +252,9 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     summary: project.summary,
     details: project.details,
     tracks: project.tracks ?? mockTracks(project.summary.id, project.trackSources, project.summary.durationMs),
-    mixUrl: media?.mixUrl ?? null,
-    peaksUrl: media?.peaksUrl ?? null,
+    // 2.1: after Delete audio there is nothing to play.
+    mixUrl: project.summary.audioRemoved === null ? (media?.mixUrl ?? null) : null,
+    peaksUrl: project.summary.audioRemoved === null ? (media?.peaksUrl ?? null) : null,
     chapters: project.chapters,
     highlights: project.highlights,
     topics: project.topics,
@@ -260,6 +264,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     mixOnly: project.mixOnly ?? null,
     mixLevels: project.mixLevels ?? null,
     video: project.video ?? null,
+    audioRemoved: project.summary.audioRemoved,
     };
   };
 
@@ -417,6 +422,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         sizeBytes: 0,
         matchSnippet: null,
         video: null,
+        folder: null,
+        audioRemoved: null,
       };
       projects.set(summary.id, {
         summary,
@@ -557,6 +564,12 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
   });
   video.decorateSamples();
+
+  // 2.1: Library folders and Delete audio.
+  const folders = createMockFolders(
+    { now, projects, find, changed, settings: () => settings, recordingId: () => session.activeRecordingId() },
+    options.library === 'empty' ? [] : SAMPLE_FOLDERS,
+  );
   for (const item of recovered) {
     item.videoTracks = video.recovered(item.recordingId);
   }
@@ -723,7 +736,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       }
       return m4.present(settings);
     },
-    'library.list': (params) => queryLibrary(summaries(), params, (id, query) => transcription.librarySnippet(id, query)),
+    'library.list': (params) => queryLibrary(filterByFolder(summaries(), params), params, (id, query) => transcription.librarySnippet(id, query)),
     'library.processing': () => processingOf(listed(), (id) => video.failureOf(id)),
     'project.get': (params) => toProject(find(params.recordingId)),
     'project.updateDetails': (params) => {
@@ -1049,6 +1062,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       write: clipboard.write,
     }).handlers,
     ...video.handlers,
+    ...folders.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

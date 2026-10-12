@@ -123,7 +123,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     // The preview host's peaks.json (a blob URL) is fetched and drawn as 160 bars.
     await until(() => container.querySelectorAll('.wave-bar').length === 160);
     const facts = [...container.querySelectorAll('.facts dt')].map((dt) => dt.textContent);
-    expect(facts).toEqual(['Type', 'Recorded', 'Duration', 'Platform', 'Tracks', 'Video', 'Purpose']);
+    expect(facts).toEqual(['Type', 'Recorded', 'Duration', 'Platform', 'Tracks', 'Video', 'Folder', 'Purpose']);
     expect(container.querySelector('.fact-mono')?.textContent).toBe('1:10:02');
     expect(container.querySelector('.detail-caption')?.textContent).toBe('agenda.docx · parsed locally · Replace');
     // People are the transcript's speakers with talk-time shares, then the participant they do not name.

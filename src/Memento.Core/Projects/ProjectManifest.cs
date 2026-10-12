@@ -5,15 +5,16 @@ using Memento.Core.Bridge.Contracts;
 namespace Memento.Core.Projects;
 
 /// <summary>
-/// <c>project.json</c>, schema v4 (ARCHITECTURE.md §4). Fields this build does not know are kept in
+/// <c>project.json</c>, schema v5 (ARCHITECTURE.md §4). Fields this build does not know are kept in
 /// <see cref="ExtensionData"/> and written back unchanged. v2 (0.4.0) makes <see cref="Attachments"/> a typed field;
 /// v1 files carried the same array untyped, and <see cref="ProjectManifestMigrator"/> drops entries it cannot read. v3 (after
 /// 1.2.0) adds <see cref="ProjectDetails.WhoSpoke"/> (<see cref="WhoSpokeMigration"/>). v4 (2.0) types
-/// <see cref="VideoTracks"/> (<see cref="VideoTracksMigration"/>) and adds <see cref="VideoRemoved"/>.
+/// <see cref="VideoTracks"/> (<see cref="VideoTracksMigration"/>) and adds <see cref="VideoRemoved"/>. v5 (2.1) adds the
+/// Library <see cref="Folder"/> (<see cref="FolderMigration"/>) and <see cref="AudioRemoved"/>.
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
@@ -47,6 +48,15 @@ public sealed record ProjectManifest
 
     /// <summary>"Remove video, keep audio" deleted the video files (2.0); <c>null</c> while they are kept.</summary>
     public ProjectVideoRemoved? VideoRemoved { get; init; }
+
+    /// <summary>
+    /// 2.1: the Library folder the recording is filed in (<c>Clients/Acme</c>; <see cref="Library.FolderPaths"/>), or
+    /// <c>null</c> for the root. Data only: changing it never moves a file.
+    /// </summary>
+    public string? Folder { get; init; }
+
+    /// <summary>"Delete audio" removed the tracks, the mix and the peaks (2.1); <c>null</c> while they are kept.</summary>
+    public ProjectAudioRemoved? AudioRemoved { get; init; }
 
     /// <summary>Where the camera inset was over the recording (<c>recording.setPip</c>), in time order; empty without a camera.</summary>
     public IReadOnlyList<ProjectPipChange> VideoPip { get; set; } = [];

@@ -374,7 +374,8 @@ public sealed class RecordingPipelineTests : IDisposable
         var result = await _host.ResultAsync("recording.start", JsonSerializer.Serialize(new { title = "  ", type = "interview", sourceIds = new[] { Mic } }));
 
         var manifest = await _host.Store.LoadAsync(result.GetProperty("recordingId").GetString()!, CancellationToken.None);
-        Assert.Equal("Untitled interview", manifest.Details.Title);
+        // 2.1: dated, in Settings › General's format (2026 February 16 by default).
+        Assert.Equal($"Untitled interview · {manifest.CreatedAt.ToString("yyyy MMMM d", System.Globalization.CultureInfo.InvariantCulture)}", manifest.Details.Title);
         Assert.Equal("interview", manifest.Details.Type);
     }
 

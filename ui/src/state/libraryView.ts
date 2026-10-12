@@ -1,6 +1,6 @@
 // What the Library shows: search, type filter, sort and layout live here (not in components) so a
 // spoke can open and close without losing them (DESIGN.md §7, ARCHITECTURE.md §3).
-import type { LibraryListParams, LibrarySort, RecordingSummary, RecordingType } from '../bridge/types';
+import type { LibraryListParams, LibrarySort, LibraryViewMode, RecordingSummary, RecordingType } from '../bridge/types';
 import { FILTER_TYPES, isBuiltInType, typeName } from '../format/recording';
 import { dateBucket, parseIso } from '../format/when';
 
@@ -15,6 +15,10 @@ export interface LibraryViewState {
   scrollY: number;
   /** The row last opened or acted on; drawn as selected and focused again on return. */
   selectedId: string | null;
+  /** 2.1: Timeline (every recording, by date) or Folders (one folder at a time); Settings remembers it. */
+  mode: LibraryViewMode;
+  /** 2.1, Folders view: the folder shown ("Clients/Acme"); null is the Library's root. */
+  folder: string | null;
 }
 
 export const INITIAL_LIBRARY_VIEW: LibraryViewState = {
@@ -24,6 +28,8 @@ export const INITIAL_LIBRARY_VIEW: LibraryViewState = {
   layout: 'list',
   scrollY: 0,
   selectedId: null,
+  mode: 'timeline',
+  folder: null,
 };
 
 export type LibraryViewAction =
@@ -33,7 +39,9 @@ export type LibraryViewAction =
   | { type: 'layout'; layout: LibraryLayout }
   | { type: 'scroll'; y: number }
   | { type: 'select'; id: string | null }
-  | { type: 'clear' };
+  | { type: 'clear' }
+  | { type: 'mode'; mode: LibraryViewMode }
+  | { type: 'folder'; folder: string | null };
 
 export function libraryViewReducer(state: LibraryViewState, action: LibraryViewAction): LibraryViewState {
   switch (action.type) {
@@ -51,12 +59,16 @@ export function libraryViewReducer(state: LibraryViewState, action: LibraryViewA
       return { ...state, selectedId: action.id };
     case 'clear':
       return { ...state, query: '', type: 'all' };
+    case 'mode':
+      return action.mode === state.mode ? state : { ...state, mode: action.mode };
+    case 'folder':
+      return action.folder === state.folder ? state : { ...state, folder: action.folder, selectedId: null };
   }
 }
 
-/** True while a type filter or a search narrows the list (the processing card hides then). */
-export function isNarrowed(view: Pick<LibraryViewState, 'query' | 'type'>): boolean {
-  return view.type !== 'all' || view.query.trim() !== '';
+/** True while a type filter, a search or (2.1) the Folders view narrows the list (the processing card hides then). */
+export function isNarrowed(view: Pick<LibraryViewState, 'query' | 'type'> & Partial<Pick<LibraryViewState, 'mode'>>): boolean {
+  return view.type !== 'all' || view.query.trim() !== '' || view.mode === 'folders';
 }
 
 /** The library.list parameters for the current view. */
@@ -68,6 +80,10 @@ export function listParams(view: LibraryViewState): LibraryListParams {
   }
   if (view.type !== 'all') {
     params.type = view.type;
+  }
+  // 2.1: the Folders view lists one folder (null: the root); search and type still apply inside it.
+  if (view.mode === 'folders') {
+    params.folder = view.folder;
   }
   return params;
 }

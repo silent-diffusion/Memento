@@ -26,7 +26,9 @@ internal static class M3SettingsBlocks
                 general.Language,
                 general.AutoUpdate,
                 extras?.Startup.IsAvailable ?? true,
-                extras?.Startup.UnavailableReason),
+                extras?.Startup.UnavailableReason,
+                general.DateFormat,
+                general.LibraryView),
             Export = new ExportSettingsSnapshot(export.SaveCopiesOutside, export.DefaultFolder, export.AskWhereEachTime, export.CreateSubfolder, export.Defaults),
             Ai = new AiSettingsSnapshot(
                 ai.Enabled,
@@ -36,7 +38,7 @@ internal static class M3SettingsBlocks
                 new AiProvidersSnapshot(
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.Anthropic) ?? false),
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.OpenAi) ?? false))),
-            Storage = new LibraryStorageSettingsSnapshot(settings.Storage.ReclaimOlderThanDays, settings.Storage.RemoveVideoOlderThanDays),
+            Storage = new LibraryStorageSettingsSnapshot(settings.Storage.ReclaimOlderThanDays, settings.Storage.RemoveVideoOlderThanDays, settings.Storage.DeleteAudioOlderThanDays),
         };
     }
 
@@ -55,6 +57,8 @@ internal static class M3SettingsBlocks
                     KeepRunningInTray = general.KeepRunningInTray ?? next.General.KeepRunningInTray,
                     Language = general.Language?.Trim() ?? next.General.Language,
                     AutoUpdate = general.AutoUpdate ?? next.General.AutoUpdate,
+                    DateFormat = general.DateFormat?.Trim() ?? next.General.DateFormat,
+                    LibraryView = general.LibraryView?.Trim() ?? next.General.LibraryView,
                 },
             };
         }
@@ -110,6 +114,7 @@ internal static class M3SettingsBlocks
                 {
                     ReclaimOlderThanDays = NullableDays(storage.ReclaimOlderThanDays, next.Storage.ReclaimOlderThanDays, "storage.reclaimOlderThanDays"),
                     RemoveVideoOlderThanDays = NullableDays(storage.RemoveVideoOlderThanDays, next.Storage.RemoveVideoOlderThanDays, "storage.removeVideoOlderThanDays"),
+                    DeleteAudioOlderThanDays = NullableDays(storage.DeleteAudioOlderThanDays, next.Storage.DeleteAudioOlderThanDays, "storage.deleteAudioOlderThanDays"),
                 },
             };
         }

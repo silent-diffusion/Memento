@@ -14,6 +14,7 @@ namespace Memento.Core.Projects;
 [JsonSerializable(typeof(HistoryLine))]
 [JsonSerializable(typeof(RecordingStateDocument))]
 [JsonSerializable(typeof(VideoTrack))]
+[JsonSerializable(typeof(Library.FoldersDocument))]
 internal sealed partial class ProjectJsonContext : JsonSerializerContext
 {
     /// <summary>The same contracts written on one line, for <c>history.jsonl</c>.</summary>

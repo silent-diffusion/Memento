@@ -516,7 +516,8 @@ public sealed partial class ProjectService(
             store.GetSizeBytes(manifest.Id),
             manifest.MixOnly is { } mixOnly ? new MixOnlyInfo(mixOnly.At, mixOnly.TrackIds.Count, mixOnly.BytesFreed) : null,
             Video.VideoMapper.ToProject(manifest, folder, finalized),
-            manifest.Mix?.EvenLevels is { } levels ? new MixLevelsInfo(levels.At, levels.Tracks) : null);
+            manifest.Mix?.EvenLevels is { } levels ? new MixLevelsInfo(levels.At, levels.Tracks) : null,
+            manifest.AudioRemoved is { } audio ? new AudioRemovedInfo(audio.At, audio.BytesFreed) : null);
     }
 
     /// <summary>

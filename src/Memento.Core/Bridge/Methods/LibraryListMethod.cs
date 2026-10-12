@@ -41,7 +41,22 @@ public sealed class LibraryListMethod(ILibraryIndex index, LibraryOpener? opener
             await opener.EnsureOpenAsync("Memento cannot show it until it is back.", cancellationToken);
         }
 
-        var result = await index.QueryAsync(new LibraryQuery(parameters.Query, parameters.Type, sort), cancellationToken);
+        var query = new LibraryQuery(parameters.Query, parameters.Type, sort);
+        switch (parameters.Folder.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Undefined:
+                break;
+            case System.Text.Json.JsonValueKind.Null:
+                query = query with { ByFolder = true };
+                break;
+            case System.Text.Json.JsonValueKind.String when FolderPaths.TryNormalize(parameters.Folder.GetString(), out var folder):
+                query = query with { ByFolder = true, Folder = folder };
+                break;
+            default:
+                throw new BridgeException(BridgeErrorCodes.InvalidParams, "folder is a folder path such as \"Clients/Acme\", null for the root, or left out for every folder.");
+        }
+
+        var result = await index.QueryAsync(query, cancellationToken);
         return new LibraryListResult(result.Recordings, result.TotalDurationMs, result.TotalCount);
     }
 }

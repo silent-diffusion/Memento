@@ -1,8 +1,8 @@
 import type { JSX } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
-import type { LibrarySort, RecordingSummary, RecordingType } from '../../bridge/types';
+import type { LibrarySort, LibraryViewMode, RecordingSummary, RecordingType } from '../../bridge/types';
 import { BannerSlot } from '../../components/Banners';
-import { ChipGroup } from '../../components/Controls';
+import { ChipGroup, Segmented } from '../../components/Controls';
 import { EmptyLibrary } from '../../components/EmptyLibrary';
 import { GridIcon, ListIcon } from '../../components/icons';
 import { LibraryHeader, SEARCH_PLACEHOLDER, SEARCH_PLACEHOLDER_EMPTY } from '../../components/LibraryHeader';
@@ -20,6 +20,9 @@ import {
   SORT_OPTIONS,
   type LibraryViewAction,
 } from '../../state/libraryView';
+import { folderTrail } from '../../format/folders';
+import { requestDeleteAudio, setLibraryMode } from '../../state/folderActions';
+import { FolderTree, useFolders } from './FolderTree';
 import { ImportErrorCard, importMedia } from './ImportMedia';
 import { ProcessingCard } from './ProcessingCard';
 import { RecordingCard, RecordingRow, type ItemHandlers } from './RecordingItems';
@@ -43,6 +46,15 @@ function itemHandlers(services: AppServices): ItemHandlers {
     },
     remove: (recording) => {
       void requestDelete(services, recording.id);
+    },
+    // 2.1
+    moveToFolder: (recording) => {
+      select(recording);
+      store.dialog.value = { kind: 'moveToFolder', recordingIds: [recording.id], title: recording.title, current: recording.folder };
+    },
+    deleteAudio: (recording) => {
+      select(recording);
+      void requestDeleteAudio(services, recording);
     },
     retry: (recording, stage) => {
       select(recording);
@@ -90,7 +102,12 @@ function useRestoreLibraryPosition(services: AppServices): void {
   }, [services]);
 }
 
-/** The Library hub (DESIGN.md §3, §4, §6, §16). */
+const VIEW_OPTIONS: readonly { value: LibraryViewMode; label: string }[] = [
+  { value: 'timeline', label: 'Timeline' },
+  { value: 'folders', label: 'Folders' },
+];
+
+/** The Library hub (DESIGN.md §3, §4, §6, §16; 2.1 folders §6.1). */
 export function LibraryScreen(): JSX.Element {
   const services = useServices();
   const { bridge, store } = services;
@@ -102,6 +119,7 @@ export function LibraryScreen(): JSX.Element {
   const isEmpty = library !== null && library.totalCount === 0 && library.recordings.length === 0;
   const now = services.now();
   const [pendingRemedy, setPendingRemedy] = useState<string | null>(null);
+  const folders = useFolders(services);
 
   useRestoreLibraryPosition(services);
 
@@ -175,6 +193,33 @@ export function LibraryScreen(): JSX.Element {
   const processing = store.processing.value;
   const showProcessing = view.layout === 'list' && !narrowed && processing?.current != null;
   const compact = settings?.listDensity === 'compact';
+  const chips = (
+    <ChipGroup<RecordingType | 'all'>
+      label="Filter by type"
+      value={view.type}
+      chips={filterChips(library.recordings)}
+      onChange={(recordingType) => {
+        dispatch({ type: 'filter', recordingType });
+      }}
+    />
+  );
+  const searching = view.query.trim() !== '' || view.type !== 'all';
+  const list = (
+    <RecordingGroups
+      groups={groups}
+      layout={view.layout}
+      compact={compact}
+      selectedId={view.selectedId}
+      now={now}
+      handlers={handlers}
+      query={view.query}
+      emptyText={
+        view.mode === 'folders' && !searching
+          ? 'This folder has no recordings yet. Drag a recording onto it, or choose Move to folder… in a recording’s menu.'
+          : 'No recordings match. Try another type or clear the search.'
+      }
+    />
+  );
 
   return (
     <>
@@ -192,6 +237,15 @@ export function LibraryScreen(): JSX.Element {
               </p>
             </div>
             <div class="lib-heading-actions">
+              {/* 2.1: Folders beside the timeline, never instead of it; remembered in Settings. */}
+              <Segmented<LibraryViewMode>
+                label="Library view"
+                value={view.mode}
+                options={VIEW_OPTIONS}
+                onChange={(mode) => {
+                  setLibraryMode(services, mode);
+                }}
+              />
               <SelectMenu<LibrarySort>
                 label="Sort"
                 variant="sort"
@@ -244,17 +298,52 @@ export function LibraryScreen(): JSX.Element {
             />
           ) : null}
 
-          <ChipGroup<RecordingType | 'all'>
-            label="Filter by type"
-            value={view.type}
-            chips={filterChips(library.recordings)}
-            onChange={(recordingType) => {
-              dispatch({ type: 'filter', recordingType });
-            }}
-          />
+          {view.mode === 'folders' ? null : chips}
 
+          {view.mode === 'folders' ? (
+            <div class="lib-folders">
+              <FolderTree selected={view.folder} folders={folders.folders} error={folders.error} />
+              <div class="lib-folder-list">
+                <h2 class="lib-folder-title">{folderTrail(view.folder)}</h2>
+                {chips}
+                {list}
+              </div>
+            </div>
+          ) : (
+            list
+          )}
+        </div>
+      </main>
+      {footer}
+    </>
+  );
+}
+
+/** The recordings of the current view: date groups as list rows or grid cards, or the no-match box. */
+function RecordingGroups({
+  groups,
+  layout,
+  compact,
+  selectedId,
+  now,
+  handlers,
+  query,
+  emptyText,
+}: {
+  groups: ReturnType<typeof groupRecordings>;
+  layout: 'list' | 'grid';
+  compact: boolean;
+  selectedId: string | null;
+  now: Date;
+  handlers: ItemHandlers;
+  query: string;
+  emptyText: string;
+}): JSX.Element {
+  const view = { layout, selectedId, query };
+  return (
+    <>
           {groups.length === 0 ? (
-            <div class="no-match">No recordings match. Try another type or clear the search.</div>
+            <div class="no-match">{emptyText}</div>
           ) : (
             groups.map((group) => (
               <section key={group.key} class={view.layout === 'grid' ? 'lib-group lib-group--grid' : 'lib-group'} aria-labelledby={`group-${group.key}`}>
@@ -291,9 +380,6 @@ export function LibraryScreen(): JSX.Element {
               </section>
             ))
           )}
-        </div>
-      </main>
-      {footer}
     </>
   );
 }
