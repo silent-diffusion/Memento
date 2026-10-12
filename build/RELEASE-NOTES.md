@@ -3,6 +3,17 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.2.0
+
+### Fixed
+
+- **Identify speakers again, Transcribe again and retries no longer race the pass they replace.** A stage that was stopped to run again could restart before its new settings were written, so a second pass ran with the old ones and a third followed; and a request that landed as a pass ended could be lost. The run now waits for the new settings and queues the recording again when a request lands late.
+- **The Library's index can no longer go back to an older state.** A recording's row was rewritten from a manifest read moments before a change, so the Library could show stages the recording no longer had. Writes and their index updates now happen one at a time.
+- **A source turned on mid-recording that had not delivered audio yet now starts at the moment it was added**, not at zero, in the live list, at checkpoints and in the saved recording; and stopping a late source no longer cuts up to 100 ms from its end.
+- **Formatting marks in an agenda line are always stripped**, even when the PC stalls during the match; a match cut short by a stall is retried, while hostile text is still refused.
+- **A project file held open by another program for a moment** (a virus scanner reading it, for instance) is now outlasted for up to 10 seconds before a save or a delete gives up, instead of 2.
+- Memento's own test suite no longer depends on elapsed time, so releases stop waiting on reruns of a slow build machine.
+
 ## 2.1.2
 
 - **Fixed: settings still could not be changed after 2.1.1 on a PC that had run 2.1.0.** 2.1.1 read a missing date format or library view as its default, but 2.1.0 had already written them into the settings file as empty text, and an empty value was still refused, so reinstalling did not help either. Memento now repairs an empty or unknown date format or library view to its default when it reads the file, and says so in the log. Your other settings are kept as they are.
