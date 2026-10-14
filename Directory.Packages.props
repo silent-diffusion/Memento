@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup Label="Analyzers">
     <!-- Pinned so every SDK (local 8.0 band, newer CI images) runs the same rules; build-time only. -->
-    <GlobalPackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401" />
+    <GlobalPackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.402" />
   </ItemGroup>
   <ItemGroup Label="Host">
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
