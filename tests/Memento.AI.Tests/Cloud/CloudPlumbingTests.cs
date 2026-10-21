@@ -128,6 +128,8 @@ public sealed class CloudPlumbingTests
             AiErrors.ModelNotInstalled("Local model", "Qwen3.5 4B"),
             AiErrors.NotEnoughVram("Local model", "Qwen3.5 4B", 2L << 30, 3L << 30),
             AiErrors.WorkerCrashed("Local model", "Qwen3.5 4B"),
+            AiErrors.NotEnoughMemory("Local model", "Qwen3.5 35B-A3B", 25L << 30, 11L << 30),
+            AiErrors.UnloadedForRecording("Local model", "Qwen3.5 35B-A3B", 3L << 29),
         };
 
         Assert.Equal(AiErrorCodes.All.ToHashSet(), errors.Select(e => e.Code).ToHashSet());
@@ -135,5 +137,7 @@ public sealed class CloudPlumbingTests
         Assert.Equal("Claude could not be reached: no network. Nothing was sent twice and no document was changed.", AiErrors.NoNetwork("Claude").Message);
         Assert.Equal("The graphics card has 2.0 GB of free memory and Qwen3.5 4B needs 3.0 GB. Nothing left this PC and no document was changed. Close apps that use the graphics card, or run the model on the processor.", errors[9].Message);
         Assert.Contains("Try again in 30 seconds.", errors[2].Message, StringComparison.Ordinal);
+        Assert.Equal("Qwen3.5 35B-A3B needs 25 GB of memory; this PC has 11 GB free. Nothing left this PC and no document was changed. Close other programs or choose a smaller model.", errors[11].Message);
+        Assert.Equal("Qwen3.5 35B-A3B was unloaded because a recording started and this PC had 1.5 GB of memory free, too little to keep both. The recording is not affected. Nothing left this PC and no document was changed. Generate the document again when the recording has finished, or choose a smaller model.", errors[12].Message);
     }
 }

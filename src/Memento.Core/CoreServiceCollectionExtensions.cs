@@ -70,6 +70,7 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<IResourceProbe, NullResourceProbe>();
         services.TryAddSingleton<ProcessingGate>();
         services.TryAddSingleton<EngineSelector>();
+        services.TryAddSingleton<IMemoryDemands, AppMemoryDemands>();
         services.TryAddSingleton<EngineStatusService>();
         services.TryAddSingleton(WorkerLocation.Default);
         services.TryAddSingleton<IWorkerLauncher, ProcessWorkerLauncher>();

@@ -33,9 +33,15 @@ public static class AiErrorCodes
     /// <summary>The graphics card does not have enough free memory, or allocations spilled to shared memory.</summary>
     public const string NotEnoughVram = "ai.notEnoughVram";
 
+    /// <summary>
+    /// A larger local model does not fit in RAM and video memory with what Windows, the app and a recording need kept free,
+    /// or it was unloaded because a recording started and capture would have been short of memory.
+    /// </summary>
+    public const string NotEnoughMemory = "ai.notEnoughMemory";
+
     /// <summary>The local model's worker process stopped without an answer.</summary>
     public const string WorkerCrashed = "ai.workerCrashed";
 
     public static IReadOnlyList<string> All { get; } =
-        [NoKey, InvalidKey, RateLimited, Network, ProviderError, ContentTooLong, UnknownModel, Cancelled, ModelNotInstalled, NotEnoughVram, WorkerCrashed];
+        [NoKey, InvalidKey, RateLimited, Network, ProviderError, ContentTooLong, UnknownModel, Cancelled, ModelNotInstalled, NotEnoughVram, NotEnoughMemory, WorkerCrashed];
 }

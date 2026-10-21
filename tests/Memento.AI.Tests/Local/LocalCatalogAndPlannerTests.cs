@@ -43,10 +43,49 @@ public sealed class LocalCatalogAndPlannerTests
     {
         var entries = ModelCatalog.Default.OfKind(ModelKinds.Llm).ToList();
 
-        Assert.Equal([LocalModelCatalog.Qwen35FourB, LocalModelCatalog.Ministral3ThreeB], entries.Select(m => m.Id));
+        Assert.Equal([LocalModelCatalog.Qwen35FourB, LocalModelCatalog.Ministral3ThreeB, LocalModelCatalog.Qwen35TwentySevenB, LocalModelCatalog.Qwen35MoE], entries.Select(m => m.Id));
         Assert.All(entries, m => Assert.True(m.ExtensionData!.ContainsKey("llm")));
         Assert.All(entries, m => Assert.Equal(LocalModelCatalog.Engine, m.Engine));
         Assert.Equal(entries.Select(e => e.Id), LocalModelCatalog.Models.Select(m => m.Id));
+    }
+
+    [Fact]
+    public void TheLargerModelsAreVerifiedApacheModelsThatCanBeSplit()
+    {
+        var dense = ModelCatalog.Default.Find(LocalModelCatalog.Qwen35TwentySevenB)!;
+        var moe = ModelCatalog.Default.Find(LocalModelCatalog.Qwen35MoE)!;
+
+        Assert.Equal(16_740_812_704, dense.SizeBytes);
+        Assert.Equal("84b5f7f112156d63836a01a69dc3f11a6ba63b10a23b8ca7a7efaf52d5a2d806", dense.Sha256);
+        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf", dense.Url);
+        Assert.Equal(22_016_023_168, moe.SizeBytes);
+        Assert.Equal("3b46d1066bc91cc2d613e3bc22ce691dd77e6f0d33c9060690d24ce6de494375", moe.Sha256);
+        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf", moe.Url);
+        Assert.All([dense, moe], m =>
+        {
+            Assert.Equal(ModelGroups.Larger, m.Group);
+            Assert.Equal("Apache-2.0", m.License);
+            Assert.Equal("either", m.RunsOn);
+            Assert.Null(m.RecommendedFor);
+            Assert.Null(m.MinVramBytes);
+            Assert.Matches("^[0-9a-f]{64}$", m.Sha256);
+            Assert.InRange(m.SizeBytes, 15L << 30, 25L << 30);
+            var local = LocalModelCatalog.ToLocal(m)!;
+            Assert.True(local.Llm.CanSplit);
+            Assert.Equal(LocalChatTemplates.Qwen35, local.Llm.TemplateId);
+
+            // The weights the profile places are the file within 5 % (the embeddings are in the host part).
+            Assert.InRange(local.Llm.WeightBytes + local.Llm.HostBytes, m.SizeBytes * 0.95, m.SizeBytes * 1.10);
+
+            // The catalog's minimum memory is the planner's footprint at the smallest context, without the reserves.
+            Assert.Equal(local.Llm.HostBytes + local.Llm.WeightBytes + (local.Llm.KvBytesPerToken * local.Llm.MinContextTokens) + MemoryHeadroom.Default.CpuComputeBytes, m.MinRamBytes);
+        });
+        Assert.False(LocalModelCatalog.ToLocal(dense)!.Llm.IsMixtureOfExperts);
+        Assert.True(LocalModelCatalog.ToLocal(moe)!.Llm.IsMixtureOfExperts);
+        Assert.Equal("qwen35", LocalModelCatalog.ToLocal(dense)!.Llm.Architecture);
+        Assert.Equal("qwen35moe", LocalModelCatalog.ToLocal(moe)!.Llm.Architecture);
+        Assert.Equal(8.0 / 256, LocalModelCatalog.ToLocal(moe)!.Llm.ActiveExpertShare);
+        Assert.All(ModelCatalog.Default.OfKind(ModelKinds.Llm).Where(m => m.Group is null), m => Assert.False(LocalModelCatalog.ToLocal(m)!.Llm.CanSplit));
     }
 
     [Fact]
