@@ -91,11 +91,13 @@ public sealed class M2ContractSerializationTests : IDisposable
     {
         var info = new ModelInfo("whisper-large-v3-turbo", "transcription", "Large v3 Turbo", "d", 1_624_555_275, "MIT", false, new ModelInstalling(42, 682_000_000), true, "gpu", 2_684_354_560, "Most accurate", null);
         var voice = new ModelInfo("nemo-titanet-small", "speakers", "Voice model", "d", 40_257_283, "CC-BY-4.0", true, null, true, "cpu", null, "Most accurate", "embedding");
+        var larger = new ModelInfo("qwen3.5-35b-a3b-q4", "llm", "Qwen3.5 35B-A3B", "d", 22_016_023_168, "Apache-2.0", false, null, false, "either", null, "Mixture of experts: fast for its size", null) { Group = "larger", MinRamBytes = 23_242_735_616 };
 
         Assert.Equal(
-            """{"models":[{"id":"whisper-large-v3-turbo","engine":"transcription","name":"Large v3 Turbo","description":"d","sizeBytes":1624555275,"license":"MIT","installed":false,"installing":{"percent":42,"bytesDone":682000000},"recommended":true,"runsOn":"gpu","minVramBytes":2684354560,"accuracyNote":"Most accurate","role":null},"""
-            + """{"id":"nemo-titanet-small","engine":"speakers","name":"Voice model","description":"d","sizeBytes":40257283,"license":"CC-BY-4.0","installed":true,"installing":null,"recommended":true,"runsOn":"cpu","minVramBytes":null,"accuracyNote":"Most accurate","role":"embedding"}]}""",
-            Json(new ModelsListResult([info, voice]), BridgeJsonContext.Default.ModelsListResult));
+            """{"models":[{"id":"whisper-large-v3-turbo","engine":"transcription","name":"Large v3 Turbo","description":"d","sizeBytes":1624555275,"license":"MIT","installed":false,"installing":{"percent":42,"bytesDone":682000000},"recommended":true,"runsOn":"gpu","minVramBytes":2684354560,"accuracyNote":"Most accurate","role":null,"group":null,"minRamBytes":null},"""
+            + """{"id":"nemo-titanet-small","engine":"speakers","name":"Voice model","description":"d","sizeBytes":40257283,"license":"CC-BY-4.0","installed":true,"installing":null,"recommended":true,"runsOn":"cpu","minVramBytes":null,"accuracyNote":"Most accurate","role":"embedding","group":null,"minRamBytes":null},"""
+            + """{"id":"qwen3.5-35b-a3b-q4","engine":"llm","name":"Qwen3.5 35B-A3B","description":"d","sizeBytes":22016023168,"license":"Apache-2.0","installed":false,"installing":null,"recommended":false,"runsOn":"either","minVramBytes":null,"accuracyNote":"Mixture of experts: fast for its size","role":null,"group":"larger","minRamBytes":23242735616}]}""",
+            Json(new ModelsListResult([info, voice, larger]), BridgeJsonContext.Default.ModelsListResult));
     }
 
     [Fact]
@@ -103,7 +105,7 @@ public sealed class M2ContractSerializationTests : IDisposable
     {
         var models = (await _host.ResultAsync("models.list")).GetProperty("models").EnumerateArray().ToList();
 
-        Assert.Equal(10, models.Count);
+        Assert.Equal(12, models.Count);
         Assert.All(models, m => Assert.False(m.GetProperty("installed").GetBoolean()));
         Assert.All(models, m => Assert.Equal(JsonValueKind.Null, m.GetProperty("installing").ValueKind));
         Assert.Equal(["whisper-small", "pyannote-segmentation-3-0", "nemo-titanet-small", "tesseract-eng", "ministral-3-3b-q4"], models.Where(m => m.GetProperty("recommended").GetBoolean()).Select(m => m.GetProperty("id").GetString()));

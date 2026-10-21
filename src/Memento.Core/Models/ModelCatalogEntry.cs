@@ -51,6 +51,12 @@ public sealed record ModelCatalogEntry
     /// <summary>"Most accurate", "Fast on CPU".</summary>
     public required string AccuracyNote { get; init; }
 
+    /// <summary>Local language models: <c>larger</c> for the models split between the graphics card and RAM (Settings' "Larger models" group); <c>null</c> otherwise.</summary>
+    public string? Group { get; init; }
+
+    /// <summary>Larger models: the RAM and video memory together the model needs at its smallest context, without what the rest of the PC keeps; <c>null</c> otherwise.</summary>
+    public long? MinRamBytes { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

@@ -31,7 +31,11 @@ public sealed class ModelsListMethod(IModelManager models, EngineSelector select
                 m.Entry.RunsOn,
                 m.Entry.MinVramBytes,
                 m.Entry.AccuracyNote,
-                m.Entry.Role))
+                m.Entry.Role)
+            {
+                Group = m.Entry.Group,
+                MinRamBytes = m.Entry.MinRamBytes,
+            })
             .ToList();
         return Task.FromResult(new ModelsListResult(list));
     }

@@ -19,7 +19,7 @@ public sealed class ModelCatalogTests
         var catalog = ModelCatalog.Default;
 
         Assert.Equal(
-            ["whisper-large-v3-turbo", "whisper-medium", "whisper-small", "whisper-base", "pyannote-segmentation-3-0", "nemo-titanet-small", "3dspeaker-eres2net-base", "tesseract-eng", "qwen3.5-4b-q4", "ministral-3-3b-q4"],
+            ["whisper-large-v3-turbo", "whisper-medium", "whisper-small", "whisper-base", "pyannote-segmentation-3-0", "nemo-titanet-small", "3dspeaker-eres2net-base", "tesseract-eng", "qwen3.5-4b-q4", "ministral-3-3b-q4", "qwen3.5-27b-q4", "qwen3.5-35b-a3b-q4"],
             catalog.Entries.Select(e => e.Id));
         Assert.Equal("1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", catalog.Find("whisper-large-v3-turbo")!.Sha256);
         Assert.Equal("6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208", catalog.Find("whisper-medium")!.Sha256);
@@ -93,6 +93,20 @@ public sealed class ModelCatalogTests
         var error = Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(json));
 
         Assert.Contains("fileName must be a plain Windows file name", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheLargerGroupIsOnlyForLocalLanguageModelsWithAPositiveMemoryFigure()
+    {
+        var catalog = ModelCatalog.Default;
+        Assert.Equal(["qwen3.5-27b-q4", "qwen3.5-35b-a3b-q4"], catalog.Entries.Where(e => e.Group == ModelGroups.Larger).Select(e => e.Id));
+        Assert.All(catalog.Entries.Where(e => e.Group == ModelGroups.Larger), e => Assert.True(e.MinRamBytes > e.SizeBytes));
+        Assert.All(catalog.Entries.Where(e => e.Group is null), e => Assert.Null(e.MinRamBytes));
+
+        var onWhisper = Catalog().Replace("\"accuracyNote\": \"n\"", "\"accuracyNote\": \"n\", \"group\": \"larger\"", StringComparison.Ordinal);
+        Assert.Contains("group may only be 'larger', on a local language model", Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(onWhisper)).Message, StringComparison.Ordinal);
+        var negative = Catalog().Replace("\"accuracyNote\": \"n\"", "\"accuracyNote\": \"n\", \"minRamBytes\": 0", StringComparison.Ordinal);
+        Assert.Contains("minRamBytes must be positive", Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(negative)).Message, StringComparison.Ordinal);
     }
 
     [Fact]

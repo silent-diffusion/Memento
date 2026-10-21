@@ -165,6 +165,14 @@ public sealed partial class ModelCatalog
         {
             problem = "a speaker model needs role segmentation or embedding";
         }
+        else if (entry.Group is not null && (entry.Group != ModelGroups.Larger || entry.Kind != ModelKinds.Llm))
+        {
+            problem = "group may only be 'larger', on a local language model";
+        }
+        else if (entry.MinRamBytes is <= 0)
+        {
+            problem = "minRamBytes must be positive when set";
+        }
 
         if (problem is not null)
         {
