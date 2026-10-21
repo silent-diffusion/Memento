@@ -107,6 +107,7 @@ export const ERROR_CODES = [
   'ai.unknownModel',
   'ai.modelNotInstalled',
   'ai.notEnoughVram',
+  'ai.notEnoughMemory',
   'ai.workerCrashed',
   'generation.noTranscript',
   'generation.busy',
@@ -538,6 +539,10 @@ export interface ModelInfo {
    * Settings › Speakers chooses between. Null for transcription and OCR models.
    */
   role: ModelRole | null;
+  /** After 2.2, local language models: `larger` for the models split between the graphics card and RAM (Settings' "Larger models"). */
+  group: 'larger' | null;
+  /** After 2.2, larger models: RAM and video memory together at the smallest context. */
+  minRamBytes: number | null;
 }
 
 export type ModelRole = 'segmentation' | 'embedding';
@@ -1983,6 +1988,30 @@ export interface ProviderInfo {
   gpuMemory: GpuMemoryInfo | null;
   /** Local only: why a graphics-card model does not run on the card now (DESIGN §17); it also starts `detail`. */
   gpuNote: string | null;
+  /** After 2.2, local only: how the larger model in effect is placed now; null for the small models and cloud providers. */
+  memoryPlan: LocalModelPlanInfo | null;
+  /** After 2.2, local only: the plan of every larger model in the catalog (Settings' "Larger models"); null for cloud providers. */
+  largerModels: LocalModelPlanInfo[] | null;
+}
+
+/** After 2.2 (BRIDGE.md "Larger models"): how a larger local model would be placed on this PC now. */
+export interface LocalModelPlanInfo {
+  modelId: string;
+  /** It fits in RAM and video memory with what the rest of the PC keeps. */
+  fits: boolean;
+  /** "Runs 28 of 64 layers on the graphics card, the rest in RAM · about 6 tokens/s · 18 GB of RAM while writing", or the §17 sentence. */
+  line: string;
+  placement: 'card' | 'split' | 'experts' | 'ram' | 'none';
+  /** llama.cpp's n_gpu_layers: blocks on the card plus the output layer. */
+  gpuLayers: number;
+  cardBlocks: number;
+  totalLayers: number;
+  /** Mixture of experts: blocks whose experts stay in RAM. */
+  cpuExpertLayers: number;
+  contextTokens: number;
+  vramBytes: number;
+  ramBytes: number;
+  tokensPerSecond: number;
 }
 
 export type HeadingColor = 'navy' | 'ink' | 'forest' | 'burgundy';
@@ -2062,6 +2091,8 @@ export interface GenerationRecord {
   claims: GenerationClaim[];
   /** When "keep a record of what was sent" was on. */
   payloadText: string | null;
+  /** After 2.2, a larger local model: where it ran, how fast and how much RAM it took. */
+  placement: string | null;
 }
 
 /** One statement the generation checked, kept or dropped. */

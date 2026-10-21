@@ -48,6 +48,13 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
             <dd class="mono how-model">{record.modelLabel}</dd>
           </>
         )}
+        {/* 2.2: a larger local model, where it ran and how fast. */}
+        {record.placement === null ? null : (
+          <>
+            <dt>Placement</dt>
+            <dd class="how-placement">{record.placement}</dd>
+          </>
+        )}
         <dt>Generated</dt>
         <dd>
           {whenWords(record.startedAt, now)} · {shortDuration(record.durationMs)}

@@ -60,6 +60,7 @@ describe('M4 contract names (BRIDGE.md, M4 sections)', () => {
       'ai.unknownModel',
       'ai.modelNotInstalled',
       'ai.notEnoughVram',
+      'ai.notEnoughMemory',
       'ai.workerCrashed',
       'generation.noTranscript',
       'generation.busy',

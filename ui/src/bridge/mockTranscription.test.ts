@@ -473,6 +473,9 @@ describe('preview host models and engine (M2)', () => {
       // M4: the Local provider's language models.
       'qwen3.5-4b-q4',
       'ministral-3-3b-q4',
+      // 2.2: the larger models.
+      'qwen3.5-27b-q4',
+      'qwen3.5-35b-a3b-q4',
     ]);
     expect(models.filter((m) => m.engine === 'speakers').map((m) => m.role)).toEqual(['segmentation', 'embedding', 'embedding']);
     expect(models.find((m) => m.recommended && m.engine === 'transcription')?.id).toBe('whisper-large-v3-turbo');

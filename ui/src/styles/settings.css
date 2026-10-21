@@ -479,6 +479,31 @@
   cursor: pointer;
 }
 
+/* 2.2: a larger model's memory plan under its facts ("Runs 28 of 64 layers on the graphics card, …"); a model that does
+   not fit now reads in the accent text colour, like the graphics card line (DESIGN.md §11, §17). */
+.model-plan {
+  display: block;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.model-plan--short {
+  color: var(--accent-text);
+}
+
+/* 2.2: "Larger models", a labelled group of cards under the small local models (DESIGN.md §11). */
+.model-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.model-group-desc {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
 /* Under the local model cards: the model that will write and where it runs (providers.list). */
 .model-in-use {
   margin: 8px 0 0;

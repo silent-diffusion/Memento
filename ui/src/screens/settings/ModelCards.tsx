@@ -100,10 +100,24 @@ export function useModels(bridge: BridgeClient): ModelsApi {
 
 const RUNS_ON: Record<ModelInfo['runsOn'], string> = { gpu: 'Graphics card', cpu: 'Processor (CPU)', either: 'Graphics card or CPU' };
 
-/** "1.5 GB · MIT · Graphics card, 4 GB video memory". */
+/**
+ * "1.5 GB · MIT · Graphics card, 4 GB video memory"; a larger model (2.2) names the memory it needs instead:
+ * "21 GB · Apache-2.0 · Graphics card and RAM, 22 GB of memory".
+ */
 export function modelFacts(model: ModelInfo): string {
-  const runs = model.minVramBytes === null ? RUNS_ON[model.runsOn] : `${RUNS_ON[model.runsOn]}, ${formatSize(model.minVramBytes)} video memory`;
+  const runs =
+    model.group === 'larger'
+      ? `Graphics card and RAM${model.minRamBytes === null ? '' : `, ${formatSize(model.minRamBytes)} of memory`}`
+      : model.minVramBytes === null
+        ? RUNS_ON[model.runsOn]
+        : `${RUNS_ON[model.runsOn]}, ${formatSize(model.minVramBytes)} video memory`;
   return [formatSize(model.sizeBytes), model.license, runs].join(' · ');
+}
+
+/** A line under a model's facts (2.2, the larger models' memory plan); `short` reads in the warning colour. */
+export interface ModelCardNote {
+  text: string;
+  short: boolean;
 }
 
 /** The headline of a failed install, by the host's code (DESIGN.md §17: name the thing first). */
@@ -138,6 +152,8 @@ interface ModelCardProps {
   defaultStatus: string;
   /** The status of an installed model that is not the chosen one (default: "Installed", or "Installed · needed" when not selectable). */
   installedStatus: string | null;
+  /** The plan line under the facts, or null. */
+  note: ModelCardNote | null;
   onDefault: () => void;
   onInstall: () => void;
   onCancel: () => void;
@@ -145,7 +161,7 @@ interface ModelCardProps {
   onDismiss: () => void;
 }
 
-function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, useLabel, defaultStatus, installedStatus, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
+function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectable, useLabel, defaultStatus, installedStatus, note, onDefault, onInstall, onCancel, onRemove, onDismiss }: ModelCardProps): JSX.Element {
   const downloading = phase.kind === 'starting' || phase.kind === 'downloading' || phase.kind === 'verifying' || phase.kind === 'cancelling';
   const radioId = `${group}-${model.id}`;
   const status = model.installed ? (isDefault ? defaultStatus : (installedStatus ?? (selectable ? 'Installed' : 'Installed · needed'))) : downloading ? 'Downloading' : 'Not installed';
@@ -178,6 +194,11 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
           <span class="model-facts">
             {modelFacts(model)} · <span class={model.installed ? 'model-installed' : ''}>{status}</span>
           </span>
+          {note === null ? null : (
+            <span class={note.short ? 'model-plan model-plan--short' : 'model-plan'} data-model-plan={model.id}>
+              {note.text}
+            </span>
+          )}
           {selectable && useLabel !== null && model.installed ? (
             <label class="model-use" for={radioId}>
               {useLabel}
@@ -284,10 +305,16 @@ interface ModelCardsProps {
   defaultStatus?: string;
   /** The status of an installed model that is not the chosen one. */
   installedStatus?: string;
+  /** Only the models this keeps (2.2: the small local models, or the larger ones). */
+  filter?: (model: ModelInfo) => boolean;
+  /** A line under a model's facts, by id (2.2: each larger model's memory plan). */
+  notes?: Readonly<Record<string, ModelCardNote>>;
+  /** The radio group's name, when two groups share one setting (default: per engine and role). */
+  groupName?: string;
 }
 
 /** The catalog for one engine as a radio group of cards. */
-export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {}, useLabel, defaultStatus = 'Installed · default', installedStatus }: ModelCardsProps): JSX.Element {
+export function ModelCards({ api, engine, role, selectable = true, defaultId, label, onDefault, keep = {}, useLabel, defaultStatus = 'Installed · default', installedStatus, filter, notes = {}, groupName }: ModelCardsProps): JSX.Element {
   const { state } = api;
   if (!state.loaded) {
     return <p class="settings-row-desc model-loading">Reading the installed models…</p>;
@@ -299,7 +326,7 @@ export function ModelCards({ api, engine, role, selectable = true, defaultId, la
       </p>
     );
   }
-  const models = state.models.filter((m) => m.engine === engine && (role === undefined || m.role === role));
+  const models = state.models.filter((m) => m.engine === engine && (role === undefined || m.role === role) && (filter === undefined || filter(m)));
   const busy = isBusy(state);
   return (
     <div class="model-cards" role={selectable ? 'radiogroup' : 'group'} aria-label={label}>
@@ -311,7 +338,8 @@ export function ModelCards({ api, engine, role, selectable = true, defaultId, la
             key={model.id}
             model={model}
             phase={phase}
-            group={`default-${engine}${role === undefined ? '' : `-${role}`}`}
+            group={groupName ?? `default-${engine}${role === undefined ? '' : `-${role}`}`}
+            note={notes[model.id] ?? null}
             selectable={selectable}
             useLabel={useLabel ?? null}
             defaultStatus={defaultStatus}
