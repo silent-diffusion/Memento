@@ -50,6 +50,7 @@ public static class M4Mapping
             ModelListed = status.Cloud?.Listed,
             GpuMemory = status.GpuMemory,
             GpuNote = status.GpuNote,
+            MemoryPlan = status.PlanInfo,
         };
     }
 
@@ -328,6 +329,7 @@ public static class M4Mapping
             StayedOnPc = record.StayedOnPc,
             Claims = record.Claims.Select(c => new GenerationClaim(c.Id, c.ModuleId, c.Text, c.T, c.Verdict, c.Kept, c.Note)).ToList(),
             PayloadText = record.PayloadText,
+            Placement = record.Placement,
         };
     }
 

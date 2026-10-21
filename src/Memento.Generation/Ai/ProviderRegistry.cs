@@ -19,8 +19,24 @@ namespace Memento.Generation.Ai;
 /// processor itself; the status names the model, where it runs and why. Processor jobs are sent with <c>device: cpu</c>,
 /// which loads llama.cpp's CPU build.
 /// </summary>
-public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secrets, IModelManager models, IResourceProbe probe, IAiProviderFactory factory)
+/// <remarks>
+/// A larger model (a catalog <c>llm</c> profile that can be split) is planned by <see cref="MemoryPlanner"/> from the card's
+/// free memory, the RAM available and what else Memento needs now (<see cref="IMemoryDemands"/>), corrected by its last
+/// measured load (<see cref="LocalLoadHistory"/>); one that does not fit is not ready (<c>ai.notEnoughMemory</c>) and no
+/// other model stands in for it.
+/// </remarks>
+public sealed class ProviderRegistry(
+    ISettingsStore settings,
+    ISecretReader secrets,
+    IModelManager models,
+    IResourceProbe probe,
+    IAiProviderFactory factory,
+    IMemoryDemands? demands = null,
+    LocalLoadHistory? loads = null)
 {
+    /// <summary>What the larger models keep free (ENGINE-NOTES.md §T).</summary>
+    public static MemoryHeadroom Headroom => MemoryHeadroom.Default;
+
     /// <summary>Kept free on the graphics card beyond the model's estimate.</summary>
     public const long VramMarginBytes = 256L * 1024 * 1024;
 
@@ -53,6 +69,11 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
         }
 
         var plan = status.Plan!;
+        if (status.MemoryPlan is { Fits: true } memory)
+        {
+            return factory.CreateLocal(status.LocalModel!, status.LocalPath!, LargerOptions(memory, demands?.Current() ?? MemoryDemands.None), FreeVram);
+        }
+
         return factory.CreateLocal(
             status.LocalModel!,
             status.LocalPath!,
@@ -103,6 +124,63 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
             $"Sends the ticked inputs to {name} ({cloud.Id}) when you press Generate. {size}; a long transcript is split into segments of up to {chunkTokens:N0} tokens, so it always fits.");
     }
 
+    /// <summary>
+    /// The worker's options for a larger model's plan: its device, context, threads and placement, the RAM the worker
+    /// checks is still available before loading (Windows, the app and a recording being captured), and flash attention
+    /// on the card (it halves a split load's compute buffer, ENGINE-NOTES.md §T).
+    /// </summary>
+    public static LocalAiOptions LargerOptions(LocalMemoryPlan plan, MemoryDemands demands)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(demands);
+        var reserve = Headroom.OsBytes + Headroom.AppBytes + (demands.Recording ? Headroom.CaptureBytes + (demands.RecordingVideo ? Headroom.CaptureVideoBytes : 0) : 0);
+        return new LocalAiOptions
+        {
+            Device = plan.Device,
+            ContextTokens = plan.ContextTokens,
+            Threads = plan.Threads,
+            VramMarginBytes = Headroom.VramMarginBytes,
+            Placement = LocalLlmPlacement.From(plan, Headroom, reserve),
+            FlashAttention = plan.UsesCard ? true : null,
+        };
+    }
+
+    /// <summary>
+    /// The plan of every larger local model for this PC now (Settings' "Larger models" group shows each one's line before
+    /// it is first used), installed or not.
+    /// </summary>
+    public IReadOnlyList<LocalModelPlanInfo> LargerModelPlans()
+    {
+        var snapshot = probe.Sample();
+        var demand = demands?.Current() ?? MemoryDemands.None;
+        return models.Catalog.OfKind(ModelKinds.Llm)
+            .Select(LocalModelCatalog.ToLocal)
+            .OfType<LocalModelEntry>()
+            .Where(m => m.Llm.CanSplit)
+            .Select(m => PlanInfo(m, MemoryPlanner.Plan(m.Llm, MemoryPlanInput.From(snapshot, demand), loads?.Last(m.Id), Headroom)))
+            .ToList();
+    }
+
+    /// <summary>A plan as Settings and the Builder show it.</summary>
+    public static LocalModelPlanInfo PlanInfo(LocalModelEntry model, LocalMemoryPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(plan);
+        return new LocalModelPlanInfo(
+            model.Id,
+            plan.Fits,
+            plan.Fits ? MemoryPlanWording.Line(plan) : MemoryPlanWording.Refusal(model.Name, plan),
+            plan.Placement,
+            plan.GpuLayers,
+            plan.CardBlocks,
+            plan.TotalLayers,
+            plan.CpuExpertLayers,
+            plan.ContextTokens,
+            plan.VramBytes,
+            plan.RamBytes,
+            plan.TokensPerSecond);
+    }
+
     private ProviderStatus LocalStatus()
     {
         var snapshot = probe.Sample();
@@ -137,6 +215,11 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
 
         var gpu = snapshot.DiscreteGpu;
         var free = gpu?.FreeVramBytes;
+        if (entry.Llm.CanSplit)
+        {
+            return LargerStatus(entry, path, snapshot, notes);
+        }
+
         var plan = LocalVramPlanner.Plan(entry.Llm, LocalLlmDevices.Auto, free, 0, VramMarginBytes);
         string? gpuNote = null;
         if (!plan.UseGpu && entry.RunsOn == "gpu")
@@ -171,6 +254,39 @@ public sealed class ProviderRegistry(ISettingsStore settings, ISecretReader secr
         {
             GpuMemory = gpu is null ? null : GpuMemoryInfo.From(gpu),
             GpuNote = gpuNote,
+        };
+    }
+
+    /// <summary>
+    /// A larger model: placed by <see cref="MemoryPlanner"/>. One that does not fit is not ready, with the §17 sentence
+    /// (no smaller model stands in: it was chosen for its size); one that fits names its placement and the plan's line.
+    /// </summary>
+    private ProviderStatus LargerStatus(LocalModelEntry entry, string path, ResourceSnapshot snapshot, List<string> notes)
+    {
+        var demand = demands?.Current() ?? MemoryDemands.None;
+        var memory = MemoryPlanner.Plan(entry.Llm, MemoryPlanInput.From(snapshot, demand), loads?.Last(entry.Id), Headroom);
+        var info = PlanInfo(entry, memory);
+        var gpu = snapshot.DiscreteGpu;
+        var plan = new LocalLlmPlan(memory.UsesCard, memory.Fits, memory.GpuLayers, memory.ContextTokens, memory.VramBytes + Headroom.VramMarginBytes, memory.Reason);
+        if (!memory.Fits)
+        {
+            notes.Insert(0, info.Line);
+            return new ProviderStatus(ProviderIds.Local, false, AiErrorCodes.NotEnoughMemory, "Not enough memory", string.Join(' ', notes), entry.Id, entry.Name, entry, path, plan)
+            {
+                GpuMemory = gpu is null ? null : GpuMemoryInfo.From(gpu),
+                MemoryPlan = memory,
+                PlanInfo = info,
+            };
+        }
+
+        var k = memory.ContextTokens / 1024;
+        var article = k is 8 or 11 or 18 or (>= 80 and < 90) ? "an" : "a";
+        notes.Add(string.Create(CultureInfo.InvariantCulture, $"{info.Line}, with {article} {k}k context. Nothing leaves this PC."));
+        return new ProviderStatus(ProviderIds.Local, true, null, null, string.Join(' ', notes), entry.Id, $"{entry.Name} · {MemoryPlanWording.Where(memory)}", entry, path, plan)
+        {
+            GpuMemory = gpu is null ? null : GpuMemoryInfo.From(gpu),
+            MemoryPlan = memory,
+            PlanInfo = info,
         };
     }
 }

@@ -19,5 +19,10 @@ public sealed class ProvidersListMethod(ProviderRegistry providers, ISettingsSto
     public override JsonTypeInfo<ProvidersListResult> ResultTypeInfo => M4BridgeJsonContext.Default.ProvidersListResult;
 
     public override Task<ProvidersListResult> InvokeAsync(EmptyParams parameters, CancellationToken cancellationToken) =>
-        Task.FromResult(new ProvidersListResult(providers.List().Select(M4Mapping.ToInfo).ToList(), settings.Current.Ai.Enabled) { DefaultProviderId = settings.Current.Ai.DefaultProviderId });
+        Task.FromResult(new ProvidersListResult(
+            providers.List().Select(M4Mapping.ToInfo).Select(p => p.Kind == "local" ? p with { LargerModels = providers.LargerModelPlans() } : p).ToList(),
+            settings.Current.Ai.Enabled)
+        {
+            DefaultProviderId = settings.Current.Ai.DefaultProviderId,
+        });
 }

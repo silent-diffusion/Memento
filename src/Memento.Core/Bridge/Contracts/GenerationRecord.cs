@@ -28,4 +28,7 @@ public sealed record GenerationRecord(
     public IReadOnlyList<GenerationClaim> Claims { get; init; } = [];
 
     public string? PayloadText { get; init; }
+
+    /// <summary>After 2.2, a larger local model: where it ran, how fast and how much RAM it took; <c>null</c> otherwise.</summary>
+    public string? Placement { get; init; }
 }

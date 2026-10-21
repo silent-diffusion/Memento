@@ -64,6 +64,12 @@ public sealed record DocumentGenerationRecord
 
     public IReadOnlyList<RecordClaim> Claims { get; init; } = [];
 
+    /// <summary>
+    /// After 2.2, a larger local model: where it actually ran and how fast ("Ran 28 of 64 layers on the graphics card,
+    /// the rest in RAM · 6.2 tokens/s · 18 GB of RAM"); <c>null</c> otherwise.
+    /// </summary>
+    public string? Placement { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

@@ -33,6 +33,7 @@ public static class M4ServiceCollectionExtensions
         services.TryAddSingleton<AiHttpClient>();
         services.TryAddSingleton(sp => new Lazy<AiHttpClient>(sp.GetRequiredService<AiHttpClient>));
         services.TryAddSingleton<IAiProviderFactory, AiProviderFactory>();
+        services.TryAddSingleton(sp => new LocalLoadHistory(Path.Combine(AppPaths.DataRoot, LocalLoadHistory.FileName), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LocalLoadHistory>>()));
         services.TryAddSingleton<ProviderRegistry>();
 
         services.TryAddSingleton<M4EventPublisher>();

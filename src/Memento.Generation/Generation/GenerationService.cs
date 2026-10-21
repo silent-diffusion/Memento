@@ -8,7 +8,9 @@ using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Export;
 using Memento.Core.Formatting;
+using Memento.Core.Engines;
 using Memento.Core.Projects;
+using Memento.Core.Recording;
 using Memento.Core.Settings;
 using Memento.Documents.Model;
 using Memento.Documents.Model.Modules;
@@ -44,7 +46,10 @@ public sealed partial class GenerationService(
     IProjectStore projects,
     M4EventPublisher events,
     TimeProvider time,
-    ILogger<GenerationService> logger) : IDisposable
+    ILogger<GenerationService> logger,
+    LocalLoadHistory? loads = null,
+    RecordingCoordinator? recordings = null,
+    IResourceProbe? probe = null) : IDisposable
 {
     /// <summary>How long a job waits for "ask before every send" before it is forgotten.</summary>
     public static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(10);
@@ -55,6 +60,49 @@ public sealed partial class GenerationService(
     private readonly object _gate = new();
     private readonly ILogger<GenerationService> _logger = logger;
     private Job? _job;
+    private int _watching;
+
+    /// <summary>
+    /// A recording started (2.2, ARCHITECTURE.md §8): a larger local model that is writing is unloaded when the RAM
+    /// available now would leave capture short (<see cref="MemoryHeadroom.OsBytes"/> plus the capture reserve); the
+    /// generation ends with <c>ai.notEnoughMemory</c> and History says why. The recording is never held up: this only
+    /// cancels the job.
+    /// </summary>
+    public void OnRecordingStarted(bool withVideo)
+    {
+        Job? job;
+        lock (_gate)
+        {
+            job = _job is { Finished: false, Pending: false, Status.MemoryPlan: { Fits: true } } running ? running : null;
+        }
+
+        if (job is null || probe?.Sample() is not { AvailableRamBytes: > 0 } sample)
+        {
+            return;
+        }
+
+        var room = ProviderRegistry.Headroom;
+        var needed = room.OsBytes + room.CaptureBytes + (withVideo ? room.CaptureVideoBytes : 0);
+        if (sample.AvailableRamBytes >= needed)
+        {
+            return;
+        }
+
+        LogUnloadForRecording(job.Id, sample.AvailableRamBytes, needed);
+        job.UnloadedForRecording = sample.AvailableRamBytes;
+        job.Cancel.Cancel();
+    }
+
+    /// <summary>Listens for recordings starting from the first generation on (only a running generation can be unloaded).</summary>
+    private void WatchRecordings()
+    {
+        if (recordings is not null && Interlocked.Exchange(ref _watching, 1) == 0)
+        {
+            recordings.Started += OnStarted;
+        }
+    }
+
+    private void OnStarted(object? sender, string recordingId) => OnRecordingStarted(recordings?.IsCapturingVideo == true);
 
     /// <summary>Completes when the running generation (if any) has finished.</summary>
     public Task WhenIdleAsync()
@@ -240,6 +288,11 @@ public sealed partial class GenerationService(
 
     public void Dispose()
     {
+        if (recordings is not null && Interlocked.Exchange(ref _watching, 0) == 1)
+        {
+            recordings.Started -= OnStarted;
+        }
+
         Task? run;
         lock (_gate)
         {
@@ -255,6 +308,7 @@ public sealed partial class GenerationService(
 
     private void Launch(Job job)
     {
+        WatchRecordings();
         lock (_gate)
         {
             job.Run = Task.Run(() => RunAsync(job), CancellationToken.None);
@@ -279,6 +333,8 @@ public sealed partial class GenerationService(
             }
 
             var provider = providers.Create(status);
+            job.Status = status;
+            job.Provider = provider;
             LogStarted(job.Id, job.RecordingId, status.Id, status.Model ?? "-", prepared.Chunks);
             var input = new PipelineInput(
                 prepared.Template,
@@ -299,7 +355,8 @@ public sealed partial class GenerationService(
             token.ThrowIfCancellationRequested();
 
             var documentId = job.DocumentId ?? ProjectDocumentStore.NewId();
-            var record = Record(job, status, outcome, started, clock.ElapsedMilliseconds);
+            var placement = await KeepMeasurementAsync(job);
+            var record = Record(job, status, outcome, started, clock.ElapsedMilliseconds) with { Placement = placement };
             var reason = job.DocumentId is null ? DocumentChangeReasons.Generated : DocumentChangeReasons.Regenerated;
             var saved = await store.WriteAsync(
                 job.RecordingId,
@@ -326,11 +383,19 @@ public sealed partial class GenerationService(
                 },
                 CancellationToken.None);
             await documents.ChangedAsync(job.RecordingId, documentId, DocumentChangeReasons.Generated, null, null, CancellationToken.None);
-            await HistoryAsync(job.RecordingId, "completed", $"{Kind(prepared.Template)} {(reason == DocumentChangeReasons.Generated ? "generated" : "regenerated")} with {status.Name} ({status.ModelLabel})", Sent(record), CancellationToken.None);
+            await HistoryAsync(job.RecordingId, "completed", $"{Kind(prepared.Template)} {(reason == DocumentChangeReasons.Generated ? "generated" : "regenerated")} with {status.Name} ({status.ModelLabel})", placement is null ? Sent(record) : $"{Sent(record)} {placement}.", CancellationToken.None);
             await AlsoExportAsync(saved!, prepared, CancellationToken.None);
             var kept = record.Claims.Count(c => c.Kept);
             LogFinished(job.Id, documentId, record.DurationMs, record.Claims.Count, kept);
             await Finish(job, "done", documentId, 100, "The document is ready.", null);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested && job.UnloadedForRecording is { } available)
+        {
+            await KeepMeasurementAsync(job);
+            var model = job.Status?.LocalModel?.Name ?? job.Status?.ModelLabel ?? "The local model";
+            var error = AiErrors.UnloadedForRecording(job.Status?.Name ?? ProviderIds.DisplayName(ProviderIds.Local), model, available);
+            await HistoryAsync(job.RecordingId, "failed", $"{Kind(prepared.Template)} stopped: {model} was unloaded for a recording", error.Message, CancellationToken.None);
+            await Finish(job, "failed", job.DocumentId, 0, error.Message, error.Code);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -339,6 +404,7 @@ public sealed partial class GenerationService(
         }
         catch (AiException ex)
         {
+            await KeepMeasurementAsync(job);
             LogFailed(job.Id, ex.Code, ex.Error.Diagnostic ?? "-");
             await HistoryAsync(job.RecordingId, "failed", $"{Kind(prepared.Template)} could not be generated", ex.Message, CancellationToken.None);
             await Finish(job, "failed", job.DocumentId, 0, ex.Message, ex.Code);
@@ -352,6 +418,25 @@ public sealed partial class GenerationService(
             await HistoryAsync(job.RecordingId, "failed", $"{Kind(prepared.Template)} could not be generated", Message, CancellationToken.None);
             await Finish(job, "failed", job.DocumentId, 0, Message, AiErrorCodes.ProviderError);
         }
+    }
+
+    /// <summary>
+    /// A larger local model's load as the worker reported it: kept for the next plan (<see cref="LocalLoadHistory"/>) and
+    /// returned as the sentence "How this was made" and History show, or <c>null</c> for any other provider.
+    /// </summary>
+    private async Task<string?> KeepMeasurementAsync(Job job)
+    {
+        if (job.Status?.MemoryPlan is null || job.Provider is not AI.Local.LocalAiProvider local || local.Measurement(time) is not { } measured)
+        {
+            return null;
+        }
+
+        if (loads is not null)
+        {
+            await loads.RecordAsync(measured, CancellationToken.None);
+        }
+
+        return AI.Local.MemoryPlanWording.Loaded(job.Status.LocalModel!.Llm, measured);
     }
 
     /// <summary>
@@ -524,6 +609,9 @@ public sealed partial class GenerationService(
     [LoggerMessage(Level = LogLevel.Error, Message = "Generation {JobId} failed unexpectedly")]
     private partial void LogCrashed(Exception exception, string jobId);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Generation {JobId}: a recording started with {Available} bytes of RAM available (capture keeps {Needed}); unloading the local model")]
+    private partial void LogUnloadForRecording(string jobId, long available, long needed);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "History of recording {RecordingId} could not be appended")]
     private partial void LogHistoryFailed(Exception exception, string recordingId);
 
@@ -560,6 +648,15 @@ public sealed partial class GenerationService(
         public Task? Run { get; set; }
 
         public CancellationTokenSource Cancel { get; } = new();
+
+        /// <summary>The provider status the job runs with (planned again when it starts).</summary>
+        public ProviderStatus? Status { get; set; }
+
+        /// <summary>The provider the job runs on, once constructed.</summary>
+        public IAiProvider? Provider { get; set; }
+
+        /// <summary>Set when a recording started and the larger model was unloaded: the RAM available then.</summary>
+        public long? UnloadedForRecording { get; set; }
 
         /// <summary>This job's progress events, in the order they were raised; nothing after the final one.</summary>
         public GenerationProgressFeed Events { get; } = events;
