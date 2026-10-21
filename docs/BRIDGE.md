@@ -601,7 +601,7 @@ The local model by hardware: Qwen3.5 4B (`qwen3.5-4b-q4`) when the discrete card
 
 ## Error codes (M4)
 
-`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.unknownModel`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.workerCrashed`, `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
+`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.unknownModel`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.notEnoughMemory` (after 2.2: a larger local model does not fit in RAM and video memory with the reserves kept, or was unloaded because a recording started; see "After 2.2 — Larger local models"), `ai.workerCrashed`, `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
 
 The `ai.*` provider codes reach the UI as the code of a failed generation progress event, with the provider's own §17 message ("Claude could not be reached: no network. Nothing was sent twice and no document was changed."); a failure never changes an existing document.
 
@@ -1193,3 +1193,29 @@ interface RecordingStatePayload { /* … */ segment: number | null; segmentOffse
 ## Error codes (resume)
 
 `recording.cannotResume` (`recording.resumeStopped` for a recording that cannot take another segment; nothing was changed).
+
+# After 2.2 — Larger local models
+
+The product owner asked for larger local models that use the computer's RAM beside a small graphics card, and for mixture-of-experts models (ENGINE-NOTES.md §T, ARCHITECTURE.md §8 "Larger models"). Two catalog entries, `qwen3.5-27b-q4` (dense) and `qwen3.5-35b-a3b-q4` (mixture of experts), are local models like the others (`kind: 'llm'`, installed through `models.install`, verified by SHA-256, resumable, the free space checked first); the host plans where their weights go before every load. Contracts: `BridgeJsonContext` / `M4BridgeJsonContext` (host) and `ui/src/bridge/types.ts`; strict JSON pinned by `M2ContractSerializationTests.ModelsListShape` and `M4ContractSerializationTests.ProvidersAndTheSendSummary`.
+
+```ts
+interface ModelInfo { /* … */ group: 'larger' | null; minRamBytes: number | null }   // larger models: their group, and the RAM and video memory together at the smallest context
+interface LocalModelPlanInfo {
+  modelId: string; fits: boolean;
+  line: string;                 // "Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing", or the §17 sentence when it does not fit
+  placement: 'card' | 'split' | 'experts' | 'ram' | 'none';
+  gpuLayers: number;            // llama.cpp's n_gpu_layers: blocks on the card plus the output layer
+  cardBlocks: number; totalLayers: number;
+  cpuExpertLayers: number;      // mixture of experts: the first blocks whose routed experts stay in RAM
+  contextTokens: number; vramBytes: number; ramBytes: number;
+  tokensPerSecond: number;      // estimated, or the last measured load's speed for the same placement
+}
+interface ProviderInfo { /* … */ memoryPlan: LocalModelPlanInfo | null /* local, a larger model in effect */; largerModels: LocalModelPlanInfo[] | null /* local: every larger model's plan, installed or not */ }
+interface GenerationRecord { /* … */ placement: string | null }   // "Ran on the graphics card with its experts in RAM · 12.3 tokens/s · 19 GB of RAM"
+```
+
+- **`providers.list`.** When the local model in effect is a larger one, `modelLabel` is "{name} · graphics card and RAM" (a split or experts placement), "{name} · graphics card" or "{name} · processor", `detail` is the plan's line with the context ("…, with a 16k context. Nothing leaves this PC."), and `memoryPlan` carries the plan. A larger model that does not fit is **not ready**: `code: 'ai.notEnoughMemory'`, `reason: 'Not enough memory'`, `detail` the §17 sentence ("Qwen3.5 35B-A3B needs 25 GB of memory; this PC has 19 GB free. Close other programs or choose a smaller model."); no smaller model stands in for it (it was chosen for its size). `largerModels` lists every larger model's plan on the local provider, so Settings shows each one's line before it is first used; cloud providers carry `null` for both, and so do the small models for `memoryPlan`.
+- **`generation.start`** with a larger model that does not fit is refused with `ai.providerNotReady` (detail `ai.notEnoughMemory`). Otherwise the generation plans it again when it starts and sends the worker the placement (`LocalLlmJob.placement`: `gpuLayers`, `cpuExpertLayers`, the planned RAM and video memory, the RAM the worker checks is still available before it loads, the margin; `flashAttention`). The worker reports what it loaded (`device` line: `gpuLayers`, `cpuExpertLayers`, `ramBytes`, `reduced` when less went on the card than planned), and the host keeps it per model in `%LOCALAPPDATA%\Memento\local-model-loads.json` (schema 1, sizes and speeds only, written atomically) so the next plan is corrected by it.
+- **Failures.** `ai.notEnoughMemory` (failed `generation.progress`): the RAM was short when the worker was about to load ("… needs 25 GB of memory; this PC has 19 GB free. Nothing left this PC and no document was changed. Close other programs or choose a smaller model."), or a recording started while a larger model wrote and the RAM available would have left capture short (Windows' 2 GB plus the capture reserve): the model is unloaded, the generation ends with "Qwen3.5 35B-A3B was unloaded because a recording started and this PC had 1.5 GB of memory free, too little to keep both. The recording is not affected. Nothing left this PC and no document was changed. Generate the document again when the recording has finished, or choose a smaller model.", and History (stage `minutes`, event `failed`) says "Meeting minutes stopped: Qwen3.5 35B-A3B was unloaded for a recording". The small models are never unloaded for a recording. A spill out of the card's memory while a larger model loads or writes does not fail the generation: the worker loads it again with less on the card (the experts of more blocks, then blocks, in RAM; at most twice while writing, then in RAM alone when loading) and answers the prompt again.
+- **Records.** A document a larger model wrote has `record.placement` (How this was made shows it as Placement), and its History line ends with the same sentence.
+- `settings.set` `ai.localModelId` accepts a larger model's id like any installed local model's.

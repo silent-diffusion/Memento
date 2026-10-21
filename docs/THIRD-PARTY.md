@@ -99,5 +99,7 @@ Models the local provider downloads through the model manager (catalog entries i
 |---|---|---|
 | Ministral-3-3B-Instruct-2512 (Q4_K_M GGUF) | Apache-2.0 | huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF |
 | Qwen3.5-4B (Q4_K_M GGUF) | Apache-2.0 | huggingface.co/unsloth/Qwen3.5-4B-GGUF |
+| Qwen3.5-27B (Q4_K_M GGUF, after 2.2, "Larger models") | Apache-2.0 (huggingface.co/Qwen/Qwen3.5-27B) | huggingface.co/unsloth/Qwen3.5-27B-GGUF |
+| Qwen3.5-35B-A3B (Q4_K_M GGUF, after 2.2, "Larger models", mixture of experts) | Apache-2.0 (huggingface.co/Qwen/Qwen3.5-35B-A3B) | huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF |
 
 Test fixtures: `tests/Memento.AI.Tests/fixtures/templates/*.jinja` are the chat templates stored in those two GGUF files (Apache-2.0), kept to test the chat formatting against.
