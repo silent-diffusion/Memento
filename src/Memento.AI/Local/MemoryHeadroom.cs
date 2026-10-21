@@ -66,10 +66,10 @@ public sealed record MemoryHeadroom
     public double CardPromptBytesPerSecond { get; init; } = 4.5e12;
 
     /// <summary>What Meeting minutes of the 20-minute synthetic meeting reads (ENGINE-NOTES.md §T.5), for the plan's time estimate.</summary>
-    public int MeetingPromptTokens { get; init; } = 57_000;
+    public int MeetingPromptTokens { get; init; } = 80_000;
 
     /// <summary>What it writes; see <see cref="MeetingPromptTokens"/>.</summary>
-    public int MeetingOutputTokens { get; init; } = 5_000;
+    public int MeetingOutputTokens { get; init; } = 2_400;
 
     public static MemoryHeadroom Default { get; } = new();
 

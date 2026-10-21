@@ -185,7 +185,7 @@ export function sampleModels(installed: 'sample' | 'none' = 'sample', alsoInstal
       recommended: false,
       runsOn: 'either',
       minVramBytes: null,
-      accuracyNote: 'Most capable, slow',
+      accuracyNote: 'Dense: the slowest',
       role: null,
       group: 'larger',
       minRamBytes: 18_900_000_000,

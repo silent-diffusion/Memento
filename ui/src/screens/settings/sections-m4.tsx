@@ -256,7 +256,7 @@ export function AiProviderDefaults(): JSX.Element {
                     Larger models
                   </span>
                   <span class="model-group-desc">
-                    More capable and much slower. They use the computer's RAM beside the graphics card, so they need a lot of memory free while they write; Memento checks before each document and never takes what a recording or a transcription needs. Each is a {LARGER_DOWNLOAD} download that continues where it stopped, checked against the free space first.
+                    Much bigger and much slower than the models above. They use the computer's RAM beside the graphics card, so they need a lot of memory free while they write; Memento checks before each document and never takes what a recording or a transcription needs. Each is a {LARGER_DOWNLOAD} download that continues where it stopped, checked against the free space first.
                   </span>
                   <ModelCards
                     api={models}

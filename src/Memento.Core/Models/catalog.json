@@ -219,7 +219,7 @@
       "runsOn": "either",
       "minVramBytes": null,
       "recommendedFor": null,
-      "accuracyNote": "Most capable, slow",
+      "accuracyNote": "Dense: the slowest",
       "group": "larger",
       "minRamBytes": 18241832960,
       "llm": {
