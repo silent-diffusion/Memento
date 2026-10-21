@@ -26,6 +26,15 @@ public sealed record LocalLlmJob
     /// <summary>Layers to offload, overriding the budget (tests and diagnostics); <c>null</c> to plan from free video memory.</summary>
     public int? GpuLayers { get; init; }
 
+    /// <summary>
+    /// A larger model's placement from the host's <see cref="MemoryPlanner"/> (layers on the card, experts in RAM, the RAM
+    /// and video memory planned); <c>null</c> for the small models, which plan from free video memory in the worker.
+    /// </summary>
+    public LocalLlmPlacement? Placement { get; init; }
+
+    /// <summary>llama.cpp's flash attention: <c>true</c> on, <c>false</c> off, <c>null</c> its own choice (auto).</summary>
+    public bool? FlashAttention { get; init; }
+
     /// <summary>Free video memory the host measured (DXGI), used when the engine cannot read it itself.</summary>
     public long? FreeVramBytes { get; init; }
 

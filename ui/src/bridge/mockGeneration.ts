@@ -40,8 +40,16 @@ export interface M4Flags {
   gen: GenerationFlag;
   /** `?vram=low`: another app holds the graphics card's memory. */
   vram: VramFlag;
-  /** `?llm=qwen|ministral|both|none`: the local models installed at start (default: Qwen with `?ai=local`). */
+  /** `?llm=qwen|ministral|both|none|moe`: the local models installed at start (default: Qwen with `?ai=local`; `moe`: Qwen and the larger Qwen3.5 35B-A3B; `moeOnly`: only the larger one). */
   llm?: LocalModelsFlag;
+}
+
+/** The plan's line as the host records the load it measured: "Ran … · 12.3 tokens/s · 18 GB of RAM". */
+function ranLine(line: string): string {
+  return line
+    .replace(/^Runs/, 'Ran')
+    .replace(/ · about (\d+) tokens\/s/, (_, n: string) => ` · ${n}.0 tokens/s`)
+    .replace(' while writing', '');
 }
 
 export const DEFAULT_M4_FLAGS: M4Flags = { ai: 'off', gen: 'ok', vram: 'ok' };
@@ -60,7 +68,7 @@ export function m4FlagsFromQuery(query: URLSearchParams): Partial<M4Flags> {
     flags.vram = 'low';
   }
   const llm = query.get('llm');
-  if (llm === 'qwen' || llm === 'ministral' || llm === 'both' || llm === 'none') {
+  if (llm === 'qwen' || llm === 'ministral' || llm === 'both' || llm === 'none' || llm === 'moe' || llm === 'moeOnly') {
     flags.llm = llm;
   }
   return flags;
@@ -217,6 +225,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         modelListed: !state.custom,
         gpuMemory: null,
         gpuNote: null,
+        memoryPlan: null,
+        largerModels: null,
       };
     };
     const local = localProviderInfo(env.models.list(), chosenLocalModel(ai), env.flags.vram);
@@ -447,6 +457,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         inputs: job.inputs,
         chunks: job.chunks,
         documentId: job.documentId,
+        placement: job.provider.memoryPlan?.fits === true ? ranLine(job.provider.memoryPlan.line) : null,
       });
       if (env.settings().ai.keepRecord) {
         const project = env.find(job.recordingId);

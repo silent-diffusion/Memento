@@ -9,7 +9,7 @@ import { updateSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { TemplatesManager } from '../styleeditor/TemplatesManager';
 import { GpuMemoryLine, useCheckAgain, withoutGpuNote } from './GpuMemoryLine';
-import { ModelCards, useModels } from './ModelCards';
+import { ModelCards, useModels, type ModelCardNote } from './ModelCards';
 import { SettingsGroup, SettingsRow } from './SettingsParts';
 
 function InlineMessage({ message }: { message: string | null }): JSX.Element | null {
@@ -116,6 +116,9 @@ export function DocumentDefaultsRows(): JSX.Element {
 
 const NO_DEFAULT = 'first-ready';
 
+/** The larger models' download sizes, as the group's description says them (the cards show each one's size). */
+const LARGER_DOWNLOAD = '16–21 GB';
+
 /**
  * Under the local model cards: which model writes documents now and where it runs, as providers.list says, then the
  * graphics card's memory and who holds it with "Check again" (the card sentence moves from the detail to that line).
@@ -205,6 +208,11 @@ export function AiProviderDefaults(): JSX.Element {
   const ai = settings.ai;
   const note = (p: ProviderInfo): string => (p.ready ? '' : ` (${(p.reason ?? 'not ready').toLocaleLowerCase()})`);
   const local = providers.find((p) => p.id === 'local') ?? null;
+  const larger = models.state.models.filter((m) => m.engine === 'llm' && m.group === 'larger');
+  const plans: Record<string, ModelCardNote> = Object.fromEntries((local?.largerModels ?? []).map((p) => [p.modelId, { text: p.line, short: !p.fits }]));
+  const chooseLocal = (localModelId: string): void => {
+    void updateSettings(services, { ai: { localModelId } }).then(setError);
+  };
   return (
     <>
       <SettingsGroup label="Writing documents">
@@ -238,10 +246,32 @@ export function AiProviderDefaults(): JSX.Element {
                 label="Local model"
                 useLabel="Use this model"
                 defaultStatus="Installed · selected"
-                onDefault={(localModelId) => {
-                  void updateSettings(services, { ai: { localModelId } }).then(setError);
-                }}
+                filter={(m) => m.group !== 'larger'}
+                groupName="default-llm"
+                onDefault={chooseLocal}
               />
+              {larger.length === 0 ? null : (
+                <div class="model-group" role="group" aria-labelledby="larger-models-label">
+                  <span id="larger-models-label" class="lbl">
+                    Larger models
+                  </span>
+                  <span class="model-group-desc">
+                    Much bigger and much slower than the models above. They use the computer's RAM beside the graphics card, so they need a lot of memory free while they write; Memento checks before each document and never takes what a recording or a transcription needs. Each is a {LARGER_DOWNLOAD} download that continues where it stopped, checked against the free space first.
+                  </span>
+                  <ModelCards
+                    api={models}
+                    engine="llm"
+                    defaultId={ai.localModelId}
+                    label="Larger models"
+                    useLabel="Use this model"
+                    defaultStatus="Installed · selected"
+                    filter={(m) => m.group === 'larger'}
+                    groupName="default-llm"
+                    notes={plans}
+                    onDefault={chooseLocal}
+                  />
+                </div>
+              )}
               <LocalModelInUse provider={local} checking={checking} onCheck={check} />
             </>
           }

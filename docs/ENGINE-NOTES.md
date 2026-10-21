@@ -557,3 +557,133 @@ OpenAI's model index (developers.openai.com/api/docs/models; platform.openai.com
 - **A model typed by hand** is sent exactly as typed, with a profile every model accepts: no effort and no `fallbacks` (Claude Haiku 4.5 rejects effort; an unknown model may reject the fallback beta), an assumed context of 200k for Claude (Claude Haiku 4.5's, the smallest current one) and 128k for ChatGPT (GPT-4o's), and an answer limit of 32,000 (Claude) or 16,384 (ChatGPT) tokens.
 - **Context.** Every listed model takes about a million tokens, so the choice changes no size note in practice; the product owner's example of a 200k Haiku is Claude Haiku 4.5, not Claude Haiku 5.5. A cloud request carries at most 24,000 transcript tokens, less when a quarter of the model's context is smaller: a long transcript is split into segments rather than refused. A request's answer limit is the pass's limit plus 16,000 tokens of thinking headroom, capped at the model's answer limit.
 - **A model the service does not offer.** Anthropic answers an unknown model with HTTP 404 `not_found_error` ("model: claude-x"); OpenAI with 404 and code `model_not_found` ("The model `x` does not exist or you do not have access to it."). Both, and a 400 whose message names the model as missing, are `ai.unknownModel`; a 404 without a JSON error (a proxy, a wrong address) is not. Nothing is retried and no other model is tried. Tested against the fake servers only (`CloudModelRequestTests`, the e2e's fake Messages API); no real key or request was used.
+
+## T. Larger local models across the graphics card and RAM, October 2026 (after 2.2)
+
+The product owner asked for "larger models like Qwen 3 27B", run with the computer's RAM beside a small graphics card, without getting in the way of what the rest of the app needs from the card or the RAM, and for mixture-of-experts models too. Measured on the reference laptop: RTX 3060 Laptop (6 GB; DXGI 5,994 MiB, 5.1 GB free when idle), Ryzen 7 5800HS (8 cores, 16 threads), **40 GB of DDR4-3200** (39.4 GB visible to Windows, read with `GlobalMemoryStatusEx`; a 1.6 GB page file, so the commit limit is 42 GB). The PC was not idle: other resident programs used 16–18 GB of RAM throughout (20–24 GB available before a load), and from 14:34 a dictation app's bundled Ollama loaded its model and a Python speech server onto the card (4.1 + 1.2 GB), leaving 0.6 GB free for a long stretch (§J describes the same app). Tools: a spike console over LLamaSharp 0.27 (one load per process, the synthetic meeting of §I.2 as a 3,000-token prompt in the Qwen3.5 template, 128 tokens generated at temperature 0, memory read from PDH and `GlobalMemoryStatusEx`), then `LargeModelPipelineHardwareTests` (the real worker, the planner's placement, Meeting minutes and the fixed verification set). Models were downloaded through Memento's own model manager into a private data root (SHA-256 checked) and removed afterwards.
+
+### T.1 What "Qwen 3 27B" is, and the candidates
+
+| Model | Hugging Face (GGUF / original) | Kind | Q4_K_M file | License | Measured here |
+|---|---|---|---|---|---|
+| **Qwen3.5-27B** | unsloth/Qwen3.5-27B-GGUF / Qwen/Qwen3.5-27B | dense, 64 blocks (48 linear-attention + 16 full-attention), hidden 5,120 | 16,740,812,704 B (15.6 GiB) | Apache-2.0 | yes |
+| **Qwen3.5-35B-A3B** | unsloth/Qwen3.5-35B-A3B-GGUF / Qwen/Qwen3.5-35B-A3B | mixture of experts: 40 blocks, 256 routed experts (8 active) + 1 shared, ~3B active | 22,016,023,168 B (20.5 GiB) | Apache-2.0 | yes |
+| Qwen3-32B | unsloth/Qwen3-32B-GGUF / Qwen/Qwen3-32B | dense, 64 blocks | 19,762,150,048 B (18.4 GiB) | Apache-2.0 | estimated |
+| Qwen3-30B-A3B-Instruct-2507 | unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF | mixture of experts, 48 blocks, 128 experts (8 active) | 18,556,686,752 B (17.3 GiB) | Apache-2.0 | estimated |
+| gpt-oss-20b | unsloth/gpt-oss-20b-GGUF / openai/gpt-oss-20b | mixture of experts, 24 blocks, 32 experts (4 active), MXFP4 | 11,624,759,488 B (10.8 GiB, "Q4_K_M" is MXFP4 underneath) | Apache-2.0 | estimated |
+
+"Qwen 3 27B" is Qwen3.5-27B: Qwen3 has no 27B (its dense models are 14B and 32B); Qwen3.5 has a 27B dense model beside the 35B-A3B mixture of experts. Both Qwen3.5 models share the Qwen3.5-4B tokenizer and chat format, so the catalog's verified `qwen3.5` template applies; their GGUF chat templates differ from the 4B's only in the default (thinking on unless `enable_thinking` is false), and Memento's rendering is exactly the `enable_thinking: false` one (an empty think block). Qwen3-32B and Qwen3-30B-A3B are the previous generation of the same two shapes and are left out; gpt-oss-20b would need a verified Harmony template and its reasoning channel handled (§H trap 6), so it is left for later. Sizes and SHA-256 from the Hugging Face API (`/api/models/{repo}/tree/main`, read 2026-10-21); licenses from each model card.
+
+Exact weights from the GGUF tensor table (`tools` in the spike, read-only):
+
+| Model | Blocks (non-expert) | Routed experts | Output layer | Token embeddings (stay in RAM) | KV cache (f16) |
+|---|---|---|---|---|---|
+| Qwen3.5-27B | 64 × 223.1 MiB | — | 994.6 MiB | 682.0 MiB | 64 KiB a token (16 attention blocks), 1 GiB at 16k |
+| Qwen3.5-35B-A3B | 40 × 37.8 MiB | 40 × 464.0 MiB (18,560 MiB) | 397.9 MiB | 515.3 MiB | 20 KiB a token (10 attention blocks), 320 MiB at 16k |
+
+### T.2 What LLamaSharp 0.27 can do
+
+- **Partial offload**: `GpuLayerCount` (n_gpu_layers) works as in llama.cpp: the last blocks go on the card, the output layer counts as one more.
+- **Experts in RAM**: `ModelParams.TensorBufferOverrides` (llama.cpp's `--override-tensor`) works on the Vulkan build with the buffer type `"CPU"`: the pattern `\.ffn_(up|down|gate)_exps` keeps every block's routed experts in RAM while attention, the shared expert and the output layer go on the card; `^blk\.(0|1|…|n-1)\.ffn_(up|down|gate)_exps` keeps only the first n blocks' (this is all `--n-cpu-moe n` does). There is no `n_cpu_moe` convenience; Memento writes the pattern. llama.cpp warns "tensor overrides to CPU are used with mmap enabled"; with mmap off the experts would be private memory (20 GB of commit on a PC with a 42 GB commit limit), so mmap stays on.
+- **Flash attention**: `ModelParams.FlashAttention` (`bool?`) works on Vulkan: with every expert in RAM the card's compute buffer is 501 MiB with it and 852 MiB without, at the same speed (tg 12.4 vs 12.9), so planned loads turn it on.
+- **KV placement**: the KV cache of offloaded blocks goes on the card, of the others in RAM (`NoKqvOffload` would move it all to RAM; not used). **mlock** (`UseMemoryLock`) stays off: locking 20 GB would take it from the rest of the PC for good.
+- **Op offload** (`OpOffload`, on by default): prompt reading copies the experts held in RAM to the card in 512-token batches: 99–104 prompt tokens/s with it, 50 without; kept on.
+- **Not exposed**: `use_extra_bufts` (weight repacking for the CPU build) is only on the native `LLamaModelParams`; `IModelParams` has no field. Memento loads a larger model in RAM through `SafeLlamaModelHandle.LoadFromFile` with it off and wraps the handle with `LLamaWeights`' non-public constructor (`LlamaWeightsLoader`; a unit test pins that the constructor is there in this build). `llama_params_fit` (llama.cpp's own fitting) is exported but plans as if RAM were unlimited and changes the global logger, so Memento plans itself.
+
+### T.3 Qwen3.5-35B-A3B (mixture of experts), spike
+
+One load per row; 16k context, f16 KV, 8 threads, ubatch 512, flash attention on unless noted; "RAM" is the drop in available RAM over the run; "card" the process's dedicated video memory (PDH).
+
+| Placement | Prompt tok/s | Output tok/s | Card | RAM | Load | Note |
+|---|---|---|---|---|---|---|
+| Every expert in RAM, the rest on the card | 102.7 | **12.35** | 3.13 GB | 19.6 GB | 7.4 s | 8.2 GB still available afterwards |
+| Experts of 36 of 40 blocks in RAM (4 on the card) | 104.3 | 12.78 | 5.11 GB | 18.9 GB | 10.4 s | the card full to 20 MB |
+| Every expert in RAM, flash attention off | 94.1 | 12.86 | 3.61 GB | 18.5 GB | 7.8 s | compute buffer 852 MiB |
+| Every expert in RAM, op offload off | 50.4 | 11.87 | 3.05 GB | 17.4 GB | 9.3 s | |
+| Every expert in RAM, 16 threads | 99.4 | 10.78 | 3.30 GB | 18.5 GB | 10.5 s | 3.4 GB available afterwards |
+| Every expert in RAM, ubatch 2048 | 65.0 | 10.22 | 4.72 GB | 19.0 GB | 11.8 s | **spilled 1.5 GB** (compute buffer 2,464 MiB) |
+| Plain layer offload, 16 of 40 blocks | — | — | — | — | — | weights failed to load: 16 blocks with their experts are 8 GB |
+| Plain layer offload, 7 of 40 blocks | 103.9 | **4.64** | 4.22 GB | 19.3 GB | 9.7 s | slower than RAM alone |
+| RAM alone, CPU build | 25.8 | 6.38 | 0 | **22.5 GB** | 39.2 s | the CPU build repacked 11.5 GB more; 0.2 GB left available |
+| RAM alone, CPU build without repacking | 27.1 | **6.11** | 0 | 18.7 GB | 5.6 s | private memory 1.6 GB instead of 12.9 GB |
+
+- **Experts in RAM is the placement for a mixture of experts**: 12.4 tokens/s, twice RAM alone and 2.7 times plain layer offload, with 3.1 GB on the card. Each token reads only 8 of 256 experts (about 0.6 GB from RAM) while the card does attention and the shared expert. Bringing 4 blocks' experts onto the card gains 3 % and fills the card.
+- **Plain layer offload is the wrong tool for a mixture of experts**: a block carries its 464 MiB of experts, so only 7 blocks fit and every token still reads the other 33 blocks' active experts from RAM through a split graph.
+- **The CPU build's repacking doubles the RAM**: it keeps an interleaved copy of every Q4_K tensor beside the mapped file. For the 35B that is 11.5 GB more and left 0.2 GB available on this PC, for no speed (6.38 vs 6.11 tokens/s).
+- **ubatch 2048 spills**: the compute buffer grows to 2.4 GB; 512 stays.
+
+### T.4 Qwen3.5-27B (dense), spike
+
+Same settings (2,000-token prompt, 64 tokens written). The card was free for the split rows; one earlier split row (10 blocks) was taken while the dictation app had loaded its model, spilled 3.5 GB to shared memory and is left out.
+
+| Placement | Prompt tok/s | Output tok/s | Card | RAM (working set) | Load |
+|---|---|---|---|---|---|
+| RAM alone, CPU build without repacking, 8 threads | 3.6 | 1.41 | 0 | 16.4 GB | 6.9 s |
+| RAM alone, CPU build without repacking, 16 threads | 4.5 | 1.26 | 0 | 16.4 GB | 3.2 s |
+| Output layer + 9 of 64 blocks on the card | **52.5** | 1.41 | 3.76 GB | 16.2 GB | 9.3 s |
+| Output layer + 13 blocks on the card | 37.9 | 1.53 | 4.68 GB | 16.2 GB | 17.1 s |
+| Output layer + 16 blocks on the card | 36.3 | **1.67** | 5.34 GB | 16.2 GB | 10.6 s |
+
+- **A dense 27B writes at RAM speed whatever is on a 6 GB card**: three quarters of its 15.6 GB stay in RAM and each token reads all of it (1.4–1.7 tokens/s, about 18 GB/s of RAM). The card's real gain is **prompt reading**: llama.cpp hands the large prompt matrices to the card (op offload), 36–52 tokens/s against 4 in RAM alone, so even a few blocks on the card cut a document from about 6 hours to about an hour. Fewer blocks on the card read prompts slightly faster here (less to synchronise).
+- The repacked CPU build could not be measured for the 27B (its copy would need about 31 GB); for the 35B it changed nothing (§T.3).
+
+### T.5 The whole document pipeline
+
+`LargeModelPipelineHardwareTests`: Meeting minutes of the 20-minute synthetic meeting (2 chunks of 3,000 tokens at 16k context, 28–29 requests, one model load), then the spike's fixed verification set (14 true, 6 planted false claims), through the real worker with the planner's placement; the same measures as §I.2.
+
+| Model and placement (planned → loaded) | Pipeline | Map / verify / load | Writing speed | Recall / precision (14 decisions and actions) | Fixed set | Card / RAM while writing |
+|---|---|---|---|---|---|---|
+| Qwen3.5 4B, all on the card (§I.2, card nearly free) | 152 s | 92 / 59 / 4 s | 40–56 tok/s | 0.93 / 1.00 | 20/20 (6/6) | 3.4 GB / — |
+| **Qwen3.5 35B-A3B**, experts of 37 of 40 blocks in RAM (as planned) | **1,054 s (17.6 min)** | 716 / 333 / 36 s | 11.2 tok/s | **0.86 / 1.00** (missed U2, U3) | 19/20 (6/6) | 4.66 GB (planned 4.47) / 20.8 GB working set (planned 17.8) |
+| **Qwen3.5 27B**, output layer + 12 of 64 blocks on the card (as planned) | **3,870 s (64.5 min)** | 3,029 / 837 / 34 s | 1.39 tok/s | **0.79 / 1.00** (missed U1, U2, U3) | 19/20 (6/6) | 4.75 GB (planned 4.73) / 17.5 GB working set (planned 14.7) |
+
+- **Quality**: on this meeting the larger models are not more accurate than Qwen3.5 4B (the hardware test now asserts the measured 11 of 14, precision 1.00 and every planted claim caught). The 27B missed U1 as well. The 35B missed U2 (which the 4B misses too, §I.2) and U3, both action items said in passing, kept no wrong claim and no parked item as a decision, and the verifier caught every planted claim but rejected one true claim. The pipeline's prompts were tuned on Qwen3.5 4B (§I.2) and were not retuned for the larger models.
+- **Time**: the pipeline read about 80,000 prompt tokens and wrote about 2,400 (solved from the two runs' times and speeds); the plan's "minutes of a 20-minute meeting in about …" uses those, so the 35B reads "about 18 minutes" (measured 17.6) and the 27B "about 72 minutes" (measured 64.5).
+- **The plan held**: the card stayed within 0.2 GB of the plan with no spill (shared memory +0.25 GB, under the 0.38 GB threshold); RAM available never went below 5.3 GB (6.3 GB for the 27B). The working set ran 3 GB over the plan because the file pages of the weights uploaded to the card stay mapped in the worker until Windows trims them; they are clean pages Windows can take back at once, so the plan does not count them, and the next plan is raised by the measured working set (at most ×1.5).
+- **End to end in the app** (`tools/e2e/m12-large-model.mjs`, a short speech recording imported (77 lines), transcribed on the processor while another program held the card, then Meeting minutes with the 35B once the card was free): Settings showed both larger models with their plan lines and the §17 sentence while the card was held ("Qwen3.5 35B-A3B needs 25 GB of memory; this PC has 23 GB free…", then a RAM-only plan when more RAM was free), the Builder's Local card read "Qwen3.5 35B-A3B · graphics card and RAM · on this PC" with the plan line, the minutes took 12 min 7 s, and How this was made and History said "Ran on the graphics card with the experts of 37 of 40 layers in RAM · 10.8 tokens/s · …". Memento itself (the app and its WebView2 processes) used 0.67–0.85 GB throughout; Whisper Large v3 Turbo on the processor took 2.1 GB in its worker.
+
+### T.6 Placement rules and the reserves
+
+`MemoryPlanner` (Memento.AI) decides before every load, from the card's free memory (§J: other programs' use already taken off) and the RAM available now; the first placement that fits is the plan, at 16k context, else 8k:
+
+1. **Every layer on the card**, when the weights, the KV cache and the compute buffer fit the card's free memory less a 0.5 GB margin. (Neither larger model does on a 6 GB card.)
+2. **Mixture of experts: experts in RAM.** Attention, the shared expert, the output layer, the KV cache and the compute buffer on the card (3.1 GB for the 35B at 16k); then the experts of as many of the last blocks as still fit; the experts of the first blocks in RAM.
+3. **Split by blocks**: the output layer and the last blocks with their KV cache on the card, the first blocks in RAM, whenever at least one block fits beside the output layer and the compute buffer: the card then reads the prompts (§T.4: 36–52 tokens/s against 4), which is most of a document's time. For a mixture of experts this is the fallback when attention and the experts' neighbours do not fit (a transcription keeping part of the card): plain layer offload writes slower than RAM alone (4.6 vs 6.1 tokens/s) but reads prompts four times faster, so a document still takes about half as long.
+4. **RAM alone** on the CPU build, without repacking.
+
+A placement fits when its RAM fits **the RAM available less the reserves**:
+
+| Reserve | Amount | Why |
+|---|---|---|
+| Windows | 2 GB | A program held RAM so that about 4, 2 and 1 GB stayed available while the 35B (experts in RAM) loaded and wrote: it still wrote at 10.6 / 12.3 / 11.3 tokens/s and a small program still started in a median 25 ms (at most 72 ms), but prompt reading fell from 103 to 86 / 82 / 76 tokens/s, available memory touched 0.3 GB while the holder let go, and the CPU build's repacked load left 0.2 GB. Nothing stalled, so 2 GB is a margin rather than a cliff: it is what keeps the model's own pages resident (prompt reading slows first) and leaves room for what other programs load mid-document, which on this PC was 5.3 GB of video memory and its server's RAM |
+| Memento's own growth | 0.5 GB | The app and its WebView2 processes used 0.67–0.85 GB, sampled every 5 s through an import, a transcription and a generation: 0.18 GB of growth; Live output and a render or export add a few hundred MB more. |
+| A recording being captured | 0.5 GB, 1.5 GB with video | Audio capture keeps a few MB of buffers per track and the live transcript's 10-second window; video adds the encoder, its frame pool and the preview (§M). Only while a recording runs. |
+| A transcription waiting or running | Whisper's RAM: 0.5 GB of working memory, plus the model file (1.6 GB for Large v3 Turbo) when it would run on the processor | Only while the orchestrator has transcription work. |
+| The card's margin | 0.5 GB beyond the plan | A 16k KV cache once moved 0.5 GB to shared memory with 5.3 GB reported free (§I.2); the 35B with four blocks' experts on the card used 5.11 GB of 5.1 GB free. |
+| A waiting transcription on the card | the transcription model's minimum video memory (2.5 GB for Large v3 Turbo) | The larger model is planned without that memory, so Whisper still fits when it gets the card; when the model only fits with that memory too it is planned with the whole card and waits at the gate (one job on the card at a time, as before). |
+
+The worker checks the RAM again right before loading (the job may have waited at the gate for minutes) against the plan's RAM plus Windows', the app's and a recording's reserves, and refuses with `ai.notEnoughMemory` rather than drive the PC into paging. A recording that starts while a larger model writes unloads it when the RAM available is below Windows' 2 GB plus the capture reserve. The plan's speed is the weights read per token from RAM (16 GB/s, the 35B in RAM alone; the 27B reads 18–21 GB/s) and from the card (150 GB/s, Qwen3.5 4B) plus 0.45 ms for each hand-over between them (two per block whose experts are in RAM, four for a split): it predicted 12.2 tokens/s for the 35B with its experts in RAM (measured 11.2 over a whole document, 12.4 in the spike), 6.0 in RAM alone (6.1), 1.3 for the 27B split (1.39) and 1.0 in RAM alone (1.3–1.4). Prompt reading is estimated as 65 GB/s of weights in RAM alone, the experts in RAM copied to the card at 3.5 GB/s per 512-token batch, a dense model's blocks in RAM at 0.9 GB/s, and the card's own at 4.5 TB/s of active weights (Qwen3.5 4B: 1,731 tokens/s). After a load the measured speed replaces it for the same placement and scales it for another; measured memory above the plan raises the next plan's estimate (never lowers it).
+
+### T.7 Estimates for the models not measured
+
+From the measured rates (RAM 16–19 GB/s for weights read per token, prompt reading 65 GB/s of weights in RAM alone, the card's copies) and each model's tensor sizes; not measured:
+
+| Model | Placement on this PC | Writing | Prompt reading | RAM | Note |
+|---|---|---|---|---|---|
+| Qwen3-32B Q4_K_M | split, about 10 of 64 blocks | about 1.1 tok/s | about 30 tok/s | about 17 GB | the previous generation of the 27B, 18 % bigger and slower |
+| Qwen3-30B-A3B-Instruct-2507 Q4_K_M | experts in RAM | about 9–11 tok/s | about 100 tok/s | about 17 GB | 128 experts of 48 blocks, 8 active: close to the 35B-A3B |
+| gpt-oss-20b (MXFP4) | experts in RAM, about 8 of 24 blocks' experts on the card | about 13–18 tok/s | about 150 tok/s | about 9 GB | the lightest mixture of experts; needs a verified Harmony template and its reasoning channel handled first |
+
+### T.8 Traps
+
+1. **The CPU build's weight repacking doubles a large model's RAM** (11.5 GB more for the 35B, 0.2 GB left available, same speed). `use_extra_bufts` is not on `IModelParams`; the worker loads larger models in RAM with it off (§T.2).
+2. **Another program can take the card in the middle of a document.** At 14:34 a dictation app's Ollama loaded 5.3 GB onto the card while the 35B had been writing for 23 minutes; the spill watch stopped it (1.2 GB moved to shared memory) and the whole generation was lost. The worker now loads the model again with the experts of more blocks, then blocks, in RAM, and answers the prompt again (at most twice), so a spill costs a reload (about 10 s) instead of the document.
+3. **Plain layer offload of a mixture of experts** fails to load beyond 7 blocks on a 6 GB card and is slower than RAM alone; only the expert overrides make the card useful.
+4. **ubatch 2048 spills** (the compute buffer grows to 2.4 GB); keep 512.
+5. **Available RAM counts the standby list**, which holds the model file's own pages after an earlier load: a second load looks free, then takes those pages. The plan's RAM is the model's resident size, so the check stays right either way.
+6. **The model's chat template defaults to thinking.** The 27B and 35B GGUF templates think unless `enable_thinking` is false; Memento's `qwen3.5` rendering is exactly the non-thinking prompt (an empty think block), so the verified template id is shared with the 4B.
+7. **Commit limit**: with mmap off the experts would be 20 GB of private memory against a 42 GB commit limit (40 GB RAM, 1.6 GB page file); mmap stays on and the warning about overrides with mmap is expected.
+
+### T.9 Downloaded and removed
+
+Through Memento's own model manager (Hugging Face, host-checked, SHA-256 verified) into a private data root under `artifacts/`: Qwen3.5-35B-A3B-Q4_K_M.gguf (22,016,023,168 bytes, 248 s) and Qwen3.5-27B-Q4_K_M.gguf (16,740,812,704 bytes; the server ended the response at 11.8 GB after 96 minutes, Install again continued from there and finished in 76 s, the hash matched). Both were removed at the end; the catalog keeps their published SHA-256, which the downloads confirmed. Qwen3.5 4B, Ministral 3 3B and Whisper Large v3 Turbo were hard-linked into the private root from the installed models; the links were removed. The hardware tests' default models folder is the real data root, so `MEMENTO_MODELS_ROOT` / `MEMENTO_LLM_MODELS` must point at the private one (one unit run without the filter loaded the installed small models read-only before that was noticed).

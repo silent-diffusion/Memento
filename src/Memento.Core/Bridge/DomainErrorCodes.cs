@@ -143,6 +143,10 @@ public static class DomainErrorCodes
     public const string AiUnknownModel = "ai.unknownModel";
     public const string AiModelNotInstalled = "ai.modelNotInstalled";
     public const string AiNotEnoughVram = "ai.notEnoughVram";
+
+    /// <summary>2.2: a larger local model does not fit in RAM and video memory with the reserves kept, or was unloaded for a recording.</summary>
+    public const string AiNotEnoughMemory = "ai.notEnoughMemory";
+
     public const string AiWorkerCrashed = "ai.workerCrashed";
 
     /// <summary>The recording has no transcript (or it is empty), so there is nothing to generate from.</summary>

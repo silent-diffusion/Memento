@@ -143,6 +143,20 @@ public static class AiErrors
         $"The graphics card has {Gigabytes(freeBytes)} of free memory and {model} needs {Gigabytes(neededBytes)}. {LocalSafe} Close apps that use the graphics card, or run the model on the processor.",
         Diagnostic: string.Create(CultureInfo.InvariantCulture, $"free={freeBytes} needed={neededBytes}"));
 
+    /// <summary>A larger model does not fit in RAM and video memory with the reserves kept (ARCHITECTURE.md §8, "Larger models").</summary>
+    public static AiError NotEnoughMemory(string provider, string model, long neededBytes, long freeBytes) => new(
+        AiErrorCodes.NotEnoughMemory,
+        provider,
+        $"{model} needs {WholeGigabytesUp(neededBytes)} of memory; this PC has {WholeGigabytesDown(freeBytes)} free. {LocalSafe} Close other programs or choose a smaller model.",
+        Diagnostic: string.Create(CultureInfo.InvariantCulture, $"needed={neededBytes} free={freeBytes}"));
+
+    /// <summary>A recording started while a larger model was writing and capture would have been short of RAM, so the model was unloaded.</summary>
+    public static AiError UnloadedForRecording(string provider, string model, long availableBytes) => new(
+        AiErrorCodes.NotEnoughMemory,
+        provider,
+        $"{model} was unloaded because a recording started and this PC had {Gigabytes(availableBytes)} of memory free, too little to keep both. The recording is not affected. {LocalSafe} Generate the document again when the recording has finished, or choose a smaller model.",
+        Diagnostic: string.Create(CultureInfo.InvariantCulture, $"recording available={availableBytes}"));
+
     /// <summary>An allocation on the graphics card failed (null context handle, failed weight upload, no KV slot).</summary>
     public static AiError GpuOutOfMemory(string provider, string model, long? freeBytes, string diagnostic) => new(
         AiErrorCodes.NotEnoughVram,
@@ -192,6 +206,12 @@ public static class AiErrors
 
         return string.Create(CultureInfo.InvariantCulture, $"{(int)Math.Ceiling(seconds / 60.0)} minutes");
     }
+
+    internal static string WholeGigabytesUp(long bytes) =>
+        string.Create(CultureInfo.InvariantCulture, $"{Math.Ceiling(bytes / (1024.0 * 1024 * 1024)):0} GB");
+
+    internal static string WholeGigabytesDown(long bytes) =>
+        string.Create(CultureInfo.InvariantCulture, $"{Math.Floor(Math.Max(0, bytes) / (1024.0 * 1024 * 1024)):0} GB");
 
     internal static string Gigabytes(long bytes) =>
         string.Create(CultureInfo.InvariantCulture, $"{bytes / (1024.0 * 1024 * 1024):0.0} GB");

@@ -20,9 +20,16 @@ internal sealed class FakeLocalEngineFactory : ILocalLlmEngineFactory
 
     public int Disposed { get; set; }
 
+    /// <summary>How many answers fail with a spill to shared memory (of 600 MB) before they succeed.</summary>
+    public int Spills { get; set; }
+
+    /// <summary>Every job a load was asked for, in order.</summary>
+    public List<LocalLlmJob> Jobs { get; } = [];
+
     public Task<ILocalLlmEngine> LoadAsync(LocalLlmJob job, Action<LocalLlmProgress>? progress, CancellationToken cancellationToken)
     {
         Loads++;
+        Jobs.Add(job);
         if (FailLoad is { } error)
         {
             throw new LocalLlmException(error);

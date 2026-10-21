@@ -104,6 +104,18 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         }
     }
 
+    /// <summary>A recording is being captured (or paused) now.</summary>
+    public bool IsCapturing => Volatile.Read(ref _active) is not null;
+
+    /// <summary>The recording being captured has video tracks.</summary>
+    public bool IsCapturingVideo => Volatile.Read(ref _active) is { } active && active.Video.HasAny;
+
+    /// <summary>
+    /// Raised once a recording has started (its id), after its History line, on the thread that started it. Handlers must
+    /// only queue work: a local model that would leave capture short of memory is unloaded from here (ARCHITECTURE.md §8).
+    /// </summary>
+    public event EventHandler<string>? Started;
+
     /// <summary>The recording is being captured or finalized, so it must not be deleted.</summary>
     public bool IsBusy(string recordingId) =>
         (Volatile.Read(ref _active)?.RecordingId == recordingId) || _finalizing.ContainsKey(recordingId);
@@ -214,6 +226,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 Task.Run(() => RunDiskWatchAsync(active, active.Stopping.Token), CancellationToken.None));
             _publisher.PublishRecordingState(BuildPayload(active, "recording", tracks, 0));
             LogStarted(manifest.Id, session.SessionId, tracks.Count, _engine.Name);
+            RaiseStarted(manifest.Id);
             return new RecordingStartResult(session.SessionId, manifest.Id, session.StartedAt);
         }
         finally
@@ -396,6 +409,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
                 Task.Run(() => RunDiskWatchAsync(active, active.Stopping.Token), CancellationToken.None));
             _publisher.PublishRecordingState(BuildPayload(active, "recording", tracks, 0));
             LogResumed(recordingId, session.SessionId, segment.Index, offset, gapMs);
+            RaiseStarted(recordingId);
             return new RecordingStartResult(session.SessionId, recordingId, session.StartedAt);
         }
         finally
@@ -1267,6 +1281,23 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             Segment = active.Segment == 1 ? null : active.Segment,
             SegmentOffsetMs = active.SegmentOffsetMs,
         };
+
+    private void RaiseStarted(string recordingId)
+    {
+        try
+        {
+            Started?.Invoke(this, recordingId);
+        }
+#pragma warning disable CA1031 // A listener's failure never fails the recording that has already started.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogStartedListenerFailed(ex, recordingId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A listener of recording {RecordingId} starting failed")]
+    private partial void LogStartedListenerFailed(Exception exception, string recordingId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId} started (session {SessionId}, {Tracks} tracks, engine {Engine})")]
     private partial void LogStarted(string recordingId, string sessionId, int tracks, string engine);

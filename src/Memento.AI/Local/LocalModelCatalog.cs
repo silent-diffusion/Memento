@@ -18,6 +18,12 @@ public static class LocalModelCatalog
     public const string Qwen35FourB = "qwen3.5-4b-q4";
     public const string Ministral3ThreeB = "ministral-3-3b-q4";
 
+    /// <summary>The larger dense model (2.2), split between the graphics card and RAM.</summary>
+    public const string Qwen35TwentySevenB = "qwen3.5-27b-q4";
+
+    /// <summary>The larger mixture-of-experts model (2.2): its experts in RAM, the rest on the graphics card.</summary>
+    public const string Qwen35MoE = "qwen3.5-35b-a3b-q4";
+
     private static readonly Lazy<IReadOnlyList<LocalModelEntry>> Entries = new(() => From(ModelCatalog.Default));
 
     public static IReadOnlyList<LocalModelEntry> Models => Entries.Value;

@@ -39,6 +39,12 @@ public sealed record ProviderStatus(
     /// </summary>
     public string? GpuNote { get; init; }
 
+    /// <summary>Local, a larger model: <see cref="MemoryPlanner"/>'s placement (2.2); <c>null</c> for the small models.</summary>
+    public LocalMemoryPlan? MemoryPlan { get; init; }
+
+    /// <summary>Local, a larger model: the plan as Settings and the Builder show it.</summary>
+    public LocalModelPlanInfo? PlanInfo { get; init; }
+
     /// <summary>Cloud only: the model chosen in Settings, its context and what is sent with it (after 2.1).</summary>
     public CloudModel? Cloud { get; init; }
 

@@ -23,4 +23,11 @@ public sealed record ModelInfo(
     string RunsOn,
     long? MinVramBytes,
     string AccuracyNote,
-    string? Role);
+    string? Role)
+{
+    /// <summary>After 2.2, local language models: <c>larger</c> for the models split between the graphics card and RAM (Settings' "Larger models"); <c>null</c> otherwise.</summary>
+    public string? Group { get; init; }
+
+    /// <summary>After 2.2, larger models: the memory (RAM and video memory together) the model needs at its smallest context; <c>null</c> otherwise.</summary>
+    public long? MinRamBytes { get; init; }
+}

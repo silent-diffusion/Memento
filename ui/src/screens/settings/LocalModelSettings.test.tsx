@@ -27,11 +27,11 @@ describe('Local model readiness in Settings and the Builder (against the browser
 
   const openSettings = async (m4: NonNullable<MockOptions['m4']>): Promise<void> => {
     h = await mountApp({ name: 'settings', section: 'ai-privacy' }, { m4 });
-    await until(() => document.querySelectorAll('[data-model-id^="qwen"], [data-model-id^="ministral"]').length === 2 && document.querySelector('.model-in-use') !== null);
+    await until(() => document.querySelectorAll('[data-model-id="qwen3.5-4b-q4"], [data-model-id^="ministral"]').length === 2 && document.querySelector('.model-in-use') !== null);
   };
   const cards = (): Card[] =>
     [...document.querySelectorAll<HTMLElement>('.model-card')]
-      .filter((c) => /^(qwen|ministral)/.test(c.dataset.modelId ?? ''))
+      .filter((c) => /^(qwen3.5-4b|ministral)/.test(c.dataset.modelId ?? ''))
       .map((c) => {
         const radio = c.querySelector<HTMLInputElement>('input[type="radio"]');
         return {

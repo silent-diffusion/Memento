@@ -618,6 +618,12 @@
   color: var(--accent-text);
 }
 
+/* 2.2: a larger model's placement on its own line ("Runs 28 of 64 layers on the graphics card, …"); in the warning
+   colour only when it does not fit now. */
+.provider-detail--plan {
+  color: var(--text-2);
+}
+
 .style-choice .seg-well {
   width: 100%;
   box-sizing: border-box;

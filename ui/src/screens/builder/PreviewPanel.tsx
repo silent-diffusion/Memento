@@ -291,7 +291,7 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
                 {shownProviders.map((p) => (
                   <label
                     key={p.id}
-                    class={['provider', props.providerId === p.id ? 'on' : '', p.ready ? '' : 'provider--off', p.gpuNote === null ? '' : 'provider--detail'].filter((c) => c !== '').join(' ')}
+                    class={['provider', props.providerId === p.id ? 'on' : '', p.ready ? '' : 'provider--off', p.gpuNote === null && p.memoryPlan === null ? '' : 'provider--detail'].filter((c) => c !== '').join(' ')}
                   >
                     <input
                       class="chk"
@@ -307,6 +307,12 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
                     <span class="provider-note">{providerNote(p)}</span>
                     {/* The local model on the processor because another program holds the card: who, how much, the fix. */}
                     {p.gpuNote === null ? null : <span class="provider-detail">{p.gpuNote}</span>}
+                    {/* 2.2: a larger model names where it runs, how fast and how much RAM it takes (or why it does not fit). */}
+                    {p.memoryPlan === null ? null : (
+                      <span class={p.memoryPlan.fits ? 'provider-detail provider-detail--plan' : 'provider-detail'} data-memory-plan={p.memoryPlan.modelId}>
+                        {p.memoryPlan.line}
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>

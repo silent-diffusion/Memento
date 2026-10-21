@@ -102,6 +102,8 @@ export interface WriteRequest {
   chunks: number;
   /** Regenerate into this document. */
   documentId: string | null;
+  /** 2.2, a larger local model: where it ran (How this was made). */
+  placement?: string | null;
 }
 
 export interface MockDocuments {
@@ -466,6 +468,7 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
       stayedOnPc: false,
       claims: [],
       payloadText: null,
+      placement: null,
     });
     const minutes: MockDocument = {
       summary: {
@@ -758,6 +761,7 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
         stayedOnPc: request.providerId === 'local',
         claims: [],
         payloadText: null,
+        placement: request.placement ?? null,
       };
       const at = nowIso();
       if (into !== undefined) {

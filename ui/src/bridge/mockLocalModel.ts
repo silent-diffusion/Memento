@@ -4,12 +4,12 @@
 // card another app is using: Qwen3.5 4B then gives way to an installed Ministral 3 3B, or runs on the processor.
 import { mockGpuMemory, mockGpuNote, type VramFlag } from './mockGpu';
 import { MODEL_IDS } from './mockModels';
-import type { ModelInfo, ProviderInfo } from './types';
+import type { LocalModelPlanInfo, ModelInfo, ProviderInfo } from './types';
 
 export type { VramFlag } from './mockGpu';
 
 /** `?llm=`: which local models the preview starts with (default: Qwen with `?ai=local`, else none). */
-export type LocalModelsFlag = 'qwen' | 'ministral' | 'both' | 'none';
+export type LocalModelsFlag = 'qwen' | 'ministral' | 'both' | 'none' | 'moe' | 'moeOnly';
 
 export function localModelsInstalled(flag: LocalModelsFlag): string[] {
   switch (flag) {
@@ -19,6 +19,10 @@ export function localModelsInstalled(flag: LocalModelsFlag): string[] {
       return [MODEL_IDS.ministral];
     case 'both':
       return [MODEL_IDS.qwen, MODEL_IDS.ministral];
+    case 'moe':
+      return [MODEL_IDS.qwen, MODEL_IDS.qwen35moe];
+    case 'moeOnly':
+      return [MODEL_IDS.qwen35moe];
     default:
       return [];
   }
@@ -42,8 +46,34 @@ export function effectiveLocalModelId(models: readonly ModelInfo[], chosen: stri
   if (installed(recommended)) {
     return recommended;
   }
-  const any = [GPU_MODEL, CPU_MODEL].find(installed);
+  const any = [GPU_MODEL, CPU_MODEL, ...LARGER].find(installed);
   return any ?? chosen ?? recommended;
+}
+
+const LARGER: string[] = [MODEL_IDS.qwen27, MODEL_IDS.qwen35moe];
+const GiB = 1024 ** 3;
+
+/**
+ * The larger models' plans as the host's MemoryPlanner makes them on the reference laptop (40 GB of RAM, a 6 GB card;
+ * ENGINE-NOTES.md §T): with the card free the dense model is split and the mixture of experts keeps its experts in RAM;
+ * with another program on the card (`?vram=low`) both run in RAM on the processor.
+ */
+export function largerModelPlans(vram: VramFlag): LocalModelPlanInfo[] {
+  const card = vram === 'ok';
+  const plan = (modelId: string, p: Omit<LocalModelPlanInfo, 'modelId' | 'fits' | 'contextTokens'>): LocalModelPlanInfo => ({ modelId, fits: true, contextTokens: 16384, ...p });
+  return card
+    ? [
+        plan(MODEL_IDS.qwen27, { line: 'Runs 12 of 64 layers on the graphics card, the rest in RAM · about 1.3 tokens/s · 14 GB of RAM while writing · minutes of a 20-minute meeting in about 72 minutes', placement: 'split', gpuLayers: 13, cardBlocks: 12, totalLayers: 64, cpuExpertLayers: 0, vramBytes: 4.4 * GiB, ramBytes: 13.7 * GiB, tokensPerSecond: 1.3 }),
+        plan(MODEL_IDS.qwen35moe, { line: 'Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing · minutes of a 20-minute meeting in about 18 minutes', placement: 'experts', gpuLayers: 41, cardBlocks: 40, totalLayers: 40, cpuExpertLayers: 37, vramBytes: 4.5 * GiB, ramBytes: 18 * GiB, tokensPerSecond: 12.3 }),
+      ]
+    : [
+        plan(MODEL_IDS.qwen27, { line: 'Runs in RAM on the processor · about 1.0 tokens/s · 17 GB of RAM while writing · minutes of a 20-minute meeting in about 6 hours', placement: 'ram', gpuLayers: 0, cardBlocks: 0, totalLayers: 64, cpuExpertLayers: 0, vramBytes: 0, ramBytes: 17.5 * GiB, tokensPerSecond: 1.0 }),
+        plan(MODEL_IDS.qwen35moe, { line: 'Runs in RAM on the processor · about 6 tokens/s · 22 GB of RAM while writing · minutes of a 20-minute meeting in about 60 minutes', placement: 'ram', gpuLayers: 0, cardBlocks: 0, totalLayers: 40, cpuExpertLayers: 0, vramBytes: 0, ramBytes: 22 * GiB, tokensPerSecond: 6.1 }),
+      ];
+}
+
+function placementWords(plan: LocalModelPlanInfo): string {
+  return plan.placement === 'card' ? 'graphics card' : plan.placement === 'ram' ? 'processor' : 'graphics card and RAM';
 }
 
 /** The Local provider's readiness, with the model, the device and why. */
@@ -64,6 +94,25 @@ export function localProviderInfo(models: readonly ModelInfo[], chosen: string |
       modelListed: null,
       gpuMemory: mockGpuMemory(vram),
       gpuNote: null,
+      memoryPlan: null,
+      largerModels: largerModelPlans(vram),
+    };
+  }
+  const larger = largerModelPlans(vram).find((p) => p.modelId === id);
+  if (larger !== undefined) {
+    return {
+      ...base,
+      ready: larger.fits,
+      reason: larger.fits ? null : 'Not enough memory',
+      modelLabel: larger.fits ? `${model.name} · ${placementWords(larger)}` : model.name,
+      code: larger.fits ? null : 'ai.notEnoughMemory',
+      detail: larger.fits ? `${larger.line}, with a 16k context. Nothing leaves this PC.` : larger.line,
+      modelId: id,
+      modelListed: null,
+      gpuMemory: mockGpuMemory(vram),
+      gpuNote: null,
+      memoryPlan: larger,
+      largerModels: largerModelPlans(vram),
     };
   }
   const notes: string[] = [];
@@ -95,5 +144,7 @@ export function localProviderInfo(models: readonly ModelInfo[], chosen: string |
     modelListed: null,
     gpuMemory: mockGpuMemory(vram),
     gpuNote,
+    memoryPlan: null,
+    largerModels: largerModelPlans(vram),
   };
 }

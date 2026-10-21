@@ -24,6 +24,9 @@ export const MODEL_IDS = {
   // M4: the Local provider's language models (ROADMAP M4a).
   qwen: 'qwen3.5-4b-q4',
   ministral: 'ministral-3-3b-q4',
+  // 2.2: the larger models, split between the graphics card and RAM.
+  qwen27: 'qwen3.5-27b-q4',
+  qwen35moe: 'qwen3.5-35b-a3b-q4',
 } as const;
 
 /**
@@ -34,7 +37,13 @@ export function sampleModels(installed: 'sample' | 'none' = 'sample', alsoInstal
   const has = (id: string): boolean =>
     alsoInstalled.includes(id) ||
     (installed === 'sample' && ([MODEL_IDS.turbo, MODEL_IDS.small, MODEL_IDS.segmentation, MODEL_IDS.titanet] as string[]).includes(id));
-  const model = (m: Omit<ModelInfo, 'installing' | 'installed'>): ModelInfo => ({ ...m, installed: has(m.id), installing: null });
+  const model = (m: Omit<ModelInfo, 'installing' | 'installed' | 'group' | 'minRamBytes'> & Partial<Pick<ModelInfo, 'group' | 'minRamBytes'>>): ModelInfo => ({
+    group: null,
+    minRamBytes: null,
+    ...m,
+    installed: has(m.id),
+    installing: null,
+  });
   return [
     model({
       id: MODEL_IDS.turbo,
@@ -165,6 +174,36 @@ export function sampleModels(installed: 'sample' | 'none' = 'sample', alsoInstal
       minVramBytes: 3 * GB,
       accuracyNote: 'Lighter',
       role: null,
+    }),
+    model({
+      id: MODEL_IDS.qwen27,
+      engine: 'llm',
+      name: 'Qwen3.5 27B',
+      description: 'Qwen3.5-27B (Q4_K_M GGUF, llama.cpp). A large dense model for document drafts; split between the graphics card and RAM.',
+      sizeBytes: 16_740_812_704,
+      license: 'Apache-2.0',
+      recommended: false,
+      runsOn: 'either',
+      minVramBytes: null,
+      accuracyNote: 'Dense: the slowest',
+      role: null,
+      group: 'larger',
+      minRamBytes: 18_900_000_000,
+    }),
+    model({
+      id: MODEL_IDS.qwen35moe,
+      engine: 'llm',
+      name: 'Qwen3.5 35B-A3B',
+      description: 'Qwen3.5-35B-A3B (Q4_K_M GGUF, llama.cpp). A large mixture-of-experts model: the experts stay in RAM, the rest runs on the graphics card.',
+      sizeBytes: 22_016_023_168,
+      license: 'Apache-2.0',
+      recommended: false,
+      runsOn: 'either',
+      minVramBytes: null,
+      accuracyNote: 'Mixture of experts: fast for its size',
+      role: null,
+      group: 'larger',
+      minRamBytes: 23_242_735_616,
     }),
   ];
 }

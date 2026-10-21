@@ -32,4 +32,10 @@ public sealed record ProviderInfo(string Id, string Name, string Vendor, string 
     /// starts <see cref="Detail"/>. <c>null</c> when the model fits or runs on the processor by design.
     /// </summary>
     public string? GpuNote { get; init; }
+
+    /// <summary>After 2.2, local only: how the larger model in effect is placed now; <c>null</c> for the small models and cloud providers.</summary>
+    public LocalModelPlanInfo? MemoryPlan { get; init; }
+
+    /// <summary>After 2.2, local only: the plan of every larger model in the catalog (Settings' "Larger models"); <c>null</c> for cloud providers.</summary>
+    public IReadOnlyList<LocalModelPlanInfo>? LargerModels { get; init; }
 }
