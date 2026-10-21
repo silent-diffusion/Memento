@@ -102,6 +102,14 @@ public static class MemoryPlanner
         var reason = string.Create(
             CultureInfo.InvariantCulture,
             $"{option.Placement}: {option.GpuLayers} GPU layers, experts of {option.CpuExpertLayers} blocks in RAM, {Mb(option.Vram)} on the card of {Mb(cardBudget)} usable, {Mb(option.Ram)} RAM of {Mb(ramBudget)} usable, {context} context");
+        var reading = PromptSpeed(profile, option, room);
+        if (last is { TokensPerSecond: > 0 } && estimate > 0)
+        {
+            // A measured writing speed says how this PC compares with the estimate; prompt reading moves the same way.
+            reading *= Math.Clamp(speed / estimate, 0.5, 2.0);
+        }
+
+        var minutes = reading > 0 && speed > 0 ? ((room.MeetingPromptTokens / reading) + (room.MeetingOutputTokens / speed)) / 60 : 0;
         return new LocalMemoryPlan(
             fits,
             fits ? option.Placement : LocalPlacements.None,
@@ -116,7 +124,29 @@ public static class MemoryPlanner
             Math.Round(speed, 1),
             needed,
             freeForIt,
-            reason);
+            reason)
+        {
+            PromptTokensPerSecond = Math.Round(reading, 1),
+            MeetingMinutes = Math.Round(minutes, 1),
+        };
+    }
+
+    /// <summary>
+    /// Prompt tokens per second: on the card alone at the card's speed; with weights in RAM and the card, the time to copy
+    /// those to the card for each 512-token batch; in RAM alone, the processor's compute over the weights read per token.
+    /// </summary>
+    private static double PromptSpeed(LocalModelProfile p, Option o, MemoryHeadroom room)
+    {
+        var active = (p.Layers * p.LayerBytes) + (p.ExpertBytes * (p.IsMixtureOfExperts ? p.ActiveExpertShare : 0)) + p.OutputBytes;
+        if (o.Placement is LocalPlacements.Ram or LocalPlacements.None)
+        {
+            return room.RamPromptBytesPerSecond / Math.Max(1, active);
+        }
+
+        double blocksInRam = (p.Layers - o.CardBlocks) * (p.LayerBytes + p.ExpertBytesPerLayer);
+        double expertsInRam = o.CpuExpertLayers * p.ExpertBytesPerLayer;
+        var seconds = (blocksInRam / room.BlockCopyBytesPerSecond) + (expertsInRam / room.CopyBytesPerSecond) + (512.0 * active / room.CardPromptBytesPerSecond);
+        return 512 / Math.Max(1e-6, seconds);
     }
 
     /// <summary>The placements to try, most of the card first, each with its video memory and RAM.</summary>

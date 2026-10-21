@@ -35,6 +35,12 @@ public sealed record LocalMemoryPlan(
     long FreeBytes,
     string Reason)
 {
+    /// <summary>The estimated prompt reading speed (tokens a second), where most of a document's time goes.</summary>
+    public double PromptTokensPerSecond { get; init; }
+
+    /// <summary>The estimated minutes for Meeting minutes of a 20-minute meeting with this placement (0 when not known).</summary>
+    public double MeetingMinutes { get; init; }
+
     /// <summary>The worker's device: the CPU build in RAM only, the Vulkan build (and the graphics card's gate) otherwise.</summary>
     public string Device => Placement == LocalPlacements.Ram ? LocalLlmDevices.Cpu : LocalLlmDevices.Gpu;
 

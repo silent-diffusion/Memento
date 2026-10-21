@@ -41,8 +41,8 @@ describe('Larger models in Settings and the Builder (against the browser-preview
     expect(small.every((c) => c.querySelector('.model-plan') === null)).toBe(true);
 
     expect(text(card(DENSE)?.querySelector('.model-facts'))).toMatch(/^15\.6 GB · Apache-2\.0 · Graphics card and RAM, 17\.\d GB of memory · Not installed$/);
-    expect(text(card(DENSE)?.querySelector('.model-plan'))).toBe('Runs 15 of 64 layers on the graphics card, the rest in RAM · about 3 tokens/s · 14 GB of RAM while writing');
-    expect(text(card(MOE)?.querySelector('.model-plan'))).toBe('Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing');
+    expect(text(card(DENSE)?.querySelector('.model-plan'))).toBe('Runs 12 of 64 layers on the graphics card, the rest in RAM · about 1.3 tokens/s · 14 GB of RAM while writing · minutes of a 20-minute meeting in about 2 hours');
+    expect(text(card(MOE)?.querySelector('.model-plan'))).toBe('Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing · minutes of a 20-minute meeting in about 17 minutes');
     expect(text(card(MOE)?.querySelector('.model-note'))).toBe('Mixture of experts: fast for its size');
     expect(card(MOE)?.querySelector('[aria-label="Install Qwen3.5 35B-A3B, 20.5 GB"]')).not.toBeNull();
     expect(text(card(MOE)?.querySelector('.model-actions'))).toBe('Install · 20.5 GB');
@@ -51,7 +51,7 @@ describe('Larger models in Settings and the Builder (against the browser-preview
 
   it('with the card held by another program the plan moves to RAM', async () => {
     await openSettings({ llm: 'qwen', vram: 'low' });
-    expect(text(card(MOE)?.querySelector('.model-plan'))).toBe('Runs in RAM on the processor · about 6 tokens/s · 22 GB of RAM while writing');
+    expect(text(card(MOE)?.querySelector('.model-plan'))).toBe('Runs in RAM on the processor · about 6 tokens/s · 22 GB of RAM while writing · minutes of a 20-minute meeting in about 52 minutes');
   });
 
   it('Use this model makes an installed larger model the one in effect, in one radio group with the small ones', async () => {
@@ -80,7 +80,7 @@ describe('Larger models in Settings and the Builder (against the browser-preview
     const local = [...document.querySelectorAll<HTMLElement>('.providers label.provider')].find((l) => l.querySelector('.provider-name')?.textContent === 'Local model');
     expect(local?.querySelector('.provider-note')?.textContent).toBe('Qwen3.5 35B-A3B · graphics card and RAM · on this PC');
     const plan = local?.querySelector('.provider-detail--plan');
-    expect(plan?.textContent).toBe('Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing');
+    expect(plan?.textContent).toBe('Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing · minutes of a 20-minute meeting in about 17 minutes');
     expect(local?.classList.contains('provider--detail')).toBe(true);
     await settle(10);
     expect(button('Generate minutes').disabled).toBe(false);

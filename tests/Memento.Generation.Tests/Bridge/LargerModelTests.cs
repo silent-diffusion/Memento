@@ -62,7 +62,7 @@ public sealed class LargerModelTests : IDisposable
         Assert.Equal(41, plan.GetProperty("gpuLayers").GetInt32());
         Assert.Equal(37, plan.GetProperty("cpuExpertLayers").GetInt32());
         Assert.Equal(40, plan.GetProperty("totalLayers").GetInt32());
-        Assert.Equal("Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing", plan.GetProperty("line").GetString());
+        Assert.Matches(@"^Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing · minutes of a 20-minute meeting in about 1\d minutes$", plan.GetProperty("line").GetString());
         Assert.Equal(plan.GetProperty("line").GetString() + ", with a 16k context. Nothing leaves this PC.", local.GetProperty("detail").GetString());
         var larger = local.GetProperty("largerModels").EnumerateArray().ToList();
         Assert.Equal([LocalModelCatalog.Qwen35TwentySevenB, Moe], larger.Select(p => p.GetProperty("modelId").GetString()));
@@ -124,9 +124,10 @@ public sealed class LargerModelTests : IDisposable
 
         var plan = (await LocalAsync()).GetProperty("memoryPlan");
 
-        Assert.Equal("ram", plan.GetProperty("placement").GetString());
-        Assert.Equal(0, plan.GetProperty("vramBytes").GetInt64());
-        Assert.StartsWith("Runs in RAM on the processor", plan.GetProperty("line").GetString(), StringComparison.Ordinal);
+        // 2.5 GB of the card stay free for Whisper: only the output layer and a block fit beside it.
+        Assert.Equal("split", plan.GetProperty("placement").GetString());
+        Assert.True(plan.GetProperty("vramBytes").GetInt64() <= (5222 - 512 - 2560) * MiB);
+        Assert.StartsWith("Runs 1 of 40 layers on the graphics card, the rest in RAM", plan.GetProperty("line").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

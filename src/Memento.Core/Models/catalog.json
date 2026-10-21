@@ -215,7 +215,7 @@
       "sha256": "84b5f7f112156d63836a01a69dc3f11a6ba63b10a23b8ca7a7efaf52d5a2d806",
       "url": "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf",
       "license": "Apache-2.0",
-      "notes": "TBD",
+      "notes": "Measured on an RTX 3060 Laptop (6 GB) with 40 GB of RAM: with the output layer and 16 of 64 blocks on the card, 36 prompt / 1.7 output tokens per second, 5.3 GB of video memory and 16 GB of RAM; 9 blocks on the card read prompts at 52 tokens per second. In RAM alone 4.5 / 1.4 tokens per second, hours for a meeting.",
       "runsOn": "either",
       "minVramBytes": null,
       "recommendedFor": null,
@@ -229,13 +229,13 @@
         "minContextTokens": 8192,
         "cpuContextTokens": 16384,
         "layers": 64,
-        "baseVramBytes": 17272948736,
+        "baseVramBytes": 16696231936,
         "kvBytesPerToken": 65536,
         "chunkTokens": 3000,
         "layerBytes": 233932704,
         "outputBytes": 1042964480,
         "hostBytes": 1153433600,
-        "gpuComputeBytes": 1258291200
+        "gpuComputeBytes": 681574400
       }
     },
     {

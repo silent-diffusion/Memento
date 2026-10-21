@@ -63,12 +63,12 @@ export function largerModelPlans(vram: VramFlag): LocalModelPlanInfo[] {
   const plan = (modelId: string, p: Omit<LocalModelPlanInfo, 'modelId' | 'fits' | 'contextTokens'>): LocalModelPlanInfo => ({ modelId, fits: true, contextTokens: 16384, ...p });
   return card
     ? [
-        plan(MODEL_IDS.qwen27, { line: 'Runs 15 of 64 layers on the graphics card, the rest in RAM · about 3 tokens/s · 14 GB of RAM while writing', placement: 'split', gpuLayers: 16, cardBlocks: 15, totalLayers: 64, cpuExpertLayers: 0, vramBytes: 4.6 * GiB, ramBytes: 14 * GiB, tokensPerSecond: 2.9 }),
-        plan(MODEL_IDS.qwen35moe, { line: 'Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing', placement: 'experts', gpuLayers: 41, cardBlocks: 40, totalLayers: 40, cpuExpertLayers: 37, vramBytes: 4.5 * GiB, ramBytes: 18 * GiB, tokensPerSecond: 12.3 }),
+        plan(MODEL_IDS.qwen27, { line: 'Runs 12 of 64 layers on the graphics card, the rest in RAM · about 1.3 tokens/s · 14 GB of RAM while writing · minutes of a 20-minute meeting in about 2 hours', placement: 'split', gpuLayers: 13, cardBlocks: 12, totalLayers: 64, cpuExpertLayers: 0, vramBytes: 4.4 * GiB, ramBytes: 13.7 * GiB, tokensPerSecond: 1.3 }),
+        plan(MODEL_IDS.qwen35moe, { line: 'Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing · minutes of a 20-minute meeting in about 17 minutes', placement: 'experts', gpuLayers: 41, cardBlocks: 40, totalLayers: 40, cpuExpertLayers: 37, vramBytes: 4.5 * GiB, ramBytes: 18 * GiB, tokensPerSecond: 12.3 }),
       ]
     : [
-        plan(MODEL_IDS.qwen27, { line: 'Runs in RAM on the processor · about 2 tokens/s · 18 GB of RAM while writing', placement: 'ram', gpuLayers: 0, cardBlocks: 0, totalLayers: 64, cpuExpertLayers: 0, vramBytes: 0, ramBytes: 18 * GiB, tokensPerSecond: 2.4 }),
-        plan(MODEL_IDS.qwen35moe, { line: 'Runs in RAM on the processor · about 6 tokens/s · 22 GB of RAM while writing', placement: 'ram', gpuLayers: 0, cardBlocks: 0, totalLayers: 40, cpuExpertLayers: 0, vramBytes: 0, ramBytes: 22 * GiB, tokensPerSecond: 6.1 }),
+        plan(MODEL_IDS.qwen27, { line: 'Runs in RAM on the processor · about 1.0 tokens/s · 17 GB of RAM while writing · minutes of a 20-minute meeting in about 5 hours', placement: 'ram', gpuLayers: 0, cardBlocks: 0, totalLayers: 64, cpuExpertLayers: 0, vramBytes: 0, ramBytes: 17.5 * GiB, tokensPerSecond: 1.0 }),
+        plan(MODEL_IDS.qwen35moe, { line: 'Runs in RAM on the processor · about 6 tokens/s · 22 GB of RAM while writing · minutes of a 20-minute meeting in about 52 minutes', placement: 'ram', gpuLayers: 0, cardBlocks: 0, totalLayers: 40, cpuExpertLayers: 0, vramBytes: 0, ramBytes: 22 * GiB, tokensPerSecond: 6.1 }),
       ];
 }
 

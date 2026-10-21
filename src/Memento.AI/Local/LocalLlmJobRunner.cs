@@ -114,8 +114,13 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             return outputs;
         }
 
+        // The worker's RAM as it is after each batch: a model mapped from disk takes its pages as they are first read, so
+        // the working set right after loading undercounts what writing takes (14 GB against 18 GB for the 35B).
+        LocalLlmDeviceInfo Measured() =>
+            engine.Device.RamBytes is { } ram ? engine.Device with { RamBytes = Math.Max(ram, Environment.WorkingSet) } : engine.Device;
+
         LocalLlmResult Result(IReadOnlyList<LocalLlmOutput> outputs) =>
-            new(outputs, engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes);
+            new(outputs, Measured(), engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes);
 
         try
         {

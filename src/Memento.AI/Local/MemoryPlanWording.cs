@@ -25,8 +25,15 @@ public static class MemoryPlanWording
             LocalPlacements.Ram => "Runs in RAM on the processor",
             _ => "Does not fit in this PC's memory now",
         };
-        return string.Create(CultureInfo.InvariantCulture, $"{where} · {Speed(plan.TokensPerSecond)} · {Gb(plan.RamBytes)} of RAM while writing");
+        var line = string.Create(CultureInfo.InvariantCulture, $"{where} · {Speed(plan.TokensPerSecond)} · {Gb(plan.RamBytes)} of RAM while writing");
+        return plan.MeetingMinutes > 0 ? $"{line} · {Meeting(plan.MeetingMinutes)}" : line;
     }
+
+    /// <summary>"minutes of a 20-minute meeting in about 18 minutes", "… in about 9 hours".</summary>
+    public static string Meeting(double minutes) =>
+        minutes >= 90
+            ? string.Create(CultureInfo.InvariantCulture, $"minutes of a 20-minute meeting in about {Math.Round(minutes / 60):0} hours")
+            : string.Create(CultureInfo.InvariantCulture, $"minutes of a 20-minute meeting in about {Math.Max(1, Math.Round(minutes)):0} minutes");
 
     /// <summary>
     /// What a load actually took, for "How this was made" and History: "Ran 28 of 64 layers on the graphics card, the rest

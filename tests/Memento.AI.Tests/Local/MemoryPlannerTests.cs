@@ -75,6 +75,7 @@ public sealed class MemoryPlannerTests
     {
         var none = MemoryPlanner.Plan(Dense, Pc(freeVram: null));
         var little = MemoryPlanner.Plan(Dense, Pc(freeVram: 3 * GiB));
+        var tooLittle = MemoryPlanner.Plan(Dense, Pc(freeVram: 2 * GiB));
 
         Assert.Equal(LocalPlacements.Ram, none.Placement);
         Assert.Equal(0, none.GpuLayers);
@@ -82,8 +83,13 @@ public sealed class MemoryPlannerTests
         Assert.Equal(LocalLlmDevices.Cpu, none.Device);
         Assert.True(none.RamBytes >= Dense.WeightBytes);
 
-        // 3 GB leaves room for 3 of 64 blocks: below the 15 % worth holding the card for.
-        Assert.Equal(LocalPlacements.Ram, little.Placement);
+        // 3 GB leaves room for the output layer and 3 of 64 blocks: still worth it, the card reads the prompts.
+        Assert.Equal(LocalPlacements.Split, little.Placement);
+        Assert.Equal(3, little.CardBlocks);
+        Assert.True(little.PromptTokensPerSecond > 5 * none.PromptTokensPerSecond);
+
+        // 2 GB less the margin is not even the output layer and the compute buffer: RAM alone.
+        Assert.Equal(LocalPlacements.Ram, tooLittle.Placement);
     }
 
     [Fact]
@@ -108,14 +114,14 @@ public sealed class MemoryPlannerTests
 
         var plan = MemoryPlanner.Plan(Moe, Pc(availableRam: 30 * GiB, demands: waiting));
 
-        // With RAM to spare, 2.5 GB of the card stays free for Whisper: the rest of the model no longer fits beside it, so
-        // it runs in RAM on the processor and the transcription keeps the card.
+        // With RAM to spare, 2.5 GB of the card stays free for Whisper: attention and the experts no longer fit beside it,
+        // so the output layer and one block go on the card (it still reads the prompts) and the rest stays in RAM.
         Assert.True(plan.Fits);
-        Assert.Equal(LocalPlacements.Ram, plan.Placement);
-        Assert.Equal(0, plan.VramBytes);
+        Assert.Equal(LocalPlacements.Split, plan.Placement);
+        Assert.True(plan.VramBytes <= (5222 - 512 - 2560) * MiB);
 
         // Without that much RAM it only fits with the card: it is planned there and waits at the gate for the transcription.
-        var waits = MemoryPlanner.Plan(Moe, Pc(demands: waiting));
+        var waits = MemoryPlanner.Plan(Moe, Pc(availableRam: 22 * GiB, demands: waiting));
         Assert.True(waits.Fits);
         Assert.Equal(LocalPlacements.Experts, waits.Placement);
 
@@ -179,7 +185,19 @@ public sealed class MemoryPlannerTests
     [Fact]
     public void TheLinesSayWhereHowFastAndHowMuchRam()
     {
-        Assert.Equal("Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing", MemoryPlanWording.Line(MemoryPlanner.Plan(Moe, Pc())));
+        Assert.Matches(@"^Runs on the graphics card with the experts of 37 of 40 layers in RAM · about 12 tokens/s · 18 GB of RAM while writing · minutes of a 20-minute meeting in about \d+ minutes$", MemoryPlanWording.Line(MemoryPlanner.Plan(Moe, Pc())));
+
+        // Prompt reading is most of a document's time: the measured 35B with its experts in RAM read about 100 tokens/s
+        // and took 17.6 minutes; a dense model in RAM alone reads a few tokens a second and takes hours.
+        var experts = MemoryPlanner.Plan(Moe, Pc());
+        Assert.InRange(experts.PromptTokensPerSecond, 70, 140);
+        Assert.InRange(experts.MeetingMinutes, 12, 22);
+        var inRam = MemoryPlanner.Plan(Dense, Pc(freeVram: null));
+        Assert.InRange(inRam.PromptTokensPerSecond, 2, 8);
+        Assert.True(inRam.MeetingMinutes > 90);
+        Assert.Matches(@" · minutes of a 20-minute meeting in about \d+ hours$", MemoryPlanWording.Line(inRam));
+        Assert.Equal("minutes of a 20-minute meeting in about 18 minutes", MemoryPlanWording.Meeting(17.6));
+        Assert.Equal("minutes of a 20-minute meeting in about 4 hours", MemoryPlanWording.Meeting(250));
         Assert.StartsWith("Runs 12 of 64 layers on the graphics card, the rest in RAM · about ", MemoryPlanWording.Line(MemoryPlanner.Plan(Dense, Pc())), StringComparison.Ordinal);
         Assert.StartsWith("Runs in RAM on the processor · about ", MemoryPlanWording.Line(MemoryPlanner.Plan(Dense, Pc(freeVram: null))), StringComparison.Ordinal);
         Assert.StartsWith("Runs on the graphics card · about ", MemoryPlanWording.Line(MemoryPlanner.Plan(Dense, Pc(freeVram: 24 * GiB))), StringComparison.Ordinal);
