@@ -36,7 +36,7 @@ internal sealed class LlamaLocalLlmEngine : ILocalLlmEngine
         NativeApi.llama_set_abort_callback(context.NativeHandle, AbortState.Callback, abort.UserData);
     }
 
-    public LocalLlmDeviceInfo Device { get; }
+    public LocalLlmDeviceInfo Device { get; internal set; }
 
     public double LoadMs { get; }
 

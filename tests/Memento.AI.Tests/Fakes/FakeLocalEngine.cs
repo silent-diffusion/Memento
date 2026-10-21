@@ -5,7 +5,7 @@ namespace Memento.AI.Tests.Fakes;
 /// <summary>A scripted engine: answers each prompt with <see cref="Answer"/>, word by word; can block until cancelled.</summary>
 internal sealed class FakeLocalEngine(LocalLlmJob job, FakeLocalEngineFactory owner) : ILocalLlmEngine
 {
-    public LocalLlmDeviceInfo Device { get; } = new(job.Device == LocalLlmDevices.Cpu ? "cpu" : "vulkan", "Fake GPU", 33, job.ContextTokens > 0 ? job.ContextTokens : 4096, 8);
+    public LocalLlmDeviceInfo Device { get; } = new(job.Device == LocalLlmDevices.Cpu ? "cpu" : "vulkan", "Fake GPU", job.Placement?.GpuLayers ?? 33, job.ContextTokens > 0 ? job.ContextTokens : 4096, 8, CpuExpertLayers: job.Placement?.CpuExpertLayers ?? 0);
 
     public double LoadMs => 12;
 
@@ -20,6 +20,11 @@ internal sealed class FakeLocalEngine(LocalLlmJob job, FakeLocalEngineFactory ow
     public async Task<LocalLlmOutput> GenerateAsync(int index, LocalLlmPrompt prompt, Action<string>? onDelta, CancellationToken cancellationToken)
     {
         owner.Prompts.Add(prompt);
+        if (owner.Spills > 0)
+        {
+            owner.Spills--;
+            throw new LocalLlmException(AiErrors.VramSpilled(LocalAiProvider.ProviderName, job.ModelName, 600L << 20));
+        }
         if (owner.BlockUntilCancelled)
         {
             owner.Started.TrySetResult();

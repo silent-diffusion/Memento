@@ -71,6 +71,62 @@ public sealed class LocalJobRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task ALargerModelThatSpillsWhileWritingIsLoadedAgainWithLessOnTheCardAndAnswers()
+    {
+        var moe = LocalModelCatalog.Find(LocalModelCatalog.Qwen35MoE)! with { SizeBytes = 4 };
+        var placement = new LocalLlmPlacement(41, 37, 4L << 30, 18L << 30, 5L << 29, 512L << 20);
+        var runner = new LocalLlmJobRunner(_engines, Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalLlmJobRunner>.Instance);
+        var lines = new List<LocalLlmWorkerReply>();
+        _engines.Spills = 1;
+        var job = new LocalLlmJob
+        {
+            ModelPath = _modelPath,
+            ModelId = moe.Id,
+            ModelName = moe.Name,
+            Profile = moe.Llm,
+            Device = LocalLlmDevices.Gpu,
+            ContextTokens = 16384,
+            Placement = placement,
+            Prompts = [new LocalLlmPrompt("map.test", "s", [new LocalLlmTurn(LocalLlmTurn.User, "u")], 16)],
+        };
+
+        var result = await runner.RunAsync(job, lines.Add, CancellationToken.None);
+
+        Assert.Equal(2, _engines.Loads);
+        Assert.Equal(2, _engines.Disposed);
+        Assert.Equal("{\"ok\": true}", Assert.Single(result.Outputs).Text);
+        var reloaded = _engines.Jobs[1].Placement!;
+        Assert.Equal(41, reloaded.GpuLayers);
+        Assert.True(reloaded.CpuExpertLayers > 37, "The experts of more blocks move to RAM first.");
+        Assert.Equal(reloaded.CpuExpertLayers, result.Device.CpuExpertLayers);
+        var devices = lines.Where(l => l.Type == "device").ToList();
+        Assert.Equal(2, devices.Count);
+        Assert.Equal("spilled while writing", devices[1].LlmDevice!.Reduced);
+    }
+
+    [Fact]
+    public async Task ASmallModelThatSpillsWhileWritingStopsAsBefore()
+    {
+        var runner = new LocalLlmJobRunner(_engines, Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalLlmJobRunner>.Instance);
+        _engines.Spills = 1;
+        var job = new LocalLlmJob
+        {
+            ModelPath = _modelPath,
+            ModelId = _model.Id,
+            ModelName = _model.Name,
+            Profile = _model.Llm,
+            Prompts = [new LocalLlmPrompt("map.test", "s", [new LocalLlmTurn(LocalLlmTurn.User, "u")], 16)],
+        };
+
+        var error = await Assert.ThrowsAsync<LocalLlmException>(() => runner.RunAsync(job, null, CancellationToken.None));
+
+        Assert.True(LocalLlmSpill.Is(error));
+        Assert.Equal(600L << 20, LocalLlmSpill.Growth(error));
+        Assert.Equal(1, _engines.Loads);
+        Assert.Equal(1, _engines.Disposed);
+    }
+
+    [Fact]
     public async Task AMissingModelIsReportedWithoutLoading()
     {
         await using var worker = new PipeWorker();

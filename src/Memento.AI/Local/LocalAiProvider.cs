@@ -21,6 +21,11 @@ public sealed class LocalAiProvider : IAiProvider
     private readonly ITokenCounter _counter;
     private readonly Func<long?> _freeVram;
     private readonly LocalAiOptions _options;
+    private readonly object _measured = new();
+    private LocalLlmDeviceInfo? _device;
+    private long? _dedicatedVram;
+    private long _outputTokens;
+    private double _generateMs;
 
     /// <param name="counter">The model's tokenizer (Memento.AI.Local's <c>LlamaTokenCounter</c>), or an estimate until it is available.</param>
     /// <param name="freeVram">Free video memory on the graphics card the worker will use (Core's resource probe), or <c>null</c>.</param>
@@ -53,6 +58,46 @@ public sealed class LocalAiProvider : IAiProvider
     public AiCapabilities Capabilities { get; }
 
     public int CountTokens(string text) => _counter.Count(text);
+
+    /// <summary>
+    /// What the worker actually loaded and how fast it wrote, over every answer since this provider was made (one
+    /// generation), or <c>null</c> before the model has loaded. The host keeps it so the next plan is checked against it.
+    /// </summary>
+    public LocalLoadMeasurement? Measurement(TimeProvider? time = null)
+    {
+        lock (_measured)
+        {
+            if (_device is not { } device)
+            {
+                return null;
+            }
+
+            var speed = _generateMs > 0 ? Math.Round(_outputTokens / (_generateMs / 1000), 2) : 0;
+            return new LocalLoadMeasurement(
+                _model.Id,
+                device.GpuLayers,
+                device.CpuExpertLayers,
+                device.ContextTokens,
+                device.GpuLayers > 0 ? _dedicatedVram ?? 0 : 0,
+                device.RamBytes ?? 0,
+                speed,
+                _options.Placement?.PlannedVramBytes ?? 0,
+                _options.Placement?.PlannedRamBytes ?? 0,
+                (time ?? TimeProvider.System).GetUtcNow());
+        }
+    }
+
+    /// <summary>Where the model was loaded, once it has been (the worker's <c>device</c> line).</summary>
+    public LocalLlmDeviceInfo? LoadedDevice
+    {
+        get
+        {
+            lock (_measured)
+            {
+                return _device;
+            }
+        }
+    }
 
     /// <summary>How the model would be loaded with the free video memory measured now.</summary>
     public LocalLlmPlan Plan() =>
@@ -142,6 +187,8 @@ public sealed class LocalAiProvider : IAiProvider
         SpillThresholdBytes = _options.SpillThresholdBytes,
         Threads = _options.Threads,
         AllowCpuFallback = !string.Equals(_model.RunsOn, "gpu", StringComparison.Ordinal),
+        Placement = _options.Placement,
+        FlashAttention = _options.FlashAttention,
     };
 
     private static List<LocalLlmPrompt> Prompts(IReadOnlyList<AiRequest> requests)
@@ -174,6 +221,14 @@ public sealed class LocalAiProvider : IAiProvider
         }
 
         var total = Stopwatch.GetElapsedTime(started);
+        lock (_measured)
+        {
+            _device = result.Device;
+            _dedicatedVram = result.DedicatedVramBytes ?? _dedicatedVram;
+            _outputTokens += result.Outputs.Sum(o => (long)o.OutputTokens);
+            _generateMs += result.Outputs.Sum(o => o.GenerateMs);
+        }
+
         var responses = new List<AiResponse>(requests.Count);
         for (var i = 0; i < requests.Count; i++)
         {

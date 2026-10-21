@@ -26,6 +26,9 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
     public const int ExitInvalidJob = 2;
     public const int ExitCancelled = 3;
 
+    /// <summary>How many times a larger model is loaded again with less on the card after spilling while it writes.</summary>
+    public const int MaxReloads = 2;
+
     /// <summary>
     /// Runs the job in this process; <paramref name="send"/> receives <c>device</c> and <c>progress</c> lines, and for a
     /// job that stays loaded (<see cref="LocalLlmJob.Session"/>) a <c>batch</c> line per batch of prompts:
@@ -50,7 +53,40 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Progress, Percent = percent, LlmProgress = progress });
         }
 
-        async Task<List<LocalLlmOutput>> RunPromptsAsync(ILocalLlmEngine engine, IReadOnlyList<LocalLlmPrompt> prompts)
+        Progress(new LocalLlmProgress(LocalLlmProgress.Loading, -1, count));
+        LogLoading(job.ModelId, job.Device, count);
+        var engine = await factory.LoadAsync(job, Progress, cancellationToken);
+        var reloads = 0;
+
+        // A larger model that spills while it writes (another program took the card's memory, or a compute buffer grew)
+        // is loaded again with less on the card and the prompt is answered again, rather than losing the generation.
+        async Task<LocalLlmOutput> GenerateAsync(int index, LocalLlmPrompt prompt, LocalTokenCoalescer tokens)
+        {
+            while (true)
+            {
+                try
+                {
+                    return await engine.GenerateAsync(index, prompt, tokens.Add, cancellationToken);
+                }
+                catch (LocalLlmException ex) when (LocalLlmSpill.Is(ex) && job.Placement is { } planned && reloads < MaxReloads && engine.Device.GpuLayers > 0)
+                {
+                    var loaded = planned with { GpuLayers = engine.Device.GpuLayers, CpuExpertLayers = engine.Device.CpuExpertLayers };
+                    var next = loaded.LessOffload(job.Profile, engine.Device.ContextTokens, LocalLlmSpill.Growth(ex));
+                    if (next is null)
+                    {
+                        throw;
+                    }
+
+                    reloads++;
+                    LogReloading(job.ModelId, loaded.GpuLayers, next.GpuLayers, next.CpuExpertLayers, LocalLlmSpill.Growth(ex));
+                    engine.Dispose();
+                    engine = await factory.LoadAsync(job with { Placement = next, ContextTokens = engine.Device.ContextTokens }, Progress, cancellationToken);
+                    send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Device, LlmDevice = engine.Device with { Reduced = engine.Device.Reduced ?? "spilled while writing" } });
+                }
+            }
+        }
+
+        async Task<List<LocalLlmOutput>> RunPromptsAsync(IReadOnlyList<LocalLlmPrompt> prompts)
         {
             count = prompts.Count;
             var outputs = new List<LocalLlmOutput>(prompts.Count);
@@ -61,7 +97,7 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
                 Progress(new LocalLlmProgress(LocalLlmProgress.ReadingPrompt, index, count));
                 var tokens = new LocalTokenCoalescer(_time, (delta, pieces, elapsed) =>
                     Progress(new LocalLlmProgress(LocalLlmProgress.Generating, index, count, delta, pieces) { ElapsedMs = Math.Round(elapsed.TotalMilliseconds) }));
-                var output = await engine.GenerateAsync(index, prompt, tokens.Add, cancellationToken);
+                var output = await GenerateAsync(index, prompt, tokens);
                 tokens.Flush();
                 var tokensPerSecond = Math.Round(output.TokensPerSecond, 1);
                 Progress(new LocalLlmProgress(LocalLlmProgress.Answered, index, count, OutputTokens: output.OutputTokens)
@@ -78,44 +114,49 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             return outputs;
         }
 
-        Progress(new LocalLlmProgress(LocalLlmProgress.Loading, -1, count));
-        LogLoading(job.ModelId, job.Device, count);
-        using var engine = await factory.LoadAsync(job, Progress, cancellationToken);
-        send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Device, LlmDevice = engine.Device });
-        LogLoaded(job.ModelId, engine.Device.Backend, engine.Device.GpuLayers, engine.Device.ContextTokens, (long)engine.LoadMs, (long)engine.WarmUpMs);
-
-        if (job.TokenizeTexts is { } texts)
-        {
-            var counts = new List<int>(texts.Count);
-            foreach (var text in texts)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                counts.Add(engine.CountTokens(text));
-            }
-
-            return new LocalLlmResult([], engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes, counts);
-        }
-
         LocalLlmResult Result(IReadOnlyList<LocalLlmOutput> outputs) =>
             new(outputs, engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes);
 
-        if (!job.Session)
+        try
         {
-            return Result(await RunPromptsAsync(engine, job.Prompts));
-        }
+            send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Device, LlmDevice = engine.Device });
+            LogLoaded(job.ModelId, engine.Device.Backend, engine.Device.GpuLayers, engine.Device.ContextTokens, (long)engine.LoadMs, (long)engine.WarmUpMs);
 
-        if (job.Prompts.Count > 0)
+            if (job.TokenizeTexts is { } texts)
+            {
+                var counts = new List<int>(texts.Count);
+                foreach (var text in texts)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    counts.Add(engine.CountTokens(text));
+                }
+
+                return new LocalLlmResult([], engine.Device, engine.LoadMs, engine.WarmUpMs, engine.DedicatedVramBytes, engine.SharedVramGrowthBytes, counts);
+            }
+
+            if (!job.Session)
+            {
+                return Result(await RunPromptsAsync(job.Prompts));
+            }
+
+            if (job.Prompts.Count > 0)
+            {
+                send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Batch, Llm = Result(await RunPromptsAsync(job.Prompts)) });
+            }
+
+            while (nextBatch is not null && await nextBatch(cancellationToken) is { } prompts)
+            {
+                ValidatePrompts(prompts);
+                send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Batch, Llm = Result(await RunPromptsAsync(prompts)) });
+            }
+
+            return Result([]);
+        }
+        finally
         {
-            send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Batch, Llm = Result(await RunPromptsAsync(engine, job.Prompts)) });
+            // The engine in use now: after a reload, the one loaded with less on the card.
+            engine.Dispose();
         }
-
-        while (nextBatch is not null && await nextBatch(cancellationToken) is { } prompts)
-        {
-            ValidatePrompts(prompts);
-            send?.Invoke(new LocalLlmWorkerReply { Type = WorkerMessageTypes.Batch, Llm = Result(await RunPromptsAsync(engine, prompts)) });
-        }
-
-        return Result([]);
     }
 
     /// <summary>The worker side of the protocol. Returns the process exit code.</summary>
@@ -272,6 +313,9 @@ public sealed partial class LocalLlmJobRunner(ILocalLlmEngineFactory factory, IL
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Local model {ModelId} spilled {Growth} bytes to shared memory while writing; loading it again with {Layers} -> {Fewer} GPU layers, experts of {Experts} blocks in RAM")]
+    private partial void LogReloading(string modelId, int layers, int fewer, int experts, long growth);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Local model {ModelId}: loading on {Device} for {Count} prompt(s)")]
     private partial void LogLoading(string modelId, string device, int count);
