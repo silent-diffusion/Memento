@@ -121,6 +121,8 @@ export function applyProgress(store: AppStore, recordingId: string, stages: Stag
 export interface EventHooks {
   /** library.changed: refetch what the Library shows. */
   onLibraryChanged?: (recordingIds: string[]) => void;
+  /** app.openScreen (the tray's Record): move through the app's router; without one the route is set directly. */
+  navigate?: (route: Route) => void;
 }
 
 /** The toast once an update has downloaded (DESIGN.md §5.19): never a modal; installing waits for the click. */
@@ -227,7 +229,13 @@ export function connectEvents(bridge: BridgeClient, store: AppStore, hooks: Even
       // `record` is the only screen the host opens.
       const active = store.recording.value;
       const live = active !== null && (active.state === 'recording' || active.state === 'paused');
-      store.route.value = { name: 'record', sessionId: live ? active.sessionId : null };
+      const route: Route = { name: 'record', sessionId: live ? active.sessionId : null };
+      // Through the router when the app has one, so the hash, the Library's scroll offset and Back follow.
+      if (hooks.navigate === undefined) {
+        store.route.value = route;
+      } else {
+        hooks.navigate(route);
+      }
     }),
     // 2.0 video: status, problems (toasts for a track that waits or ends), sources that come and go.
     connectVideoEvents(bridge, store),

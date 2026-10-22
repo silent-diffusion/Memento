@@ -56,6 +56,18 @@ describe('the tray’s Record item (app.openScreen, 2.0)', () => {
     expect(store.route.value).toEqual({ name: 'record', sessionId: 's1' });
   });
 
+  it('moves through the app’s router when it has one (hash, Library scroll offset and Back follow)', () => {
+    const { bridge, emit } = fakeBridge();
+    const store = createStore(false);
+    const moves: unknown[] = [];
+    connectEvents(bridge, store, { navigate: (route) => moves.push(route) });
+
+    emit('app.openScreen', { screen: 'record' });
+
+    expect(moves).toEqual([{ name: 'record', sessionId: null }]);
+    expect(store.route.value).toEqual({ name: 'library' });
+  });
+
   it('does not rejoin a session that is already being saved', () => {
     const { bridge, emit } = fakeBridge();
     const store = createStore(false);
