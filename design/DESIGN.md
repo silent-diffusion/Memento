@@ -155,6 +155,8 @@ Everything is one material. A raised element has the **same colour as the ground
 | `neo-in-xs` | `inset 2px 2px 4px rgba(29,28,26,.14), inset -2px -2px 4px rgba(255,255,255,.9)` | `inset 2px 2px 4px rgba(0,0,0,.6), inset -2px -2px 4px rgba(255,255,255,.04)` | Toggle tracks, selected chips / nav rows / icon toggles, hover on list rows |
 | `neo-accent` | `-4px -4px 10px rgba(255,255,255,.7), 6px 6px 14px rgba(194,65,12,.35)` | `-4px -4px 10px rgba(255,255,255,.04), 6px 6px 14px rgba(240,138,92,.3)` | Primary buttons (with `accent-grad` fill); destructive uses the danger variant |
 | `neo-accent-in` | `inset 4px 4px 8px rgba(0,0,0,.25), inset -3px -3px 8px rgba(255,255,255,.25)` | `inset 4px 4px 8px rgba(0,0,0,.4), inset -3px -3px 8px rgba(255,255,255,.15)` | Pressed state of primary and destructive buttons |
+| `neo-accent-hi` (2.3.1) | `neo-accent` plus `-6px -6px 14px rgba(255,255,255,.5)` | `-4px -4px 10px rgba(255,255,255,.04), 6px 6px 14px rgba(240,138,92,.3), -6px -6px 14px rgba(255,255,255,.05)` | Hover state of primary buttons (the light halo was hand-tuned for light and glowed in dark) |
+| `neo-danger` (2.3.1) | `-4px -4px 10px rgba(255,255,255,.7), 6px 6px 14px rgba(180,35,24,.35)` | `-4px -4px 10px rgba(255,255,255,.04), 6px 6px 14px rgba(242,139,130,.3)` | Destructive buttons (with `danger-grad`) |
 | `neo-bar` | `0 8px 18px rgba(29,28,26,.08)` | `0 8px 18px rgba(0,0,0,.5)` | The header bar |
 
 Rules of thumb:
@@ -199,7 +201,9 @@ Same 60 px `surface` bar, but the left side is a **back control** instead of the
 [‹ Library]  |  Title (16/700) + optional meta line (12, text-2)      [spoke actions…]
 ```
 
-- Back control: ghost button, 36 px, radius 9, 16 px chevron-left + the name of the screen it returns to ("Library", or "Design review: library screen" when the Builder was opened from a recording). Always the first element and always keyboard-reachable first.
+- Back control: ghost button, 36 px, radius 9, 16 px chevron-left + the name of the screen it returns to ("Library", or "Design review: library screen" when the Builder was opened from a recording). Always the first element and always keyboard-reachable first. A long name is cut with an ellipsis (at most 280 px); the tooltip names the target and the keys ("Back to Library (Esc or Alt+←)").
+- **Where Back goes** (2.3.1, `ui/src/state/navigation.ts`). Each spoke has a designed parent: Record, Review and Settings return to the Library, the Builder and the Document viewer to their recording's Review (the Builder of a template from Settings to Settings › Documents), the Style editor to the template it came from. A spoke opened by a **cross-screen link** from another spoke returns there first, then that screen's Back works as before: Settings returns to any spoke that opened it (Choose a model, Open Settings › Transcription, the agenda's AI link); Review returns to the document whose timestamp chip opened it; the Builder returns to the document whose Regenerate opened it. Back never walks through a screen only passed (Review after Stop goes to the Library, the viewer after Generate goes to Review). The Library is home and clears the way back; after a reload every Back is the designed one. The Library's gear opens Settings at the section shown last.
+- **Keys and the mouse for Back** (2.3.1): Alt+← and the Browser Back key press the back control on every spoke; so does the mouse's back button (the page's own history is not used; forward does nothing). Esc presses it last: a menu, popover, inline field, sheet or dialog takes Esc first and closes, then Review's filter, line selection and fullscreen video; only when none is open does Esc go back. Esc never goes back on the Recording session (§8), never from a text field, and not in the Builder while the template has unsaved changes.
 - A 1 px × 24 px `line` divider separates it from the title.
 - Title area is either static text (Review, Settings) or a borderless 36 px text input (Record, Builder) so the recording or template can be renamed in place. The input shows a border only on hover/focus.
 - Actions sit at the right: ghost buttons first, the one primary action last. Only Record and Builder have a primary action in the header (none and "Generate" respectively; Record's primary control is the Stop button on the stage).
@@ -262,7 +266,8 @@ All components follow §2.5 and §2.4: raised elements carry `neo-sm` / `neo-xs`
 - **Primary**: 40 px, radius 16, `accent-grad` convex fill, `neo-accent` shadow, white text 14/700, padding 0 18 / 0 14, leading 10 px white dot when the action starts a recording. Large variant (empty state, start recording): 48–56 px, radius 20 or pill, 15–16/700, 12–14 px dot. Hover adds a wider light shadow; press inverts to `neo-accent-in` and sinks 1 px.
 - **Ghost**: ground colour, `neo-sm`, no border, `text-2` label 13–14/600, radius 14 (36 px) or 16–20 (40–48 px). Hover `neo-sm-hi`; press `neo-in`.
 - **Icon**: 36 or 40 px square, radius 14/16, ground colour with `neo-sm` when it sits in a toolbar, or shadowless when it sits inside a card header (chapter "+", rename pencil, module up/down/remove), where it gains `neo-sm-hi` on hover and sinks on press. "On" state is pressed in (`neo-in-xs`, `text` glyph). Always has an accessible name.
-- **Destructive**: as primary but `danger-grad` fill and the danger shadow. Only inside a confirmation dialog, never in a toolbar.
+- **Destructive**: as primary but `danger-grad` fill and the danger shadow (`neo-danger`). Only inside a confirmation dialog, never in a toolbar.
+- **Implementation** (2.3.1): `btn ghost` and `btn primary` alone are complete buttons (the 36 px ghost and 40 px primary above, `ui/src/styles/base.css`); a screen's own class only changes size, padding, radius or type, never the fill or the shadow. Marks on the accent fill (the record dot, the stop square) take the label colour `on-accent`, not white. The token lint (`ui/src/styles/tokenLint.test.ts`) fails on raw colours, hand-tuned shadows and radii off §2.3 outside tokens.css; its allowlist names the few exceptions (the paper, video schematics, the scrim, the knob).
 
 ### 5.2 Chip (filter)
 32 px, radius 999, ground colour, `neo-sm`, 13/600 `text-2`. Hover `neo-sm-hi`. Selected: sunk (`neo-in-xs`, `text` colour) and stays sunk on hover. Pressing a raised chip sinks it before it becomes selected, so the click reads as a physical latch. Chips are real buttons with `aria-pressed`.
@@ -374,7 +379,7 @@ Like Remove video (§18.6): the recording stays, readable, with its transcript, 
 - **Live processing**: the processing card and row pills update as stages progress; a row's pill moves `queued → active → done` in place.
 - **Resource awareness** surfaces quietly in the footer (engine ready / busy, GPU or CPU, free disk). Never a modal unless recording is at risk.
 - **Keyboard**: Tab reaches every control in reading order; rows, chips and buttons show the 2 px `focus` ring with 2 px offset; Enter opens a row; arrow keys move within the chip group.
-- **Back from a spoke** returns to the Library with scroll position and filters preserved.
+- **Back from a spoke** returns to the Library with scroll position and filters preserved (and, after 2.1, the Timeline/Folders view and the folder shown); the row opened is focused again. Where Back goes from each spoke, and the keys for it: §3.
 
 ---
 
