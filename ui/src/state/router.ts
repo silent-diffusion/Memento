@@ -3,6 +3,7 @@
 // reload lands on the same screen, but the store is the source of truth.
 import type { Signal } from '@preact/signals';
 import type { LibraryViewState } from './libraryView';
+import { navigationOf, recordMove, type MoveKind } from './navigation';
 
 export const SETTINGS_SECTIONS = [
   'general',
@@ -141,18 +142,24 @@ export interface RouterStore {
   libraryView: Signal<LibraryViewState>;
 }
 
+export interface NavigateOptions {
+  /** A back control (or Esc, Alt+←, the mouse's back button) made this move: the trail steps back (state/navigation.ts). */
+  back?: boolean;
+}
+
 export interface Router {
-  navigate(route: Route): void;
+  navigate(route: Route, options?: NavigateOptions): void;
   /** Stops following hashchange. */
   dispose(): void;
 }
 
 /**
  * Keeps `store.route` and location.hash in step. Leaving the Library saves its scroll offset into
- * the store; LibraryScreen restores it (and focus) once it has painted again.
+ * the store; LibraryScreen restores it (and focus) once it has painted again. Every move is
+ * recorded in the navigation trail, which decides where Back goes.
  */
 export function createRouter(store: RouterStore, win: RouterWindow): Router {
-  const apply = (next: Route): void => {
+  const apply = (next: Route, kind: MoveKind): void => {
     const current = store.route.value;
     if (formatRoute(current) === formatRoute(next)) {
       return;
@@ -160,6 +167,7 @@ export function createRouter(store: RouterStore, win: RouterWindow): Router {
     if (current.name === 'library' && next.name !== 'library') {
       store.libraryView.value = { ...store.libraryView.value, scrollY: win.scrollY };
     }
+    recordMove(navigationOf(store), current, next, kind);
     store.route.value = next;
     if (next.name !== 'library') {
       win.scrollTo(0, 0);
@@ -167,18 +175,18 @@ export function createRouter(store: RouterStore, win: RouterWindow): Router {
   };
 
   const onHashChange = (): void => {
-    apply(parseRoute(win.location.hash));
+    apply(parseRoute(win.location.hash), 'history');
   };
   win.addEventListener('hashchange', onHashChange);
 
   // A reload keeps the screen; an empty hash is the Library.
   if (win.location.hash !== '') {
-    apply(parseRoute(win.location.hash));
+    apply(parseRoute(win.location.hash), 'history');
   }
 
   return {
-    navigate(route) {
-      apply(route);
+    navigate(route, options) {
+      apply(route, options?.back === true ? 'back' : 'forward');
       const hash = formatRoute(route);
       if (win.location.hash !== hash) {
         win.location.hash = hash;

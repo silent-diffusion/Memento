@@ -4,6 +4,7 @@ import type { RecordingType, RecoveredRecording, SettingsSetParams } from '../br
 import { mergeSettings } from '../bridge/settingsMerge';
 import type { AppServices } from './context';
 import { refreshLibrary } from './data';
+import { navigationOf } from './navigation';
 import type { SettingsSection } from './router';
 
 function messageOf(error: unknown): string {
@@ -15,8 +16,9 @@ export function openRecording({ store, router }: AppServices, recordingId: strin
   router.navigate({ name: 'review', recordingId });
 }
 
-export function openSettings({ router }: AppServices, section: SettingsSection = 'general'): void {
-  router.navigate({ name: 'settings', section });
+/** Opens Settings at `section`, or (the Library's gear) at the section shown last; Back returns to the opener. */
+export function openSettings({ store, router }: AppServices, section?: SettingsSection): void {
+  router.navigate({ name: 'settings', section: section ?? navigationOf(store).settingsSection });
 }
 
 export function openRecord({ store, router }: AppServices): void {

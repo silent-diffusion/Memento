@@ -465,9 +465,10 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
         backLabel={title}
         onBack={() => {
           void saverRef.current?.flush().finally(() => {
-            router.navigate({ name: 'review', recordingId });
+            router.navigate({ name: 'review', recordingId }, { back: true });
           });
         }}
+        selfLabel={name.trim() === '' ? 'Document' : name}
         titleEditor={
           <>
           <label class="sr" for="doc-name">

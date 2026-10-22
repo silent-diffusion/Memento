@@ -16,6 +16,18 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
+  /* Shadowless at rest as in the renders, raised on hover like every ghost (§2.4). */
+  box-shadow: none;
+  flex: none;
+  max-width: 280px;
+}
+
+/* A long recording, document or template name is cut, never wrapped (the title tooltip names it in full). */
+.back-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spoke-divider {

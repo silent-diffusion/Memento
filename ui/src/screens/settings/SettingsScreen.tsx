@@ -4,7 +4,7 @@ import { BannerSlot } from '../../components/Banners';
 import { PathIcon, SETTINGS_ICON_PATHS } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
 import { SpokeHeader } from '../../components/SpokeHeader';
-import { goToLibrary } from '../../state/actions';
+import { useBack } from '../../state/back';
 import { useServices } from '../../state/context';
 import { SETTINGS_SECTIONS, type SettingsSection } from '../../state/router';
 import { RecordingSection } from './sections';
@@ -35,9 +35,11 @@ export const SECTIONS: Record<SettingsSection, SectionInfo> = {
 
 /** Settings spoke (DESIGN.md §11, renders/Settings.dc.html). */
 export function SettingsScreen({ section }: { section: SettingsSection }): JSX.Element {
-  const services = useServices();
-  const { bridge, store, router } = services;
+  const { bridge, store, router } = useServices();
   const info = SECTIONS[section];
+  // Back returns to the screen that opened Settings (the Builder's Choose a model, Review's failure card), else the
+  // Library (state/navigation.ts).
+  const back = useBack({ route: { name: 'library' }, label: 'Library' });
   // The snapshot read at start-up names the models in effect for the graphics card as it was then; read it again on
   // opening Settings so another program that has since taken or freed the card's memory is reflected.
   useEffect(() => {
@@ -61,10 +63,8 @@ export function SettingsScreen({ section }: { section: SettingsSection }): JSX.E
   return (
     <>
       <SpokeHeader
-        backLabel="Library"
-        onBack={() => {
-          goToLibrary(services);
-        }}
+        backLabel={back.label}
+        onBack={back.go}
         title="Settings"
       />
       <main class="settings-main">

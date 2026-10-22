@@ -18,6 +18,7 @@ import { connectJobEvents } from './state/jobs';
 import { screenKey, type Route, type Router } from './state/router';
 import type { AppStore } from './state/store';
 import { connectUndoKeys, undoOf } from './state/undo';
+import { connectBackKeys } from './state/back';
 
 interface AppProps {
   bridge: BridgeClient;
@@ -64,6 +65,8 @@ export function App({ bridge, store, router, now }: AppProps): JSX.Element {
   useEffect(() => connectUndoKeys(undoOf(store), () => store.overlays.value > 0), [store]);
   // M4: generation.output for the Live output sheet (kept in memory only).
   useEffect(() => connectLiveOutput(services), [services]);
+  // Esc (once nothing else takes it), Alt+← and the mouse's back button press the open spoke's back control.
+  useEffect(() => connectBackKeys(store), [store]);
   const route = store.route.value;
   const modalOpen = store.overlays.value > 0;
   return (

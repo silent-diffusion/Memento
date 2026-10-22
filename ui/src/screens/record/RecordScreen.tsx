@@ -779,6 +779,9 @@ export function RecordScreen(): JSX.Element {
         }}
         titleEditor={titleEditor}
         focusBack={false}
+        // DESIGN.md §8: Esc does nothing on the Recording session; Alt+← still goes back (recording carries on).
+        escapeBack={false}
+        selfLabel={details.title.trim() === '' ? 'Recording' : details.title}
         actions={
           <button
             class="btn ghost spoke-ghost"

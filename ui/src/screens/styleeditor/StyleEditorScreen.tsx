@@ -121,7 +121,7 @@ export function StyleEditorScreen({ styleId }: { styleId: string }): JSX.Element
   };
 
   const leave = (): void => {
-    router.navigate(back.route);
+    router.navigate(back.route, { back: true });
   };
 
   const saved = (next: Style, copied: boolean): void => {
@@ -188,6 +188,7 @@ export function StyleEditorScreen({ styleId }: { styleId: string }): JSX.Element
     <>
       <SpokeHeader
         backLabel={back.label}
+        selfLabel={name.trim() === '' ? 'Style' : name}
         onBack={() => {
           if (dirty) {
             setLeaving(true);

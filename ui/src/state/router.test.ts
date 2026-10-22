@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createStore } from './store';
+import { backTargetOf, navigationOf } from './navigation';
 import { createRouter, formatRoute, parseRoute, screenKey, type Route, type RouterWindow } from './router';
 
 class FakeWindow implements RouterWindow {
@@ -124,6 +125,25 @@ describe('router state restore', () => {
     router.navigate({ name: 'settings', section: 'recording' });
     router.navigate({ name: 'review', recordingId: 'x' });
     expect(store.libraryView.value.scrollY).toBe(300);
+  });
+
+  it('records every move in the navigation trail: Back from Settings returns to the spoke that opened it', () => {
+    const store = createStore(false);
+    const win = new FakeWindow();
+    const router = createRouter(store, win);
+    const nav = navigationOf(store);
+    router.navigate({ name: 'review', recordingId: 'r1' });
+    nav.label = 'Design review';
+    router.navigate({ name: 'settings', section: 'transcription' });
+    const back = backTargetOf(nav, store.route.value, { route: { name: 'library' }, label: 'Library' });
+    expect(back).toEqual({ route: { name: 'review', recordingId: 'r1' }, label: 'Design review' });
+    router.navigate(back.route, { back: true });
+    expect(win.location.hash).toBe('#/review/r1');
+    expect(nav.trail).toEqual([{ route: { name: 'library' }, label: null }]);
+    // The browser's own Back (a hashchange to the screen on top of the trail) steps back too.
+    router.navigate({ name: 'settings', section: 'general' });
+    win.changeHash('#/review/r1');
+    expect(nav.trail).toEqual([{ route: { name: 'library' }, label: null }]);
   });
 
   it('opens on the screen in the hash after a reload', () => {
