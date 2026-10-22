@@ -323,9 +323,28 @@
   padding: 0;
   border-radius: 50%;
   background: var(--accent-grad);
+  /* The stop square takes the label colour on the accent fill (StopIcon fills with currentColor). */
+  color: var(--on-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* §8 Resume after Stop: a large ghost on the stage (48 px, radius 20, §5.1) with the record dot in the accent colour;
+   the white dot of the primary Start button was invisible on the ground. */
+.rec-resume {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: 700;
+  gap: 10px;
+}
+
+.rec-resume .rec-start-dot {
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
 }
 
 .rec-mark {
@@ -371,7 +390,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #ffffff;
+  /* The label colour on the accent fill (white in light, the ground in dark: base.css), not a fixed white. */
+  background: var(--on-accent);
 }
 
 .rec-start-note {

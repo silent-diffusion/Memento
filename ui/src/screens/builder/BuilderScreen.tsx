@@ -19,6 +19,7 @@ import { ArrowRightIcon } from '../../components/paper/icons';
 import { SpokeHeader } from '../../components/SpokeHeader';
 import { UndoButton } from '../../components/UndoButton';
 import { documentWord, moduleWords, paperName } from '../../format/documents';
+import { useBack } from '../../state/back';
 import { useServices } from '../../state/context';
 import { undoOf } from '../../state/undo';
 import type { Route } from '../../state/router';
@@ -93,7 +94,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [reloadStyles, setReloadStyles] = useState(0);
   /** The template as opened or last saved (JSON), or null until the next render records it. */
-  const clean = useRef<string | null>(null);
+  const clean = useRef<string | null>(restored?.clean ?? null);
 
   const job = generationOf(store).value;
   const settings = store.settings.value;
@@ -106,7 +107,8 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   useEffect(
     () => () => {
       const { template: t, structure: s, tab: currentTab } = latest.current;
-      draftRef.current = keepDraft.current && t !== null ? { key, template: t, structure: s, tab: currentTab } : null;
+      // The saved baseline goes with the draft, so changes made before the trip still count as unsaved.
+      draftRef.current = keepDraft.current && t !== null ? { key, template: t, structure: s, tab: currentTab, clean: clean.current } : null;
     },
     [key],
   );
@@ -316,6 +318,8 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   const style = styles.find((s) => s.id === template?.styleId) ?? null;
   const backRoute: Route = recordingId === null ? { name: 'settings', section: 'documents' } : { name: 'review', recordingId };
   const backLabel = recordingId === null ? 'Settings' : (project?.summary.title ?? store.library.value?.recordings.find((r) => r.id === recordingId)?.title ?? 'Recording');
+  // The recording's Review (or Settings › Documents), or the document whose Regenerate opened the Builder.
+  const back = useBack({ route: backRoute, label: backLabel });
   const busy = mine !== null && (mine.phase === 'starting' || mine.phase === 'running' || mine.phase === 'confirm');
   const otherBusy = job !== null && job.recordingId !== recordingId && (job.phase === 'running' || job.phase === 'confirm' || job.phase === 'starting');
   const canGenerate = recordingId !== null && template !== null && provider?.ready === true && count > 0 && !busy && !otherBusy;
@@ -511,11 +515,14 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
 
   const header = (
     <SpokeHeader
-      backLabel={backLabel}
+      backLabel={back.label}
       onBack={() => {
         keepDraft.current = false;
-        router.navigate(backRoute);
+        back.go();
       }}
+      selfLabel={template?.name ?? 'Document builder'}
+      // Esc would drop unsaved template changes as Back does, so it only goes back while there are none.
+      escapeBack={!dirty}
       titleEditor={
         <>
           <label class="sr" for="tpl-name">

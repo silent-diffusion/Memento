@@ -40,6 +40,18 @@ internal sealed class ManualTimers : TimeProvider
         return timer;
     }
 
+    /// <summary>How many timers have been created so far.</summary>
+    public int Created
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _created;
+            }
+        }
+    }
+
     /// <summary>Completes once <paramref name="count"/> timers have been created in all (a wait under test has started).</summary>
     public async Task WaitForTimersAsync(int count)
     {

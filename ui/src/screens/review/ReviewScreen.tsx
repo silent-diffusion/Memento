@@ -19,7 +19,8 @@ import { useUiFlag } from '../../state/uiPrefs';
 import { peopleWording, typeName } from '../../format/recording';
 import { orderSpeakers } from '../../format/speakerOrder';
 import { calendarDaysBetween, formatClock, formatWhen, parseIso } from '../../format/when';
-import { goToLibrary, openRecord, requestDelete } from '../../state/actions';
+import { openRecord, requestDelete } from '../../state/actions';
+import { useBack } from '../../state/back';
 import { useServices } from '../../state/context';
 import { createDetailsSaver, type DetailsSaver } from '../../state/detailsSaver';
 import { undoOf } from '../../state/undo';
@@ -401,6 +402,8 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   };
 
   const title = project?.summary.title ?? known?.title ?? 'Recording';
+  // Back goes to the Library, or to the document whose timestamp chip opened this moment (state/navigation.ts).
+  const back = useBack({ route: { name: 'library' }, label: 'Library' });
   const now = services.now();
   const meta = project === null ? undefined : reviewMeta(project, now);
   const inProgress = project !== null && (project.summary.state === 'recording' || project.summary.state === 'finalizing');
@@ -423,10 +426,8 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   return (
     <>
       <SpokeHeader
-        backLabel="Library"
-        onBack={() => {
-          goToLibrary(services);
-        }}
+        backLabel={back.label}
+        onBack={back.go}
         title={title}
         {...(meta === undefined ? {} : { meta })}
         metaExtra={

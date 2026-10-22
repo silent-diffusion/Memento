@@ -123,7 +123,8 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ffffff;
+  /* As the label beside it (--on-accent): a white dot on the dark theme's light orange read at 2:1. */
+  background: var(--on-accent);
 }
 
 .header-icon-btn {

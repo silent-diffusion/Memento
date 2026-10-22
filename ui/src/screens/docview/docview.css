@@ -118,6 +118,8 @@
   padding: 0 10px;
   border-radius: 12px;
   background: transparent;
+  /* Shadowless inside the toolbar card, like its icon buttons (§5.1); raised on hover. */
+  box-shadow: none;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-2);

@@ -140,7 +140,7 @@
 .attachment-icon {
   width: 28px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface-2);
   color: var(--text-2);
   display: inline-flex;
@@ -174,7 +174,7 @@
   padding: 0 10px;
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: var(--neo-xs);
+  box-shadow: var(--neo-sm);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-2);

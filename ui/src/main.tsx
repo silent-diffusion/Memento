@@ -33,14 +33,18 @@ if (root === null) {
 // so the first paint already has the right theme; app.version and theme.changed confirm it.
 const store = createStore(systemPrefersDark());
 const bridge = createBridgeClient();
+const router = createRouter(store, window);
 connectEvents(bridge, store, {
   onLibraryChanged: () => {
     refreshLibrary(bridge, store).catch((error: unknown) => {
       console.warn('[library] refresh after library.changed failed', error);
     });
   },
+  // The tray's Record goes through the router like any other move (hash, Library scroll offset, Back).
+  navigate: (route) => {
+    router.navigate(route);
+  },
 });
-const router = createRouter(store, window);
 effect(() => {
   applyTheme(document.documentElement, store.isDark.value);
 });

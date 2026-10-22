@@ -26,6 +26,8 @@
   --neo-in-xs:inset 2px 2px 4px rgba(29,28,26,.14),inset -2px -2px 4px rgba(255,255,255,.9);
   --neo-accent:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35);
   --neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.25),inset -3px -3px 8px rgba(255,255,255,.25);
+  --neo-accent-hi:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(194,65,12,.35),-6px -6px 14px rgba(255,255,255,.5);
+  --neo-danger:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);
   --neo-bar:0 8px 18px rgba(29,28,26,.08);
   --accent-grad:linear-gradient(145deg,#D04E18,#B03A0A);
   --danger-grad:linear-gradient(145deg,#C43024,#9E1C12);
@@ -59,6 +61,8 @@
   --neo-in-xs:inset 2px 2px 4px rgba(0,0,0,.6),inset -2px -2px 4px rgba(255,255,255,.04);
   --neo-accent:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3);
   --neo-accent-in:inset 4px 4px 8px rgba(0,0,0,.4),inset -3px -3px 8px rgba(255,255,255,.15);
+  --neo-accent-hi:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(240,138,92,.3),-6px -6px 14px rgba(255,255,255,.05);
+  --neo-danger:-4px -4px 10px rgba(255,255,255,.04),6px 6px 14px rgba(242,139,130,.3);
   --neo-bar:0 8px 18px rgba(0,0,0,.5);
   --accent-grad:linear-gradient(145deg,#F79A70,#E07848);
   --danger-grad:linear-gradient(145deg,#F6A09A,#D9655C);
@@ -110,7 +114,7 @@
 .tog:active span{width:20px}
 .tog.on:active span{left:17px}
 .primary{box-shadow:var(--neo-accent)}
-.primary:hover{filter:none;box-shadow:var(--neo-accent),-6px -6px 14px rgba(255,255,255,.5)}
+.primary:hover{filter:none;box-shadow:var(--neo-accent-hi)}
 .primary:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
 .ghost:hover,.icon-btn:hover,.pal:hover,.nav:hover,.chip:hover,.card:hover{background:var(--surface);box-shadow:var(--neo-sm-hi)}
 .ghost:active,.icon-btn:active,.pal:active,.nav:active,.chip:active,.card:active,.seg:active,.sw:active,.modhead:active,.chap:active,.segm:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
@@ -143,7 +147,7 @@
 .g:active{box-shadow:var(--neo-in)!important;transform:translateY(1px) scale(.985)}
 .p{background:var(--accent-grad)!important;box-shadow:var(--neo-accent);border-radius:14px!important}
 .p:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
-.d{background:var(--danger-grad)!important;box-shadow:-4px -4px 10px rgba(255,255,255,.7),6px 6px 14px rgba(180,35,24,.35);border-radius:14px!important}
+.d{background:var(--danger-grad)!important;box-shadow:var(--neo-danger);border-radius:14px!important}
 .d:active{box-shadow:var(--neo-accent-in)!important;transform:translateY(1px) scale(.985)}
 .chk{accent-color:var(--text);filter:drop-shadow(1px 1px 1px rgba(29,28,26,.2))}
 .bar.live,.wb.played{background:var(--ok)}
