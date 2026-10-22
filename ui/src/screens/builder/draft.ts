@@ -12,6 +12,11 @@ export interface BuilderDraft {
   template: Template;
   structure: StructureState;
   tab: BuilderTab;
+  /**
+   * The template as opened or last saved (JSON), so a change made before the trip is still unsaved after it: the
+   * template switch asks first, and Esc does not go back (it would drop the change).
+   */
+  clean: string | null;
 }
 
 const drafts = new WeakMap<AppStore, { current: BuilderDraft | null }>();

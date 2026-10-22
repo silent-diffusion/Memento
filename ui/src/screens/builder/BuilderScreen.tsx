@@ -94,7 +94,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [reloadStyles, setReloadStyles] = useState(0);
   /** The template as opened or last saved (JSON), or null until the next render records it. */
-  const clean = useRef<string | null>(null);
+  const clean = useRef<string | null>(restored?.clean ?? null);
 
   const job = generationOf(store).value;
   const settings = store.settings.value;
@@ -107,7 +107,8 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   useEffect(
     () => () => {
       const { template: t, structure: s, tab: currentTab } = latest.current;
-      draftRef.current = keepDraft.current && t !== null ? { key, template: t, structure: s, tab: currentTab } : null;
+      // The saved baseline goes with the draft, so changes made before the trip still count as unsaved.
+      draftRef.current = keepDraft.current && t !== null ? { key, template: t, structure: s, tab: currentTab, clean: clean.current } : null;
     },
     [key],
   );

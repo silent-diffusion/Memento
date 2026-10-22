@@ -160,6 +160,11 @@ describe('spoke navigation', () => {
     // The unsaved name came back with the Builder (kept while it was away, as for the Style editor).
     await until(() => document.querySelector<HTMLInputElement>('#tpl-name')?.value === 'Minutes for the board');
     expect(backControl().textContent).toBe('Design review: library screen');
+    // The change is still unsaved after the trip, so Esc does not drop it by going back.
+    (document.activeElement as HTMLElement | null)?.blur();
+    await settle(30);
+    await key(document.body, { key: 'Escape' });
+    expect(h.store.route.value.name).toBe('builder');
   });
 
   it('the Builder ignores Esc while the template has unsaved changes', async () => {
