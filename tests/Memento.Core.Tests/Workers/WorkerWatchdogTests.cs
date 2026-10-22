@@ -29,11 +29,37 @@ public sealed class WorkerWatchdogTests
         };
     }
 
-    /// <summary>Runs a job and, once the client waits for a line, lets the quiet limit pass.</summary>
-    private async Task<WorkerCrashedException> HungAsync(WorkerClient client)
+    /// <summary>
+    /// Runs a job and, once the client waits for the line that never comes, lets the quiet limit pass.
+    /// <paramref name="linesFirst"/> is how many lines the worker sends before it goes silent: the wait that must time
+    /// out is the one the client starts after taking the last of them. Waiting for "the first timer" instead raced the
+    /// worker: if a line landed after that timer was created, the clock moved while no wait was running and the next
+    /// wait's limit lay beyond it (a 30 s ceiling failure on loaded runners).
+    /// </summary>
+    private async Task<WorkerCrashedException> HungAsync(WorkerClient client, int linesFirst = 0)
     {
-        var run = client.RunAsync(GpuJob, null, CancellationToken.None);
-        await _timers.WaitForTimersAsync(1);
+        var taken = 0;
+        var timersBeforeSilence = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (linesFirst == 0)
+        {
+            timersBeforeSilence.SetResult(0);
+        }
+
+        var run = client.RunAsync(
+            GpuJob,
+            _ =>
+            {
+                // The client calls back before it starts the next wait, so the timers counted here are all from earlier reads.
+                if (Interlocked.Increment(ref taken) == linesFirst)
+                {
+                    timersBeforeSilence.TrySetResult(_timers.Created);
+                }
+
+                return Task.CompletedTask;
+            },
+            CancellationToken.None);
+        var before = await timersBeforeSilence.Task.WaitAsync(Patience.Ceiling);
+        await _timers.WaitForTimersAsync(before + 1);
         _timers.Advance(_short.QuietLimit);
         return await Assert.ThrowsAsync<WorkerCrashedException>(() => run.WaitAsync(Patience.Ceiling));
     }
@@ -49,7 +75,7 @@ public sealed class WorkerWatchdogTests
         };
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, _short);
 
-        var crash = await HungAsync(client);
+        var crash = await HungAsync(client, linesFirst: 1);
 
         Assert.True(crash.Hung);
         Assert.Equal(_short.QuietLimit, crash.QuietFor);
