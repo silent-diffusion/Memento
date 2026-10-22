@@ -121,7 +121,7 @@
   height: 26px;
   padding: 0;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--neo-sm);
   display: inline-flex;

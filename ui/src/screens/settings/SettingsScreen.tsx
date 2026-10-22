@@ -105,7 +105,7 @@ export function SettingsScreen({ section }: { section: SettingsSection }): JSX.E
       </main>
       <footer class="app-footer">
         <span>Changes save as you make them.</span>
-        <span>
+        <span class="footer-path" title={path}>
           {version === undefined ? 'Memento' : `Memento ${version}`}
           {path === undefined ? '' : ` · library at ${path}`}
         </span>

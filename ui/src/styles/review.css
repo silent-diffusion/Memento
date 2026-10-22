@@ -139,7 +139,7 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   background: transparent;
   display: inline-flex;
   align-items: center;
@@ -217,7 +217,7 @@
   min-width: 0;
   height: 28px;
   padding: 0 8px;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 13px;
 }
 
@@ -256,7 +256,7 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   background: transparent;
   display: inline-flex;
   align-items: center;
@@ -355,7 +355,7 @@
   display: flex;
   align-items: center;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 999px;
   touch-action: none;
 }
 
@@ -1357,7 +1357,7 @@ button.segm-speaker:hover .segm-speaker-name {
   width: 26px;
   height: 26px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   display: inline-flex;
   align-items: center;
