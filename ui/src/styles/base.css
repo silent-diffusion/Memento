@@ -46,9 +46,63 @@ button:disabled {
   cursor: default;
 }
 
-/* Focus ring for the controls tokens.css does not list (menu items, checkboxes and radios). */
+/*
+ * The full ghost and primary recipes of DESIGN.md §5.1, so `btn ghost` and `btn primary` alone are complete buttons
+ * (36 px ghost, 40 px primary). tokens.css adds the hover, press and focus states by role. Wrapped in :where() so they
+ * weigh nothing: a size class (spoke-ghost, small-btn, rec-mark…) changes height, padding, radius or type without having
+ * to repeat the fill and shadow. Before 2.3.1 every use needed such a class, and a bare `btn ghost` rendered as an
+ * unstyled grey browser button (Review › Details › Move to folder…, the Recording session's Resume recording).
+ */
+:where(.btn.ghost) {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--neo-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+:where(.btn.primary) {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: var(--accent-grad);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--on-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+:where(.btn.ghost:disabled, .btn.primary:disabled) {
+  opacity: 0.55;
+}
+
+/* Native scrollbars inside dialogs, sheets and popovers match the Review panes' thin token scrollbar in both themes. */
+.scrim,
+.scrim * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Focus ring for the controls tokens.css does not list (menu items, checkboxes and radios, and the text-like buttons of
+   the folder tree, the window picker and the People pane, which showed the browser's own ring). */
 .item:focus-visible,
-.chk:focus-visible {
+.chk:focus-visible,
+.folder-select:focus-visible,
+.folder-disclosure:focus-visible,
+.rec-pick-text:focus-visible,
+.people-who-hint:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }

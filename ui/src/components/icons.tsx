@@ -291,7 +291,7 @@ export function PauseIcon(props: IconProps): JSX.Element {
 
 export function StopIcon(props: IconProps): JSX.Element {
   return (
-    <svg aria-hidden="true" class={props.class} width={props.size} height={props.size} viewBox="0 0 24 24" fill="#FFFFFF">
+    <svg aria-hidden="true" class={props.class} width={props.size} height={props.size} viewBox="0 0 24 24" fill="currentColor">
       <rect x="5" y="5" width="14" height="14" rx="3" />
     </svg>
   );
