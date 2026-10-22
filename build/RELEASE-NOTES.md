@@ -3,6 +3,23 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.3.1
+
+A review of how the screens look and how you move between them (docs/audits/USABILITY-REVIEW-2026-10-22.md), with every clear-cut finding fixed. Nothing moved; things now behave as the design always said.
+
+### Buttons and theme
+
+- **Every button follows the theme.** Several controls added since 1.0 had no styling of their own and drew as grey browser buttons: Review › Details' Move to folder… and Delete audio…, and Record's Resume recording, whose dot was invisible. Ghost and primary buttons now carry the full recipe everywhere. In dark, the record dots and the Stop square were white on light orange at about 2.5:1; primary hover and the destructive button carried a light-theme halo; the Builder's Add a module had lost its dashed outline. All fixed, with two new tokens for the accent highlight and the destructive colour.
+- Nine small controls sit on the 12 px radius step, the folder tree, window picker and People pane buttons have token focus rings, dialogs and sheets have thin themed scrollbars, Settings' footer no longer wraps on a long library path, and a stylesheet lint now fails the build on raw colours, shadows or radii outside the tokens.
+
+### Moving between screens
+
+- **Back returns to where you came from.** Every link from one screen to another used to lose the way back: Builder → Choose a model → Settings → Back landed in the Library with the draft orphaned; a document's timestamp → Review → Back skipped the document; Regenerate → Builder → Back went to Review. Settings now returns to whatever opened it, Review to the document whose timestamp opened it, the Builder to the document whose Regenerate opened it, and everything else keeps its designed parent, so Back never walks through Record after Stop or the Builder after Generate. The back control names its target.
+- **Esc goes back**, but only after menus, popovers, fields, sheets, dialogs, Review's filter or selection and fullscreen video have taken it; never on Record, from a text field, or from the Builder with unsaved changes. **Alt+←**, the keyboard's Back key and the mouse's back button do the same.
+- **The gear reopens the Settings section you were in**, and the Library remembers its scroll position and the row you left.
+- **Fixed:** the Builder's unsaved changes counted as saved after a trip to Settings or the Style editor, so Esc or a template switch could drop them silently. The tray's Record now goes through the normal route.
+- Memento's own release checks no longer stall on a worker watchdog test that depended on timing.
+
 ## 2.3.0
 
 ### Larger local models, using RAM beside the graphics card
