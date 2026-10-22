@@ -48,12 +48,13 @@ button:disabled {
 
 /*
  * The full ghost and primary recipes of DESIGN.md §5.1, so `btn ghost` and `btn primary` alone are complete buttons
- * (36 px ghost, 40 px primary). tokens.css adds the hover, press and focus states by role. Wrapped in :where() so they
- * weigh nothing: a size class (spoke-ghost, small-btn, rec-mark…) changes height, padding, radius or type without having
- * to repeat the fill and shadow. Before 2.3.1 every use needed such a class, and a bare `btn ghost` rendered as an
- * unstyled grey browser button (Review › Details › Move to folder…, the Recording session's Resume recording).
+ * (36 px ghost, 40 px primary). tokens.css adds the hover, press and focus states by role. `.btn:where(…)` weighs one
+ * class: enough to follow tokens.css's `.btn { font: inherit; color: inherit }`, and no more, so a size class in a later
+ * stylesheet (spoke-ghost, small-btn, rec-mark…) changes height, padding, radius or type without having to repeat the
+ * fill and shadow. Before 2.3.1 every use needed such a class, and a bare `btn ghost` rendered as an unstyled grey
+ * browser button (Review › Details › Move to folder…, the Recording session's Resume recording).
  */
-:where(.btn.ghost) {
+.btn:where(.ghost) {
   height: 36px;
   padding: 0 12px;
   border-radius: 14px;
@@ -69,7 +70,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-:where(.btn.primary) {
+.btn:where(.primary) {
   height: 40px;
   padding: 0 18px;
   border-radius: 16px;
@@ -84,7 +85,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-:where(.btn.ghost:disabled, .btn.primary:disabled) {
+.btn:where(.ghost:disabled, .primary:disabled) {
   opacity: 0.55;
 }
 

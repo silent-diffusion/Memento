@@ -138,11 +138,11 @@ describe('token lint (DESIGN.md §2, CLAUDE.md code style)', () => {
       expect(at, selector).toBeGreaterThan(-1);
       return base.slice(at, base.indexOf('}', at));
     };
-    const ghost = rule(':where(.btn.ghost)');
+    const ghost = rule('.btn:where(.ghost)');
     expect(ghost).toContain('background: var(--surface)');
     expect(ghost).toContain('box-shadow: var(--neo-sm)');
     expect(ghost).toContain('height: 36px');
-    const primary = rule(':where(.btn.primary)');
+    const primary = rule('.btn:where(.primary)');
     expect(primary).toContain('background: var(--accent-grad)');
     expect(primary).toContain('color: var(--on-accent)');
   });

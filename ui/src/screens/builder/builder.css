@@ -425,6 +425,8 @@
   border-radius: 20px;
   border: 1px dashed var(--line-strong);
   background: transparent;
+  /* An "add" outline lies flat on the ground until hovered (§2.3), like the agenda's + Add an item. */
+  box-shadow: none;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
