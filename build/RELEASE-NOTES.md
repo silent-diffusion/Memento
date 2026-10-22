@@ -3,6 +3,15 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.3.0
+
+### Larger local models, using RAM beside the graphics card
+
+- **Settings › AI and privacy › Larger models** offers **Qwen3.5 27B** (dense, 16.7 GB) and **Qwen3.5 35B-A3B** (a mixture of experts, 22 GB), both Apache-2.0, downloaded once with a free-space check and a resumable download. They run on this PC even with a small graphics card: the planner places what fits on the card and the rest in RAM. For the mixture of experts the experts stay in RAM and attention runs on the card, which is what makes the card count; plain layer offload was measured and is not used for it.
+- **Memory planning that stays out of the way.** Before a larger model loads, Memento reads the free video memory (less what other programs hold) and the free RAM, keeps headroom for Windows (2 GB), the app, a running recording (more with video) and a transcription that may be waiting for the card, and refuses plainly when the model does not fit: "Qwen3.5 35B-A3B needs 25 GB of memory; this PC has 19 GB free. Close other programs or choose a smaller model." No smaller model is swapped in. Transcription keeps the card first, as always; a recording that starts while RAM is short unloads the larger model and History says so; a spill while loading or writing moves more of the model to RAM and continues.
+- **You see the plan before you use it**, under the model card and on the Builder's Local card: "Experts in RAM, the rest on the graphics card · 12 tokens/s · 19 GB of RAM while writing · minutes of a 20-minute meeting in about 18 minutes." "How this was made" and History record the placement used.
+- **Honest numbers from the reference laptop (6 GB card, 40 GB RAM):** the 35B-A3B wrote the test meeting's minutes in about 18 minutes and the 27B in about 65 minutes, against two and a half minutes for Qwen3.5 4B, and neither scored higher on the grounding checks than the 4B. The notes in Settings say so. They are there for people who want to try them, or who have more RAM and a bigger card.
+
 ## 2.2.0
 
 ### Choose the model behind Claude or ChatGPT
