@@ -70,6 +70,54 @@ public sealed class ModelCatalogTests
         Assert.Contains("url must be on huggingface.co or github.com", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EveryBuiltInRepositoryFileIsPinnedToACommit()
+    {
+        // SA2-29: a branch can be re-uploaded upstream; a commit cannot. Release assets name no revision of the repository.
+        foreach (var entry in ModelCatalog.Default.Entries)
+        {
+            var uri = new Uri(entry.Url);
+            Assert.Null(ModelCatalog.MovingRevision(uri));
+            var path = uri.AbsolutePath;
+            Assert.True(
+                System.Text.RegularExpressions.Regex.IsMatch(path, "^/[^/]+/[^/]+/(resolve|raw)/[0-9a-f]{40}/[^/]+$")
+                    || (uri.Host == "github.com" && System.Text.RegularExpressions.Regex.IsMatch(path, "^/[^/]+/[^/]+/releases/download/[^/]+/[^/]+$")),
+                $"{entry.Id} downloads from {entry.Url}, which is neither a file at a commit nor a release asset.");
+        }
+    }
+
+    [Theory]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin", "main")]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/v1.0/ggml-small.bin", "v1.0")]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/raw/main/ggml-small.bin", "main")]
+    [InlineData("https://huggingface.co/datasets/someone/data/resolve/main/x.bin", "main")]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b/ggml-small.bin", "5359861c739e955e79d9a303bcbc70fb988958b")]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861C739E955E79D9A303BCBC70FB988958B1/ggml-small.bin", "5359861C739E955E79D9A303BCBC70FB988958B1")]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/refs%2Fpr%2F1/ggml-small.bin", "refs/pr/1")]
+    [InlineData("https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata", "main")]
+    [InlineData("https://github.com/tesseract-ocr/tessdata_fast/blob/4.1.0/eng.traineddata", "4.1.0")]
+    [InlineData("https://github.com/tesseract-ocr/tessdata_fast/raw/refs/heads/main/eng.traineddata", "refs")]
+    public void RejectsAFileAtAMovingRevision(string url, string revision)
+    {
+        var error = Assert.Throws<InvalidDataException>(() => ModelCatalog.Parse(Catalog(url: url)));
+
+        Assert.Contains($"url names the moving revision '{revision}'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("40-character commit", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin")]
+    [InlineData("https://huggingface.co/datasets/someone/data/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/x.bin")]
+    [InlineData("https://github.com/tesseract-ocr/tessdata_fast/raw/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata")]
+    [InlineData("https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_small.onnx")]
+    [InlineData("http://127.0.0.1:5000/whisper/resolve/main/ggml-tiny.bin")]
+    public void AcceptsAFileAtACommitOrAReleaseAsset(string url)
+    {
+        var catalog = ModelCatalog.Parse(Catalog(url: url));
+
+        Assert.Equal(url, Assert.Single(catalog.Entries).Url);
+    }
+
     [Theory]
     [InlineData("NUL")]
     [InlineData("nul.bin")]
