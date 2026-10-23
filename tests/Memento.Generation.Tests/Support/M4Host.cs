@@ -35,6 +35,9 @@ internal sealed class M4Host : IDisposable
                 services.Replace(ServiceDescriptor.Singleton(Catalog));
                 services.AddSingleton<IPdfPrinter>(Pdf);
                 services.AddMementoM4(Directory.File("templates"), Directory.File("styles"));
+                // The measured load speeds live in the test folder, never in the PC's own data folder (which a
+                // hardware run may have filled, changing every estimate).
+                services.Replace(ServiceDescriptor.Singleton(sp => new LocalLoadHistory(Directory.File(LocalLoadHistory.FileName), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LocalLoadHistory>>())));
                 services.Replace(ServiceDescriptor.Singleton<IAiProviderFactory>(Providers));
                 configure?.Invoke(services);
             });
