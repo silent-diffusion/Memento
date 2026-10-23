@@ -4,9 +4,9 @@
     "net8.0-windows10.0.19041": {
       "Microsoft.CodeAnalysis.NetAnalyzers": {
         "type": "Direct",
-        "requested": "[10.0.401, )",
-        "resolved": "10.0.401",
-        "contentHash": "qGPLk4hknvVp6j9Lowa0qykw1cK7CyEyyy2aVs4dkOGroOMHJLRsMpUT53IKvYT6q78jxv96FZhzy3BrKCPgmA=="
+        "requested": "[10.0.402, )",
+        "resolved": "10.0.402",
+        "contentHash": "nlskNkKtDwOLg5U982TCn3rqsH+87ccYpfGvuNg/EKPrDsghpuMOkd4ZiZDCVSAHwE2bYgB2YfGbte/K2fU1MA=="
       },
       "Microsoft.Extensions.Hosting": {
         "type": "Direct",
@@ -453,7 +453,7 @@
       "memento.ai": {
         "type": "Project",
         "dependencies": {
-          "Memento.Core": "[2.3.1, )",
+          "Memento.Core": "[2.4.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )"
         }
@@ -461,7 +461,7 @@
       "memento.audio": {
         "type": "Project",
         "dependencies": {
-          "Memento.Core": "[2.3.1, )",
+          "Memento.Core": "[2.4.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
           "NAudio.Core": "[2.4.0, )",
           "NAudio.Wasapi": "[2.4.0, )",
@@ -481,7 +481,7 @@
         "type": "Project",
         "dependencies": {
           "DocumentFormat.OpenXml": "[3.5.1, )",
-          "Memento.Core": "[2.3.1, )",
+          "Memento.Core": "[2.4.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
           "PdfPig": "[0.1.16, )"
@@ -490,9 +490,9 @@
       "memento.generation": {
         "type": "Project",
         "dependencies": {
-          "Memento.AI": "[2.3.1, )",
-          "Memento.Core": "[2.3.1, )",
-          "Memento.Documents": "[2.3.1, )",
+          "Memento.AI": "[2.4.0, )",
+          "Memento.Core": "[2.4.0, )",
+          "Memento.Documents": "[2.4.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )"
         }
@@ -500,7 +500,7 @@
       "memento.transcription": {
         "type": "Project",
         "dependencies": {
-          "Memento.Core": "[2.3.1, )",
+          "Memento.Core": "[2.4.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )"
         }
@@ -508,7 +508,7 @@
       "memento.video": {
         "type": "Project",
         "dependencies": {
-          "Memento.Audio": "[2.3.1, )",
+          "Memento.Audio": "[2.4.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
           "Vortice.Direct3D11": "[3.8.3, )",
           "Vortice.MediaFoundation": "[3.8.3, )"
