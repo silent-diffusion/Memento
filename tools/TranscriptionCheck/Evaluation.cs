@@ -50,6 +50,15 @@ internal static class Evaluation
             }
 
             line += "; shares " + string.Join(" ", result.Speakers.OrderByDescending(s => s.TalkTimeMs).Take(8).Select(s => string.Create(CultureInfo.InvariantCulture, $"{100.0 * s.TalkTimeMs / total:0.0}")));
+
+            // The voice fit (2.6.0): how the raw voices grouped with others sit against the rest of their person.
+            var fits = (result.Voices ?? []).Where(v => v.Fit is not null).Select(v => v.Fit!.Value).OrderBy(f => f).ToList();
+            if (fits.Count > 0)
+            {
+                var uncertainFit = SpeakerAssigner.GuessScore + (SpeakerAssigner.UncertainBelow * (SpeakerAssigner.CertainScore - SpeakerAssigner.GuessScore));
+                line += string.Create(CultureInfo.InvariantCulture, $"; voice fit: {fits.Count} checked, {fits.Count(f => f < uncertainFit)} under {uncertainFit:0.00}, min {fits[0]:0.00}, median {fits[fits.Count / 2]:0.00}, {result.Doubtful} lines marked uncertain by voice");
+            }
+
             Console.WriteLine(line);
         }
 

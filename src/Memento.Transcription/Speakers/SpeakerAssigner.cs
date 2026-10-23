@@ -26,6 +26,11 @@ namespace Memento.Transcription.Speakers;
 /// of labels is not reached), an unpinned voice may still join a pinned one, and a pinned line keeps its label's person
 /// whatever its voice did, with confidence 1 and <c>speakerByUser</c>; a label whose lines no voice won becomes a person of
 /// its own after the others.
+/// A raw voice grouped with others is also checked by voice (2.6.0, ENGINE-NOTES.md §V): its <b>fit</b> is the cosine of its
+/// embedding to the talk-time-weighted mix of its person's other voices (leave-one-out), and when those others hold at
+/// least as much speech as it (they are the better witness of who the person is; a voice that is most of its person is the
+/// person) its lines' confidence is capped at <see cref="Calibrate"/> of the fit, so a voice joined at under about 0.48
+/// shows as uncertain in Review. A person with one voice, a voice without an embedding and a placed line are not touched.
 /// </summary>
 public static class SpeakerAssigner
 {
@@ -33,16 +38,21 @@ public static class SpeakerAssigner
     /// <param name="Voices">Every voice that won a line: its track, cluster, embedding and lines (<c>voices.json</c>).</param>
     /// <param name="Pinned">How many raw voices were pinned to a person by the lines the user placed.</param>
     /// <param name="Names">Speaker id → the name the user gave, for every person pinned by a named label (<see cref="SpeakerNamer"/> applies them first).</param>
+    /// <param name="Doubtful">How many lines the voice fit pushed below <see cref="UncertainBelow"/> (lines their turns had not made uncertain already).</param>
     public sealed record Result(
         IReadOnlyList<TranscriptSegment> Segments,
         IReadOnlyList<Speaker> Speakers,
         int Merged = 0,
         IReadOnlyList<VoiceCluster>? Voices = null,
         int Pinned = 0,
-        IReadOnlyDictionary<string, string>? Names = null);
+        IReadOnlyDictionary<string, string>? Names = null,
+        int Doubtful = 0);
 
     /// <summary>A voice is little (folded into a main voice last) below this share of all speech, or the given seconds if fewer.</summary>
     public const double MinSpeechShare = 0.05;
+
+    /// <summary>Review marks a speaker uncertain below this confidence; <see cref="Result.Doubtful"/> counts the lines the voice fit pushed under it.</summary>
+    public const double UncertainBelow = 0.7;
 
     /// <summary>A sherpa-onnx turn confidence of this or more counts as fully certain.</summary>
     public const double CertainScore = 0.6;
@@ -164,25 +174,128 @@ public static class SpeakerAssigner
             }
         }
 
-        // Pass 3: back in the transcript's own order. A placed line keeps its person whatever its voice did.
-        var assigned = segments
-            .Select(s => pinned.TryGetValue(s.Id, out var pin)
-                ? s with { Speaker = personOf[pin.Label], SpeakerConfidence = 1.0, SpeakerByUser = true }
-                : winners.TryGetValue(s.Id, out var win)
-                    ? s with { Speaker = speakers[group[(win.Track, win.Speaker)]].Id, SpeakerConfidence = win.Confidence, SpeakerByUser = false }
-                    : s with { Speaker = null, SpeakerConfidence = null, SpeakerByUser = false })
-            .ToList();
+        // How well each raw voice fits the person it was grouped into, by voice alone (2.6.0).
+        var fits = Fits(order, group, lines, tracks);
+
+        // Pass 3: back in the transcript's own order. A placed line keeps its person whatever its voice did; a line of a
+        // voice that fits its person poorly has its confidence capped at the calibrated fit, so Review marks it uncertain.
+        var doubtful = 0;
+        var assigned = new List<TranscriptSegment>(segments.Count);
+        foreach (var s in segments)
+        {
+            if (pinned.TryGetValue(s.Id, out var pin))
+            {
+                assigned.Add(s with { Speaker = personOf[pin.Label], SpeakerConfidence = 1.0, SpeakerByUser = true });
+            }
+            else if (winners.TryGetValue(s.Id, out var win))
+            {
+                var confidence = win.Confidence;
+                if (fits.TryGetValue((win.Track, win.Speaker), out var fit) && fit.Applies)
+                {
+                    confidence = Math.Round(Math.Min(confidence, Calibrate(fit.Fit)), 3);
+                    if (win.Confidence >= UncertainBelow && confidence < UncertainBelow)
+                    {
+                        doubtful++;
+                    }
+                }
+
+                assigned.Add(s with { Speaker = speakers[group[(win.Track, win.Speaker)]].Id, SpeakerConfidence = confidence, SpeakerByUser = false });
+            }
+            else
+            {
+                assigned.Add(s with { Speaker = null, SpeakerConfidence = null, SpeakerByUser = false });
+            }
+        }
+
         var voices = order
-            .Select(key => VoiceOf(tracks, key) is { } voice
+            .Select(key => (VoiceOf(tracks, key) is { } voice
                 ? new VoiceCluster(key.Track, key.Speaker, voice.Embedding, voice.Seconds, lines[key].Select(s => s.Id).ToList())
                 : new VoiceCluster(key.Track, key.Speaker, [], 0, lines[key].Select(s => s.Id).ToList()))
+                with { Fit = fits.TryGetValue(key, out var f) ? Math.Round(f.Fit, 4) : null })
             .ToList();
         var names = pinned.Values
             .Where(p => p.Named)
             .Select(p => p.Label)
             .Distinct(StringComparer.Ordinal)
             .ToDictionary(label => personOf[label], label => label, StringComparer.Ordinal);
-        return new Result(assigned, TranscriptSpeakers.WithTalkTime(speakers, assigned), merged, voices, labelOf.Count, names);
+        return new Result(assigned, TranscriptSpeakers.WithTalkTime(speakers, assigned), merged, voices, labelOf.Count, names, doubtful);
+    }
+
+    /// <summary>
+    /// Each raw voice's fit with its person: the cosine of its embedding to the mix of the person's other voices, weighted by
+    /// the talk time of the lines each won (leave-one-out, so a voice is never compared with itself). <c>Applies</c> says
+    /// whether the fit may lower the voice's lines: only when those other voices hold at least as much speech as it, since
+    /// a voice that is most of its person is the person and the doubt belongs to the rest (a laugh folded into a long
+    /// speaker must not doubt the speaker). A person with fewer than two voices with embeddings gives no fit.
+    /// </summary>
+    private static Dictionary<(string Track, int Speaker), (double Fit, bool Applies)> Fits(
+        List<(string Track, int Speaker)> order,
+        Dictionary<(string Track, int Speaker), int> group,
+        Dictionary<(string Track, int Speaker), List<TranscriptSegment>> lines,
+        IReadOnlyList<DiarizedTrack> tracks)
+    {
+        var fits = new Dictionary<(string Track, int Speaker), (double Fit, bool Applies)>();
+        var prints = order
+            .Select(key => (Key: key, Voice: VoiceOf(tracks, key) is { } v ? VoicePrint.From(v.Embedding, v.Seconds) : null, Seconds: lines[key].Sum(s => Math.Max(0, s.End - s.Start))))
+            .Where(p => p.Voice is not null)
+            .ToList();
+        foreach (var person in prints.GroupBy(p => group[p.Key]))
+        {
+            var members = person.ToList();
+            if (members.Count < 2)
+            {
+                continue;
+            }
+
+            foreach (var member in members)
+            {
+                var others = members.Where(m => m.Key != member.Key).ToList();
+                var rest = Mix(others.Select(o => (o.Voice!, o.Seconds)));
+                if (rest is null)
+                {
+                    continue;
+                }
+
+                var fit = member.Voice!.Similarity(rest);
+                if (double.IsFinite(fit))
+                {
+                    fits[member.Key] = (fit, others.Sum(o => o.Seconds) >= member.Seconds);
+                }
+            }
+        }
+
+        return fits;
+    }
+
+    /// <summary>The direction of the weighted sum of the prints (each weighed by its seconds, at least 0.1), or <c>null</c> when they cancel out or differ in length.</summary>
+    private static VoicePrint? Mix(IEnumerable<(VoicePrint Voice, double Seconds)> voices)
+    {
+        double[]? sum = null;
+        var seconds = 0.0;
+        foreach (var (voice, weight) in voices)
+        {
+            sum ??= new double[voice.Direction.Length];
+            if (sum.Length != voice.Direction.Length)
+            {
+                return null;
+            }
+
+            var w = Math.Max(weight, 0.1);
+            for (var i = 0; i < sum.Length; i++)
+            {
+                sum[i] += voice.Direction[i] * w;
+            }
+
+            seconds += w;
+        }
+
+        if (sum is null)
+        {
+            return null;
+        }
+
+        var length = Math.Sqrt(sum.Sum(x => x * x));
+        return length <= 0 ? null : new VoicePrint(sum.Select(x => x / length).ToArray(), seconds);
     }
 
     /// <summary>
