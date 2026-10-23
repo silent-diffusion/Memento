@@ -3,7 +3,9 @@
 // docs/audits/USABILITY-REVIEW-2026-10-22.md and asserts where each Back lands (DESIGN.md §3, state/navigation.ts):
 //   1. Library → Review → Back: the Library keeps its view (Folders, the type chip) and focuses the row opened.
 //   2. Review → Create document → Builder → Open AI and privacy settings → Settings: Back names the template and
-//      returns to the Builder (the unsaved name kept), whose Back returns to Review, whose Back returns to the Library.
+//      returns to the Builder (the unsaved name kept). There Esc and the mouse's back button ask "Leave without saving
+//      the template?" (2.4.0); Keep editing stays, Leave without saving returns to Review, whose Back returns to the
+//      Library.
 //   3. Review's waiting-for-a-model card → Settings › Transcription → Back returns to Review.
 //   4. The Library's gear reopens Settings at the section shown last; Esc goes back to the Library.
 //   5. Esc closes an open menu first and only then goes back.
@@ -131,9 +133,19 @@ try {
     () => run.check('Back from Settings returns to the Builder with its unsaved name', true),
     () => run.check('Back from Settings returns to the Builder with its unsaved name', false),
   );
+  // 2.4.0 (R1): every way back from unsaved template changes asks first.
+  const asking = () => page().eval(`document.querySelector('#leave-template-title')?.innerText.trim() ?? null`);
   await keyOnPage('Escape');
-  run.check('Esc does not leave the Builder while the template has unsaved changes', (await route()).startsWith('#/builder/'), await route());
-  await page().click('[data-spoke-back]');
+  await page().waitFor(`!!document.querySelector('#leave-template-title')`, 'the leave-without-saving question after Esc', 10_000).catch(() => undefined);
+  run.check('Esc with unsaved template changes asks “Leave without saving the template?”', (await asking()) === 'Leave without saving the template?', String(await asking()));
+  run.check('the question keeps the Builder open', (await route()).startsWith('#/builder/'), await route());
+  await run.shot('builder-leave-question');
+  await page().key('Escape');
+  await sleep(500);
+  run.check('Esc in the question is Keep editing: the Builder stays with its unsaved name', (await asking()) === null && (await route()).startsWith('#/builder/') && (await page().eval(`document.querySelector('#tpl-name')?.value`)) === 'Board minutes', await route());
+  await mouseBack();
+  run.check('the mouse’s back button asks the same question', (await asking()) === 'Leave without saving the template?', String(await asking()));
+  await page().click({ name: 'Leave without saving' });
   await spoke(`#/review/${first}`, 'Back to Review');
   run.check('the Builder’s Back returns to its recording’s Review', (await route()) === `#/review/${first}`, await route());
   await keyOnPage('Escape');

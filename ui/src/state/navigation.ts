@@ -34,8 +34,14 @@ export interface NavigationState {
   settingsSection: SettingsSection;
   /** The open spoke's back control (the header registers it); Esc, Alt+← and the mouse's back button use it. */
   back: (() => void) | null;
-  /** False while Esc must not go back (the Recording session, the Builder with unsaved template changes). */
+  /** False while Esc must not go back (the Recording session). */
   escapeBack: boolean;
+  /**
+   * Asked before a move by the page's own history (a hashchange) leaves the open screen: true holds the move (the
+   * router puts the hash back) and the screen calls `proceed` once the person agrees to leave. The Builder sets it
+   * while the template has unsaved changes (2.4.0); its back control asks the same question.
+   */
+  leaveGuard: ((proceed: () => void) => boolean) | null;
 }
 
 /** The longest trail kept; older entries are dropped (Back then falls back to the designed parent). */
@@ -47,7 +53,7 @@ const states = new WeakMap<object, NavigationState>();
 export function navigationOf(store: object): NavigationState {
   let state = states.get(store);
   if (state === undefined) {
-    state = { trail: [], label: null, settingsSection: 'general', back: null, escapeBack: false };
+    state = { trail: [], label: null, settingsSection: 'general', back: null, escapeBack: false, leaveGuard: null };
     states.set(store, state);
   }
   return state;
