@@ -50,6 +50,7 @@ Memento records meetings, transcribes them and writes documents from them, all o
 - **DLL search path**: the app loads DLLs by name only from its own folder and System32, never from the current directory or `PATH`; Memento's own system calls are pinned to System32.
 - **Tray and Start with Windows** (2.0, both off by default) add no network use and no new way in: the tray menu only shows the window, opens the Recording session or quits; the startup entry is the current user's `HKCU\…\Run` value naming Velopack's launcher in the install folder with `--background`, written only by an installed copy and removed when turned off and when Memento is uninstalled. Another program running as the same user could already change that key; it gains nothing from Memento's entry.
 - **Supply chain**: pinned package versions, `package-lock.json`, NuGet restore from nuget.org only, Dependabot, a CycloneDX SBOM and SHA-256 sums attached to every release, release publishing in a separate job with the only write token.
+- **Locked restores and pinned actions** (2.4.0, audit 2 SA2-63): every .NET project commits a `packages.lock.json` and CI restores in locked mode (the publish in `build/pack.ps1` included), so a package graph that differs from the reviewed one fails the build; every GitHub Action in `ci.yml` and `release.yml` is pinned to a full commit SHA (the release tag is kept as a comment), and CI installs one exact .NET SDK (8.0.426) instead of the newest `8.0.x`.
 
 ## 5. Out of scope
 
