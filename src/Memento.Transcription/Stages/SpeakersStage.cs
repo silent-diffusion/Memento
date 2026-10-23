@@ -163,7 +163,8 @@ public sealed partial class SpeakersStage(
                 + (continued > 0 ? $" · {HumanFormat.Count(continued, "track", "tracks")} already done" : string.Empty)
                 + (reused > 0 ? $" · {HumanFormat.Count(reused, "track", "tracks")} heard before" : string.Empty)
                 + (expected is { } count ? string.Create(CultureInfo.InvariantCulture, $" · {count} expected ({expectedFrom})") : string.Empty)
-                + (knownNames.Count > 0 ? $" · {HumanFormat.Count(knownNames.Count, "name", "names")} given" : string.Empty));
+                + (knownNames.Count > 0 ? $" · {HumanFormat.Count(knownNames.Count, "name", "names")} given" : string.Empty)
+                + (whoSpoke.Marks.Count > 0 ? $" · {HumanFormat.Count(whoSpoke.Marks.Count, "Speaking now mark", "Speaking now marks")}" : string.Empty));
         LogStarting(recordingId, tracks.Count, done.Count);
 
         var stopwatch = Stopwatch.StartNew();
@@ -281,7 +282,11 @@ public sealed partial class SpeakersStage(
                     TranscriptionDefaults.OwnSpeakerSeconds,
                     pins);
                 pinnedVoices = assigned.Pinned;
-                naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames, assigned.Names);
+
+                // Speaking now marks (2.6.0) name the person whose voice was heard at each pressed moment, after the names
+                // kept from before and ahead of the known names by order.
+                var marked = SpeakingNowNamer.Names(whoSpoke.Marks, knownNames, all, assigned.Voices ?? [], assigned.Segments);
+                naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames, assigned.Names, marked);
                 speakers = naming.Speakers;
                 voices = assigned.Voices ?? [];
                 merged = assigned.Merged;
@@ -312,8 +317,15 @@ public sealed partial class SpeakersStage(
                         : string.Empty,
                     split > 0 ? $"{HumanFormat.Count(split, "line", "lines")} split where the speaker changes" : string.Empty,
                     corrected > 0 ? $"{HumanFormat.Count(corrected, "corrected line", "corrected lines")} kept, {HumanFormat.Count(pinnedVoices, "voice", "voices")} pinned" : string.Empty,
-                    naming.Carried + naming.Known > 0
-                        ? string.Join(" and ", new[] { naming.Carried > 0 ? $"{HumanFormat.Count(naming.Carried, "name", "names")} kept from before" : string.Empty, naming.Known > 0 ? $"{HumanFormat.Count(naming.Known, "name", "names")} from Who spoke" : string.Empty }.Where(p => p.Length > 0))
+                    naming.Carried + naming.Marked + naming.Known > 0
+                        ? string.Join(
+                            " and ",
+                            new[]
+                            {
+                                naming.Carried > 0 ? $"{HumanFormat.Count(naming.Carried, "name", "names")} kept from before" : string.Empty,
+                                naming.Marked > 0 ? $"{HumanFormat.Count(naming.Marked, "name", "names")} from Speaking now" : string.Empty,
+                                naming.Known > 0 ? $"{HumanFormat.Count(naming.Known, "name", "names")} from Who spoke" : string.Empty,
+                            }.Where(p => p.Length > 0))
                         : string.Empty,
                     "talk time: " + (speakers.Count == 0 ? "none" : shares),
                 }.Where(p => p.Length > 0)));

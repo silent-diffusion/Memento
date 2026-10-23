@@ -9,7 +9,9 @@ namespace Memento.Transcription.Speakers;
 /// recording's known speakers (Who spoke) that are not used yet go to the remaining speakers in order of first
 /// appearance. Every name given this way counts as given by the user (<c>renamed</c>), so it is listed first and kept.
 /// Before either, a person the user's placed lines pin to a name they gave (<paramref name="pinnedNames"/>, 2.6.0:
-/// <see cref="SpeakerAssigner"/>) is certain and takes that name first; it counts as kept from before.
+/// <see cref="SpeakerAssigner"/>) is certain and takes that name first; it counts as kept from before. Between the names
+/// kept from before and the known names by order, the Speaking now marks (<paramref name="markedNames"/>, 2.6.0:
+/// <see cref="SpeakingNowNamer"/>) name the people the user pointed at while recording.
 /// </summary>
 public static class SpeakerNamer
 {
@@ -17,17 +19,20 @@ public static class SpeakerNamer
     public const double CarryOverShare = 0.25;
 
     /// <param name="Carried">Names kept from the previous pass (pinned by placed lines, or carried by shared lines).</param>
-    /// <param name="Known">Names taken from the recording's known speakers.</param>
-    public sealed record Result(IReadOnlyList<Speaker> Speakers, int Carried, int Known);
+    /// <param name="Known">Names taken from the recording's known speakers by order of first appearance.</param>
+    /// <param name="Marked">Names given by Speaking now marks.</param>
+    public sealed record Result(IReadOnlyList<Speaker> Speakers, int Carried, int Known, int Marked = 0);
 
     /// <param name="pinnedNames">Speaker id → the name the user gave, for people pinned by placed lines; <c>null</c> pins none.</param>
+    /// <param name="markedNames">Speaker id → the name Speaking now marks give that person; <c>null</c> marks none.</param>
     public static Result Name(
         IReadOnlyList<Speaker> speakers,
         IReadOnlyList<TranscriptSegment> segments,
         IReadOnlyList<Speaker>? previousSpeakers,
         IReadOnlyList<TranscriptSegment>? previousSegments,
         IReadOnlyList<string> knownNames,
-        IReadOnlyDictionary<string, string>? pinnedNames = null)
+        IReadOnlyDictionary<string, string>? pinnedNames = null,
+        IReadOnlyDictionary<string, string>? markedNames = null)
     {
         ArgumentNullException.ThrowIfNull(speakers);
         ArgumentNullException.ThrowIfNull(segments);
@@ -78,6 +83,18 @@ public static class SpeakerNamer
             }
         }
 
+        // A Speaking now mark is the user's word on who was talking at a moment: after the names already kept, before the
+        // remaining names go by order of first appearance, and never a name already given.
+        var marked = 0;
+        foreach (var speaker in FirstAppearance(speakers, segments))
+        {
+            if (markedNames is not null && markedNames.TryGetValue(speaker.Id, out var markedName) && !names.ContainsKey(speaker.Id) && usedNames.Add(markedName))
+            {
+                names[speaker.Id] = markedName;
+                marked++;
+            }
+        }
+
         var taken = names.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var unused = new Queue<string>(knownNames.Where(n => !string.IsNullOrWhiteSpace(n) && !taken.Contains(n.Trim())).Select(n => n.Trim()));
         var known = 0;
@@ -96,7 +113,7 @@ public static class SpeakerNamer
         }
 
         var result = speakers.Select(s => names.TryGetValue(s.Id, out var name) ? s with { Name = name, Renamed = true } : s).ToList();
-        return new Result(result, carried, known);
+        return new Result(result, carried, known, marked);
     }
 
     private static Dictionary<string, double> Talk(IReadOnlyList<TranscriptSegment> segments) =>
