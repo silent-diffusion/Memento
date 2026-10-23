@@ -11,7 +11,7 @@ public sealed record FoldersDocument
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>Folder paths such as <c>Clients/Acme</c> (<see cref="FolderPaths"/>).</summary>
-    public IReadOnlyList<string> Folders { get; init; } = [];
+    public IReadOnlyList<string> Folders { get; set; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

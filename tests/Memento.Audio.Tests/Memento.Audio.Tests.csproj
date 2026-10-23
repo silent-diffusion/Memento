@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The walk over a JSON context's types for the null-member checks (security audit 2, section 9). -->
+    <Compile Include="..\Memento.Core.Tests\Serialization\NonNullableContracts.cs" Link="Serialization\NonNullableContracts.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

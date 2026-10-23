@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memento.Core.Voices;
 
 /// <summary>
@@ -9,4 +11,9 @@ namespace Memento.Core.Voices;
 /// <param name="Embedding">The unit-length direction of the speaker's voice.</param>
 /// <param name="Seconds">How much speech the voice was mixed from.</param>
 /// <param name="At">When the name was confirmed.</param>
-public sealed record KnownVoiceSample(string RecordingId, string SpeakerId, IReadOnlyList<float> Embedding, double Seconds, DateTimeOffset At);
+public sealed record KnownVoiceSample(string RecordingId, string SpeakerId, IReadOnlyList<float> Embedding, [property: JsonPropertyOrder(2)] double Seconds, [property: JsonPropertyOrder(3)] DateTimeOffset At)
+{
+    // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
+    [JsonPropertyOrder(1)]
+    public IReadOnlyList<float> Embedding { get; set; } = Embedding ?? [];
+}

@@ -5,5 +5,5 @@ public sealed record ParagraphBlock : Block
 {
     public override string Type => BlockTypes.Paragraph;
 
-    public IReadOnlyList<Run> Runs { get; init; } = [];
+    public IReadOnlyList<Run> Runs { get; set; } = [];
 }

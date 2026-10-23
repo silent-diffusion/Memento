@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Memento.Core.Serialization;
 using Memento.Core.Storage;
 
 namespace Memento.Core.Projects;
@@ -40,6 +41,15 @@ internal static class AtomicJsonFile
         }
 
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16 * 1024, useAsync: true);
-        return await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken);
+        var value = await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken);
+
+        // A list or object written as null (or left out of a positional record) takes its default and null entries are
+        // dropped; what has no default makes the file unreadable, which every caller already handles (audit 2, §9).
+        if (value is not null && NullMembers.Repair(value) is { Unrepaired.Count: > 0 } repair)
+        {
+            throw new JsonException(repair.Describe(Path.GetFileName(path)));
+        }
+
+        return value;
     }
 }

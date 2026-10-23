@@ -26,16 +26,16 @@ public sealed record KnownVoice
     public required string EmbeddingModelId { get; init; }
 
     /// <summary>Settings › Known voices › "Suggest this voice"; off keeps the voice but suggests it nowhere.</summary>
-    public bool Suggest { get; init; } = true;
+    public bool Suggest { get; set; } = true;
 
     /// <summary>The newest confirmations, oldest first, at most <see cref="MaxSamples"/>.</summary>
-    public IReadOnlyList<KnownVoiceSample> Samples { get; init; } = [];
+    public IReadOnlyList<KnownVoiceSample> Samples { get; set; } = [];
 
     /// <summary>Every recording the name was confirmed in ("Confirmed in n recordings").</summary>
-    public IReadOnlyList<string> Recordings { get; init; } = [];
+    public IReadOnlyList<string> Recordings { get; set; } = [];
 
     /// <summary>Recordings where the user said "Not {name}": the voice is not suggested there again.</summary>
-    public IReadOnlyList<string> DeclinedIn { get; init; } = [];
+    public IReadOnlyList<string> DeclinedIn { get; set; } = [];
 
     public DateTimeOffset CreatedAt { get; init; }
 

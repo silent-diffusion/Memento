@@ -5,7 +5,7 @@ namespace Memento.Documents.Model.Blocks;
 
 public sealed record TableCell
 {
-    public IReadOnlyList<Run> Runs { get; init; } = [];
+    public IReadOnlyList<Run> Runs { get; set; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

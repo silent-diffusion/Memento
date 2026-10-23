@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Memento.Core.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Documents.Model.Storage;
@@ -203,6 +204,14 @@ internal sealed partial class JsonItemStore<T>
         if (item is null)
         {
             throw new DocumentStoreException(StoreErrorCodes.Unreadable, $"The {_noun} file {Path.GetFileName(path)} is empty. It was left in place.");
+        }
+
+        // A list or object written as null takes its default and null entries are dropped (security audit 2, section 9).
+        if (NullMembers.Repair(item) is { Unrepaired.Count: > 0 } repair)
+        {
+            throw new DocumentStoreException(
+                StoreErrorCodes.Unreadable,
+                $"The {_noun} file {repair.Describe(Path.GetFileName(path))} It was left in place; fix or remove it, or reset the {_noun}.");
         }
 
         if (_access.SchemaVersion(item) > _access.CurrentSchemaVersion)

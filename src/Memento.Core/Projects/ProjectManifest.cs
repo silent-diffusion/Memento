@@ -28,9 +28,9 @@ public sealed record ProjectManifest
     public DateTimeOffset ModifiedAt { get; init; }
 
     /// <summary>One of <see cref="ProjectStates"/>.</summary>
-    public string State { get; init; } = ProjectStates.Recording;
+    public string State { get; set; } = ProjectStates.Recording;
 
-    public ProjectDetails Details { get; init; } = new();
+    public ProjectDetails Details { get; set; } = new();
 
     /// <summary>Recorded time, excluding pauses.</summary>
     public long DurationMs { get; init; }
@@ -38,7 +38,7 @@ public sealed record ProjectManifest
     /// <summary>The recording has (or had, before "Remove video") at least one video track (2.0).</summary>
     public bool HasVideo { get; init; }
 
-    public IReadOnlyList<ProjectTrack> Tracks { get; init; } = [];
+    public IReadOnlyList<ProjectTrack> Tracks { get; set; } = [];
 
     /// <summary>
     /// Video tracks (schema v4, ARCHITECTURE.md §5.x), apart from the audio <see cref="Tracks"/> on purpose: every 1.x
@@ -69,7 +69,7 @@ public sealed record ProjectManifest
     public IReadOnlyList<ProjectSegment> Segments { get; set; } = [];
 
     /// <summary>Pauses, so transcript timings stay continuous across the gap.</summary>
-    public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];
+    public IReadOnlyList<ProjectPause> Pauses { get; set; } = [];
 
     /// <summary>The playback mix, once finalized.</summary>
     public ProjectMix? Mix { get; init; }
@@ -78,21 +78,21 @@ public sealed record ProjectManifest
     public string? Peaks { get; init; }
 
     /// <summary>Processing stages in pipeline order.</summary>
-    public IReadOnlyList<StageStatus> Stages { get; init; } = [];
+    public IReadOnlyList<StageStatus> Stages { get; set; } = [];
 
-    public ProjectIntegrity Integrity { get; init; } = new();
+    public ProjectIntegrity Integrity { get; set; } = new();
 
     /// <summary>Set when the project was repaired at launch after an interrupted recording.</summary>
     public ProjectRecovery? Recovery { get; init; }
 
     /// <summary>The last failure of each failed stage (M2), with what was kept and the remedies offered.</summary>
-    public IReadOnlyList<ProjectStageFailure> Failures { get; init; } = [];
+    public IReadOnlyList<ProjectStageFailure> Failures { get; set; } = [];
 
     /// <summary>How the next transcription pass runs when it differs from Settings (M2); <c>null</c> otherwise.</summary>
     public ProcessingRequest? Processing { get; init; }
 
     /// <summary>Files kept with the recording (M3): the original agenda and other attachments, in the order added.</summary>
-    public IReadOnlyList<AttachmentRecord> Attachments { get; init; } = [];
+    public IReadOnlyList<AttachmentRecord> Attachments { get; set; } = [];
 
     /// <summary>The file a <c>library.importMedia</c> recording was made from (M3); <c>null</c> for recordings.</summary>
     public ProjectImportSource? ImportedFrom { get; init; }

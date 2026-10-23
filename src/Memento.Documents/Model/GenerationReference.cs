@@ -10,7 +10,7 @@ namespace Memento.Documents.Model;
 public sealed record GenerationReference
 {
     /// <summary>The generation record's id inside the project.</summary>
-    public string RecordId { get; init; } = string.Empty;
+    public string RecordId { get; set; } = string.Empty;
 
     public string? TemplateId { get; init; }
 

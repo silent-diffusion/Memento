@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memento.Core.Transcripts;
 
 /// <summary>
@@ -9,4 +11,12 @@ namespace Memento.Core.Transcripts;
 /// <param name="Embedding">The voice model's embedding of up to a minute of its turns; empty when there was too little speech.</param>
 /// <param name="Seconds">How much speech the embedding was made from.</param>
 /// <param name="SegmentIds">The transcript lines this voice won when speakers were identified.</param>
-public sealed record VoiceCluster(string Track, int Speaker, IReadOnlyList<float> Embedding, double Seconds, IReadOnlyList<string> SegmentIds);
+public sealed record VoiceCluster(string Track, int Speaker, IReadOnlyList<float> Embedding, [property: JsonPropertyOrder(2)] double Seconds, IReadOnlyList<string> SegmentIds)
+{
+    // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
+    [JsonPropertyOrder(1)]
+    public IReadOnlyList<float> Embedding { get; set; } = Embedding ?? [];
+
+    [JsonPropertyOrder(3)]
+    public IReadOnlyList<string> SegmentIds { get; set; } = SegmentIds ?? [];
+}

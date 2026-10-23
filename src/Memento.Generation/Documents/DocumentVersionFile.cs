@@ -15,17 +15,17 @@ public sealed record DocumentVersionFile
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>The UTC stamp, which is also the version id (<c>20261007T101500123Z</c>).</summary>
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
-    public string DocumentId { get; init; } = string.Empty;
+    public string DocumentId { get; set; } = string.Empty;
 
     /// <summary>When the kept content was saved.</summary>
     public DateTimeOffset SavedAt { get; init; }
 
     /// <summary>How the kept content came to be: <c>generated</c>, <c>edited</c>, <c>restored</c> or <c>regenerated</c>.</summary>
-    public string Reason { get; init; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
 
-    public Document Document { get; init; } = new();
+    public Document Document { get; set; } = new();
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

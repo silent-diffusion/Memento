@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memento.Core.Projects;
+using Memento.Core.Serialization;
 using Memento.Core.Settings;
 using Memento.Documents.Model;
 using Memento.Documents.Model.Storage;
@@ -244,6 +245,11 @@ public sealed partial class ProjectDocumentStore(IProjectStore projects, ISettin
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16 * 1024, useAsync: true);
             var version = await JsonSerializer.DeserializeAsync(stream, GenerationJsonContext.Default.DocumentVersionFile, cancellationToken);
+            if (version is not null && NullMembers.Repair(version) is { Unrepaired.Count: > 0 } repair)
+            {
+                throw new JsonException(repair.Describe(Path.GetFileName(path)));
+            }
+
             return version is null || version.SchemaVersion > DocumentVersionFile.CurrentSchemaVersion ? null : version;
         }
         catch (Exception ex) when (ex is JsonException or IOException)

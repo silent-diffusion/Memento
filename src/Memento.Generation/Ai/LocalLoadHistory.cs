@@ -67,7 +67,7 @@ public sealed partial class LocalLoadHistory(string path, ILogger<LocalLoadHisto
             if (File.Exists(path)
                 && JsonSerializer.Deserialize(File.ReadAllText(path), LocalLoadHistoryJsonContext.Default.LocalLoadHistoryFile) is { SchemaVersion: LocalLoadHistoryFile.CurrentSchemaVersion } file)
             {
-                foreach (var load in file.Loads.Where(l => !string.IsNullOrWhiteSpace(l.ModelId)))
+                foreach (var load in file.Loads.Where(l => l is not null && !string.IsNullOrWhiteSpace(l.ModelId)))
                 {
                     _loads[load.ModelId] = load;
                 }

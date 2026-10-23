@@ -7,5 +7,5 @@ public sealed record ListBlock : Block
 
     public ListStyle Style { get; init; } = ListStyle.Bulleted;
 
-    public IReadOnlyList<ListItem> Items { get; init; } = [];
+    public IReadOnlyList<ListItem> Items { get; set; } = [];
 }

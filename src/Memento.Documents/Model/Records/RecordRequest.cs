@@ -7,9 +7,9 @@ namespace Memento.Documents.Model.Records;
 public sealed record RecordRequest
 {
     /// <summary><c>map.decisions#2</c>, <c>verify.claim</c>.</summary>
-    public string Purpose { get; init; } = string.Empty;
+    public string Purpose { get; set; } = string.Empty;
 
-    public string Hash { get; init; } = string.Empty;
+    public string Hash { get; set; } = string.Empty;
 
     public int InputTokens { get; init; }
 

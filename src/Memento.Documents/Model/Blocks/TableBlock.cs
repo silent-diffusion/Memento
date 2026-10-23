@@ -6,10 +6,10 @@ public sealed record TableBlock : Block
     public override string Type => BlockTypes.Table;
 
     /// <summary>The header row.</summary>
-    public IReadOnlyList<string> Columns { get; init; } = [];
+    public IReadOnlyList<string> Columns { get; set; } = [];
 
     /// <summary>Relative column widths (2, 1, 1); empty means equal widths.</summary>
-    public IReadOnlyList<double> Widths { get; init; } = [];
+    public IReadOnlyList<double> Widths { get; set; } = [];
 
-    public IReadOnlyList<TableRow> Rows { get; init; } = [];
+    public IReadOnlyList<TableRow> Rows { get; set; } = [];
 }

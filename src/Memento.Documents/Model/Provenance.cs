@@ -6,10 +6,10 @@ namespace Memento.Documents.Model;
 /// <summary>How a module's content was produced, for "How this was made" and the grounding validator.</summary>
 public sealed record Provenance
 {
-    public ProvenanceKind Kind { get; init; } = ProvenanceKind.User;
+    public ProvenanceKind Kind { get; set; } = ProvenanceKind.User;
 
     /// <summary>The generation record's claim ids behind this module (AI content only).</summary>
-    public IReadOnlyList<string> ClaimIds { get; init; } = [];
+    public IReadOnlyList<string> ClaimIds { get; set; } = [];
 
     /// <summary><c>true</c> once the user has edited generated or composed content in the viewer.</summary>
     public bool Edited { get; init; }

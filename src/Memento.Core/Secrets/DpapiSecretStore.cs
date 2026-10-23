@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Memento.Core.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Secrets;
@@ -161,6 +162,14 @@ public sealed partial class DpapiSecretStore : ISecretStore, IDisposable
             if (document is null || document.SchemaVersion > SecretsDocument.CurrentSchemaVersion)
             {
                 LogUnreadable("written by a newer Memento");
+                status = ReadStatus.Unreadable;
+                return new SecretsDocument();
+            }
+
+            // "keys": null reads as no keys and a key saved as null is dropped (audit 2, section 9).
+            if (NullMembers.Repair(document).Unrepaired.Count > 0)
+            {
+                LogUnreadable("a list or object is null");
                 status = ReadStatus.Unreadable;
                 return new SecretsDocument();
             }

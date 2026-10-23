@@ -14,7 +14,7 @@ public sealed record KnownVoicesDocument
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public IReadOnlyList<KnownVoice> Voices { get; init; } = [];
+    public IReadOnlyList<KnownVoice> Voices { get; set; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

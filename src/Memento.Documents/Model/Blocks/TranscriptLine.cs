@@ -10,12 +10,12 @@ public sealed record TranscriptLine
     public string? Id { get; init; }
 
     /// <summary>The speaker's display name at the time the document was composed.</summary>
-    public string Speaker { get; init; } = string.Empty;
+    public string Speaker { get; set; } = string.Empty;
 
     /// <summary>Start time in seconds.</summary>
     public double T { get; init; }
 
-    public string Text { get; init; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

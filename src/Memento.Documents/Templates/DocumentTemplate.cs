@@ -15,29 +15,29 @@ public sealed record DocumentTemplate
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>What the generated document is called in its meta line and Generate button ("Meeting minutes").</summary>
-    public string DocumentKind { get; init; } = string.Empty;
+    public string DocumentKind { get; set; } = string.Empty;
 
     /// <summary>The recording types the template is offered for by default (BRIDGE.md <c>RecordingType</c>); empty means all.</summary>
-    public IReadOnlyList<string> RecordingTypes { get; init; } = [];
+    public IReadOnlyList<string> RecordingTypes { get; set; } = [];
 
-    public IReadOnlyList<TemplateRow> Rows { get; init; } = [];
+    public IReadOnlyList<TemplateRow> Rows { get; set; } = [];
 
-    public TemplateInputs Inputs { get; init; } = new();
+    public TemplateInputs Inputs { get; set; } = new();
 
     /// <summary>The provider to use (<c>anthropic</c>, <c>openai</c>, <c>local</c>); <c>null</c> uses the default from Settings.</summary>
     public string? ProviderId { get; init; }
 
-    public string DefaultStyleId { get; init; } = "corporate";
+    public string DefaultStyleId { get; set; } = "corporate";
 
     /// <summary>Optional instructions that apply to the whole document; they can never override the grounding rules.</summary>
-    public string ProcessingInstructions { get; init; } = string.Empty;
+    public string ProcessingInstructions { get; set; } = string.Empty;
 
-    public TemplateOutput Output { get; init; } = new();
+    public TemplateOutput Output { get; set; } = new();
 
     /// <summary>When it was last saved; <c>null</c> for a built-in that was never changed.</summary>
     public DateTimeOffset? ModifiedAt { get; init; }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memento.Core.Bridge.Contracts;
 
 /// <summary>One transcript segment (BRIDGE.md M2). Times are seconds on the recording timeline.</summary>
@@ -16,4 +18,9 @@ public sealed record TranscriptSegment(
     string Text,
     double Confidence,
     IReadOnlyList<TranscriptWord> Words,
-    TranscriptEdit? Edited);
+    [property: JsonPropertyOrder(2)] TranscriptEdit? Edited)
+{
+    // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
+    [JsonPropertyOrder(1)]
+    public IReadOnlyList<TranscriptWord> Words { get; set; } = Words ?? [];
+}

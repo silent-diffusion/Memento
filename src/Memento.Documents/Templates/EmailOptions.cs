@@ -18,7 +18,7 @@ public sealed record EmailOptions
     public static EmailOptions Default { get; } = new();
 
     /// <summary>One of <see cref="Tones"/>.</summary>
-    public string Tone { get; init; } = Neutral;
+    public string Tone { get; set; } = Neutral;
 
     /// <summary>The name under the closing; <c>null</c> signs with the closing alone.</summary>
     public string? SignOff { get; init; }

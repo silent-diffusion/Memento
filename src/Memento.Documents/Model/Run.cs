@@ -9,7 +9,7 @@ public sealed record Run
     public RunKind Kind { get; init; } = RunKind.Text;
 
     /// <summary>The text; for a timestamp, the display text ("18:42").</summary>
-    public string Text { get; init; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
 
     /// <summary>Emphasis runs only.</summary>
     public EmphasisStyle? Style { get; init; }

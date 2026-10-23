@@ -12,7 +12,7 @@ public sealed record ExportManifestDocument
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public string App { get; init; } = "Memento";
+    public string App { get; set; } = "Memento";
 
     public required string MementoVersion { get; init; }
 
@@ -22,9 +22,9 @@ public sealed record ExportManifestDocument
 
     public DateTimeOffset ExportedAt { get; init; }
 
-    public string Algorithm { get; init; } = "sha256";
+    public string Algorithm { get; set; } = "sha256";
 
-    public IReadOnlyList<ExportManifestFile> Files { get; init; } = [];
+    public IReadOnlyList<ExportManifestFile> Files { get; set; } = [];
 
     /// <summary>
     /// How the Markdown and text transcript files were written (timestamps, speakers, layout; after 1.2.0), or <c>null</c>

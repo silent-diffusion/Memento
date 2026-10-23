@@ -5,5 +5,5 @@ public sealed record LabelValueBlock : Block
 {
     public override string Type => BlockTypes.LabelValue;
 
-    public IReadOnlyList<LabelValuePair> Pairs { get; init; } = [];
+    public IReadOnlyList<LabelValuePair> Pairs { get; set; } = [];
 }

@@ -12,6 +12,9 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="Names">The known speakers, at most 20, each 1–100 characters, no repeats (ignoring case).</param>
 public sealed record WhoSpoke(int? Count, IReadOnlyList<string> Names)
 {
+    // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
+    public IReadOnlyList<string> Names { get; set; } = Names ?? [];
+
     public const int MaxCount = 20;
 
     public const int MaxNames = 20;

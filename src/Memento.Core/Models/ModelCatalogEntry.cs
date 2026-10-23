@@ -37,7 +37,7 @@ public sealed record ModelCatalogEntry
     public required string License { get; init; }
 
     /// <summary>Measured context: speed, accuracy, requirements.</summary>
-    public string Notes { get; init; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
 
     /// <summary><c>gpu</c>, <c>cpu</c> or <c>either</c>.</summary>
     public required string RunsOn { get; init; }

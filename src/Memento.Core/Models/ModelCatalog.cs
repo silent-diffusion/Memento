@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Memento.Core.Serialization;
 
 namespace Memento.Core.Models;
 
@@ -76,6 +77,11 @@ public sealed partial class ModelCatalog
         if (document.SchemaVersion != ModelCatalogDocument.CurrentSchemaVersion)
         {
             throw new InvalidDataException($"The model catalog has schema {document.SchemaVersion}; this build reads schema {ModelCatalogDocument.CurrentSchemaVersion}.");
+        }
+
+        if (NullMembers.FindFirst(document) is { } missing)
+        {
+            throw new InvalidDataException($"The model catalog is not valid: '{missing}' is null; it must be a list or an object.");
         }
 
         var seen = new HashSet<string>(StringComparer.Ordinal);

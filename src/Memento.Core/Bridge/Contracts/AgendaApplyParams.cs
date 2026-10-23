@@ -5,7 +5,7 @@ public sealed record AgendaApplyParams
 {
     public required string RecordingId { get; init; }
 
-    public IReadOnlyList<AgendaApplyItem> Items { get; init; } = [];
+    public IReadOnlyList<AgendaApplyItem> Items { get; set; } = [];
 
     /// <summary>The preview's <c>source</c>: the file name, or "Pasted text".</summary>
     public required string Source { get; init; }

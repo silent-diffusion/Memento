@@ -20,7 +20,7 @@ public sealed record RecordingStateDocument
     public DateTimeOffset StartedAt { get; init; }
 
     /// <summary><c>recording</c>, <c>paused</c> or <c>stopped</c> (writers closed, finalize pending).</summary>
-    public string State { get; init; } = "recording";
+    public string State { get; set; } = "recording";
 
     public DateTimeOffset? LastCheckpointAt { get; init; }
 
@@ -36,9 +36,9 @@ public sealed record RecordingStateDocument
     /// </summary>
     public int? FlushIntervalMs { get; init; }
 
-    public IReadOnlyList<RecordingStateTrack> Tracks { get; init; } = [];
+    public IReadOnlyList<RecordingStateTrack> Tracks { get; set; } = [];
 
-    public IReadOnlyList<ProjectPause> Pauses { get; init; } = [];
+    public IReadOnlyList<ProjectPause> Pauses { get; set; } = [];
 
     /// <summary>
     /// Video tracks (2.0), written at every checkpoint after their files were flushed: enough for recovery to find and

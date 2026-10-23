@@ -5,6 +5,7 @@ using Memento.Core.Formatting;
 using Memento.Core.Library;
 using Memento.Core.Processing;
 using Memento.Core.Projects;
+using Memento.Core.Serialization;
 
 namespace Memento.Core.Video;
 
@@ -126,7 +127,9 @@ public static class VideoMapper
 
         try
         {
-            return JsonSerializer.Deserialize(json, VideoBridgeJsonContext.Default.RecordingVideoSummary);
+            // The library index's cached copy: one with a null that cannot be repaired is shown as no video summary.
+            var summary = JsonSerializer.Deserialize(json, VideoBridgeJsonContext.Default.RecordingVideoSummary);
+            return summary is null || NullMembers.Repair(summary).Unrepaired.Count > 0 ? null : summary;
         }
         catch (JsonException)
         {

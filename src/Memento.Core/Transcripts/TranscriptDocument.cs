@@ -11,27 +11,27 @@ public sealed record TranscriptDocument
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public string Language { get; init; } = "en";
+    public string Language { get; set; } = "en";
 
     public bool LanguageDetected { get; init; }
 
-    public TranscriptEngineInfo Engine { get; init; } = new("whisper.cpp", string.Empty, string.Empty, string.Empty, 0);
+    public TranscriptEngineInfo Engine { get; set; } = new("whisper.cpp", string.Empty, string.Empty, string.Empty, 0);
 
-    public IReadOnlyList<Speaker> Speakers { get; init; } = [];
+    public IReadOnlyList<Speaker> Speakers { get; set; } = [];
 
-    public IReadOnlyList<TranscriptSegment> Segments { get; init; } = [];
+    public IReadOnlyList<TranscriptSegment> Segments { get; set; } = [];
 
     public bool Reviewed { get; init; }
 
     /// <summary>Increments on every write.</summary>
     public int Version { get; init; }
 
-    public double LowConfidenceThreshold { get; init; } = 0.5;
+    public double LowConfidenceThreshold { get; set; } = 0.5;
 
-    public IReadOnlyList<CoverageGap> CoverageGaps { get; init; } = [];
+    public IReadOnlyList<CoverageGap> CoverageGaps { get; set; } = [];
 
     /// <summary><c>false</c> for the part a failed or cancelled pass produced before it stopped.</summary>
-    public bool Complete { get; init; } = true;
+    public bool Complete { get; set; } = true;
 
     /// <summary>The write that defined this content; becomes the reason of the version it turns into.</summary>
     public TranscriptChange? LastChange { get; init; }

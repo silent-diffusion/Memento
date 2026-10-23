@@ -5,7 +5,7 @@ public sealed record HeadingBlock : Block
 {
     public override string Type => BlockTypes.Heading;
 
-    public int Level { get; init; } = 1;
+    public int Level { get; set; } = 1;
 
-    public IReadOnlyList<Run> Runs { get; init; } = [];
+    public IReadOnlyList<Run> Runs { get; set; } = [];
 }

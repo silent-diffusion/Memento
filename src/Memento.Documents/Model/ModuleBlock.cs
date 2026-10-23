@@ -11,22 +11,22 @@ namespace Memento.Documents.Model;
 public sealed record ModuleBlock
 {
     /// <summary>Unique within the document; the template module's id when generated from a template.</summary>
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>The module type (<c>executiveSummary</c>, <c>actionItems</c>, <c>transcript</c>).</summary>
-    public string Type { get; init; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
 
     /// <summary>The heading shown above the module ("Executive summary").</summary>
-    public string Title { get; init; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
     public TextSize TextSize { get; init; } = TextSize.Normal;
 
     /// <summary>Whether the module's points carry timestamps back to the transcript.</summary>
     public bool LinkToTranscript { get; init; }
 
-    public Provenance Provenance { get; init; } = new();
+    public Provenance Provenance { get; set; } = new();
 
-    public IReadOnlyList<Block> Blocks { get; init; } = [];
+    public IReadOnlyList<Block> Blocks { get; set; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

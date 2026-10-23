@@ -8,7 +8,7 @@ public sealed record TimelineEntry
     /// <summary>The moment in seconds.</summary>
     public double T { get; init; }
 
-    public IReadOnlyList<Run> Runs { get; init; } = [];
+    public IReadOnlyList<Run> Runs { get; set; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

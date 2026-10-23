@@ -9,15 +9,15 @@ namespace Memento.Documents.Templates;
 public sealed record TemplateModule
 {
     /// <summary>Unique within the template; becomes the generated <see cref="ModuleBlock.Id"/>.</summary>
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>The module type (<see cref="ModuleIds"/>).</summary>
-    public string Type { get; init; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
 
     /// <summary>The heading; <c>null</c> uses the catalog's display name.</summary>
     public string? Title { get; init; }
 
-    public string Instructions { get; init; } = string.Empty;
+    public string Instructions { get; set; } = string.Empty;
 
     public ModuleLength Length { get; init; } = ModuleLength.Medium;
 

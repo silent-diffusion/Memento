@@ -11,11 +11,11 @@ public sealed record AnnotationsDocument
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public IReadOnlyList<Chapter> Chapters { get; init; } = [];
+    public IReadOnlyList<Chapter> Chapters { get; set; } = [];
 
-    public IReadOnlyList<Highlight> Highlights { get; init; } = [];
+    public IReadOnlyList<Highlight> Highlights { get; set; } = [];
 
-    public IReadOnlyList<Topic> Topics { get; init; } = [];
+    public IReadOnlyList<Topic> Topics { get; set; } = [];
 
     /// <summary>
     /// 2.0: the times (ms) of chapter suggestions the user dismissed, so they are not suggested again. Optional and
