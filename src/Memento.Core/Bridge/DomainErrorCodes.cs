@@ -48,6 +48,9 @@ public static class DomainErrorCodes
     /// <summary><c>transcript.splitSpeaker</c> for a speaker heard as one voice, or whose voices sound alike; <c>detail</c> is the id (2.6.0).</summary>
     public const string TranscriptCannotSplit = "transcript.cannotSplit";
 
+    /// <summary><c>transcript.joinSegments</c> for a line with no next line, or whose next line is on another track; <c>detail</c> is the line's id (2.6.0).</summary>
+    public const string TranscriptCannotJoin = "transcript.cannotJoin";
+
     /// <summary>No catalog model has that id.</summary>
     public const string ModelsNotFound = "models.notFound";
 

@@ -109,4 +109,25 @@ public sealed class ReviewContractSerializationTests
             """{"speakers":[{"id":"spk3","name":"Speaker 3","renamed":false,"color":3,"talkTimeMs":4000}],"created":{"id":"spk3","name":"Speaker 3","renamed":false,"color":3,"talkTimeMs":4000},"segmentIds":["s0001"]}""",
             Json(new SplitSpeakerResult([created], created, ["s0001"]), ReviewBridgeJsonContext.Default.SplitSpeakerResult));
     }
+
+    [Fact]
+    public void SplitAndJoinSegmentParamsAreStrictAndTheirResultsCarryTheLines()
+    {
+        var split = JsonSerializer.Deserialize("""{"recordingId":"r","segmentId":"s0001","at":12}""", ReviewBridgeJsonContext.Default.TranscriptSplitSegmentParams)!;
+        Assert.Equal(("r", "s0001", 12), (split.RecordingId, split.SegmentId, split.At));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","segmentId":"s0001"}""", ReviewBridgeJsonContext.Default.TranscriptSplitSegmentParams));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","segmentId":"s0001","at":1,"extra":1}""", ReviewBridgeJsonContext.Default.TranscriptSplitSegmentParams));
+        var join = JsonSerializer.Deserialize("""{"recordingId":"r","segmentId":"s0001"}""", ReviewBridgeJsonContext.Default.TranscriptJoinSegmentsParams)!;
+        Assert.Equal(("r", "s0001"), (join.RecordingId, join.SegmentId));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r"}""", ReviewBridgeJsonContext.Default.TranscriptJoinSegmentsParams));
+
+        var speaker = new Speaker("spk1", "Speaker 1", false, 1, 4000);
+        var line = new TranscriptSegment("s0001", 0, 1.5, "mic", "spk1", 1, "Welcome everyone.", 0.9, [], null) { SpeakerByUser = true };
+        Assert.Equal(
+            """{"segments":[{"id":"s0001","start":0,"end":1.5,"track":"mic","speaker":"spk1","speakerConfidence":1,"text":"Welcome everyone.","confidence":0.9,"words":[],"edited":null,"speakerByUser":true}],"speakers":[{"id":"spk1","name":"Speaker 1","renamed":false,"color":1,"talkTimeMs":4000}]}""",
+            Json(new SplitSegmentResult([line], [speaker]), ReviewBridgeJsonContext.Default.SplitSegmentResult));
+        Assert.Equal(
+            """{"segment":{"id":"s0001","start":0,"end":1.5,"track":"mic","speaker":"spk1","speakerConfidence":1,"text":"Welcome everyone.","confidence":0.9,"words":[],"edited":null,"speakerByUser":true},"speakers":[{"id":"spk1","name":"Speaker 1","renamed":false,"color":1,"talkTimeMs":4000}],"removedId":"s0001-2","highlights":[{"id":"h1","atMs":500,"note":"","origin":"user","segmentId":"s0001"}]}""",
+            Json(new JoinSegmentsResult(line, [speaker], "s0001-2", [new Highlight("h1", 500, "", "user", "s0001")]), ReviewBridgeJsonContext.Default.JoinSegmentsResult));
+    }
 }
