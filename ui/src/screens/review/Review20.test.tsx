@@ -202,6 +202,48 @@ describe('Review 2.0: known voices, suggested chapters, selection mode', () => {
     await until(() => h.container.querySelector('.sel-bar') === null);
   });
 
+  it('offers the line menu the same section choices for one line: From here on moves every later line in one write', async () => {
+    await open(DESIGN_REVIEW);
+    const before = await transcript(DESIGN_REVIEW);
+    const first = before.segments[0];
+    const sam = before.speakers.find((s) => s.id === first?.speaker);
+    const lena = before.speakers.find((s) => s.name === 'Lena Fischer');
+    if (first === undefined || sam === undefined || lena === undefined) {
+      throw new Error('the sample changed');
+    }
+    const row = rows()[0];
+    await act(async () => {
+      row?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 40 }));
+      await Promise.resolve();
+    });
+    await click(named('Assign speaker…'));
+    await click([...document.querySelectorAll('.speaker-menu [role="option"]')].find((o) => o.textContent.trim() === 'Lena Fischer'));
+    await until(() => document.querySelector('.speaker-menu--choices') !== null);
+    // The first line is a turn of its own, so: Just this line, From here on, Merge, Back.
+    expect([...document.querySelectorAll<HTMLElement>('.speaker-menu--choices [data-choice]')].map((c) => c.dataset.choice)).toEqual(['line', 'onward', 'merge', 'back']);
+    const onward = before.segments.filter((s) => s.speaker === sam.id).map((s) => s.id);
+    expect(document.querySelector('.speaker-menu--choices [data-choice="onward"] .speaker-choice-label')?.textContent).toBe(`From here on · ${onward.length} lines`);
+    // Pointing at the choice marks its lines (those rendered near the top).
+    await act(async () => {
+      document.querySelector('.speaker-menu--choices [data-choice="onward"]')?.dispatchEvent(new Event('pointermove', { bubbles: true }));
+      await Promise.resolve();
+    });
+    const marked = [...h.container.querySelectorAll<HTMLElement>('.segm--will-move')].map((el) => el.dataset.segmentId);
+    expect(marked.length).toBeGreaterThan(1);
+    expect(marked.every((id) => onward.includes(id ?? ''))).toBe(true);
+
+    await click(document.querySelector('.speaker-menu--choices [data-choice="onward"]'));
+    await until(() => h.callsOf('transcript.setSegmentsSpeaker').length === 1);
+    expect(h.callsOf('transcript.setSegmentsSpeaker')[0]).toEqual({ recordingId: DESIGN_REVIEW, segmentIds: onward, speakerId: lena.id });
+    await until(() => h.container.querySelector('.segm--will-move') === null);
+    const after = await transcript(DESIGN_REVIEW);
+    expect(after.segments.some((s) => s.speaker === sam.id)).toBe(false);
+    expect(after.speakers.some((s) => s.id === sam.id)).toBe(true);
+    expect(h.container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe(`Undo move ${onward.length} lines to Lena Fischer`);
+    await undo();
+    expect((await transcript(DESIGN_REVIEW)).segments.filter((s) => s.speaker === sam.id).map((s) => s.id)).toEqual(onward);
+  });
+
   it('selects every line shown with Ctrl+A and extends with Shift+arrows', async () => {
     await open(DESIGN_REVIEW);
     const first = rows()[0];

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../App';
 import { createBridgeClient, type BridgeClient } from '../../bridge/client';
 import type { MockOptions } from '../../bridge/mock';
+import { formatDuration } from '../../format/duration';
 import { loadInitialData, refreshLibrary } from '../../state/data';
 import { connectEvents, createStore, type AppStore } from '../../state/store';
 
@@ -264,15 +265,23 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     const before = samLines();
     expect(before).toBeGreaterThan(1);
 
+    const all = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    const samId = all?.speakers.find((s) => s.name === 'Sam Okafor')?.id;
+    const samTotal = all?.segments.filter((s) => s.speaker === samId).length ?? 0;
+    expect(samTotal).toBeGreaterThan(before);
+
     await openSpeakerMenu('Okay, I think everyone');
     await click(option('Aiko Tanaka'));
     const choices = document.querySelector<HTMLElement>('.speaker-menu--choices');
     expect(choices?.querySelector('.speaker-choice-heading')?.textContent).toBe('Move to Aiko Tanaka');
+    // The first line is a turn of its own (Aiko speaks next), so This turn is left out; From here on is every line of Sam.
     expect([...(choices?.querySelectorAll('.speaker-choice-label, .speaker-choice--back .speaker-option-name') ?? [])].map((o) => o.textContent)).toEqual([
       'Just this line',
-      'Merge Sam Okafor into Aiko Tanaka',
+      `From here on · ${samTotal} lines`,
+      `Merge Sam Okafor into Aiko Tanaka · ${samTotal} lines`,
       'Back to the speakers',
     ]);
+    expect(choice('onward').textContent).toContain(`All ${samTotal} lines of Sam Okafor, from 0:02 to the end, move to Aiko Tanaka.`);
     expect(choice('merge').textContent).toContain('Every line of Sam Okafor moves to Aiko Tanaka, and Sam Okafor goes away. Undo puts them back.');
 
     // Esc (or Back) goes back to the speakers with the field focused; nothing changed.
@@ -295,6 +304,95 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await until(() => samLines() === before);
     expect(speakerOf('Okay, I think everyone')).toBe('Sam Okafor');
     expect([...container.querySelectorAll('.person[data-speaker-id] .person-name')].map((p) => p.textContent)).toContain('Sam Okafor');
+  });
+
+  it('offers This turn and From here on with their counts, marks their lines while hovered, and moves them as one Undo step', async () => {
+    await openWithTranscript();
+    const all = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    if (all === null) {
+      throw new Error('no transcript');
+    }
+    const aiko = all.speakers.find((s) => s.name === 'Aiko Tanaka');
+    const sam = all.speakers.find((s) => s.name === 'Sam Okafor');
+    const index = all.segments.findIndex((s) => s.text.startsWith('The summary line reflects'));
+    const line = all.segments[index];
+    const previous = all.segments[index - 1];
+    if (aiko === undefined || sam === undefined || line === undefined || previous === undefined) {
+      throw new Error('the sample changed');
+    }
+    // The last line of a turn of Aiko's that runs into the walkthrough at 6:30 (her "I will share my screen" and
+    // the two lines after it): the turn is those lines, From here on is every later line of hers.
+    let turnStart = index;
+    while (turnStart > 0 && all.segments[turnStart - 1]?.speaker === aiko.id) {
+      turnStart -= 1;
+    }
+    const turn = all.segments.slice(turnStart, index + 1);
+    const turnFirst = turn[0];
+    if (turnFirst === undefined) {
+      throw new Error('the sample changed');
+    }
+    expect([turn.length, line.speaker, all.segments[index + 1]?.speaker]).toEqual([3, aiko.id, expect.not.stringMatching(aiko.id)]);
+    const onward = all.segments.slice(index).filter((s) => s.speaker === aiko.id);
+    const total = all.segments.filter((s) => s.speaker === aiko.id).length;
+
+    // Jump there with the search (the list only renders rows near the view).
+    const field = container.querySelector<HTMLInputElement>('#tx-search');
+    if (field === null) {
+      throw new Error('no search field');
+    }
+    await typeInto(field, 'summary line reflects');
+    await until(() => (container.querySelector('#tx-search-count')?.textContent ?? '').includes('match'));
+    await press(field, 'Enter');
+    await until(() => container.querySelector(`[data-segment-id="${line.id}"]`) !== null);
+
+    await openSpeakerMenu('The summary line reflects');
+    await click(option('Sam Okafor'));
+    const choices = document.querySelector<HTMLElement>('.speaker-menu--choices');
+    expect([...(choices?.querySelectorAll('.speaker-choice-label') ?? [])].map((o) => o.textContent)).toEqual([
+      'Just this line',
+      'This turn · 3 lines',
+      `From here on · ${onward.length} lines`,
+      `Merge Aiko Tanaka into Sam Okafor · ${total} lines`,
+    ]);
+    const at = (s: { start: number }): string => formatDuration(s.start * 1000);
+    expect(choice('turn').textContent).toContain(`The 3 lines from ${at(turnFirst)} to ${at(line)} move to Sam Okafor; Aiko Tanaka keeps the others.`);
+    expect(choice('onward').textContent).toContain(`The ${onward.length} lines of Aiko Tanaka from ${at(line)} to the end move to Sam Okafor; Aiko Tanaka keeps the ${total - onward.length} lines before.`);
+
+    // The first choice is active as the choices open: just this line is marked. Pointing at This turn marks the turn.
+    const marked = (): string[] => [...container.querySelectorAll<HTMLElement>('.segm--will-move')].map((el) => el.dataset.segmentId ?? '');
+    expect(marked()).toEqual([line.id]);
+    await act(async () => {
+      choice('turn').dispatchEvent(new Event('pointermove', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(marked()).toEqual(turn.map((s) => s.id));
+    // The arrow keys move the mark with the active choice; Back marks nothing.
+    const list = choices?.querySelector('[role="listbox"]') ?? document.body;
+    await press(list, 'ArrowDown');
+    expect(marked().length).toBeGreaterThan(3);
+    expect(marked()).toEqual(onward.map((s) => s.id).filter((id) => marked().includes(id)));
+    await press(list, 'ArrowDown');
+    await press(list, 'ArrowDown');
+    expect(marked()).toEqual([]);
+    await press(list, 'ArrowUp');
+    await press(list, 'ArrowUp');
+
+    // From here on: one host write with exactly those lines, the mark gone, and one Undo step that puts them back.
+    const call = vi.spyOn(bridge, 'call');
+    await click(choice('onward'));
+    await until(() => segment('The summary line reflects').querySelector('.segm-speaker-name')?.textContent === 'Sam Okafor');
+    expect(call).toHaveBeenCalledWith('transcript.setSegmentsSpeaker', { recordingId: DESIGN_REVIEW, segmentIds: onward.map((s) => s.id), speakerId: sam.id });
+    expect(container.querySelector('.segm--will-move')).toBeNull();
+    expect(document.querySelector('.speaker-menu')).toBeNull();
+    let after = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    expect(after?.segments.filter((s) => s.speaker === aiko.id).length).toBe(total - onward.length);
+    expect(after?.segments.find((s) => s.id === previous.id)?.speaker).toBe(aiko.id);
+    expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe(`Undo move ${onward.length} lines to Sam Okafor`);
+
+    await click(container.querySelector('.undo-btn') ?? document.body);
+    await until(() => segment('The summary line reflects').querySelector('.segm-speaker-name')?.textContent === 'Aiko Tanaka');
+    after = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    expect(after?.segments.filter((s) => s.speaker === aiko.id).length).toBe(total);
   });
 
   it('lists named people before "Speaker n" in the People list, the menu and its search', async () => {

@@ -365,7 +365,8 @@ try {
     const otherLines = transcriptOf(id).segments.filter((s) => s.speaker === other).map((s) => s.id);
     await pickFor(lineIndex, 'Avery Quinn');
     const labels = await page().eval(`[...document.querySelectorAll('.speaker-menu--choices .speaker-choice-label')].map((l) => l.textContent)`);
-    run.check('picking another speaker offers Just this line or Merge', labels[0] === 'Just this line' && labels[1] === `Merge ${otherName} into Avery Quinn`, labels.join(' | '));
+    // 2.6.0: This turn and From here on sit between them when they would move other lines than those two.
+    run.check('picking another speaker offers Just this line … Merge', labels[0] === 'Just this line' && labels.at(-1) === `Merge ${otherName} into Avery Quinn · ${otherLines.length} ${otherLines.length === 1 ? 'line' : 'lines'}`, labels.join(' | '));
     await run.shot('speaker-choices');
     await page().key('Enter'); // the first choice: Just this line
     await run.until(() => transcriptOf(id).segments[lineIndex].speaker === avery.id, 'the one line moved to Avery Quinn');

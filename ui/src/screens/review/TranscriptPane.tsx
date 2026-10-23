@@ -11,6 +11,7 @@ import { openSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { computeWindow, RowHeights } from '../../format/virtualList';
 import { orderSpeakers } from '../../format/speakerOrder';
+import { sectionChoices } from '../../format/speakerRuns';
 import { createFollowPlayhead, followScrollDelta, type FollowPlayhead } from '../../state/followPlayhead';
 import type { PlayerApi } from './Player';
 import { TranscriptSegmentRow, type SegmentHandlers } from './TranscriptSegment';
@@ -273,6 +274,8 @@ interface ListProps {
   total?: number;
   /** 2.0 selection mode: the selected lines, or null outside it. */
   selectedIds?: ReadonlySet<string> | null;
+  /** 2.6.0: the lines a hovered or active choice in a speaker menu would move, or null. */
+  previewIds?: ReadonlySet<string> | null;
 }
 
 /** The segments, windowed: only the rows near the viewport are in the DOM, spacers stand for the rest. */
@@ -293,6 +296,7 @@ function TranscriptList({
   gapAction,
   total,
   selectedIds = null,
+  previewIds = null,
 }: ListProps): JSX.Element {
   const listRef = useRef<HTMLDivElement | null>(null);
   const heightsRef = useRef<RowHeights | null>(null);
@@ -502,6 +506,7 @@ function TranscriptList({
           highlights={highlightsBySegment.get(segment.id) ?? NO_HIGHLIGHTS}
           handlers={handlers}
           selected={selectedIds === null ? null : selectedIds.has(segment.id)}
+          previewed={previewIds?.has(segment.id) ?? false}
         />
         {after.map((gap) => (
           <GapNotice key={`gap-${gap.start}`} gap={gap} action={gapAction} />
@@ -585,10 +590,18 @@ export function TranscriptPane({
     return { segmentId: match.segmentId, occurrence };
   }, [search.matches, search.current]);
 
+  // 2.6.0: while a choice in a speaker menu (This turn, From here on, Merge) is hovered or active, the lines
+  // it would move are marked. The set changes only as the active choice does, so the rows barely redraw.
+  const [previewIds, setPreviewIds] = useState<ReadonlySet<string> | null>(null);
+  const preview = (segmentIds: readonly string[] | null): void => {
+    setPreviewIds(segmentIds === null ? null : new Set(segmentIds));
+  };
+
   // 2.0: selection mode and the line context menu (LineSelection.tsx), over the lines shown.
   const allIds = useMemo(() => new Set(allSegments.map((s) => s.id)), [allSegments]);
   const selection = useLineSelection({
     segments,
+    allSegments,
     allIds,
     highlightsBySegment,
     speakers,
@@ -596,13 +609,14 @@ export function TranscriptPane({
     focusLine: (segmentId) => {
       focusRef.current?.(latest.current.segments.findIndex((s) => s.id === segmentId));
     },
+    preview,
   });
   const withSelection = useRef(lineActions !== undefined).current;
 
   // Handlers stay one object for the life of the pane so the memoised rows do not redraw; each call
   // reads the latest state through the ref.
-  const latest = useRef({ editing, segments, speakers, actions, player, follow, onError, onSaved, selection });
-  latest.current = { editing, segments, speakers, actions, player, follow, onError, onSaved, selection };
+  const latest = useRef({ editing, segments, allSegments, speakers, actions, lineActions, player, follow, onError, onSaved, selection });
+  latest.current = { editing, segments, allSegments, speakers, actions, lineActions, player, follow, onError, onSaved, selection };
   const handlers = useMemo<SegmentHandlers>(() => {
     const focusSegment = (segmentId: string): void => {
       const index = latest.current.segments.findIndex((s) => s.id === segmentId);
@@ -662,6 +676,25 @@ export function TranscriptPane({
       merge: (from, into) => {
         latest.current.actions.mergeSpeakers(from, into).catch(report(`${from.name} was not merged into ${into.name}`));
       },
+      sections: (segment, chosen) => {
+        // Over the whole transcript, not the lines a filter shows: a turn is the run in the conversation.
+        const { allSegments: all, speakers: people } = latest.current;
+        const from = people.find((s) => s.id === segment.speaker);
+        if (from === undefined) {
+          return [];
+        }
+        const choices = sectionChoices(all, all.findIndex((s) => s.id === segment.id), from, chosen);
+        // Without the 2.0 line actions there is no way to move several lines in one step: the line or the merge.
+        return withSelection ? choices : choices.filter((c) => c.id === 'line' || c.id === 'merge');
+      },
+      preview,
+      ...(withSelection
+        ? {
+            assignLines: (lines: readonly TranscriptSegment[], speaker: Speaker) => {
+              latest.current.lineActions?.assign(lines, speaker).catch(report('The speaker was not changed'));
+            },
+          }
+        : {}),
       addSpeaker: (segment, name) => {
         latest.current.actions.addSpeaker(segment, name).catch(report(`${name} was not added as a speaker`));
       },
@@ -955,6 +988,7 @@ export function TranscriptPane({
             gapAction={gapAction}
             {...(filtered ? { total: allSegments.length } : {})}
             selectedIds={selection.selectedIds}
+            previewIds={previewIds}
           />
           </div>
           {selection.menu}

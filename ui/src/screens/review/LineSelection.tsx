@@ -3,7 +3,8 @@
 // starts it; rows then carry a checkbox and a click toggles them; Ctrl+A selects every line shown (the filter's view),
 // Space toggles the focused line, Shift+↑/↓ extend, Esc leaves. A raised bar above the lines says how many are
 // selected and acts on them: Assign speaker (the line menu's chooser, with "Just these lines" or the merge when they
-// share one speaker), Highlight, Remove highlights, Mark as chapter start, Copy. A right-click, Shift+F10 or the
+// share one speaker; for one line the same choices as the line's own menu, 2.6.0: Just this line, This turn, From
+// here on, Merge), Highlight, Remove highlights, Mark as chapter start, Copy. A right-click, Shift+F10 or the
 // context-menu key opens the same actions for the line (for the selection, when the line is in it). Every change is
 // one Undo step (reviewActions20.ts).
 import type { JSX } from 'preact';
@@ -13,6 +14,7 @@ import type { Highlight, Speaker, TranscriptCopyFormat, TranscriptSegment } from
 import { CloseIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
 import { SpeakerChooser, type PickChoice } from '../../components/SpeakerChooser';
+import { sectionChoices } from '../../format/speakerRuns';
 import { formatDuration } from '../../format/duration';
 import {
   extendSelection,
@@ -66,39 +68,53 @@ function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable);
 }
 
-/** Choices for a speaker picked for several lines: just these, or (all one speaker's) the merge. */
-function pickChoicesFor(lines: readonly TranscriptSegment[], speakers: readonly Speaker[], actions: LineActions, done: () => void) {
+/**
+ * Choices for a speaker picked for some lines that share one speaker: for one line the same as its own menu (Just
+ * this line, This turn, From here on, Merge; format/speakerRuns.ts), for several just these or the merge.
+ */
+function pickChoicesFor(lines: readonly TranscriptSegment[], allSegments: readonly TranscriptSegment[], speakers: readonly Speaker[], actions: LineActions, done: () => void) {
   return (chosen: Speaker): readonly PickChoice[] | null => {
     const owners = new Set(lines.map((l) => l.speaker));
     const only = owners.size === 1 ? speakers.find((s) => owners.has(s.id)) : undefined;
     if (only === undefined || only.id === chosen.id) {
       return null;
     }
+    const assign = (which: readonly TranscriptSegment[]) => (): void => {
+      actions.assign(which, chosen).then(done, (e: unknown) => {
+        actions.onError('The speaker was not changed', messageOf(e));
+      });
+    };
+    const merge = (): void => {
+      actions.merge(only, chosen).then(done, (e: unknown) => {
+        actions.onError(`${only.name} was not merged into ${chosen.name}`, messageOf(e));
+      });
+    };
     const count = lines.length;
     const first = lines[0];
+    if (count === 1 && first !== undefined) {
+      return sectionChoices(allSegments, allSegments.findIndex((s) => s.id === first.id), only, chosen).map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        detail: choice.detail,
+        segmentIds: choice.lines.map((l) => l.id),
+        run: choice.id === 'merge' ? merge : assign(choice.lines),
+      }));
+    }
+    const all = allSegments.filter((s) => s.speaker === only.id);
     return [
       {
         id: 'lines',
-        label: count === 1 ? 'Just this line' : `Just these ${count} lines`,
-        detail:
-          count === 1 && first !== undefined
-            ? `The line at ${formatDuration(first.start * 1000)} moves to ${chosen.name}.`
-            : `The ${count} selected lines move to ${chosen.name}; ${only.name} keeps the others.`,
-        run: () => {
-          actions.assign(lines, chosen).then(done, (e: unknown) => {
-            actions.onError('The speaker was not changed', messageOf(e));
-          });
-        },
+        label: `Just these ${count} lines`,
+        detail: `The ${count} selected lines move to ${chosen.name}; ${only.name} keeps the others.`,
+        segmentIds: lines.map((l) => l.id),
+        run: assign(lines),
       },
       {
         id: 'merge',
-        label: `Merge ${only.name} into ${chosen.name}`,
+        label: `Merge ${only.name} into ${chosen.name} · ${all.length} ${all.length === 1 ? 'line' : 'lines'}`,
         detail: `Every line of ${only.name} moves to ${chosen.name}, and ${only.name} goes away. Undo puts them back.`,
-        run: () => {
-          actions.merge(only, chosen).then(done, (e: unknown) => {
-            actions.onError(`${only.name} was not merged into ${chosen.name}`, messageOf(e));
-          });
-        },
+        segmentIds: all.map((s) => s.id),
+        run: merge,
       },
     ];
   };
@@ -243,14 +259,18 @@ function ContextMenu({
 
 export function useLineSelection({
   segments,
+  allSegments,
   allIds,
   highlightsBySegment,
   speakers,
   actions,
   focusLine,
+  preview,
 }: {
   /** The lines shown, in order. */
   segments: readonly TranscriptSegment[];
+  /** Every line of the transcript, in order (a turn or From here on runs over the whole conversation). */
+  allSegments: readonly TranscriptSegment[];
   /** Every line of the transcript (lines that go away leave the selection). */
   allIds: ReadonlySet<string>;
   highlightsBySegment: ReadonlyMap<string, readonly Highlight[]>;
@@ -258,6 +278,8 @@ export function useLineSelection({
   actions: LineActions | undefined;
   /** Moves keyboard focus to a line by id. */
   focusLine: (segmentId: string) => void;
+  /** 2.6.0: marks the lines a hovered or active choice would move (null: none). */
+  preview?: (segmentIds: readonly string[] | null) => void;
 }): LineSelectionApi {
   const [selecting, setSelecting] = useState(false);
   const [selection, setSelection] = useState<LineSelection>(NO_SELECTION);
@@ -450,7 +472,8 @@ export function useLineSelection({
           onPick={(speaker) => {
             act('The speaker was not changed', () => actions.assign(chooserLines, speaker));
           }}
-          pickChoices={pickChoicesFor(chooserLines, speakers, actions, () => undefined)}
+          pickChoices={pickChoicesFor(chooserLines, allSegments, speakers, actions, () => undefined)}
+          onPreview={preview}
           onAdd={(name) => {
             act(`${name} was not added as a speaker`, () => actions.addSpeaker(chooserLines, name));
           }}
