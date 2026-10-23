@@ -1311,7 +1311,7 @@ Review's speaker menu gained ways to correct a whole section at once (ROADMAP.md
 
 ## Corrections guide the next pass (2.6.0)
 
-A line the user places on a speaker carries `speakerByUser: true` (`TranscriptSegment`, left out of the JSON while false, so transcripts from before read as false). It is set by `transcript.setSegmentSpeaker` and `transcript.setSegmentsSpeaker` whenever the line gets a speaker (a new one included), and cleared when a line is set to no speaker. `transcript.mergeSpeakers`, `transcript.reduceSpeakers`, `transcript.restoreSpeaker` and `transcript.restoreSpeakers` act on speakers, not on lines, so every line keeps the flag it has; `transcript.editSegment` keeps it too. The speakers stage's own assignments leave it false.
+A line the user places on a speaker carries `speakerByUser: true` (`TranscriptSegment`, left out of the JSON while false, so transcripts from before read as false). It is set by `transcript.setSegmentSpeaker`, `transcript.setSegmentsSpeaker` and `transcript.swapSpeakers` whenever the line gets a speaker (a new one included), and cleared when a line is set to no speaker. `transcript.mergeSpeakers`, `transcript.reduceSpeakers`, `transcript.restoreSpeaker` and `transcript.restoreSpeakers` act on speakers, not on lines, so every line keeps the flag it has; `transcript.editSegment` keeps it too. The speakers stage's own assignments leave it false.
 
 What the next speakers pass (`processing.retry` on `speakers`, Review's "Identify speakers again") does with those lines, through `SpeakerAssigner` with one `SpeakerPin` per placed line (the line, the speaker's name as its label, and whether that name was given by the user):
 
