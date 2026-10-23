@@ -371,6 +371,8 @@ The system should attempt to associate transcript segments with speakers.
 
 A transcript line that holds two people's words should be cut where the voice changes before speakers are assigned, so each part can carry its own speaker (2.6.0; a setting, on by default). Lines the user edited, and lines of a transcript whose speakers are identified again, are never cut: other data refers to them by id.
 
+Corrections should guide the next pass (2.6.0): a line the user placed on a speaker keeps that speaker when speakers are identified again, and the voice heard under it is pinned to that person, so voices the user put on different people are never grouped together and one corrected line per voice fixes every line of that voice.
+
 Possible information:
 
 ```text

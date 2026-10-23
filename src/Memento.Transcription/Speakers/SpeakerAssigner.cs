@@ -21,12 +21,25 @@ namespace Memento.Transcription.Speakers;
 /// follow the order in which each first speaks.
 /// <c>speakerConfidence</c> is the overlap-weighted, calibrated (<see cref="Calibrate"/>) confidence of the winning
 /// speaker's turns times its share of the overlapping speech. A segment no turn touches keeps no speaker.
+/// Lines the user placed (<see cref="SpeakerPin"/>, 2.6.0) pin the voice that won them to their person: voices pinned to
+/// one label are joined before anything else is compared, no join ever puts two labels together (a count below the number
+/// of labels is not reached), an unpinned voice may still join a pinned one, and a pinned line keeps its label's person
+/// whatever its voice did, with confidence 1 and <c>speakerByUser</c>; a label whose lines no voice won becomes a person of
+/// its own after the others.
 /// </summary>
 public static class SpeakerAssigner
 {
-    /// <param name="Merged">How many voices were joined into others (to reach the count, or because they sound alike).</param>
+    /// <param name="Merged">How many voices were joined into others (to reach the count, because they sound alike, or because they were pinned to one person).</param>
     /// <param name="Voices">Every voice that won a line: its track, cluster, embedding and lines (<c>voices.json</c>).</param>
-    public sealed record Result(IReadOnlyList<TranscriptSegment> Segments, IReadOnlyList<Speaker> Speakers, int Merged = 0, IReadOnlyList<VoiceCluster>? Voices = null);
+    /// <param name="Pinned">How many raw voices were pinned to a person by the lines the user placed.</param>
+    /// <param name="Names">Speaker id → the name the user gave, for every person pinned by a named label (<see cref="SpeakerNamer"/> applies them first).</param>
+    public sealed record Result(
+        IReadOnlyList<TranscriptSegment> Segments,
+        IReadOnlyList<Speaker> Speakers,
+        int Merged = 0,
+        IReadOnlyList<VoiceCluster>? Voices = null,
+        int Pinned = 0,
+        IReadOnlyDictionary<string, string>? Names = null);
 
     /// <summary>A voice is little (folded into a main voice last) below this share of all speech, or the given seconds if fewer.</summary>
     public const double MinSpeechShare = 0.05;
@@ -48,6 +61,7 @@ public static class SpeakerAssigner
 
     /// <param name="expectedSpeakers">The recording's count (or Settings'), or <c>null</c> for Auto.</param>
     /// <param name="joinSimilarity">Auto only: voices on one track at least this alike are one person; <c>null</c> joins none.</param>
+    /// <param name="pins">Lines the user placed before, each with its person's label (2.6.0); <c>null</c> or empty pins nothing.</param>
     public static Result Assign(
         IReadOnlyList<TranscriptSegment> segments,
         IReadOnlyList<DiarizedTrack> tracks,
@@ -55,16 +69,23 @@ public static class SpeakerAssigner
         double? joinSimilarity = null,
         double minSpeechSeconds = 0,
         double foldSimilarity = double.PositiveInfinity,
-        double ownSpeakerSeconds = 0)
+        double ownSpeakerSeconds = 0,
+        IReadOnlyList<SpeakerPin>? pins = null)
     {
         ArgumentNullException.ThrowIfNull(segments);
         ArgumentNullException.ThrowIfNull(tracks);
         var turnsByTrack = tracks.ToDictionary(t => t.TrackId, t => t.Turns, StringComparer.Ordinal);
+        var pinned = new Dictionary<string, SpeakerPin>(StringComparer.Ordinal);
+        foreach (var pin in pins ?? [])
+        {
+            pinned.TryAdd(pin.SegmentId, pin);
+        }
 
-        // Pass 1: the winning (track, speaker) of every segment.
+        // Pass 1: the winning (track, speaker) of every segment, and the label talk of every voice the user's lines pin.
         var winners = new Dictionary<string, (string Track, int Speaker, double Confidence)>(StringComparer.Ordinal);
         var order = new List<(string Track, int Speaker)>();
         var lines = new Dictionary<(string Track, int Speaker), List<TranscriptSegment>>();
+        var labelTalk = new Dictionary<(string Track, int Speaker), Dictionary<string, double>>();
         foreach (var segment in segments.OrderBy(s => s.Start).ThenBy(s => s.Id, StringComparer.Ordinal))
         {
             if (segment.Track is not { } track || !turnsByTrack.TryGetValue(track, out var turns))
@@ -96,52 +117,118 @@ public static class SpeakerAssigner
             }
 
             list.Add(segment);
+            if (pinned.TryGetValue(segment.Id, out var pin))
+            {
+                if (!labelTalk.TryGetValue(key, out var talk))
+                {
+                    labelTalk[key] = talk = new Dictionary<string, double>(StringComparer.Ordinal);
+                }
+
+                talk[pin.Label] = talk.GetValueOrDefault(pin.Label) + Math.Max(0, segment.End - segment.Start);
+            }
         }
 
-        // Pass 2: who is the same person (numbered in the order people first speak).
-        var group = Group(order, lines, tracks, expectedSpeakers, joinSimilarity, minSpeechSeconds, foldSimilarity, ownSpeakerSeconds, out var people, out var merged);
-        var speakers = Enumerable.Range(0, people)
-            .Select(n => new Speaker(TranscriptSpeakers.IdFor(n + 1), TranscriptSpeakers.DefaultName(n + 1), false, TranscriptSpeakers.ColorFor(n), 0))
-            .ToList();
+        // A voice is pinned to the label most of its placed lines carry (the first label on a tie).
+        var labelOf = labelTalk.ToDictionary(
+            p => p.Key,
+            p => p.Value.OrderByDescending(l => l.Value).ThenBy(l => l.Key, StringComparer.Ordinal).First().Key);
 
-        // Pass 3: back in the transcript's own order.
+        // Pass 2: who is the same person (numbered in the order people first speak).
+        var group = Group(order, lines, tracks, labelOf, expectedSpeakers, joinSimilarity, minSpeechSeconds, foldSimilarity, ownSpeakerSeconds, out var personLabels, out var merged);
+        var speakers = personLabels
+            .Select((_, n) => new Speaker(TranscriptSpeakers.IdFor(n + 1), TranscriptSpeakers.DefaultName(n + 1), false, TranscriptSpeakers.ColorFor(n), 0))
+            .ToList();
+        var personOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var n = 0; n < personLabels.Count; n++)
+        {
+            if (personLabels[n] is { } label)
+            {
+                personOf[label] = speakers[n].Id;
+            }
+        }
+
+        // A label none of whose lines a voice won (or that lost its voice to another label) is still a person: the user
+        // put those lines there. Such people come after the others, in the order their lines first speak.
+        foreach (var label in segments
+            .Where(s => pinned.ContainsKey(s.Id))
+            .OrderBy(s => s.Start)
+            .ThenBy(s => s.Id, StringComparer.Ordinal)
+            .Select(s => pinned[s.Id].Label)
+            .Distinct(StringComparer.Ordinal))
+        {
+            if (!personOf.ContainsKey(label))
+            {
+                var n = speakers.Count;
+                speakers.Add(new Speaker(TranscriptSpeakers.IdFor(n + 1), TranscriptSpeakers.DefaultName(n + 1), false, TranscriptSpeakers.ColorFor(n), 0));
+                personOf[label] = speakers[n].Id;
+            }
+        }
+
+        // Pass 3: back in the transcript's own order. A placed line keeps its person whatever its voice did.
         var assigned = segments
-            .Select(s => winners.TryGetValue(s.Id, out var win)
-                ? s with { Speaker = speakers[group[(win.Track, win.Speaker)]].Id, SpeakerConfidence = win.Confidence }
-                : s with { Speaker = null, SpeakerConfidence = null })
+            .Select(s => pinned.TryGetValue(s.Id, out var pin)
+                ? s with { Speaker = personOf[pin.Label], SpeakerConfidence = 1.0, SpeakerByUser = true }
+                : winners.TryGetValue(s.Id, out var win)
+                    ? s with { Speaker = speakers[group[(win.Track, win.Speaker)]].Id, SpeakerConfidence = win.Confidence, SpeakerByUser = false }
+                    : s with { Speaker = null, SpeakerConfidence = null, SpeakerByUser = false })
             .ToList();
         var voices = order
             .Select(key => VoiceOf(tracks, key) is { } voice
                 ? new VoiceCluster(key.Track, key.Speaker, voice.Embedding, voice.Seconds, lines[key].Select(s => s.Id).ToList())
                 : new VoiceCluster(key.Track, key.Speaker, [], 0, lines[key].Select(s => s.Id).ToList()))
             .ToList();
-        return new Result(assigned, TranscriptSpeakers.WithTalkTime(speakers, assigned), merged, voices);
+        var names = pinned.Values
+            .Where(p => p.Named)
+            .Select(p => p.Label)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(label => personOf[label], label => label, StringComparer.Ordinal);
+        return new Result(assigned, TranscriptSpeakers.WithTalkTime(speakers, assigned), merged, voices, labelOf.Count, names);
     }
 
-    /// <summary>Person number per (track, speaker), numbered by the first appearance of any of their voices.</summary>
+    /// <summary>
+    /// Person number per (track, speaker), numbered by the first appearance of any of their voices; <paramref name="personLabels"/>
+    /// holds each person's pinned label, or <c>null</c>.
+    /// </summary>
     private static Dictionary<(string Track, int Speaker), int> Group(
         List<(string Track, int Speaker)> order,
         Dictionary<(string Track, int Speaker), List<TranscriptSegment>> lines,
         IReadOnlyList<DiarizedTrack> tracks,
+        Dictionary<(string Track, int Speaker), string> labelOf,
         int? expected,
         double? joinSimilarity,
         double minSpeechSeconds,
         double foldSimilarity,
         double ownSpeakerSeconds,
-        out int people,
+        out List<string?> personLabels,
         out int merged)
     {
         merged = 0;
         var clusters = order
-            .Select(key => new Cluster([key], key.Track, VoiceOf(tracks, key) is { } v ? VoicePrint.From(v.Embedding, v.Seconds) : null, lines[key].Sum(s => Math.Max(0, s.End - s.Start))))
+            .Select(key => new Cluster([key], key.Track, VoiceOf(tracks, key) is { } v ? VoicePrint.From(v.Embedding, v.Seconds) : null, lines[key].Sum(s => Math.Max(0, s.End - s.Start)), labelOf.GetValueOrDefault(key)))
             .ToList();
+
+        // Voices the user's lines pin to one person are that person before anything is compared, whatever their tracks.
+        foreach (var label in labelOf.Values.Distinct(StringComparer.Ordinal).ToList())
+        {
+            while (true)
+            {
+                var members = clusters.Where(c => string.Equals(c.Label, label, StringComparison.Ordinal)).OrderByDescending(c => c.Seconds).ToList();
+                if (members.Count < 2)
+                {
+                    break;
+                }
+
+                Join(clusters, members[0], members[1]);
+                merged++;
+            }
+        }
 
         // Voices with little speech (a cough, a laugh, two people at once) are folded into the main voices last, so the
         // main voices are compared with each other and not with noise. With a count, the main voices are at least that
-        // many: the ones with the most speech.
+        // many: the ones with the most speech. A pinned voice is always main: it is a person the user pointed at.
         // "Little" is relative: a short recording's voices are all short.
         var little = Math.Min(minSpeechSeconds, MinSpeechShare * clusters.Sum(c => c.Seconds));
-        var main = clusters.Where(c => c.Seconds >= little).ToList();
+        var main = clusters.Where(c => c.Seconds >= little || c.Label is not null).ToList();
         foreach (var extra in clusters.Except(main).OrderByDescending(c => c.Seconds).Take(Math.Max(0, (expected ?? 1) - main.Count)))
         {
             main.Add(extra);
@@ -196,9 +283,13 @@ public static class SpeakerAssigner
             }
         }
 
-        people = numbered.Count;
+        personLabels = numbered.Select(c => c.Label).ToList();
         return person;
     }
+
+    /// <summary>Two voices may be joined unless the user pinned them to different people.</summary>
+    private static bool CanJoin(Cluster a, Cluster b) =>
+        a.Label is null || b.Label is null || string.Equals(a.Label, b.Label, StringComparison.Ordinal);
 
     /// <summary>
     /// The main voice a small one belongs to: the most alike (at least <paramref name="atLeast"/>), or for a small voice
@@ -207,11 +298,13 @@ public static class SpeakerAssigner
     /// </summary>
     private static Cluster? Closest(List<Cluster> main, Cluster small, bool sameTrackOnly, double atLeast)
     {
-        var candidates = main.Where(c => !sameTrackOnly || c.Track == small.Track).ToList();
+        var candidates = main.Where(c => (!sameTrackOnly || c.Track == small.Track) && CanJoin(c, small)).ToList();
         if (small.Voice is null)
         {
             // Without an embedding it is only a guess: made to reach a count, never in Auto.
-            return !double.IsNegativeInfinity(atLeast) ? null : candidates.OrderByDescending(c => c.Seconds).FirstOrDefault() ?? main.OrderByDescending(c => c.Seconds).FirstOrDefault();
+            return !double.IsNegativeInfinity(atLeast)
+                ? null
+                : candidates.OrderByDescending(c => c.Seconds).FirstOrDefault() ?? main.Where(c => CanJoin(c, small)).OrderByDescending(c => c.Seconds).FirstOrDefault();
         }
 
         var best = candidates
@@ -222,18 +315,23 @@ public static class SpeakerAssigner
         return best.Cluster is not null && best.Similarity >= atLeast ? best.Cluster : null;
     }
 
-    /// <summary>The voiceless cluster with the least speech and the cluster with the most speech on its track (else anywhere).</summary>
+    /// <summary>
+    /// A voiceless cluster (the one with the least speech that has somewhere to go) and the cluster with the most speech on
+    /// its track (else anywhere) it may join.
+    /// </summary>
     private static (Cluster Into, Cluster From)? Voiceless(List<Cluster> clusters)
     {
-        var from = clusters.Where(c => c.Voice is null).OrderBy(c => c.Seconds).ThenByDescending(clusters.IndexOf).FirstOrDefault();
-        if (from is null)
+        foreach (var from in clusters.Where(c => c.Voice is null).OrderBy(c => c.Seconds).ThenByDescending(clusters.IndexOf))
         {
-            return null;
+            var into = clusters.Where(c => c != from && c.Track == from.Track && CanJoin(c, from)).OrderByDescending(c => c.Seconds).FirstOrDefault()
+                ?? clusters.Where(c => c != from && CanJoin(c, from)).OrderByDescending(c => c.Seconds).FirstOrDefault();
+            if (into is not null)
+            {
+                return (into, from);
+            }
         }
 
-        var into = clusters.Where(c => c != from && c.Track == from.Track).OrderByDescending(c => c.Seconds).FirstOrDefault()
-            ?? clusters.Where(c => c != from).OrderByDescending(c => c.Seconds).FirstOrDefault();
-        return into is null ? null : (into, from);
+        return null;
     }
 
     /// <summary>The two clusters whose voices are most alike (and at least <paramref name="atLeast"/>), the one with more speech first.</summary>
@@ -246,7 +344,7 @@ public static class SpeakerAssigner
             for (var j = i + 1; j < clusters.Count; j++)
             {
                 var (a, b) = (clusters[i], clusters[j]);
-                if (a.Voice is null || b.Voice is null || (sameTrackOnly && a.Track != b.Track))
+                if (a.Voice is null || b.Voice is null || (sameTrackOnly && a.Track != b.Track) || !CanJoin(a, b))
                 {
                     continue;
                 }
@@ -267,7 +365,7 @@ public static class SpeakerAssigner
     {
         var index = clusters.IndexOf(into);
         var voice = into.Voice is null ? from.Voice : from.Voice is null ? into.Voice : into.Voice.Combine(from.Voice);
-        clusters[index] = new Cluster([.. into.Keys, .. from.Keys], into.Track, voice, into.Seconds + from.Seconds);
+        clusters[index] = new Cluster([.. into.Keys, .. from.Keys], into.Track, voice, into.Seconds + from.Seconds, into.Label ?? from.Label);
         clusters.Remove(from);
     }
 
@@ -279,5 +377,6 @@ public static class SpeakerAssigner
 
     /// <param name="Track">The track of the voice the cluster started from (joins across tracks keep the larger one's).</param>
     /// <param name="Seconds">Talk time of the lines its voices won.</param>
-    private sealed record Cluster(List<(string Track, int Speaker)> Keys, string Track, VoicePrint? Voice, double Seconds);
+    /// <param name="Label">The person the user's lines pin this voice to, or <c>null</c>.</param>
+    private sealed record Cluster(List<(string Track, int Speaker)> Keys, string Track, VoicePrint? Voice, double Seconds, string? Label);
 }

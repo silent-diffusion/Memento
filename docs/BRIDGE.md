@@ -223,6 +223,7 @@ interface TranscriptSegment {
   text: string; confidence: number;                                              // min of word confidences
   words: TranscriptWord[];                                                       // [] when word timestamps are off
   edited: { at: string; original: string } | null;
+  speakerByUser?: boolean;                                                       // 2.6.0: the user placed the line on its speaker (left out while false)
 }
 interface Speaker { id: string; name: string; renamed: boolean; color: 1 | 2 | 3 | 4; talkTimeMs: number }
 interface Transcript {
@@ -1296,3 +1297,18 @@ interface AiServerProbeResult {
 ```
 
 Serialized examples (pinned by `ServerSettingsBridgeTests` and `ServerProviderBridgeTests`): `settings.get` with nothing set gives `"server":{"hasKey":false,"address":null,"model":null,"contextTokens":8192,"loopback":false,"leavesPc":false,"insecure":false}`; a probe of a fake Ollama gives `{"reachable":true,"serverName":"Ollama 0.12.3","code":null,"detail":"Connected to Ollama 0.12.3 at http://127.0.0.1:50123: 2 models. It runs on this PC, so nothing leaves it.","loopback":true,"leavesPc":false,"insecure":false,"models":["llama3.2:3b","qwen3:8b"]}`.
+
+# 2.6.0 — Speakers you can trust and fix fast
+
+## Corrections guide the next pass (2.6.0)
+
+A line the user places on a speaker carries `speakerByUser: true` (`TranscriptSegment`, left out of the JSON while false, so transcripts from before read as false). It is set by `transcript.setSegmentSpeaker` and `transcript.setSegmentsSpeaker` whenever the line gets a speaker (a new one included), and cleared when a line is set to no speaker. `transcript.mergeSpeakers`, `transcript.reduceSpeakers`, `transcript.restoreSpeaker` and `transcript.restoreSpeakers` act on speakers, not on lines, so every line keeps the flag it has; `transcript.editSegment` keeps it too. The speakers stage's own assignments leave it false.
+
+What the next speakers pass (`processing.retry` on `speakers`, Review's "Identify speakers again") does with those lines, through `SpeakerAssigner` with one `SpeakerPin` per placed line (the line, the speaker's name as its label, and whether that name was given by the user):
+
+1. Every raw voice (`voices.json` cluster) that won a placed line is pinned to the label most of its placed lines carry (by talk time).
+2. Voices pinned to one label are joined before anything is compared, whatever their tracks. No join — to reach a count, by similarity, or a little voice folding in — ever puts two labels together; an unpinned voice may still join a pinned one. When the count asked for is below the number of labels, the labels win and the count is not reached.
+3. A placed line keeps its label's person whatever its voice did, with `speakerConfidence` 1 and `speakerByUser` true; every other line is assigned as before, with `speakerByUser` false. A label none of whose lines a voice won is still a person, added after the others.
+4. A person pinned by a name the user gave takes that name first (`renamed: true`), before the shared-lines carry-over, which never gives that name to a second speaker; Who spoke's names go to the remaining speakers as before.
+
+History's `speakers` `completed` detail gains `9 corrected lines kept, 3 voices pinned` when any line was placed. A fresh transcript has no speakers, so a first pass has no pins (and is the only pass that cuts lines where the speaker changes).

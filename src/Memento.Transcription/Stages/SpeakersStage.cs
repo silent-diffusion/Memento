@@ -19,9 +19,10 @@ namespace Memento.Transcription.Stages;
 /// assigned to segments by time overlap within each track and the voices of all tracks are grouped into people
 /// (<see cref="SpeakerAssigner"/>): to the recording's own count (Who spoke) or Settings' expected speakers when there is
 /// one, for any number of tracks, else by how alike they sound. A fresh transcript's lines are first cut where the
-/// speaker changes (<see cref="LineSplitter"/>, Settings › Speakers). Names a person gave before carry over, and the
-/// recording's known names go to the others (<see cref="SpeakerNamer"/>). The diarizer's output is kept in
-/// <c>voices.json</c>, so identifying the speakers again with another count or other names only regroups.
+/// speaker changes (<see cref="LineSplitter"/>, Settings › Speakers). Lines the user placed keep their speaker and pin the
+/// voices under them (<see cref="SpeakerPin"/>, 2.6.0). Names a person gave before carry over, and the recording's known
+/// names go to the others (<see cref="SpeakerNamer"/>). The diarizer's output is kept in <c>voices.json</c>, so
+/// identifying the speakers again with another count or other names only regroups.
 /// </summary>
 public sealed partial class SpeakersStage(
     IProjectStore store,
@@ -237,6 +238,8 @@ public sealed partial class SpeakersStage(
         IReadOnlyList<VoiceCluster> voices = [];
         var merged = 0;
         var split = 0;
+        var corrected = 0;
+        var pinnedVoices = 0;
         var naming = new SpeakerNamer.Result([], 0, 0);
         var saved = await writer.UpdateAsync(
             recordingId,
@@ -256,6 +259,16 @@ public sealed partial class SpeakersStage(
                 var lines = fresh && current.SplitAtSpeakerChanges ? LineSplitter.Split(latest.Segments, all) : new LineSplitter.Result(latest.Segments, 0);
                 split = lines.Split;
 
+                // Lines the user placed (speakerByUser, 2.6.0) keep their speaker and pin the voices under them to that
+                // person (never fresh: a fresh transcript has no speakers), so one correction per voice fixes the grouping
+                // of every line of that voice. The label is the speaker's name, which is what survives a pass.
+                var byId = latest.Speakers.ToDictionary(s => s.Id, StringComparer.Ordinal);
+                var pins = lines.Segments
+                    .Where(s => s.SpeakerByUser && s.Speaker is { } placed && byId.ContainsKey(placed))
+                    .Select(s => new SpeakerPin(s.Id, byId[s.Speaker!].Name, byId[s.Speaker!].Renamed))
+                    .ToList();
+                corrected = pins.Count;
+
                 // Lines edited meanwhile keep their text; only speaker fields are written. Names given before carry over to
                 // the voice that took their lines, then the recording's known names go to the others.
                 var assigned = SpeakerAssigner.Assign(
@@ -265,8 +278,10 @@ public sealed partial class SpeakersStage(
                     expected is null ? TranscriptionDefaults.JoinSimilarity : null,
                     TranscriptionDefaults.MinSpeakerSeconds,
                     TranscriptionDefaults.FoldSimilarity,
-                    TranscriptionDefaults.OwnSpeakerSeconds);
-                naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames);
+                    TranscriptionDefaults.OwnSpeakerSeconds,
+                    pins);
+                pinnedVoices = assigned.Pinned;
+                naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames, assigned.Names);
                 speakers = naming.Speakers;
                 voices = assigned.Voices ?? [];
                 merged = assigned.Merged;
@@ -296,6 +311,7 @@ public sealed partial class SpeakersStage(
                         ? string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Count(found, "voice", "voices")} heard, grouped into {HumanFormat.Count(speakers.Count, "speaker", "speakers")}") + (expected is { } wantedCount ? string.Create(CultureInfo.InvariantCulture, $" ({wantedCount} expected, {expectedFrom})") : string.Empty)
                         : string.Empty,
                     split > 0 ? $"{HumanFormat.Count(split, "line", "lines")} split where the speaker changes" : string.Empty,
+                    corrected > 0 ? $"{HumanFormat.Count(corrected, "corrected line", "corrected lines")} kept, {HumanFormat.Count(pinnedVoices, "voice", "voices")} pinned" : string.Empty,
                     naming.Carried + naming.Known > 0
                         ? string.Join(" and ", new[] { naming.Carried > 0 ? $"{HumanFormat.Count(naming.Carried, "name", "names")} kept from before" : string.Empty, naming.Known > 0 ? $"{HumanFormat.Count(naming.Known, "name", "names")} from Who spoke" : string.Empty }.Where(p => p.Length > 0))
                         : string.Empty,

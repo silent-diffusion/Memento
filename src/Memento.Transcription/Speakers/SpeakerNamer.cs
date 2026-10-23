@@ -8,28 +8,44 @@ namespace Memento.Transcription.Speakers;
 /// track), one to one, the biggest overlaps first, when that is at least a quarter of either's talk time. Then the
 /// recording's known speakers (Who spoke) that are not used yet go to the remaining speakers in order of first
 /// appearance. Every name given this way counts as given by the user (<c>renamed</c>), so it is listed first and kept.
+/// Before either, a person the user's placed lines pin to a name they gave (<paramref name="pinnedNames"/>, 2.6.0:
+/// <see cref="SpeakerAssigner"/>) is certain and takes that name first; it counts as kept from before.
 /// </summary>
 public static class SpeakerNamer
 {
     /// <summary>How much of the smaller talk time two speakers must share for a name to carry over.</summary>
     public const double CarryOverShare = 0.25;
 
-    /// <param name="Carried">Names kept from the previous pass.</param>
+    /// <param name="Carried">Names kept from the previous pass (pinned by placed lines, or carried by shared lines).</param>
     /// <param name="Known">Names taken from the recording's known speakers.</param>
     public sealed record Result(IReadOnlyList<Speaker> Speakers, int Carried, int Known);
 
+    /// <param name="pinnedNames">Speaker id → the name the user gave, for people pinned by placed lines; <c>null</c> pins none.</param>
     public static Result Name(
         IReadOnlyList<Speaker> speakers,
         IReadOnlyList<TranscriptSegment> segments,
         IReadOnlyList<Speaker>? previousSpeakers,
         IReadOnlyList<TranscriptSegment>? previousSegments,
-        IReadOnlyList<string> knownNames)
+        IReadOnlyList<string> knownNames,
+        IReadOnlyDictionary<string, string>? pinnedNames = null)
     {
         ArgumentNullException.ThrowIfNull(speakers);
         ArgumentNullException.ThrowIfNull(segments);
         ArgumentNullException.ThrowIfNull(knownNames);
         var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var carried = 0;
+
+        // A pinned name is certain: the user put those lines on that person. It beats the overlap heuristic and is never
+        // given to a second speaker by it.
+        foreach (var (id, name) in (pinnedNames ?? new Dictionary<string, string>(StringComparer.Ordinal)).OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            if (speakers.Any(s => s.Id == id) && !names.ContainsKey(id) && usedNames.Add(name))
+            {
+                names[id] = name;
+                carried++;
+            }
+        }
 
         if (previousSpeakers is not null && previousSegments is not null)
         {
@@ -50,13 +66,14 @@ public static class SpeakerNamer
             foreach (var ((found, old), seconds) in shared.OrderByDescending(p => p.Value).ThenBy(p => p.Key.New, StringComparer.Ordinal))
             {
                 var smaller = Math.Min(talk.GetValueOrDefault(found), previousTalk.GetValueOrDefault(old));
-                if (names.ContainsKey(found) || usedOld.Contains(old) || seconds < CarryOverShare * smaller || seconds <= 0)
+                if (names.ContainsKey(found) || usedOld.Contains(old) || usedNames.Contains(named[old].Name) || seconds < CarryOverShare * smaller || seconds <= 0)
                 {
                     continue;
                 }
 
                 names[found] = named[old].Name;
                 usedOld.Add(old);
+                usedNames.Add(named[old].Name);
                 carried++;
             }
         }
