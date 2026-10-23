@@ -271,15 +271,21 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     const samTotal = all?.segments.filter((s) => s.speaker === samId).length ?? 0;
     const aikoTotal = all?.segments.filter((s) => s.speaker === aikoId).length ?? 0;
     expect(samTotal).toBeGreaterThan(before);
+    const firstId = all?.segments[0]?.id ?? '';
+    const alike = (await bridge.call('transcript.sameVoice', { recordingId: DESIGN_REVIEW, segmentIds: [firstId] })).segmentIds.length;
+    expect(alike).toBeGreaterThan(1);
 
     await openSpeakerMenu('Okay, I think everyone');
     await click(option('Aiko Tanaka'));
+    // The lines that sound the same were asked for as the menu opened; their row appears once the host answers.
+    await until(() => document.querySelector('[data-choice="voice"]') !== null);
     const choices = document.querySelector<HTMLElement>('.speaker-menu--choices');
     expect(choices?.querySelector('.speaker-choice-heading')?.textContent).toBe('Move to Aiko Tanaka');
     // The first line is a turn of its own (Aiko speaks next), so This turn is left out; From here on is every line of
     // Sam, and so is a swap from here on, so only the swap everywhere is offered.
     expect([...(choices?.querySelectorAll('.speaker-choice-label, .speaker-choice--back .speaker-option-name') ?? [])].map((o) => o.textContent)).toEqual([
       'Just this line',
+      `This line and the ${alike} that sound the same`,
       `From here on · ${samTotal} lines`,
       `Swap Sam Okafor and Aiko Tanaka everywhere · ${samTotal} + ${aikoTotal} lines`,
       `Merge Sam Okafor into Aiko Tanaka · ${samTotal} lines`,
@@ -340,6 +346,8 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     const total = all.segments.filter((s) => s.speaker === aiko.id).length;
     const samLater = all.segments.slice(index).filter((s) => s.speaker === sam.id).length;
     const samTotal = all.segments.filter((s) => s.speaker === sam.id).length;
+    const alike = (await bridge.call('transcript.sameVoice', { recordingId: DESIGN_REVIEW, segmentIds: [line.id] })).segmentIds.length;
+    expect(alike).toBeGreaterThan(1);
 
     // Jump there with the search (the list only renders rows near the view).
     const field = container.querySelector<HTMLInputElement>('#tx-search');
@@ -353,9 +361,11 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
 
     await openSpeakerMenu('The summary line reflects');
     await click(option('Sam Okafor'));
+    await until(() => document.querySelector('[data-choice="voice"]') !== null);
     const choices = document.querySelector<HTMLElement>('.speaker-menu--choices');
     expect([...(choices?.querySelectorAll('.speaker-choice-label') ?? [])].map((o) => o.textContent)).toEqual([
       'Just this line',
+      `This line and the ${alike} that sound the same`,
       'This turn · 3 lines',
       `From here on · ${onward.length} lines`,
       `Swap Aiko Tanaka and Sam Okafor from here on · ${onward.length} + ${samLater} lines`,
@@ -408,6 +418,65 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await until(() => segment('The summary line reflects').querySelector('.segm-speaker-name')?.textContent === 'Aiko Tanaka');
     after = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
     expect(after?.segments.filter((s) => s.speaker === aiko.id).length).toBe(total);
+  });
+
+  it('asks once which lines sound the same as the menu opens, offers and marks them, moves them in one write, and asks again after a change', async () => {
+    await openWithTranscript();
+    const all = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    const line = all?.segments[0];
+    const sam = all?.speakers.find((s) => s.id === line?.speaker);
+    const aiko = all?.speakers.find((s) => s.name === 'Aiko Tanaka');
+    if (all === null || line === undefined || sam === undefined || aiko === undefined) {
+      throw new Error('the sample changed');
+    }
+    const alike = (await bridge.call('transcript.sameVoice', { recordingId: DESIGN_REVIEW, segmentIds: [line.id] })).segmentIds;
+    expect(alike.length).toBeGreaterThan(1);
+    const call = vi.spyOn(bridge, 'call');
+    const asked = (): number => call.mock.calls.filter((c) => c[0] === 'transcript.sameVoice').length;
+
+    // Opening the menu asks the host once for this line; closing and opening again does not ask again.
+    const search = await openSpeakerMenu('Okay, I think everyone');
+    await until(() => asked() === 1);
+    expect(call).toHaveBeenCalledWith('transcript.sameVoice', { recordingId: DESIGN_REVIEW, segmentIds: [line.id] });
+    await press(search, 'Escape');
+    await until(() => document.querySelector('.speaker-menu') === null);
+    await openSpeakerMenu('Okay, I think everyone');
+    await settle(30);
+    expect(asked()).toBe(1);
+
+    await click(option('Aiko Tanaka'));
+    await until(() => document.querySelector('[data-choice="voice"]') !== null);
+    expect(choice('voice').querySelector('.speaker-choice-label')?.textContent).toBe(`This line and the ${alike.length} that sound the same`);
+    expect(choice('voice').textContent).toContain(`The line at ${formatDuration(line.start * 1000)} and ${alike.length} other lines heard as one voice move to Aiko Tanaka.`);
+    // Pointing at it marks the line and those of the others that are rendered.
+    await act(async () => {
+      choice('voice').dispatchEvent(new Event('pointermove', { bubbles: true }));
+      await Promise.resolve();
+    });
+    const marked = [...container.querySelectorAll<HTMLElement>('.segm--will-move')].map((el) => el.dataset.segmentId ?? '');
+    expect(marked[0]).toBe(line.id);
+    expect(marked.length).toBeGreaterThan(1);
+    expect(marked.every((id) => id === line.id || alike.includes(id))).toBe(true);
+
+    // The move: one host write with this line and the others, in transcript order, as one Undo step.
+    await click(choice('voice'));
+    await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === 'Aiko Tanaka');
+    expect(call).toHaveBeenCalledWith('transcript.setSegmentsSpeaker', { recordingId: DESIGN_REVIEW, segmentIds: [line.id, ...alike], speakerId: aiko.id });
+    expect(container.querySelector('.segm--will-move')).toBeNull();
+    let after = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    expect(after?.segments.filter((s) => alike.includes(s.id)).every((s) => s.speaker === aiko.id)).toBe(true);
+    expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe(`Undo move ${alike.length + 1} lines to Aiko Tanaka`);
+
+    // The lines changed, so the next opening asks again.
+    const again = await openSpeakerMenu('Okay, I think everyone');
+    await until(() => asked() === 2);
+    await press(again, 'Escape');
+    await until(() => document.querySelector('.speaker-menu') === null);
+
+    await click(container.querySelector('.undo-btn') ?? document.body);
+    await until(() => segment('Okay, I think everyone').querySelector('.segm-speaker-name')?.textContent === sam.name);
+    after = (await bridge.call('transcript.get', { recordingId: DESIGN_REVIEW })).transcript;
+    expect(after?.segments.filter((s) => alike.includes(s.id)).every((s) => s.speaker === sam.id)).toBe(true);
   });
 
   it('swaps two speakers from a line on or everywhere in one host write, and the same swap again is the Undo', async () => {

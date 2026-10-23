@@ -93,15 +93,19 @@ export function SpeakerChooser({
   pickChoices,
   onPreview,
 }: SpeakerChooserProps): JSX.Element {
-  const [choosing, setChoosing] = useState<{ speaker: Speaker; choices: readonly PickChoice[] } | null>(null);
+  // The picked speaker; the choices are asked for again on every render, so one that depends on an answer still on
+  // its way (the lines that sound the same, 2.6.0) appears as soon as it is there.
+  const [choosing, setChoosing] = useState<Speaker | null>(null);
   const [activeChoice, setActiveChoice] = useState(0);
+  const choices = useMemo(() => (choosing === null ? null : (pickChoices?.(choosing) ?? [])), [choosing, pickChoices]);
   // The lines the active choice would move are marked in the transcript; nothing is marked once no choice is.
   const previewRef = useRef(onPreview);
   previewRef.current = onPreview;
+  const previewed = choices?.[Math.min(activeChoice, choices.length)]?.segmentIds;
+  const previewKey = previewed?.join('\n') ?? null;
   useEffect(() => {
-    const choice = choosing === null ? undefined : choosing.choices[Math.min(activeChoice, choosing.choices.length)];
-    previewRef.current?.(choice?.segmentIds ?? null);
-  }, [choosing, activeChoice]);
+    previewRef.current?.(previewKey === null ? null : previewKey.split('\n'));
+  }, [previewKey]);
   useEffect(
     () => () => {
       previewRef.current?.(null);
@@ -173,10 +177,10 @@ export function SpeakerChooser({
       return;
     }
     if (row.kind === 'speaker') {
-      const choices = row.speaker.id === currentId ? null : (pickChoices?.(row.speaker) ?? null);
-      if (choices !== null && choices.length > 0) {
+      const asked = row.speaker.id === currentId ? null : (pickChoices?.(row.speaker) ?? null);
+      if (asked !== null && asked.length > 0) {
         setActiveChoice(0);
-        setChoosing({ speaker: row.speaker, choices });
+        setChoosing(row.speaker);
         return;
       }
       closeRef.current(true);
@@ -223,8 +227,8 @@ export function SpeakerChooser({
     );
   };
 
-  if (choosing !== null) {
-    const { speaker, choices } = choosing;
+  if (choosing !== null && choices !== null) {
+    const speaker = choosing;
     // The choices, then a row back to the speakers.
     const count = choices.length + 1;
     const current = Math.min(activeChoice, count - 1);

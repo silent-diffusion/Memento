@@ -83,4 +83,16 @@ public sealed class ReviewContractSerializationTests
         Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1"}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams));
         Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1","otherSpeakerId":"spk2","extra":1}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams));
     }
+
+    [Fact]
+    public void SameVoiceParamsNeedTheLinesAndTheResultIsTheirIds()
+    {
+        var parameters = JsonSerializer.Deserialize("""{"recordingId":"r","segmentIds":["s1","s2"]}""", ReviewBridgeJsonContext.Default.TranscriptSameVoiceParams)!;
+
+        Assert.Equal(["s1", "s2"], parameters.SegmentIds);
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r"}""", ReviewBridgeJsonContext.Default.TranscriptSameVoiceParams));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","segmentIds":["s1"],"extra":1}""", ReviewBridgeJsonContext.Default.TranscriptSameVoiceParams));
+        Assert.Equal("""{"segmentIds":["s3","s7"]}""", Json(new TranscriptSameVoiceResult(["s3", "s7"]), ReviewBridgeJsonContext.Default.TranscriptSameVoiceResult));
+        Assert.Equal("""{"segmentIds":[]}""", Json(new TranscriptSameVoiceResult([]), ReviewBridgeJsonContext.Default.TranscriptSameVoiceResult));
+    }
 }

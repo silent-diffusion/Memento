@@ -93,6 +93,22 @@ describe('speakerRuns', () => {
     expect(choices[4]?.label).toBe('Merge Ana into Ben · 2 lines');
   });
 
+  it('offers the lines that sound the same after Just this line, counting only those not yet on the chosen speaker', () => {
+    // s2 is the line itself and s4 is Ben's already: s5 and s8 are the ones the choice adds, in transcript order.
+    const choices = sectionChoices(segments, 1, ana, ben, ['s8', 's4', 's5', 's2']);
+    expect(choices.map((c) => c.id)).toEqual(['line', 'voice', 'turn', 'onward', 'swapOnward', 'swapAll', 'merge']);
+    expect(choices[1]?.label).toBe('This line and the 2 that sound the same');
+    expect(choices[1]?.detail).toBe('The line at 1:10 and 2 other lines heard as one voice move to Ben.');
+    expect(ids(choices[1]?.lines ?? [])).toEqual(['s2', 's5', 's8']);
+    const one = sectionChoices(segments, 1, ana, ben, ['s5']);
+    expect(one[1]?.label).toBe('This line and the one that sounds the same');
+    expect(one[1]?.detail).toBe('The line at 1:10 and 1 other line heard as one voice move to Ben.');
+    // No answer yet, no such lines, or only lines already on Ben: left out.
+    expect(sectionChoices(segments, 1, ana, ben).map((c) => c.id)).not.toContain('voice');
+    expect(sectionChoices(segments, 1, ana, ben, []).map((c) => c.id)).not.toContain('voice');
+    expect(sectionChoices(segments, 1, ana, ben, ['s4']).map((c) => c.id)).not.toContain('voice');
+  });
+
   it('offers no swap when the chosen speaker has no lines, and no swap from here on when it would be everywhere', () => {
     const chris: Speaker = { id: 'spk3', name: 'Chris', renamed: true, color: 3, talkTimeMs: 0 };
     expect(sectionChoices(segments, 1, ana, chris).map((c) => c.id)).toEqual(['line', 'turn', 'onward', 'merge']);

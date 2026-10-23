@@ -239,6 +239,29 @@ public sealed partial class TranscriptService(
         return new SegmentsSpeakersResult(changed, saved.Speakers);
     }
 
+    /// <summary>
+    /// <c>transcript.sameVoice</c> (2.6.0): the other lines the last speaker pass heard as the same voice as the given ones
+    /// (<see cref="SameVoice"/>, from <c>voices.json</c>), in transcript order. Reads only; every asked line must exist.
+    /// </summary>
+    public async Task<TranscriptSameVoiceResult> SameVoiceAsync(string recordingId, IReadOnlyList<string> segmentIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(segmentIds);
+        if (segmentIds.Count is 0 or > MaxSelectedLines)
+        {
+            throw Invalid($"Choose 1 to {MaxSelectedLines} lines.");
+        }
+
+        await LoadManifestAsync(recordingId, cancellationToken);
+        var transcript = await LoadAsync(recordingId, cancellationToken) ?? throw NoTranscript(recordingId);
+        foreach (var segmentId in segmentIds)
+        {
+            FindSegment(transcript, segmentId);
+        }
+
+        var voices = await Transcripts.LoadVoicesAsync(recordingId, cancellationToken);
+        return new TranscriptSameVoiceResult(SameVoice.Lines(transcript.Segments, voices, segmentIds));
+    }
+
     public async Task<IReadOnlyList<Speaker>> RenameSpeakerAsync(string recordingId, string speakerId, string name, CancellationToken cancellationToken)
     {
         var value = ValidateSpeakerName(name);

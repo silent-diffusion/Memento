@@ -272,6 +272,25 @@ describe('preview host transcripts (M2)', () => {
     expect(host.fail('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp4', fromSegmentId: 'nope' }).code).toBe('transcript.segmentNotFound');
   });
 
+  it('names the other lines heard as the same voice (2.6.0): half of a speaker\'s lines, dealt by turns, moved or not', () => {
+    const host = previewHost();
+    const before = host.call('transcript.get', { recordingId: LONG }).transcript;
+    const sp3 = before?.segments.filter((s) => s.speaker === 'sp3') ?? [];
+    const [first, second, third] = sp3;
+    if (first === undefined || second === undefined || third === undefined) {
+      throw new Error('the sample needs three lines of sp3');
+    }
+    const alike = host.call('transcript.sameVoice', { recordingId: LONG, segmentIds: [first.id] }).segmentIds;
+    expect(alike).toEqual(sp3.filter((_, i) => i % 2 === 0 && i > 0).map((s) => s.id));
+    expect(host.call('transcript.sameVoice', { recordingId: LONG, segmentIds: [second.id] }).segmentIds).toEqual(sp3.filter((_, i) => i % 2 === 1 && i > 1).map((s) => s.id));
+    // Asking for the whole voice leaves nothing; a line moved since still belongs to its voice.
+    expect(host.call('transcript.sameVoice', { recordingId: LONG, segmentIds: [first.id, ...alike] }).segmentIds).toEqual([]);
+    host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: third.id, speakerId: 'sp4' });
+    expect(host.call('transcript.sameVoice', { recordingId: LONG, segmentIds: [first.id] }).segmentIds).toEqual(alike);
+    expect(host.fail('transcript.sameVoice', { recordingId: LONG, segmentIds: [] }).code).toBe('bridge.invalidParams');
+    expect(host.fail('transcript.sameVoice', { recordingId: LONG, segmentIds: [first.id, 'nope'] }).code).toBe('transcript.segmentNotFound');
+  });
+
   it('restores a merged speaker with its id and lines, removes an unused one, and un-edits a line edited back (Undo)', () => {
     const host = previewHost();
     const before = host.call('transcript.get', { recordingId: LONG }).transcript;

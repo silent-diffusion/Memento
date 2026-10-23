@@ -2691,6 +2691,17 @@ export interface TranscriptSwapSpeakersParams {
   fromSegmentId?: string | null;
 }
 
+/** Which other lines the last speaker pass heard as the same voice as these (voices.json). Reads only. */
+export interface TranscriptSameVoiceParams {
+  recordingId: string;
+  segmentIds: string[];
+}
+
+/** The lines that share a voice with the asked ones, without them, in transcript order; empty without voices.json. */
+export interface TranscriptSameVoiceResult {
+  segmentIds: string[];
+}
+
 // ---------------------------------------------------------------------------------------------
 // 2.0 Video (BRIDGE.md "Video (2.0, proposed)" and "Additions the video screens need")
 // ---------------------------------------------------------------------------------------------
@@ -3070,6 +3081,7 @@ export interface BridgeMethods {
   'transcript.setSegmentsSpeaker': { params: TranscriptSetSegmentsSpeakerParams; result: TranscriptSetSegmentsSpeakerResult };
   // 2.6.0 Review: speakers you can fix fast
   'transcript.swapSpeakers': { params: TranscriptSwapSpeakersParams; result: TranscriptSetSegmentsSpeakerResult };
+  'transcript.sameVoice': { params: TranscriptSameVoiceParams; result: TranscriptSameVoiceResult };
   // 2.0 Video
   'video.listSources': { params: EmptyParams; result: VideoListSourcesResult };
   'video.thumbnail': { params: VideoThumbnailParams; result: VideoThumbnailResult };
@@ -3345,6 +3357,7 @@ export const METHOD_NAMES = [
   'transcript.setSegmentsSpeaker',
   // 2.6.0 Review: speakers you can fix fast
   'transcript.swapSpeakers',
+  'transcript.sameVoice',
   // 2.0 storage
   'storage.keepOnlyMix',
   // 2.0 Video

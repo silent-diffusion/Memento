@@ -40,7 +40,12 @@ export interface SegmentHandlers {
    * 2.6.0: how a picked speaker can apply to a line with a speaker (Just this line, This turn, From here on,
    * Merge), each with the lines it moves and its wording (format/speakerRuns.ts).
    */
-  sections: (segment: TranscriptSegment, chosen: Speaker) => readonly SectionChoice[];
+  sections: (segment: TranscriptSegment, chosen: Speaker, sameVoice?: readonly string[]) => readonly SectionChoice[];
+  /**
+   * 2.6.0: the line's speaker menu is opening: the host is asked which lines sound like it (transcript.sameVoice),
+   * so `sections` can offer them once the answer is there (the row's `sameVoice` prop, or what was asked before).
+   */
+  prepare?: (segment: TranscriptSegment) => void;
   /** Several lines to one speaker in one step (This turn, From here on); absent without the 2.0 line actions. */
   assignLines?: (segments: readonly TranscriptSegment[], speaker: Speaker) => void;
   /** 2.6.0: the two speakers trade their lines from the line on (null: everywhere). */
@@ -83,6 +88,11 @@ interface SegmentProps {
   selected?: boolean | null;
   /** 2.6.0: a choice in a speaker menu, hovered or active, would move this line. */
   previewed?: boolean;
+  /**
+   * 2.6.0: the other lines heard as the same voice, once the host has answered for this line (only the line whose
+   * menu asked gets it, so the other rows do not redraw); null before that or for the other rows.
+   */
+  sameVoice?: readonly string[] | null;
 }
 
 const AUTHORS: Record<Highlight['origin'], string> = { user: 'You', local: 'Suggested', ai: 'AI' };
@@ -270,6 +280,7 @@ function SpeakerMenu({
   onAssign,
   pickChoices,
   onPreview,
+  onOpen,
   onAdd,
   onRename,
 }: {
@@ -281,6 +292,8 @@ function SpeakerMenu({
   /** A line with a speaker: how the pick applies (Just this line, This turn, From here on, Merge). */
   pickChoices: (chosen: Speaker) => readonly PickChoice[] | null;
   onPreview: ((segmentIds: readonly string[] | null) => void) | undefined;
+  /** The menu is opening (2.6.0: the lines that sound the same are asked for ahead of the choices). */
+  onOpen: (() => void) | undefined;
   onAdd: (name: string) => void;
   onRename: (name: string) => void;
 }): JSX.Element {
@@ -291,6 +304,13 @@ function SpeakerMenu({
   const button = useRef<HTMLButtonElement | null>(null);
   const pop = useRef<HTMLDivElement | null>(null);
   const floating = useFloatingPopovers();
+  const openRef = useRef(onOpen);
+  openRef.current = onOpen;
+  useEffect(() => {
+    if (open) {
+      openRef.current?.();
+    }
+  }, [open]);
 
   // The rename form: its field takes focus, and a click elsewhere closes it.
   useEffect(() => {
@@ -482,6 +502,7 @@ function SegmentRow({
   handlers,
   selected = null,
   previewed = false,
+  sameVoice = null,
 }: SegmentProps): JSX.Element {
   const lastEnter = useRef(0);
   const selecting = selected !== null;
@@ -499,7 +520,7 @@ function SegmentRow({
   const pickChoices = (chosen: Speaker): readonly PickChoice[] | null =>
     speaker === null
       ? null
-      : handlers.sections(segment, chosen).map((choice) => ({
+      : handlers.sections(segment, chosen, sameVoice ?? undefined).map((choice) => ({
           id: choice.id,
           label: choice.label,
           detail: choice.detail,
@@ -639,6 +660,7 @@ function SegmentRow({
             }}
             pickChoices={pickChoices}
             onPreview={handlers.preview}
+            onOpen={handlers.prepare === undefined ? undefined : () => handlers.prepare?.(segment)}
             onAdd={(name) => {
               handlers.addSpeaker(segment, name);
             }}

@@ -32,6 +32,7 @@ public static class ReviewServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, AnnotationsRestoreSuggestionMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptSetSegmentsSpeakerMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptSwapSpeakersMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptSameVoiceMethod>();
         return services;
     }
 }
