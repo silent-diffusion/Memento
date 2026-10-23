@@ -18,7 +18,8 @@ namespace Memento.Transcription.Stages;
 /// (pyannote segmentation 3.0 + the voice model from Settings, clustering by threshold, 4 threads), then speakers are
 /// assigned to segments by time overlap within each track and the voices of all tracks are grouped into people
 /// (<see cref="SpeakerAssigner"/>): to the recording's own count (Who spoke) or Settings' expected speakers when there is
-/// one, for any number of tracks, else by how alike they sound. Names a person gave before carry over, and the
+/// one, for any number of tracks, else by how alike they sound. A fresh transcript's lines are first cut where the
+/// speaker changes (<see cref="LineSplitter"/>, Settings › Speakers). Names a person gave before carry over, and the
 /// recording's known names go to the others (<see cref="SpeakerNamer"/>). The diarizer's output is kept in
 /// <c>voices.json</c>, so identifying the speakers again with another count or other names only regroups.
 /// </summary>
@@ -235,6 +236,7 @@ public sealed partial class SpeakersStage(
         IReadOnlyList<Speaker> speakers = [];
         IReadOnlyList<VoiceCluster> voices = [];
         var merged = 0;
+        var split = 0;
         var naming = new SpeakerNamer.Result([], 0, 0);
         var saved = await writer.UpdateAsync(
             recordingId,
@@ -246,10 +248,18 @@ public sealed partial class SpeakersStage(
                     return null;
                 }
 
+                // A fresh transcript's lines are cut where the speaker changes first (2.6.0, Settings › Speakers), never
+                // one that was edited or had its speakers identified before: highlights, chapters, matches and documents
+                // refer to its lines by id. (A speakers write keeps the transcription as the last change, so "no speakers
+                // yet" is what tells a first pass from Identify speakers again.)
+                var fresh = (latest.LastChange?.Reason is TranscriptChangeReasons.Transcribed or TranscriptChangeReasons.Retranscribed) && latest.Speakers.Count == 0;
+                var lines = fresh && current.SplitAtSpeakerChanges ? LineSplitter.Split(latest.Segments, all) : new LineSplitter.Result(latest.Segments, 0);
+                split = lines.Split;
+
                 // Lines edited meanwhile keep their text; only speaker fields are written. Names given before carry over to
                 // the voice that took their lines, then the recording's known names go to the others.
                 var assigned = SpeakerAssigner.Assign(
-                    latest.Segments,
+                    lines.Segments,
                     all,
                     expected,
                     expected is null ? TranscriptionDefaults.JoinSimilarity : null,
@@ -285,6 +295,7 @@ public sealed partial class SpeakersStage(
                     merged > 0
                         ? string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Count(found, "voice", "voices")} heard, grouped into {HumanFormat.Count(speakers.Count, "speaker", "speakers")}") + (expected is { } wantedCount ? string.Create(CultureInfo.InvariantCulture, $" ({wantedCount} expected, {expectedFrom})") : string.Empty)
                         : string.Empty,
+                    split > 0 ? $"{HumanFormat.Count(split, "line", "lines")} split where the speaker changes" : string.Empty,
                     naming.Carried + naming.Known > 0
                         ? string.Join(" and ", new[] { naming.Carried > 0 ? $"{HumanFormat.Count(naming.Carried, "name", "names")} kept from before" : string.Empty, naming.Known > 0 ? $"{HumanFormat.Count(naming.Known, "name", "names")} from Who spoke" : string.Empty }.Where(p => p.Length > 0))
                         : string.Empty,

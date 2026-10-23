@@ -6,4 +6,5 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="ExpectedSpeakers">The string <c>auto</c> or a number 1–20.</param>
 /// <param name="RememberRenamed">The 1.x switch, stored but never applied; superseded by <paramref name="RememberVoices"/>.</param>
 /// <param name="RememberVoices">2.0: "Remember speakers by voice" (off by default).</param>
-public sealed record SpeakersSettingsSnapshot(bool Identify, JsonElement ExpectedSpeakers, bool RememberRenamed, string EmbeddingModelId, bool RememberVoices);
+/// <param name="SplitAtSpeakerChanges">2.6.0: "Split lines where the speaker changes" (on by default).</param>
+public sealed record SpeakersSettingsSnapshot(bool Identify, JsonElement ExpectedSpeakers, bool RememberRenamed, string EmbeddingModelId, bool RememberVoices, bool SplitAtSpeakerChanges);

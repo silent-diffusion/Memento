@@ -29,6 +29,13 @@ public sealed record SpeakerSettings
 
     public string EmbeddingModelId { get; set; } = DefaultEmbeddingModelId;
 
+    /// <summary>
+    /// 2.6.0, Settings › Speakers › "Split lines where the speaker changes" (on by default): a fresh transcript's line
+    /// whose words fall under two speakers' turns is cut where the voice changes before speakers are assigned
+    /// (<c>LineSplitter</c>). Never applied to a transcript that was edited or had its speakers identified before.
+    /// </summary>
+    public bool SplitAtSpeakerChanges { get; set; } = true;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 

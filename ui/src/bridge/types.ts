@@ -930,6 +930,8 @@ export interface SpeakerSettings {
   embeddingModelId: string;
   /** 2.0: "Remember speakers by voice" (off by default). */
   rememberVoices: boolean;
+  /** 2.6.0: a fresh transcript's line that spans two speakers' turns is cut where the voice changes (on by default). */
+  splitAtSpeakerChanges: boolean;
 }
 
 export interface HistorySettings {

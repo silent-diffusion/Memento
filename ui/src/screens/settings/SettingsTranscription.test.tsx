@@ -190,7 +190,12 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     // With speakers off the segmentation model is not needed any more.
     await until(() => segmentation?.querySelector('.model-needed') === null);
     expect(button('Remove Speech segmentation (pyannote 3.0)').disabled).toBe(false);
-    expect((await bridge.call('settings.get')).speakers).toEqual({ identify: false, expectedSpeakers: 4, rememberRenamed: true, embeddingModelId: 'nemo-titanet-small', rememberVoices: false });
+    expect((await bridge.call('settings.get')).speakers).toEqual({ identify: false, expectedSpeakers: 4, rememberRenamed: true, embeddingModelId: 'nemo-titanet-small', rememberVoices: false, splitAtSpeakerChanges: true });
+    // 2.6.0: lines are cut where the speaker changes unless switched off.
+    expect(container.textContent).toContain("A line that holds two people's words is cut where the voice changes");
+    await click(button('Split lines where the speaker changes'));
+    await until(() => store.settings.value?.speakers.splitAtSpeakerChanges === false);
+    expect((await bridge.call('settings.get')).speakers.splitAtSpeakerChanges).toBe(false);
   });
 
   it('saves version history in Documents', async () => {

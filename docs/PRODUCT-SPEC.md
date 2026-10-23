@@ -369,6 +369,8 @@ Speaker identification should be available as a configurable feature.
 
 The system should attempt to associate transcript segments with speakers.
 
+A transcript line that holds two people's words should be cut where the voice changes before speakers are assigned, so each part can carry its own speaker (2.6.0; a setting, on by default). Lines the user edited, and lines of a transcript whose speakers are identified again, are never cut: other data refers to them by id.
+
 Possible information:
 
 ```text
