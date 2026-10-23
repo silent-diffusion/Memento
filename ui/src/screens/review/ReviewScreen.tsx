@@ -652,6 +652,18 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   onIdentifyAgain={() => {
                     void transcriptApi.retry('speakers').then(report('Speakers were not identified again'));
                   }}
+                  onConfirmCount={(count, regroup) => {
+                    // 2.6.0: the count check. The count is saved first (one Undo step), then the regroup runs on it.
+                    const next = { ...project.details.whoSpoke, count };
+                    if (!regroup) {
+                      actions.setWhoSpoke(next).catch(fail('Who spoke was not saved'));
+                      return;
+                    }
+                    void actions.setWhoSpoke(next).then(
+                      () => transcriptApi.retry('speakers').then(report('Speakers were not identified again')),
+                      fail('Who spoke was not saved'),
+                    );
+                  }}
                 />
               }
             />

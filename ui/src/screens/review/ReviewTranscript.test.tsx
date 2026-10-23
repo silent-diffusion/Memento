@@ -859,4 +859,39 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await until(() => people().includes('Speaker 4'));
     expect(segment('No objection.').querySelector('.segm-speaker-name')?.textContent).toBe('Speaker 4');
   });
+
+  it('asks whether the speaker count is right when the recording has none: Yes remembers it, Undo asks again, Not now hides it (2.6.0)', async () => {
+    await openWithTranscript();
+    const check = (): HTMLElement | null => container.querySelector('.people-who-check');
+    const participants = (await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.participants.length;
+    expect(check()?.querySelector('.people-who-note')?.textContent).toBe(`Grouped into 4 speakers by sound. Is that right? ${participants} participants are listed.`);
+    expect(check()?.textContent).toContain('Another number regroups the voices heard into that many speakers at once; lines you corrected keep their speaker.');
+
+    await click(button('Yes, 4', check() ?? container));
+    await until(() => check() === null);
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 4, names: [], marks: [] });
+    expect(container.querySelector('.people-who-value')?.textContent).toBe('4 speakers');
+    expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe('Undo change who spoke');
+
+    await click(container.querySelector('.undo-btn') ?? document.body);
+    await until(() => check() !== null);
+    await click(button('Not now', check() ?? container));
+    expect(check()).toBeNull();
+    expect(container.querySelector('.people-who-offer')).toBeNull();
+  });
+
+  it('another number in the count check saves the count and identifies the speakers again at once (2.6.0)', async () => {
+    await openWithTranscript();
+    const calls = vi.spyOn(bridge, 'call');
+
+    await click(button('It was another number: It was…'));
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent.trim() === '3 speakers') ?? document.body);
+
+    await until(() => calls.mock.calls.some(([method, params]) => method === 'processing.retry' && (params as { stage?: string }).stage === 'speakers'));
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke.count).toBe(3);
+    // The save came first, so the regroup ran on the new count.
+    const order = calls.mock.calls.map(([method]) => method);
+    expect(order.indexOf('project.updateDetails')).toBeLessThan(order.indexOf('processing.retry'));
+    expect(container.querySelector('.people-who-check')).toBeNull();
+  });
 });
