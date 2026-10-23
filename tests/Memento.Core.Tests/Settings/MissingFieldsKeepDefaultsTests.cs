@@ -78,6 +78,10 @@ public sealed class MissingFieldsKeepDefaultsTests
         Assert.Equal(new ExportSettings().AskWhereEachTime, settings.Export.AskWhereEachTime);
         Assert.Equal(new ExportSettings().CreateSubfolder, settings.Export.CreateSubfolder);
         Assert.Equal(new DocumentsSettings().OcrEngine, settings.Documents.OcrEngine);
+
+        // 2.5.0: "Your own server" holds no list, so it compares whole: no address, no model, an 8,192-token context.
+        Assert.Equal(new AiServerSettings(), settings.Ai.Server);
+        Assert.Equal(AiServerSettings.DefaultContextTokens, settings.Ai.Server.ContextTokens);
     }
 
     [Fact]
@@ -90,7 +94,7 @@ public sealed class MissingFieldsKeepDefaultsTests
         await File.WriteAllTextAsync(path, """
             { "schemaVersion": 2, "theme": "dark", "general": null, "transcription": null, "speakers": null, "history": null,
               "recording": { "defaultType": "lecture", "video": null, "storage": null, "defaultSourceIds": null },
-              "export": { "createSubfolder": false, "defaults": null }, "ai": { "keepRecord": false, "share": null, "providers": null },
+              "export": { "createSubfolder": false, "defaults": null }, "ai": { "keepRecord": false, "share": null, "providers": null, "server": null },
               "storage": null, "documents": null }
             """);
         var store = new JsonSettingsStore(path, Microsoft.Extensions.Logging.Abstractions.NullLogger<JsonSettingsStore>.Instance);
@@ -107,6 +111,7 @@ public sealed class MissingFieldsKeepDefaultsTests
         Assert.Equal(ExportSelection.Default.Transcript.Formats, settings.Export.Defaults.Transcript.Formats);
         Assert.False(settings.Ai.KeepRecord);
         Assert.Equal(new AiShareSettings(), settings.Ai.Share);
+        Assert.Equal(new AiServerSettings(), settings.Ai.Server);
         Assert.Equal(new LibraryStorageSettings(), settings.Storage);
         Assert.Equal(new DocumentsSettings(), settings.Documents);
         Assert.Null(NullMembers.FindFirst(settings));

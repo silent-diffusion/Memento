@@ -1,9 +1,9 @@
 namespace Memento.Core.Bridge.Contracts;
 
 /// <summary>One AI provider and whether a generation could start with it now (<c>providers.list</c>).</summary>
-/// <param name="Id"><c>anthropic</c>, <c>openai</c> or <c>local</c>.</param>
-/// <param name="Name">"Claude", "ChatGPT", "Local model".</param>
-/// <param name="Kind"><c>cloud</c> or <c>local</c>.</param>
+/// <param name="Id"><c>anthropic</c>, <c>openai</c>, <c>server</c> (2.5.0) or <c>local</c>.</param>
+/// <param name="Name">"Claude", "ChatGPT", "Your own server", "Local model".</param>
+/// <param name="Kind"><c>cloud</c>, <c>server</c> (2.5.0) or <c>local</c>.</param>
 /// <param name="Reason">Why it is not ready ("External AI is off", "No key saved", "Model not installed"); <c>null</c> when ready.</param>
 /// <param name="ModelLabel">The model requests go to ("claude-opus-5-5", "Qwen3.5 4B · graphics card").</param>
 public sealed record ProviderInfo(string Id, string Name, string Vendor, string Kind, bool Ready, string? Reason, string? ModelLabel)
@@ -38,4 +38,14 @@ public sealed record ProviderInfo(string Id, string Name, string Vendor, string 
 
     /// <summary>After 2.2, local only: the plan of every larger model in the catalog (Settings' "Larger models"); <c>null</c> for cloud providers.</summary>
     public IReadOnlyList<LocalModelPlanInfo>? LargerModels { get; init; }
+
+    /// <summary>
+    /// 2.5.0: a generation with this provider takes the inputs off this PC: <c>true</c> for Claude and ChatGPT, <c>false</c>
+    /// for the local model, and for "Your own server" by its address (<c>false</c> only on this PC). "Allow external AI
+    /// services" and "Ask before every send" apply exactly when this is <c>true</c>.
+    /// </summary>
+    public bool LeavesPc { get; init; }
+
+    /// <summary>2.5.0, "Your own server" only: its address as saved (<c>http://localhost:11434</c>); <c>null</c> for every other provider or when none is set.</summary>
+    public string? Address { get; init; }
 }

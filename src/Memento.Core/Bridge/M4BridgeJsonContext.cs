@@ -28,6 +28,8 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(HtmlResult))]
 [JsonSerializable(typeof(ProvidersListResult))]
 [JsonSerializable(typeof(LocalModelPlanInfo))]
+[JsonSerializable(typeof(AiServerProbeParams))]
+[JsonSerializable(typeof(AiServerProbeResult))]
 [JsonSerializable(typeof(GenerationTemplateParams))]
 [JsonSerializable(typeof(GenerationPreviewResult))]
 [JsonSerializable(typeof(GenerationPreviewHtmlParams))]

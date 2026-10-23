@@ -114,6 +114,9 @@ public static class BridgeMethodNames
     public const string StylesResetBuiltIn = "styles.resetBuiltIn";
     public const string StylesSampleHtml = "styles.sampleHtml";
     public const string ProvidersList = "providers.list";
+
+    /// <summary>2.5.0: "Test connection" for "Your own server": reachable, who it is and its models. Only when the page asks.</summary>
+    public const string AiServerProbe = "ai.serverProbe";
     public const string GenerationPreview = "generation.preview";
     public const string GenerationPreviewHtml = "generation.previewHtml";
     public const string GenerationStart = "generation.start";

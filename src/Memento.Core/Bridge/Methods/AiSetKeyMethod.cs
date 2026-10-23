@@ -5,7 +5,10 @@ using Memento.Core.Secrets;
 
 namespace Memento.Core.Bridge.Methods;
 
-/// <summary><c>ai.setKey</c>: stores the key with DPAPI; the answer only says that one is saved.</summary>
+/// <summary>
+/// <c>ai.setKey</c>: stores the key with DPAPI; the answer only says that one is saved. <c>server</c> (2.5.0) is the
+/// optional bearer key of "Your own server".
+/// </summary>
 public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKeyParams, AiKeyResult>
 {
     public const int MinKeyLength = 8;
@@ -22,10 +25,14 @@ public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKey
         var provider = ValidateProvider(parameters.Provider);
         var key = (parameters.Key ?? string.Empty).Trim();
 
-        // Never echo the key, not even part of it, in a message.
-        if (key.Length is < MinKeyLength or > MaxKeyLength || key.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+        // Never echo the key, not even part of it, in a message. A server's key is whatever its owner chose
+        // (vLLM's --api-key, a proxy's token), so it may be short.
+        var min = provider == AiProviders.Server ? 1 : MinKeyLength;
+        if (key.Length < min || key.Length > MaxKeyLength || key.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
         {
-            throw M3Errors.Invalid($"That does not look like an API key: a key is {MinKeyLength} to {MaxKeyLength} characters with no spaces. Nothing was saved. Copy the whole key from the provider's console and paste it again.");
+            throw M3Errors.Invalid(provider == AiProviders.Server
+                ? $"That does not look like a key: a server's key is 1 to {MaxKeyLength} characters with no spaces. Nothing was saved. Copy the key the server was started with and paste it again."
+                : $"That does not look like an API key: a key is {MinKeyLength} to {MaxKeyLength} characters with no spaces. Nothing was saved. Copy the whole key from the provider's console and paste it again.");
         }
 
         // Provider keys are printable ASCII. Anything else (a smart quote, a look-alike letter, a zero-width character)
@@ -58,5 +65,5 @@ public sealed class AiSetKeyMethod(ISecretStore secrets) : BridgeMethod<AiSetKey
     internal static string ValidateProvider(string? provider) =>
         AiProviders.IsValid(provider)
             ? provider!
-            : throw M3Errors.Invalid($"Provider '{provider}' is not available. Choose {string.Join(" or ", AiProviders.All)}.");
+            : throw M3Errors.Invalid($"Provider '{provider}' is not available. Choose {AiProviders.Anthropic}, {AiProviders.OpenAi} or {AiProviders.Server}.");
 }

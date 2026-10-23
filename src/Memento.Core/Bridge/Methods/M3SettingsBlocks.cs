@@ -37,8 +37,26 @@ internal static class M3SettingsBlocks
                 new AiShareSnapshot(share.Transcript, share.Details, share.Participants, share.Agenda, share.Highlights, share.Attachments),
                 new AiProvidersSnapshot(
                     new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.Anthropic) ?? false),
-                    new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.OpenAi) ?? false))),
+                    new AiProviderKeyState(extras?.Secrets.HasKey(AiProviders.OpenAi) ?? false))
+                {
+                    Server = ServerState(ai.Server, extras?.Secrets.HasKey(AiProviders.Server) ?? false),
+                }),
             Storage = new LibraryStorageSettingsSnapshot(settings.Storage.ReclaimOlderThanDays, settings.Storage.RemoveVideoOlderThanDays, settings.Storage.DeleteAudioOlderThanDays),
+        };
+    }
+
+    /// <summary>2.5.0: "Your own server" as the page sees it: the address, model and context, and where it runs (no key, no lookup).</summary>
+    internal static AiServerState ServerState(AiServerSettings server, bool hasKey)
+    {
+        var address = server.ParsedAddress();
+        return new AiServerState(hasKey)
+        {
+            Address = address?.Text,
+            Model = server.Model,
+            ContextTokens = server.ContextTokens,
+            Loopback = address?.IsLoopback ?? false,
+            LeavesPc = address?.LeavesPc ?? false,
+            Insecure = address?.IsInsecure ?? false,
         };
     }
 
