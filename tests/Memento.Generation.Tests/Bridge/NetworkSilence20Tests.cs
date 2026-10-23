@@ -197,7 +197,7 @@ public sealed class NetworkSilence20Tests : IDisposable
     [Fact]
     public async Task AServerOnThisPcGetsExactlyOneRequestPerPassAndNothingElseIsContacted()
     {
-        using var server = new FakeOpenAiCompatibleServer(ServerPersonality.Ollama) { Answer = MeetingAnswer };
+        using var server = new FakeOpenAiCompatibleServer(ServerPersonality.Ollama) { Answer = MeetingProvider.AnswerChatRequest };
         using var http = new AiHttpClient();
         _providers.MakeServer = options => new ServerProvider(http.Client, _host.Get<ISecretReader>(), options, NullLogger<ServerProvider>.Instance);
         var id = await MeetingAsync();
@@ -222,27 +222,6 @@ public sealed class NetworkSilence20Tests : IDisposable
         Assert.Equal(1, _providers.ServerCreated);
         Assert.Equal(0, _providers.CloudCreated);
         Assert.False((await _host.Settings.LoadAsync(CancellationToken.None)).Ai.Enabled);
-    }
-
-    /// <summary>The synthetic meeting's stand-in, answering the request the fake server was sent (its schema name says which pass it is).</summary>
-    private static string MeetingAnswer(JsonElement body)
-    {
-        var messages = body.GetProperty("messages").EnumerateArray().ToList();
-        var schema = body.TryGetProperty("response_format", out var format) && format.TryGetProperty("json_schema", out var named) ? named.GetProperty("name").GetString() : null;
-        var purpose = schema switch
-        {
-            "verdicts" => "verify.batch",
-            "verdict" => "verify.claim",
-            null => "verify.claim",
-            _ => "map." + schema,
-        };
-        var request = new AiRequest
-        {
-            Purpose = purpose,
-            System = messages[0].GetProperty("content").GetString()!,
-            Messages = [AiMessage.User(messages[^1].GetProperty("content").GetString()!)],
-        };
-        return new MeetingProvider(AiProviderKind.Server).GenerateAsync(request, null, CancellationToken.None).GetAwaiter().GetResult().Text;
     }
 
     /// <summary>The synthetic meeting stored as a recording with its transcript (as M4Host does).</summary>

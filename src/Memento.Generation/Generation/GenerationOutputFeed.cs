@@ -138,7 +138,7 @@ public sealed class GenerationOutputFeed
                 {
                     OutputTokens = response.Usage.OutputTokens,
                     PromptTokens = response.Usage.InputTokens,
-                    TokensPerSecond = response.ProviderId == AI.Local.LocalAiProvider.ProviderId && writing > 0 && response.Usage.OutputTokens > 1
+                    TokensPerSecond = (response.ProviderId is AI.Local.LocalAiProvider.ProviderId or AI.Server.ServerProvider.ProviderId) && writing > 0 && response.Usage.OutputTokens > 1
                         ? Math.Round((response.Usage.OutputTokens - 1) / writing, 1)
                         : null,
                     ElapsedMs = (long)_time.GetElapsedTime(open.Started).TotalMilliseconds,

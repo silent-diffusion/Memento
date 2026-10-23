@@ -100,6 +100,43 @@ public sealed class ServerProviderBridgeTests : IDisposable
     }
 
     [Fact]
+    public async Task TheLiveOutputStreamsEachServerReplyWithAGrowingCountAndRealTotals()
+    {
+        // The real provider against a fake Ollama (no usage chunk), answering for the synthetic meeting.
+        var server = new FakeOpenAiCompatibleServer(ServerPersonality.Ollama) { Answer = MeetingProvider.AnswerChatRequest };
+        _servers.Add(server);
+        var http = new Memento.AI.Http.AiHttpClient();
+        _servers.Add(http);
+        _host.Providers.MakeServer = options => new Memento.AI.Server.ServerProvider(http.Client, _host.Get<Memento.AI.ISecretReader>(), options, Microsoft.Extensions.Logging.Abstractions.NullLogger<Memento.AI.Server.ServerProvider>.Instance);
+        var id = await _host.CreateMeetingAsync();
+        await ServerAsync(server.Address, "qwen3:8b", contextTokens: 32768);
+
+        var start = await _host.ResultAsync("generation.start", new { recordingId = id, template = await _host.MeetingMinutesAsync("server") });
+        var done = await _host.FinishedAsync(start.GetProperty("jobId").GetString()!);
+        Assert.Equal("done", done.GetProperty("stage").GetString());
+
+        var output = _host.Events("generation.output");
+        var requests = output.Where(e => e.GetProperty("kind").GetString() == "request").ToList();
+        Assert.NotEmpty(requests);
+        Assert.All(requests, r => Assert.True(r.GetProperty("streamed").GetBoolean()));
+        foreach (var request in requests)
+        {
+            var pass = request.GetProperty("passId").GetString();
+            var tokens = output.Where(e => e.GetProperty("passId").GetString() == pass && e.GetProperty("kind").GetString() == "token").Select(e => e.GetProperty("outputTokens").GetInt32()).ToList();
+            Assert.NotEmpty(tokens);
+            Assert.True(tokens[0] > 0);
+            Assert.Equal(tokens.OrderBy(t => t), tokens);
+            var reply = Assert.Single(output, e => e.GetProperty("passId").GetString() == pass && e.GetProperty("kind").GetString() == "reply");
+            Assert.True(reply.GetProperty("outputTokens").GetInt32() > 0);
+            Assert.True(reply.GetProperty("promptTokens").GetInt32() > 0);
+        }
+
+        var record = (await _host.ResultAsync("documents.get", new { recordingId = id, documentId = done.GetProperty("documentId").GetString() })).GetProperty("document").GetProperty("record");
+        Assert.Equal(requests.Count, server.Requests.Count);
+        Assert.True(record.GetProperty("stayedOnPc").GetBoolean());
+    }
+
+    [Fact]
     public async Task AServerOnTheNetworkIsRefusedWithExternalAiOffBeforeAnythingIsBuilt()
     {
         var id = await _host.CreateMeetingAsync();
