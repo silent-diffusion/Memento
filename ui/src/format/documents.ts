@@ -17,13 +17,14 @@ export function documentWord(templateName: string): string {
   return last === undefined ? 'document' : last.toLocaleLowerCase();
 }
 
-export const PROVIDER_SHORT: Record<ProviderId, string> = { anthropic: 'Claude', openai: 'ChatGPT', local: 'Local model' };
+export const PROVIDER_SHORT: Record<ProviderId, string> = { anthropic: 'Claude', openai: 'ChatGPT', local: 'Local model', server: 'Your own server' };
 
 /** "Claude (Anthropic)", "Local model (this PC)". */
 export const PROVIDER_FULL: Record<ProviderId, string> = {
   anthropic: 'Claude (Anthropic)',
   openai: 'ChatGPT (OpenAI)',
   local: 'Local model (this PC)',
+  server: 'Your own server',
 };
 
 export const INPUT_KEYS: readonly (keyof InputSelection)[] = ['transcript', 'details', 'participants', 'agenda', 'highlights', 'attachments', 'previousDocuments'];

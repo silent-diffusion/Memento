@@ -66,10 +66,10 @@ export function tokenSize(tokens: number): string {
  * Why a typed model id cannot be saved, in the words Settings shows under the field, or null when it is a plausible id
  * (the host checks the same: letters, digits and . _ : / -, starting with a letter or digit, at most 100 characters).
  */
-export function modelIdProblem(typed: string): string | null {
+export function modelIdProblem(typed: string, example = 'claude-opus-4-8'): string | null {
   const id = typed.trim();
   if (id === '') {
-    return 'Type the model id, for example claude-opus-4-8. Nothing was changed.';
+    return `Type the model id, for example ${example}. Nothing was changed.`;
   }
   if (id.length > MAX_MODEL_ID_LENGTH) {
     return `A model id is at most ${String(MAX_MODEL_ID_LENGTH)} characters; this one has ${String(id.length)}. Nothing was changed.`;

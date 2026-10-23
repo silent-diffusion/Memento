@@ -4,14 +4,18 @@
 // where a missing or null field keeps its value; `export.defaultFolder: null` and
 // `storage.reclaimOlderThanDays: null` clear theirs; `export.defaults` is replaced whole.
 import { providerState } from './cloudModels';
+import { mergeServer } from './serverSettings';
 import type { AiProvidersPatch, AiSettings, ExportSettings, SettingsSetParams, SettingsSnapshot } from './types';
 
-/** The cloud models: each provider named in the patch takes its model (null: the default); keys never change here. */
+/**
+ * The cloud models: each provider named in the patch takes its model (null: the default); 2.5: Your own server's
+ * address, model and context, field by field. Keys never change here.
+ */
 export function mergeProviders(before: AiSettings['providers'], patch: AiProvidersPatch | null | undefined): AiSettings['providers'] {
   if (patch == null) {
     return before;
   }
-  const next = { ...before };
+  const next = { ...before, server: mergeServer(before.server, patch.server) };
   for (const provider of ['anthropic', 'openai'] as const) {
     const change = patch[provider];
     if (change !== undefined && 'model' in change) {
