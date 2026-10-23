@@ -241,6 +241,19 @@ export function TranscriptionSection(): JSX.Element {
           />
         </SettingsRow>
         <SettingsRow
+          label="Keep speech heard twice once"
+          description="When the microphone also picks up what the speakers play, the microphone's copy of those lines is left out and system audio keeps them. Applies to new transcripts."
+        >
+          <OnOff on={t.dropMicrophoneBleed} />
+          <Toggle
+            label="Keep speech heard twice once"
+            checked={t.dropMicrophoneBleed}
+            onChange={(dropMicrophoneBleed) => {
+              save({ dropMicrophoneBleed });
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow
           label="Mark words as uncertain below"
           description="Words the engine is less sure of get a dotted underline. Applies to new transcripts."
           below={<InlineMessage message={error} />}

@@ -21,4 +21,7 @@ public sealed record TranscriptionSettingsPatch
 
     /// <summary>2.0: the live transcript may use the graphics card.</summary>
     public bool? LiveOnGpu { get; init; }
+
+    /// <summary>2.6.0: leave a microphone line out when a system-audio line says the same at the same time.</summary>
+    public bool? DropMicrophoneBleed { get; init; }
 }

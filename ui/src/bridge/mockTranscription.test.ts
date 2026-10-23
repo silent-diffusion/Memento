@@ -596,6 +596,7 @@ describe('preview host models and engine (M2)', () => {
       cpuFallbackModelId: 'whisper-small',
       language: 'auto',
       lowConfidenceThreshold: 0.5,
+      dropMicrophoneBleed: true,
     });
     expect(settings.speakers).toEqual({ identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: 'nemo-titanet-small', rememberVoices: false, splitAtSpeakerChanges: true });
     expect(settings.history).toEqual({ keepVersions: true, keepDays: 90 });

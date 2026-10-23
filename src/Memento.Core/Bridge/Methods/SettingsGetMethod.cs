@@ -46,7 +46,8 @@ public sealed class SettingsGetMethod(ISettingsStore store, EngineSelector selec
                 transcription.Language,
                 transcription.KeepWordTimestamps,
                 transcription.LowConfidenceThreshold,
-                transcription.LiveOnGpu),
+                transcription.LiveOnGpu,
+                transcription.DropMicrophoneBleed),
             new SpeakersSettingsSnapshot(
                 speakers.Identify,
                 ExpectedSpeakersElement(speakers.ExpectedSpeakers),
