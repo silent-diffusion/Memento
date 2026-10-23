@@ -5,7 +5,7 @@ import { useRef, useState } from 'preact/hooks';
 import type { Chapter, Highlight, HistoryEntry, HistoryLink, HistorySettings, Project, Speaker, StageName, Topic, TranscriptVersion } from '../../bridge/types';
 import { TagEditor } from '../../components/DetailsSheet';
 import { AttachmentsSection } from '../../components/attachments/AttachmentsSection';
-import { CloseIcon, MergeIcon, PencilIcon, PlusIcon } from '../../components/icons';
+import { CloseIcon, MergeIcon, PencilIcon, PlayIcon, PlusIcon, StopIcon } from '../../components/icons';
 import { InlineInput } from '../../components/InlineInput';
 import { SpeakerChooser } from '../../components/SpeakerChooser';
 import { moveFocus } from '../../components/keyboard';
@@ -20,6 +20,7 @@ import { formatFullDate } from '../../format/dates';
 import { folderTrail } from '../../format/folders';
 import { formatSize } from '../../format/storage';
 import { detailsRemovedRow, detailsVideoRow, NEVER_SENT_NOTE, videoTrackNames } from './videoCopy';
+import type { HearProps } from './useHearSpeaker';
 
 // ---------------------------------------------------------------------------------------------
 // Outline
@@ -48,6 +49,8 @@ interface OutlineProps {
   peopleExtra?: JSX.Element | null;
   /** 2.0: shown under a speaker's row (the known-voice match prompt). */
   speakerExtra?: (speaker: Speaker) => JSX.Element | null;
+  /** 2.6.0: Hear {name} on each speaker's row (useHearSpeaker); absent without audio to play. */
+  hear?: HearProps;
   /** 2.0: shown under the Chapters list (suggested chapters). */
   chaptersExtra?: JSX.Element | null;
   /** 2.0 video: the Video block after Chapters (ReviewVideo.tsx); null without video. */
@@ -217,19 +220,21 @@ function MergeMenu({ speaker, speakers, onMerge }: { speaker: Speaker; speakers:
   );
 }
 
-/** People from the transcript (DESIGN.md §9): dot, name, talk-time share, rename, merge. */
+/** People from the transcript (DESIGN.md §9): dot, name, talk-time share, hear (2.6.0), rename, merge. */
 function SpeakerList({
   speakers,
   onRename,
   onMerge,
   filter,
   extra,
+  hear,
 }: {
   speakers: Speaker[];
   onRename: OutlineProps['onRenameSpeaker'];
   onMerge: OutlineProps['onMergeSpeakers'];
   filter?: SpeakerFilterProps | undefined;
   extra?: OutlineProps['speakerExtra'];
+  hear?: HearProps | undefined;
 }): JSX.Element {
   const [renaming, setRenaming] = useState<string | null>(null);
   return (
@@ -273,6 +278,25 @@ function SpeakerList({
                 <span class="person-share" title="Share of talk time">
                   {talkShare(speaker, speakers)}
                 </span>
+              )}
+              {/* 2.6.0: a few seconds of the speaker's clearest line, so "Speaker 3" can be named by ear. */}
+              {hear === undefined ? null : hear.hearable.has(speaker.id) ? (
+                <button
+                  class={hear.playingId === speaker.id ? 'icon-btn person-rename person-hear person-hear--on' : 'icon-btn person-rename person-hear'}
+                  type="button"
+                  aria-label={hear.playingId === speaker.id ? `Stop hearing ${speaker.name}` : `Hear ${speaker.name}`}
+                  aria-pressed={hear.playingId === speaker.id}
+                  title={hear.playingId === speaker.id ? 'Stop' : 'Play a few seconds of their clearest line'}
+                  onClick={() => {
+                    hear.toggle(speaker);
+                  }}
+                >
+                  {hear.playingId === speaker.id ? <StopIcon size={12} /> : <PlayIcon size={13} />}
+                </button>
+              ) : (
+                <button class="icon-btn person-rename person-hear" type="button" aria-label={`Hear ${speaker.name}`} title="No lines to hear" disabled>
+                  <PlayIcon size={13} />
+                </button>
               )}
               <button
                 class="icon-btn person-rename"
@@ -342,6 +366,7 @@ export function OutlinePane({
   speakerFilter,
   peopleExtra = null,
   speakerExtra,
+  hear,
   chaptersExtra = null,
   videoBlock = null,
 }: OutlineProps): JSX.Element {
@@ -475,7 +500,7 @@ export function OutlinePane({
         {peopleExtra}
         <div class="outline-list">
           {hasSpeakers ? (
-            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} extra={speakerExtra} />
+            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} extra={speakerExtra} hear={hear} />
           ) : people.length === 0 ? (
             <p class="outline-empty">No participants listed. Add them with Edit details.</p>
           ) : null}

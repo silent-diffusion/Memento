@@ -264,6 +264,11 @@
   color: var(--text-3);
 }
 
+/* 2.6.0: Hear {name} while its sample plays. */
+.person-hear--on {
+  color: var(--accent);
+}
+
 /* Centre pane: player strip, then the transcript area. */
 .review-centre {
   flex: 1 1 560px;

@@ -59,6 +59,8 @@ export interface TranscriptPaneProps {
   onCopyVisible?: () => void;
   /** 2.0: selection mode and the line context menu act through these; without them neither is offered. */
   lineActions?: LineActions;
+  /** 2.6.0: the pane's follow-the-playhead state, so the screen can resume following (Hear {name}). */
+  followRef?: { current: FollowPlayhead | null };
 }
 
 /** The line being edited: the draft, the text it started from, and where the caret starts. */
@@ -553,6 +555,7 @@ export function TranscriptPane({
   onFilter,
   onCopyVisible,
   lineActions,
+  followRef,
 }: TranscriptPaneProps): JSX.Element {
   const result = api.result;
   const transcript = result?.transcript ?? null;
@@ -560,6 +563,11 @@ export function TranscriptPane({
   // Named people first, then "Speaker n", each by first appearance (format/speakerOrder.ts).
   const speakers = useMemo(() => orderSpeakers(transcript?.speakers ?? [], transcript?.segments ?? []), [transcript]);
   const follow = useMemo(() => createFollowPlayhead(), []);
+  useEffect(() => {
+    if (followRef !== undefined) {
+      followRef.current = follow;
+    }
+  }, [follow, followRef]);
   const [editing, setEditing] = useState<EditingLine | null>(null);
   const focusRef = useRef<((index: number) => void) | null>(null);
   // After 1.2.0: a filter hides lines; everything below (playhead, keys, editing, Undo) works on the lines shown.
