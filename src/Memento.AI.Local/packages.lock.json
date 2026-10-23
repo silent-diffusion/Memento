@@ -20,17 +20,17 @@
       },
       "LLamaSharp.Backend.Cpu": {
         "type": "Direct",
-        "requested": "[0.27.0, )",
-        "resolved": "0.27.0",
-        "contentHash": "fZOfnsWKx/kaOqCMSkZ2w5ww++/YGq56T8PWst0KjtmXQBthNAuE11HIaxMK5TBD0EWqoCxqlC8oVCOssF4+MQ=="
+        "requested": "[0.30.0, )",
+        "resolved": "0.30.0",
+        "contentHash": "6j8qUfsVmNwTWBoLUVij//EptyoGZpwwjTSPHBOzehIyinnk6QKtwg5/+2aOWNh5rXkbpPUuuQYchW36UTM5ig=="
       },
       "LLamaSharp.Backend.Vulkan.Windows": {
         "type": "Direct",
-        "requested": "[0.27.0, )",
-        "resolved": "0.27.0",
-        "contentHash": "eq2LNJLJ+rJmfFk5rSgFxV8Yer4ZGxNuYmGApUEk5illaj15hwYBmo2cWHq7UKVkbMQ5KZAGq5NkS3LJeMSiZw==",
+        "requested": "[0.30.0, )",
+        "resolved": "0.30.0",
+        "contentHash": "qHnAkHXak38amXYfP4k4S9HrmqxcchzDOYnC38FAuASgonm2awT8ygKpDdSnB5ZtCtLSSKS+zX9X/R+ATuX8/w==",
         "dependencies": {
-          "LLamaSharp.Backend.Cpu": "0.27.0"
+          "LLamaSharp.Backend.Cpu": "0.30.0"
         }
       },
       "Microsoft.CodeAnalysis.NetAnalyzers": {
@@ -159,7 +159,7 @@
       "memento.ai": {
         "type": "Project",
         "dependencies": {
-          "Memento.Core": "[2.3.1, )",
+          "Memento.Core": "[2.4.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )"
         }
