@@ -684,8 +684,11 @@ export function TranscriptPane({
           return [];
         }
         const choices = sectionChoices(all, all.findIndex((s) => s.id === segment.id), from, chosen);
-        // Without the 2.0 line actions there is no way to move several lines in one step: the line or the merge.
-        return withSelection ? choices : choices.filter((c) => c.id === 'line' || c.id === 'merge');
+        // Without the 2.0 line actions there is no way to move several lines in one step: the line, the swaps or the merge.
+        return withSelection ? choices : choices.filter((c) => c.id !== 'turn' && c.id !== 'onward');
+      },
+      swap: (speaker, other, from) => {
+        latest.current.actions.swapSpeakers(speaker, other, from).catch(report(`${speaker.name} and ${other.name} were not swapped`));
       },
       preview,
       ...(withSelection

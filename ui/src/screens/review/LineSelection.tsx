@@ -33,6 +33,8 @@ export interface LineActions {
   assign: (lines: readonly TranscriptSegment[], speaker: Speaker) => Promise<void>;
   addSpeaker: (lines: readonly TranscriptSegment[], name: string) => Promise<void>;
   merge: (from: Speaker, into: Speaker) => Promise<void>;
+  /** 2.6.0: the two speakers trade their lines from the line on (null: everywhere). */
+  swap: (speaker: Speaker, other: Speaker, from: TranscriptSegment | null) => Promise<void>;
   highlight: (lines: readonly TranscriptSegment[]) => Promise<number>;
   removeHighlights: (highlights: readonly Highlight[]) => Promise<number>;
   chapterAt: (line: TranscriptSegment) => Promise<void>;
@@ -89,6 +91,11 @@ function pickChoicesFor(lines: readonly TranscriptSegment[], allSegments: readon
         actions.onError(`${only.name} was not merged into ${chosen.name}`, messageOf(e));
       });
     };
+    const swap = (from: TranscriptSegment | null) => (): void => {
+      actions.swap(only, chosen, from).then(done, (e: unknown) => {
+        actions.onError(`${only.name} and ${chosen.name} were not swapped`, messageOf(e));
+      });
+    };
     const count = lines.length;
     const first = lines[0];
     if (count === 1 && first !== undefined) {
@@ -97,7 +104,7 @@ function pickChoicesFor(lines: readonly TranscriptSegment[], allSegments: readon
         label: choice.label,
         detail: choice.detail,
         segmentIds: choice.lines.map((l) => l.id),
-        run: choice.id === 'merge' ? merge : assign(choice.lines),
+        run: choice.id === 'merge' ? merge : choice.id === 'swapOnward' ? swap(first) : choice.id === 'swapAll' ? swap(null) : assign(choice.lines),
       }));
     }
     const all = allSegments.filter((s) => s.speaker === only.id);

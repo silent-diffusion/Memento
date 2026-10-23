@@ -234,6 +234,41 @@ describe('preview host transcripts (M2)', () => {
     expect(host.fail('transcript.renameSpeaker', { recordingId: LONG, speakerId: 'sp1', name: '' }).code).toBe('bridge.invalidParams');
   });
 
+  it('swaps two speakers from a line on or everywhere, and the same swap again puts the lines back (2.6.0)', () => {
+    const host = previewHost();
+    const before = host.call('transcript.get', { recordingId: LONG }).transcript;
+    if (before === null) {
+      throw new Error('no transcript');
+    }
+    const from = before.segments.findIndex((s) => s.speaker === 'sp3');
+    const start = before.segments[from];
+    if (start === undefined) {
+      throw new Error('no line of sp3');
+    }
+    const swapped = (s: { speaker: string | null }): string | null => (s.speaker === 'sp3' ? 'sp4' : s.speaker === 'sp4' ? 'sp3' : s.speaker);
+
+    const partial = host.call('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp4', fromSegmentId: start.id });
+    const expected = before.segments.filter((s, i) => i >= from && (s.speaker === 'sp3' || s.speaker === 'sp4'));
+    expect(partial.segments.map((s) => s.id)).toEqual(expected.map((s) => s.id));
+    expect(partial.segments.map((s) => [s.speaker, s.speakerConfidence])).toEqual(expected.map((s) => [swapped(s), 1]));
+    expect(partial.speakers.map((s) => [s.id, s.name])).toEqual(before.speakers.map((s) => [s.id, s.name]));
+    let after = host.call('transcript.get', { recordingId: LONG }).transcript;
+    expect(after?.segments.map((s) => s.speaker)).toEqual(before.segments.map((s, i) => (i >= from ? swapped(s) : s.speaker)));
+
+    host.call('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp4', fromSegmentId: start.id });
+    after = host.call('transcript.get', { recordingId: LONG }).transcript;
+    expect(after?.segments.map((s) => s.speaker)).toEqual(before.segments.map((s) => s.speaker));
+
+    const all = host.call('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp4' });
+    expect(all.segments.length).toBe(before.segments.filter((s) => s.speaker === 'sp3' || s.speaker === 'sp4').length);
+    after = host.call('transcript.get', { recordingId: LONG }).transcript;
+    expect(after?.segments.map((s) => s.speaker)).toEqual(before.segments.map(swapped));
+
+    expect(host.fail('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp3' }).code).toBe('bridge.invalidParams');
+    expect(host.fail('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp9' }).code).toBe('transcript.speakerNotFound');
+    expect(host.fail('transcript.swapSpeakers', { recordingId: LONG, speakerId: 'sp3', otherSpeakerId: 'sp4', fromSegmentId: 'nope' }).code).toBe('transcript.segmentNotFound');
+  });
+
   it('restores a merged speaker with its id and lines, removes an unused one, and un-edits a line edited back (Undo)', () => {
     const host = previewHost();
     const before = host.call('transcript.get', { recordingId: LONG }).transcript;

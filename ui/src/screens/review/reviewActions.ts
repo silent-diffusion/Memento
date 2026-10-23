@@ -28,6 +28,12 @@ export interface ReviewActions {
   addSpeaker(segment: TranscriptSegment, name: string): Promise<void>;
   renameSpeaker(speaker: Speaker, name: string): Promise<void>;
   mergeSpeakers(from: Speaker, into: Speaker): Promise<void>;
+  /**
+   * 2.6.0: the two speakers trade their lines from `from` on (null: everywhere); one Undo step, since the same
+   * swap again puts them back. With Remember speakers by voice on, both named voices are learned again from the
+   * lines they have after the swap.
+   */
+  swapSpeakers(speaker: Speaker, other: Speaker, from: TranscriptSegment | null): Promise<void>;
   /** Merges the most alike speakers until `count` are left (one Undo step); resolves to how many were merged and who is left. */
   reduceSpeakers(count: number): Promise<{ merged: number; left: Speaker[] }>;
   /** The recording's own speaker count and names (Who spoke). */
@@ -210,6 +216,41 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
         label: 'merge speakers',
         undo: () => deps().api.restoreSpeaker(before, lines),
         redo: () => deps().api.mergeSpeakers(from.id, into.id),
+      });
+    },
+
+    async swapSpeakers(speaker, other, from) {
+      const { api, undo } = deps();
+      const fromId = from === null ? null : from.id;
+      const swap = (): Promise<void> => deps().api.swapSpeakers(speaker.id, other.id, fromId);
+      // A named speaker's voice is the mix of the lines it has now, so after a swap both are learned again.
+      const learn = async (): Promise<string[]> => {
+        const changes: string[] = [];
+        for (const s of [speaker, other]) {
+          if (s.renamed) {
+            const change = await rememberVoice(s.id);
+            if (change !== null) {
+              changes.push(change);
+            }
+          }
+        }
+        return changes;
+      };
+      await api.swapSpeakers(speaker.id, other.id, fromId);
+      let changes = await learn();
+      undo.push({
+        label: `swap ${speaker.name} and ${other.name}`,
+        undo: async () => {
+          await swap();
+          for (const change of changes.reverse()) {
+            await deps().bridge.call('voices.revert', { changeId: change });
+          }
+          changes = [];
+        },
+        redo: async () => {
+          await swap();
+          changes = await learn();
+        },
       });
     },
 

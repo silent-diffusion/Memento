@@ -43,6 +43,8 @@ export interface SegmentHandlers {
   sections: (segment: TranscriptSegment, chosen: Speaker) => readonly SectionChoice[];
   /** Several lines to one speaker in one step (This turn, From here on); absent without the 2.0 line actions. */
   assignLines?: (segments: readonly TranscriptSegment[], speaker: Speaker) => void;
+  /** 2.6.0: the two speakers trade their lines from the line on (null: everywhere). */
+  swap: (speaker: Speaker, other: Speaker, from: TranscriptSegment | null) => void;
   /** The lines a hovered or active choice would move are marked in the list; null clears the mark. */
   preview?: (segmentIds: readonly string[] | null) => void;
   rename: (speaker: Speaker, name: string) => void;
@@ -507,6 +509,10 @@ function SegmentRow({
               handlers.assign(segment, chosen);
             } else if (choice.id === 'merge') {
               handlers.merge(speaker, chosen);
+            } else if (choice.id === 'swapOnward') {
+              handlers.swap(speaker, chosen, segment);
+            } else if (choice.id === 'swapAll') {
+              handlers.swap(speaker, chosen, null);
             } else {
               handlers.assignLines?.(choice.lines, chosen);
             }

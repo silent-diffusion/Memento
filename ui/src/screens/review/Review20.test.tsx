@@ -219,8 +219,9 @@ describe('Review 2.0: known voices, suggested chapters, selection mode', () => {
     await click(named('Assign speaker…'));
     await click([...document.querySelectorAll('.speaker-menu [role="option"]')].find((o) => o.textContent.trim() === 'Lena Fischer'));
     await until(() => document.querySelector('.speaker-menu--choices') !== null);
-    // The first line is a turn of its own, so: Just this line, From here on, Merge, Back.
-    expect([...document.querySelectorAll<HTMLElement>('.speaker-menu--choices [data-choice]')].map((c) => c.dataset.choice)).toEqual(['line', 'onward', 'merge', 'back']);
+    // The first line is a turn of its own (and nothing of either speaker comes before it, so a swap from here on would
+    // be everywhere): Just this line, From here on, Swap everywhere, Merge, Back.
+    expect([...document.querySelectorAll<HTMLElement>('.speaker-menu--choices [data-choice]')].map((c) => c.dataset.choice)).toEqual(['line', 'onward', 'swapAll', 'merge', 'back']);
     const onward = before.segments.filter((s) => s.speaker === sam.id).map((s) => s.id);
     expect(document.querySelector('.speaker-menu--choices [data-choice="onward"] .speaker-choice-label')?.textContent).toBe(`From here on · ${onward.length} lines`);
     // Pointing at the choice marks its lines (those rendered near the top).
@@ -242,6 +243,56 @@ describe('Review 2.0: known voices, suggested chapters, selection mode', () => {
     expect(h.container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe(`Undo move ${onward.length} lines to Lena Fischer`);
     await undo();
     expect((await transcript(DESIGN_REVIEW)).segments.filter((s) => s.speaker === sam.id).map((s) => s.id)).toEqual(onward);
+  });
+
+  it('swaps two speakers from the line menu and, with Remember speakers by voice on, learns both named voices again (undone together)', async () => {
+    await open(DESIGN_REVIEW, true);
+    const before = await transcript(DESIGN_REVIEW);
+    const first = before.segments[0];
+    const sam = before.speakers.find((s) => s.id === first?.speaker);
+    const lena = before.speakers.find((s) => s.name === 'Lena Fischer');
+    if (first === undefined || sam === undefined || lena === undefined) {
+      throw new Error('the sample changed');
+    }
+    expect([sam.renamed, lena.renamed]).toEqual([true, true]);
+    const row = rows()[0];
+    await act(async () => {
+      row?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 40 }));
+      await Promise.resolve();
+    });
+    await click(named('Assign speaker…'));
+    await click([...document.querySelectorAll('.speaker-menu [role="option"]')].find((o) => o.textContent.trim() === 'Lena Fischer'));
+    await until(() => document.querySelector('.speaker-menu--choices') !== null);
+    const samAll = before.segments.filter((s) => s.speaker === sam.id).length;
+    const lenaAll = before.segments.filter((s) => s.speaker === lena.id).length;
+    expect(document.querySelector('.speaker-menu--choices [data-choice="swapAll"] .speaker-choice-label')?.textContent).toBe(
+      `Swap Sam Okafor and Lena Fischer everywhere · ${samAll} + ${lenaAll} lines`,
+    );
+
+    await click(document.querySelector('.speaker-menu--choices [data-choice="swapAll"]'));
+    await until(() => h.callsOf('transcript.swapSpeakers').length === 1);
+    expect(h.callsOf('transcript.swapSpeakers')[0]).toEqual({ recordingId: DESIGN_REVIEW, speakerId: sam.id, otherSpeakerId: lena.id, fromSegmentId: null });
+    await until(() => h.callsOf('voices.remember').length === 2);
+    expect(h.callsOf('voices.remember')).toEqual([
+      { recordingId: DESIGN_REVIEW, speakerId: sam.id },
+      { recordingId: DESIGN_REVIEW, speakerId: lena.id },
+    ]);
+    expect((await h.bridge.call('voices.list')).voices.map((v) => v.name).sort()).toEqual(['Lena Fischer', 'Sam Okafor']);
+    const after = await transcript(DESIGN_REVIEW);
+    expect(after.segments.map((s) => s.speaker)).toEqual(before.segments.map((s) => (s.speaker === sam.id ? lena.id : s.speaker === lena.id ? sam.id : s.speaker)));
+    expect(after.speakers.map((s) => [s.id, s.name])).toEqual(before.speakers.map((s) => [s.id, s.name]));
+    await until(() => (h.container.querySelector('.undo-btn')?.getAttribute('aria-label') ?? '') === 'Undo swap Sam Okafor and Lena Fischer');
+
+    // Undo swaps back and forgets what was learned; Redo swaps and learns again.
+    await undo();
+    expect(h.callsOf('transcript.swapSpeakers')).toHaveLength(2);
+    expect(h.callsOf('voices.revert')).toHaveLength(2);
+    expect((await h.bridge.call('voices.list')).voices).toEqual([]);
+    expect((await transcript(DESIGN_REVIEW)).segments.map((s) => s.speaker)).toEqual(before.segments.map((s) => s.speaker));
+    await redo();
+    expect(h.callsOf('transcript.swapSpeakers')).toHaveLength(3);
+    expect(h.callsOf('voices.remember')).toHaveLength(4);
+    expect((await h.bridge.call('voices.list')).voices.map((v) => v.name).sort()).toEqual(['Lena Fischer', 'Sam Okafor']);
   });
 
   it('selects every line shown with Ctrl+A and extends with Shift+arrows', async () => {
