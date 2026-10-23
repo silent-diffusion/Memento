@@ -47,7 +47,10 @@ public sealed class ServerProviderTests : IDisposable
         Assert.Equal(["a", "b"], response.Json!.Value.GetProperty("items").EnumerateArray().Select(i => i.GetString()));
         Assert.Equal(AiStopReason.Completed, response.StopReason);
         Assert.Equal("stop", response.ProviderStopReason);
-        Assert.Equal(AiUsage.None, response.Usage); // Ollama sends no usage chunk.
+        // Ollama sends no usage chunk: both counts are estimated, the prompt from what was sent and the output from the reply.
+        Assert.Equal(EstimatingTokenCounter.Server.Count("Extract items.") + EstimatingTokenCounter.Server.Count("a and b") + 8, response.Usage.InputTokens);
+        Assert.Equal(EstimatingTokenCounter.Server.Count(response.Text), response.Usage.OutputTokens);
+        Assert.Contains(_log.Lines, l => l.Contains($"{response.Usage.InputTokens} input and {response.Usage.OutputTokens} output tokens", StringComparison.Ordinal));
         Assert.Equal(("server", "qwen3:8b"), (response.ProviderId, response.Model));
         Assert.Contains(progress.Items, p => p.Stage == AiProgressStage.Generating);
 
@@ -67,6 +70,43 @@ public sealed class ServerProviderTests : IDisposable
         Assert.Equal("map_items_", format.GetProperty("json_schema").GetProperty("name").GetString());
         Assert.True(format.GetProperty("json_schema").GetProperty("strict").GetBoolean());
         Assert.Equal("array", format.GetProperty("json_schema").GetProperty("schema").GetProperty("properties").GetProperty("items").GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ProgressCarriesEachPieceAndAGrowingCountWhileTheAnswerStreams()
+    {
+        var server = Fake(ServerPersonality.Ollama);
+        const string Text = "{\"items\":[\"the first point\",\"a second, longer point about the release\",\"and a third\"]}";
+        server.Answer = _ => Text;
+        var progress = new ProgressLog<AiProgress>();
+
+        await Provider(server, "qwen3:8b").GenerateAsync(Structured(), progress, CancellationToken.None);
+
+        var writing = progress.Items.Where(p => p.Stage == AiProgressStage.Generating).ToList();
+        Assert.Equal(3, writing.Count);
+        Assert.Equal(Text, string.Concat(writing.Select(p => p.Delta)));
+        Assert.True(writing[0].OutputTokens > 0);
+        Assert.All(writing.Zip(writing.Skip(1)), pair => Assert.True(pair.Second.OutputTokens > pair.First.OutputTokens));
+        Assert.All(writing, p => Assert.NotNull(p.Elapsed));
+        Assert.Equal(AiProgressStage.Done, progress.Items[^1].Stage);
+    }
+
+    [Fact]
+    public async Task AServersOwnCountsAreKeptAndOnlyAMissingOneIsEstimated()
+    {
+        var server = Fake(ServerPersonality.Vllm);
+        server.Override = request => request.Path == "/v1/chat/completions"
+            ? new ScriptedResponse
+            {
+                ContentType = "text/event-stream",
+                Parts = [("data: " + FakeOpenAiCompatibleServer.Chunk("Qwen/Qwen3-8B", new() { ["content"] = "{\"items\":[]}" }, "stop") + "\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":321,\"completion_tokens\":0}}\n\ndata: [DONE]\n\n", TimeSpan.Zero)],
+            }
+            : null;
+
+        var response = await Provider(server, "Qwen/Qwen3-8B").GenerateAsync(Structured(), null, CancellationToken.None);
+
+        Assert.Equal(321, response.Usage.InputTokens);
+        Assert.Equal(EstimatingTokenCounter.Server.Count("{\"items\":[]}"), response.Usage.OutputTokens);
     }
 
     [Fact]

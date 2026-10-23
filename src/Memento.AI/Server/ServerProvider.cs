@@ -147,7 +147,8 @@ public sealed partial class ServerProvider : IAiProvider
         JsonObject,
     }
 
-    internal byte[] BuildBody(AiRequest request, SchemaMode mode)
+    /// <summary>The system message as sent: the request's, with the schema appended after a <c>json_object</c> fallback.</summary>
+    internal static string SystemFor(AiRequest request, SchemaMode mode)
     {
         var system = request.System;
         if (mode == SchemaMode.JsonObject && request.JsonSchema is { } constraint)
@@ -156,6 +157,12 @@ public sealed partial class ServerProvider : IAiProvider
             system = string.IsNullOrEmpty(system) ? rule : system + "\n\n" + rule;
         }
 
+        return system;
+    }
+
+    internal byte[] BuildBody(AiRequest request, SchemaMode mode)
+    {
+        var system = SystemFor(request, mode);
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer))
         {
@@ -217,9 +224,35 @@ public sealed partial class ServerProvider : IAiProvider
     /// </summary>
     private int AnswerTokens(AiRequest request, string system)
     {
-        var prompt = CountTokens(system) + request.Messages.Sum(m => CountTokens(m.Content) + 8);
-        var room = _options.ContextTokens - prompt - 64;
+        var room = _options.ContextTokens - PromptTokens(request, system) - 64;
         return Math.Max(MinAnswerTokens, Math.Min(request.MaxOutputTokens, room));
+    }
+
+    /// <summary>The prompt's tokens, estimated high: the system message and each turn with a few tokens of framing.</summary>
+    private int PromptTokens(AiRequest request, string system) =>
+        CountTokens(system) + request.Messages.Sum(m => CountTokens(m.Content) + 8);
+
+    /// <summary>
+    /// The server's own counts when it sent a <c>usage</c> chunk; otherwise (Ollama, and any server not asked for one)
+    /// the estimate of the prompt and of the reply, so the Live output, "How this was made", History and the log show
+    /// real numbers rather than zeros. A count the server did send is kept.
+    /// </summary>
+    internal CloudStreamResult WithEstimates(CloudStreamResult result, int promptTokens)
+    {
+        var usage = result.Usage;
+        if (usage.InputTokens > 0 && usage.OutputTokens > 0)
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Usage = usage with
+            {
+                InputTokens = usage.InputTokens > 0 ? usage.InputTokens : promptTokens,
+                OutputTokens = usage.OutputTokens > 0 ? usage.OutputTokens : result.Text.Length == 0 ? 0 : CountTokens(result.Text),
+            },
+        };
     }
 
     /// <summary>
@@ -255,11 +288,12 @@ public sealed partial class ServerProvider : IAiProvider
     private Task<CloudOutcome> SendAsync(AiRequest request, string? key, SchemaMode mode, IProgress<AiProgress>? progress, CancellationToken cancellationToken)
     {
         var body = BuildBody(request, mode);
+        var prompt = PromptTokens(request, SystemFor(request, mode));
         var call = new CloudCall(
             Named,
             request.Purpose,
             () => CreateMessage(body, key),
-            ReadStreamAsync,
+            async (stream, context, token) => WithEstimates(await ReadStreamAsync(stream, context, token), prompt),
             failure => MapFailure(failure, mode, key is not null),
             MapStreamError,
             MapNetwork,
