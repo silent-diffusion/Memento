@@ -4,6 +4,11 @@
 // used and no AI service is called. Each step saves a screenshot; the run ends with a JSON summary.
 //
 //   node tools/e2e/m14-server.mjs [--data <dir>] [--out <dir>] [--port <n>] [--simulate] [--delay-ms <n>]
+//                                 [--timeout-min <n>]
+//
+// --delay-ms (default 150) is the fake server's pause between streamed chunks, so a pass is seen writing; a pass that
+// finishes before the sheet sees it counts too. On any failure, Ctrl+C or after --timeout-min (default 45) the run
+// kills the Memento it started (by its PID) and stops the fake server, then exits 1.
 //
 // The app runs with LOCALAPPDATA pointed at --data (default artifacts/e2e-data-m14), so the real library, settings and
 // logs are never touched, with the simulated audio engine (--simulate is the default and the only mode: nothing is
@@ -18,8 +23,8 @@
 //     and qwen3:8b is chosen from the list (saved in settings.json).
 //  2. Review › Create document: the Builder's Your own server card names the model and address on this PC; it is
 //     chosen and Meeting minutes is generated. No send confirmation appears (Ask before every send is on, but nothing
-//     leaves the PC); Live output shows the exact request (System / User), the reply streaming in token by token, and
-//     names the server; the viewer opens.
+//     leaves the PC); Live output names the server and shows a pass it answered (streaming, or already finished when
+//     the server is fast): the exact request (System / User) and the reply, streamed rather than whole; the viewer opens.
 //  3. How this was made names "Your own server · qwen3:8b at 127.0.0.1:<port> (this PC)" and that everything stayed
 //     on this PC; History records the generation with the server.
 //  4. Every request the fake server got: POST /v1/chat/completions with stream: true, model qwen3:8b, a non-empty
@@ -42,7 +47,10 @@ const args = process.argv.slice(2);
 const option = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const dataRoot = resolve(option('--data', join(repoRoot, 'artifacts', 'e2e-data-m14')));
 const out = resolve(option('--out', join(repoRoot, 'artifacts', 'e2e', 'm14')));
-const delayMs = Number(option('--delay-ms', '40'));
+// Slow enough that a pass is seen streaming in Live output (about 8 s for a 300-character answer).
+const delayMs = Number(option('--delay-ms', '150'));
+// The whole run stops (and cleans up) after this long, so nothing is left running if a step hangs.
+const runMinutes = Number(option('--timeout-min', '45'));
 const MODEL = 'qwen3:8b';
 const summary = { steps: [], checks: {} };
 
@@ -264,25 +272,58 @@ async function generate(label, { live = false } = {}) {
   return { ended, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
-/** Live output while the server writes: the exact request, the reply streaming in, the server named on this PC. */
+/**
+ * The first pass the server answers (not a step done in code) once it is visibly streaming ("Writing · N tokens") or
+ * finished, as { id, state: 'streaming' | 'done', tokens, meta }; null while none is. A fast server (or a host that does
+ * not count tokens while streaming) can finish a pass before it is ever seen writing, so a finished pass counts too.
+ */
+const modelPass = `(() => {
+  for (const row of document.querySelectorAll('.live-sheet .live-pass')) {
+    const meta = row.querySelector('.live-pass-meta')?.innerText.trim() ?? '';
+    if (meta.startsWith('In code')) continue;
+    const writing = /^Writing · ([\\d,]+) tokens?/.exec(meta);
+    if (writing && Number(writing[1].replace(/,/g, '')) > 0) return { id: row.dataset.pass, state: 'streaming', tokens: Number(writing[1].replace(/,/g, '')), meta };
+    if (row.querySelector('.live-dot--done')) {
+      const done = /^([\\d,]+) tokens?/.exec(meta);
+      return { id: row.dataset.pass, state: 'done', tokens: done ? Number(done[1].replace(/,/g, '')) : null, meta };
+    }
+  }
+  return null;
+})()`;
+
+/**
+ * Live output while the server writes: the sheet names the server on this PC, a pass the server answered shows the
+ * exact request (System / User) and its reply, which streamed (no "arrive whole" note). The sheet is opened from the
+ * progress card, or from the viewer when the generation finished first; both are accepted.
+ */
 async function watchLiveOutput(label) {
-  await page.click({ name: 'Show live output', within: '.gen-card' });
+  await page.click({ name: 'Show live output' }, { timeoutMs: 60_000 });
   await page.waitFor(`!!document.querySelector('.live-sheet')`, 'the Live output sheet', 10_000);
-  const streaming = `(() => { const m = /Writing · ([\\d,]+) tokens?/.exec([...document.querySelectorAll('.live-pass-meta')].map((e) => e.innerText).join('\\n')); return m ? Number(m[1].replace(/,/g, '')) : 0; })()`;
-  const first = await page.waitFor(streaming, 'tokens streaming into the Live output', 5 * 60_000);
+  const seen = await page.waitFor(modelPass, 'a pass the server streams or has finished', 5 * 60_000);
   const sub = await page.text('.live-sub');
-  await sleep(900);
-  const laterRaw = await page.eval(`${streaming} || (document.querySelectorAll('.live-dot--done').length > 1 ? 'done' : 0)`);
-  const request = await page.eval(`document.querySelector('.live-request')?.innerText ?? ''`);
-  const reply = await page.eval(`document.querySelector('.live-reply')?.innerText ?? ''`);
+  let later = seen.state === 'done' ? 'done' : null;
+  if (seen.state === 'streaming') {
+    await sleep(900);
+    const meta = await page.eval(`document.querySelector('.live-sheet .live-pass[data-pass="${seen.id}"] .live-pass-meta')?.innerText.trim() ?? ''`);
+    const writing = /^Writing · ([\d,]+) tokens?/.exec(meta);
+    later = writing ? Number(writing[1].replace(/,/g, '')) : 'done';
+  }
+  // Show that pass (choosing it pauses following, which is fine here) and read its request and reply.
+  await page.click({ selector: `.live-sheet .live-pass[data-pass="${seen.id}"]` });
+  await page.waitFor(`!!document.querySelector('.live-sheet .live-request')`, 'the pass request', 10_000);
+  if (seen.state === 'done') await page.waitFor(`(document.querySelector('.live-sheet .live-reply')?.innerText ?? '').trim().length > 0`, 'the pass reply', 10_000);
+  const request = await page.eval(`document.querySelector('.live-sheet .live-request')?.innerText ?? ''`);
+  const reply = await page.eval(`document.querySelector('.live-sheet .live-reply')?.innerText ?? ''`);
+  const whole = await page.eval(`[...document.querySelectorAll('.live-sheet .live-whole')].map((e) => e.innerText).join(' ')`);
   await shot(`${label}-live-output`);
   check(request.startsWith('System\n') && request.includes('User\n'), 'the Live output shows the exact request the server reads');
-  check(reply.trim().length > 0, `the reply streams into the Live output (${reply.trim().slice(0, 40)}…)`);
-  check(laterRaw === 'done' || laterRaw > first, `the token count grows while the pass runs (${first} → ${laterRaw})`);
-  check(/^Your own server · qwen3:8b( at [^ ]+)? \(this PC\) · Writing/.test(sub), `the sheet names the server on this PC (${sub})`);
+  check(reply.trim().length > 0, `the reply is in the Live output (${reply.trim().slice(0, 40)}…)`);
+  check(!/arrive whole/.test(whole), 'the reply streamed (no "arrive whole" note)');
+  if (seen.state === 'streaming') check(later === 'done' || later > seen.tokens, `the token count grows while the pass runs (${seen.tokens} → ${later})`);
+  check(/^Your own server · qwen3:8b( at [^ ]+)? \(this PC\) · (Writing|Finished · read only)/.test(sub), `the sheet names the server on this PC (${sub})`);
   check((await page.text('.sheet-footer-note')).includes('nothing leaves it'), 'the sheet says nothing leaves this PC');
-  summary.liveOutput = { sub, firstTokens: first, later: laterRaw, passes: await page.eval(`document.querySelectorAll('.live-pass').length`) };
-  log('live output', `${sub} · tokens ${first} → ${laterRaw}`);
+  summary.liveOutput = { sub, seen: seen.state, pass: seen.meta, tokens: seen.tokens, later, passes: await page.eval(`document.querySelectorAll('.live-sheet .live-pass').length`) };
+  log('live output', `${sub} · ${seen.state === 'streaming' ? `tokens ${seen.tokens} → ${later}` : `first seen finished (${seen.meta})`}`);
   await page.key('Escape');
   await page.waitFor(`!document.querySelector('.live-sheet')`, 'the sheet to close', 10_000);
 }
@@ -292,6 +333,40 @@ const messageText = (body) => (body?.messages ?? []).map((m) => (typeof m.conten
 const roleText = (body, role) => (body?.messages ?? []).filter((m) => m.role === role).map((m) => (typeof m.content === 'string' ? m.content : '')).join('\n');
 
 let fake;
+let cleaned = null;
+
+/**
+ * Stops what this run started, once: the Memento it launched (by its PID, through App.kill: taskkill /F /T /PID) when
+ * it is still running, and the fake server. Each step is bounded so a hung one cannot keep the run alive.
+ */
+function cleanup() {
+  cleaned ??= (async () => {
+    const child = app.process;
+    if (child && child.exitCode === null && child.signalCode === null) {
+      await Promise.race([app.kill(), sleep(20_000)]);
+    }
+    if (fake) await Promise.race([fake.close(), sleep(5_000)]);
+  })();
+  return cleaned;
+}
+
+/** A failure or interruption: say why, keep the summary, clean up and exit non-zero. */
+async function fail(error) {
+  summary.error = error?.message ?? String(error);
+  console.error(error);
+  try {
+    if (page) await Promise.race([shot('failure'), sleep(10_000)]);
+  } catch {
+    // The page is gone.
+  }
+  console.log(JSON.stringify(summary, null, 2));
+  await cleanup();
+  process.exit(1);
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.once(signal, () => void fail(new Error(`Stopped by ${signal}`)));
+process.once('unhandledRejection', (reason) => void fail(reason));
+const watchdog = setTimeout(() => void fail(new Error(`The run took longer than ${runMinutes} min`)), runMinutes * 60_000);
 
 try {
   rmSync(out, { recursive: true, force: true });
@@ -356,6 +431,9 @@ try {
   check(/Everything stayed on this PC/.test(how), 'How this was made says everything stayed on this PC');
   await page.eval(`document.querySelector('.how-made')?.scrollIntoView({ block: 'center' })`);
   await shot('viewer-how-made');
+  // The history line may be written just after the viewer opens.
+  const historyBy = Date.now() + 20_000;
+  while (!historyOf(recordingId).some((h) => h.stage === 'minutes' && /Your own server/.test(h.summary)) && Date.now() < historyBy) await sleep(500);
   const history = historyOf(recordingId).filter((h) => h.stage === 'minutes');
   summary.history = history.map((h) => `${h.summary} | ${h.detail ?? ''}`);
   check(history.some((h) => /Your own server/.test(h.summary)), `History records the generation with the server (${summary.history.at(-1)})`);
@@ -392,19 +470,12 @@ try {
 
   summary.result = 'passed';
   console.log(JSON.stringify(summary, null, 2));
-  await app.close();
+  // Closed the normal way; cleanup() below kills it by PID only if it did not exit.
+  await app.close().catch((error) => console.error(error));
+  clearTimeout(watchdog);
+  await cleanup();
+  process.exit(0);
 } catch (error) {
-  summary.error = error.message;
-  console.error(error);
-  try {
-    await shot('failure');
-  } catch {
-    // The page is gone.
-  }
-  console.log(JSON.stringify(summary, null, 2));
-  if (app.process) await app.kill();
-  process.exitCode = 1;
-} finally {
-  await fake?.close();
+  clearTimeout(watchdog);
+  await fail(error);
 }
-process.exit();
