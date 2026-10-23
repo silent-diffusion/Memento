@@ -234,9 +234,15 @@ function SpeakerList({
   const [renaming, setRenaming] = useState<string | null>(null);
   return (
     <>
-      {speakers.map((speaker) => (
+      {speakers.map((speaker, position) => (
         <Fragment key={speaker.id}>
         <div class={filter?.selected.includes(speaker.id) === true ? 'person person--filtered' : 'person'} data-speaker-id={speaker.id}>
+          {/* 2.6.0: the digit that moves the focused transcript line here (the first nine people). */}
+          {position < 9 ? (
+            <kbd class="mono person-key" aria-hidden="true" title={`Press ${position + 1} on a transcript line to move it to ${speaker.name}`}>
+              {position + 1}
+            </kbd>
+          ) : null}
           <span class="person-dot" aria-hidden="true" style={{ background: speakerColourVar(speaker.color) }} />
           {renaming === speaker.id ? (
             <InlineInput

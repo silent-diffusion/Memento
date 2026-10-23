@@ -118,7 +118,7 @@ describe('Review and transcript (against the browser-preview host)', () => {
     await until(() => container.querySelector('.segm') !== null);
     expect(container.querySelector('.segm .segm-speaker-name')?.textContent).toBe('Sam Okafor');
     expect(container.querySelector('.segm .segm-at')?.textContent).toBe('00:00:02');
-    expect(container.querySelector('.transcript-hint')?.textContent).toBe('Click the time to play a line · click the words to correct them');
+    expect(container.querySelector('.transcript-hint')?.textContent).toBe('Click the time to play a line · click the words to correct them · U for the next uncertain line · 1–9 move it to a speaker');
     expect(container.querySelector<HTMLInputElement>('#tx-search')?.disabled).toBe(false);
     // The preview host's peaks.json (a blob URL) is fetched and drawn as 160 bars.
     await until(() => container.querySelectorAll('.wave-bar').length === 160);
