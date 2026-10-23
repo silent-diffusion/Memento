@@ -3,6 +3,14 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.6.0
+
+Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speaker assignments, and faster ways to correct the ones that remain.
+
+### Correcting speakers
+
+- **Move a whole section at once.** Picking another speaker for a line now offers, besides **Just this line** and the merge, **This turn · 5 lines** (the run of consecutive lines of that speaker around the line) and **From here on · 23 lines** (this line and every later line of that speaker, for correcting from the top down). Each says exactly how many lines move and from when to when, and while a choice is hovered or active the lines it would move are marked in the transcript, so the count can be checked by eye first. One Undo step each. The merge now shows its line count too.
+
 ## 2.5.0
 
 ### Your own server
