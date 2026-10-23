@@ -14,6 +14,7 @@ Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speak
 - **Move the lines that sound the same.** Every line was heard as one raw voice, and a voice's lines are almost always one person, so when one of them is on the wrong speaker the others usually are too. The menu now offers **This line and the 11 that sound the same** (the other lines of the same voice that are not on the chosen speaker yet), marked in the transcript while the choice is hovered. One Undo step.
 - **Fix speakers from the keyboard.** With a line focused, **1–9** move it to that speaker in the People order (each People row shows its key), and **U** / **Shift+U** jump to the next or previous line whose speaker is uncertain and play it from its start, so doubtful lines can be checked and fixed without the mouse. The hint under the transcript says so.
 - **Hear a speaker.** Each People row has a play button that plays up to six seconds of that speaker's clearest line (the transcript follows it), so "Speaker 3" can be named by ear; press it again, or another speaker's, to stop.
+- **Split a speaker.** The inverse of a merge: a People row's merge menu offers **{name} is two people…**, which groups the raw voices behind that speaker's lines into two by sound and moves the smaller half to a new speaker ("Speaker 5 took 23 of Ana's lines by voice"). Lines you placed stay where you put them. Undo merges them back. A speaker heard as one voice, or whose voices sound alike, says so instead of splitting.
 
 ### Fewer wrong speakers
 
