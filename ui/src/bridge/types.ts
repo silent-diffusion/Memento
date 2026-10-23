@@ -65,6 +65,8 @@ export const ERROR_CODES = [
   'transcript.speakerNotFound',
   'transcript.versionNotFound',
   'transcript.speakerInUse',
+  // 2.6.0: transcript.splitSpeaker on a speaker heard as one voice, or whose voices sound alike
+  'transcript.cannotSplit',
   'models.notFound',
   'models.inUse',
   'models.downloadFailed',
@@ -2713,6 +2715,19 @@ export interface TranscriptSameVoiceResult {
   segmentIds: string[];
 }
 
+/** The speaker whose raw voices (voices.json) are grouped into two by sound; the half with less talk time becomes a new speaker. */
+export interface TranscriptSplitSpeakerParams {
+  recordingId: string;
+  speakerId: string;
+}
+
+/** Every speaker as it is now, the speaker created, and the lines moved to it in transcript order. Refused with transcript.cannotSplit. */
+export interface TranscriptSplitSpeakerResult {
+  speakers: Speaker[];
+  created: Speaker;
+  segmentIds: string[];
+}
+
 // ---------------------------------------------------------------------------------------------
 // 2.0 Video (BRIDGE.md "Video (2.0, proposed)" and "Additions the video screens need")
 // ---------------------------------------------------------------------------------------------
@@ -3093,6 +3108,7 @@ export interface BridgeMethods {
   // 2.6.0 Review: speakers you can fix fast
   'transcript.swapSpeakers': { params: TranscriptSwapSpeakersParams; result: TranscriptSetSegmentsSpeakerResult };
   'transcript.sameVoice': { params: TranscriptSameVoiceParams; result: TranscriptSameVoiceResult };
+  'transcript.splitSpeaker': { params: TranscriptSplitSpeakerParams; result: TranscriptSplitSpeakerResult };
   // 2.0 Video
   'video.listSources': { params: EmptyParams; result: VideoListSourcesResult };
   'video.thumbnail': { params: VideoThumbnailParams; result: VideoThumbnailResult };
@@ -3369,6 +3385,7 @@ export const METHOD_NAMES = [
   // 2.6.0 Review: speakers you can fix fast
   'transcript.swapSpeakers',
   'transcript.sameVoice',
+  'transcript.splitSpeaker',
   // 2.0 storage
   'storage.keepOnlyMix',
   // 2.0 Video

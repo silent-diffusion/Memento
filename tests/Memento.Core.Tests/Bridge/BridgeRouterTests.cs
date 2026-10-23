@@ -254,7 +254,7 @@ public sealed class BridgeRouterTests
             "voices.matches", "voices.decline", "voices.acceptMatch", "annotations.suggestChapters", "annotations.dismissSuggestion",
             "annotations.restoreSuggestion", "transcript.setSegmentsSpeaker",
             // 2.6.0 Review: speakers you can fix fast.
-            "transcript.swapSpeakers", "transcript.sameVoice",
+            "transcript.swapSpeakers", "transcript.sameVoice", "transcript.splitSpeaker",
             // 2.0 video.
             "video.listSources", "video.thumbnail", "recording.setVideoSource", "recording.setPip", "video.openPrivacySettings", "video.remove",
             "recording.setVideoQuality", "video.removeEstimate",

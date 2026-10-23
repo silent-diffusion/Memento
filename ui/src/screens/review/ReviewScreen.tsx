@@ -625,6 +625,10 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               onMergeSpeakers={(from, into) => {
                 actions.mergeSpeakers(from, into).catch(fail(`${from.name} was not merged into ${into.name}`));
               }}
+              onSplitSpeaker={(speaker) => {
+                // 2.6.0: the host says why when the speaker cannot be split by sound (transcript.cannotSplit).
+                actions.splitSpeaker(speaker).catch(fail(`${speaker.name} was not split`));
+              }}
               speakerExtra={review20.speakerExtra}
               chaptersExtra={review20.chaptersExtra}
               videoBlock={

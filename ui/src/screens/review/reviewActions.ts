@@ -34,6 +34,11 @@ export interface ReviewActions {
    * lines they have after the swap.
    */
   swapSpeakers(speaker: Speaker, other: Speaker, from: TranscriptSegment | null): Promise<void>;
+  /**
+   * 2.6.0: "{name} is two people": the speaker's raw voices are grouped into two by sound and the smaller half becomes
+   * a new speaker (one Undo step: the merge back). Rejects with the host's reason when the speaker cannot be split.
+   */
+  splitSpeaker(speaker: Speaker): Promise<void>;
   /** Merges the most alike speakers until `count` are left (one Undo step); resolves to how many were merged and who is left. */
   reduceSpeakers(count: number): Promise<{ merged: number; left: Speaker[] }>;
   /** The recording's own speaker count and names (Who spoke). */
@@ -216,6 +221,19 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
         label: 'merge speakers',
         undo: () => deps().api.restoreSpeaker(before, lines),
         redo: () => deps().api.mergeSpeakers(from.id, into.id),
+      });
+    },
+
+    async splitSpeaker(speaker) {
+      const { api, undo } = deps();
+      const { created, segmentIds } = await api.splitSpeaker(speaker.id);
+      const count = segmentIds.length;
+      undo.announce(`${created.name} took ${count} of ${speaker.name}'s ${count === 1 ? 'line' : 'lines'} by voice`);
+      // Undo is the merge back (exact: by the new speaker's id); Redo splits again and points the old id at the new one.
+      undo.push({
+        label: `split ${speaker.name}`,
+        undo: () => deps().api.mergeSpeakers(deps().undo.resolveId(created.id), speaker.id).then(() => undefined),
+        redo: () => recreate(created.id, async () => (await deps().api.splitSpeaker(speaker.id)).created.id),
       });
     },
 

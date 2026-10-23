@@ -7,7 +7,7 @@ import { TagEditor } from '../../components/DetailsSheet';
 import { AttachmentsSection } from '../../components/attachments/AttachmentsSection';
 import { CloseIcon, MergeIcon, PencilIcon, PlayIcon, PlusIcon, StopIcon } from '../../components/icons';
 import { InlineInput } from '../../components/InlineInput';
-import { SpeakerChooser } from '../../components/SpeakerChooser';
+import { SpeakerChooser, type ChooserAction } from '../../components/SpeakerChooser';
 import { moveFocus } from '../../components/keyboard';
 import { DocumentsTab } from '../docview/DocumentsTab';
 import { formatDuration } from '../../format/duration';
@@ -43,6 +43,8 @@ interface OutlineProps {
   speakers: Speaker[] | null;
   onRenameSpeaker: (speaker: Speaker, name: string) => void;
   onMergeSpeakers: (from: Speaker, into: Speaker) => void;
+  /** 2.6.0: "{name} is two people…" in the merge menu splits the speaker by sound; absent when nothing can split. */
+  onSplitSpeaker?: (speaker: Speaker) => void;
   /** After 1.2.0: a click on a speaker's name filters the transcript to their lines. */
   speakerFilter?: SpeakerFilterProps;
   /** Shown under the People label: Who spoke, Reduce, Identify speakers again (PeopleWhoSpoke). */
@@ -169,11 +171,36 @@ function OutlineRow({
 }
 
 /** The People list's merge menu: the other speakers in a searchable, scrolling list (SpeakerChooser). */
-function MergeMenu({ speaker, speakers, onMerge }: { speaker: Speaker; speakers: Speaker[]; onMerge: OutlineProps['onMergeSpeakers'] }): JSX.Element {
+function MergeMenu({
+  speaker,
+  speakers,
+  onMerge,
+  onSplit,
+}: {
+  speaker: Speaker;
+  speakers: Speaker[];
+  onMerge: OutlineProps['onMergeSpeakers'];
+  onSplit?: OutlineProps['onSplitSpeaker'] | undefined;
+}): JSX.Element {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
   const others = speakers.filter((s) => s.id !== speaker.id);
+  // 2.6.0: the inverse of a merge, after the speakers (like Rename… in a line's menu).
+  const split: ChooserAction[] =
+    onSplit === undefined
+      ? []
+      : [
+          {
+            id: 'split',
+            label: `${speaker.name} is two people…`,
+            run: () => {
+              setOpen(false);
+              button.current?.focus();
+              onSplit(speaker);
+            },
+          },
+        ];
   return (
     <span class={open ? 'menu-root menu-root--open' : 'menu-root'} ref={root}>
       <button
@@ -208,6 +235,7 @@ function MergeMenu({ speaker, speakers, onMerge }: { speaker: Speaker; speakers:
           onPick={(into) => {
             onMerge(speaker, into);
           }}
+          actions={split}
           onClose={(focusTrigger) => {
             setOpen(false);
             if (focusTrigger) {
@@ -225,6 +253,7 @@ function SpeakerList({
   speakers,
   onRename,
   onMerge,
+  onSplit,
   filter,
   extra,
   hear,
@@ -232,6 +261,7 @@ function SpeakerList({
   speakers: Speaker[];
   onRename: OutlineProps['onRenameSpeaker'];
   onMerge: OutlineProps['onMergeSpeakers'];
+  onSplit?: OutlineProps['onSplitSpeaker'] | undefined;
   filter?: SpeakerFilterProps | undefined;
   extra?: OutlineProps['speakerExtra'];
   hear?: HearProps | undefined;
@@ -308,7 +338,7 @@ function SpeakerList({
               >
                 <PencilIcon size={13} />
               </button>
-              {speakers.length > 1 ? <MergeMenu speaker={speaker} speakers={speakers} onMerge={onMerge} /> : null}
+              {speakers.length > 1 ? <MergeMenu speaker={speaker} speakers={speakers} onMerge={onMerge} onSplit={onSplit} /> : null}
             </>
           )}
         </div>
@@ -363,6 +393,7 @@ export function OutlinePane({
   speakers,
   onRenameSpeaker,
   onMergeSpeakers,
+  onSplitSpeaker,
   speakerFilter,
   peopleExtra = null,
   speakerExtra,
@@ -500,7 +531,7 @@ export function OutlinePane({
         {peopleExtra}
         <div class="outline-list">
           {hasSpeakers ? (
-            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} filter={speakerFilter} extra={speakerExtra} hear={hear} />
+            <SpeakerList speakers={speakers} onRename={onRenameSpeaker} onMerge={onMergeSpeakers} onSplit={onSplitSpeaker} filter={speakerFilter} extra={speakerExtra} hear={hear} />
           ) : people.length === 0 ? (
             <p class="outline-empty">No participants listed. Add them with Edit details.</p>
           ) : null}

@@ -152,6 +152,48 @@ describe('Undo in Review (against the browser-preview host)', () => {
     expect((await transcript()).speakers.some((s) => s.id === 'sp4')).toBe(false);
   });
 
+  it('splits a speaker by voice from the People menu, merges it back on Undo and splits again on Redo (2.6.0)', async () => {
+    await open();
+    const before = await transcript();
+    const aiko = before.speakers.find((s) => s.name === 'Aiko Tanaka');
+    if (aiko === undefined) {
+      throw new Error('no Aiko');
+    }
+    const nextNumber = Math.max(...before.speakers.map((s) => Number.parseInt(s.id.slice(2), 10))) + 1;
+    const createdName = `Speaker ${nextNumber}`;
+    const people = (): string[] => [...h.container.querySelectorAll('.person-name')].map((p) => p.textContent);
+
+    // "{name} is two people…" follows the speakers in the merge menu; the smaller voice's lines go to a new speaker.
+    await click(named('Merge Aiko Tanaka into someone else'));
+    await click(option('Aiko Tanaka is two people…'));
+    await until(() => people().includes(createdName));
+    const split = await transcript();
+    const created = split.speakers.find((s) => s.name === createdName);
+    const moved = split.segments.filter((s) => s.speaker === created?.id);
+    expect(moved.length).toBeGreaterThan(0);
+    expect(moved.every((s) => before.segments.find((b) => b.id === s.id)?.speaker === aiko.id)).toBe(true);
+    expect(h.container.querySelector('.undo-status')?.textContent).toBe(`${createdName} took ${moved.length} of Aiko Tanaka's ${moved.length === 1 ? 'line' : 'lines'} by voice`);
+    expect(undoButton()?.getAttribute('aria-label')).toBe('Undo split Aiko Tanaka');
+
+    // Undo merges the new speaker back into Aiko; Redo splits again (the same speaker id comes back).
+    await undo();
+    await until(() => !people().includes(createdName));
+    const restored = await transcript();
+    expect(shape(restored.speakers)).toEqual(shape(before.speakers));
+    expect(restored.segments.map((s) => s.speaker)).toEqual(before.segments.map((s) => s.speaker));
+    await redo();
+    await until(() => people().includes(createdName));
+    expect((await transcript()).segments.filter((s) => s.speaker === created?.id).map((s) => s.id)).toEqual(moved.map((s) => s.id));
+
+    // The new speaker was heard as one voice: the host refuses, a toast says why, and nothing is registered.
+    const steps = undoButton()?.getAttribute('aria-label');
+    await click(named(`Merge ${createdName} into someone else`));
+    await click(option(`${createdName} is two people…`));
+    await until(() => h.store.toasts.items.value.at(-1)?.title === `${createdName} was not split`);
+    expect(h.store.toasts.items.value.at(-1)?.body).toContain('was heard as one voice');
+    expect(undoButton()?.getAttribute('aria-label')).toBe(steps);
+  });
+
   it('undoes and redoes a line edit, and highlight and chapter adds, renames and removals', async () => {
     await open();
     const before = await transcript();
