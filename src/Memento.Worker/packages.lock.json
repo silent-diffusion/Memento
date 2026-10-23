@@ -1,0 +1,482 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net8.0-windows7.0": {
+      "Microsoft.CodeAnalysis.NetAnalyzers": {
+        "type": "Direct",
+        "requested": "[10.0.401, )",
+        "resolved": "10.0.401",
+        "contentHash": "qGPLk4hknvVp6j9Lowa0qykw1cK7CyEyyy2aVs4dkOGroOMHJLRsMpUT53IKvYT6q78jxv96FZhzy3BrKCPgmA=="
+      },
+      "NtvLibs.MSVCP.msvcp140.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "9krfk9rPuRbhfOEqxgldif3s8rDDbnJ1eYXE4DUg1hV0UT9FAw8soCadj9Yz5V+nVhAESuXCFVvDo/79AlUeJQ=="
+      },
+      "NtvLibs.MSVCP.vcomp140.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "uh7qR1JtGhX5chKbEQ+cwFlRbBPls/e1+oiJPvcFv5GZYdm0R2tofLfW7DaadqzqPfuf/2pvs3JEcdgS8blB0A=="
+      },
+      "NtvLibs.MSVCP.vcruntime140.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "LCI+KPXwPK+o4l/dO0SeAFpkpTbSIdvlsu1WWqkMLIuqNWIMCAWDJ51oQ2DmobzIb5SLIb1kaL5oYq4z4Um4/A=="
+      },
+      "NtvLibs.MSVCP.vcruntime140_1.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "Q8MdHqvsxkquGM72jLFMQRl1y30zDV/TUzelTfi+OtG2hmJWPO1/kDO9R3L06Bh0J7IXBy9+92NvC7ybFAhFTg=="
+      },
+      "org.k2fsa.sherpa.onnx": {
+        "type": "Direct",
+        "requested": "[1.13.8, )",
+        "resolved": "1.13.8",
+        "contentHash": "CVBBX154lJ0STD8At5t0LvnSuOiXRwOI/8YeTvEEd+K1xwbtLZTQ4tQESyGEcfdIXTf+ucaGF4LMpHfI4R5yCw==",
+        "dependencies": {
+          "org.k2fsa.sherpa.onnx.runtime.android-arm64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.android-x64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.linux-arm64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.linux-x64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.osx-arm64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.osx-x64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.win-arm64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.win-x64": "1.13.8",
+          "org.k2fsa.sherpa.onnx.runtime.win-x86": "1.13.8"
+        }
+      },
+      "TesseractOCR": {
+        "type": "Direct",
+        "requested": "[5.5.2, )",
+        "resolved": "5.5.2",
+        "contentHash": "m/B0uXLq7JvXfsn+KJtB8iiBJaySEUH13P3x0q9hvnXZ5QnN4+9KcFQaLFE5hwVZD1zGOy2KLxN4B9A1HxvtPQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.3",
+          "System.Reflection.Emit": "4.7.0"
+        }
+      },
+      "Whisper.net": {
+        "type": "Direct",
+        "requested": "[1.9.1, )",
+        "resolved": "1.9.1",
+        "contentHash": "82WAKyyMun44cAXE80sP7vIra1oYhbVp2WrnqJm0CISTfMAvint1k/umt0SvsQH+IkDyekZ3BgMdS3Rag9SZ5A==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.2.0"
+        }
+      },
+      "Whisper.net.Runtime": {
+        "type": "Direct",
+        "requested": "[1.9.1, )",
+        "resolved": "1.9.1",
+        "contentHash": "TipPJkry69VwJ3XL38U082QK5Trqte6NgSOoosuyj/C1eRHabmBbLQ3ujjcDryg5pkXT7wXwAKU5+PxGIJyxkQ==",
+        "dependencies": {
+          "Whisper.net.Runtime.Metal": "1.9.1"
+        }
+      },
+      "Whisper.net.Runtime.Vulkan": {
+        "type": "Direct",
+        "requested": "[1.9.1, )",
+        "resolved": "1.9.1",
+        "contentHash": "2kynHvbAczuEYHKRIR9NYg8xiXaGZHW3hb1Ts+N2dNcmVpA87xJWxA07yDiFnf5+vXz428wK57YWNvxqTJdkKw=="
+      },
+      "CommunityToolkit.HighPerformance": {
+        "type": "Transitive",
+        "resolved": "8.4.2",
+        "contentHash": "2hmtrrU18x6NL3mbuAqwy0KpnoEEJOuK6sH5RKQfD/jHijn2pqvqBUC7WGy9dgNBL9BDA7eOC0kirsNPMp2f4Q=="
+      },
+      "Microsoft.Bcl.AsyncInterfaces": {
+        "type": "Transitive",
+        "resolved": "10.0.5",
+        "contentHash": "hQB3Hq1LlF0NkGVNyZIvwIQIY3LM7Cw1oYjNiTvdNqmzzipVAWEK1c5sj2H5aFX0udnjgPLxSYKq2fupueS8ow=="
+      },
+      "Microsoft.Bcl.Memory": {
+        "type": "Transitive",
+        "resolved": "10.0.5",
+        "contentHash": "odTrIyDJPgqCKEo6sOOfMzh0TaPufY/SLHrrMkqGlxGWVc5NQbZD5h1fxf/Q+PrGnhct5VWmmfKREA4h6JtTng=="
+      },
+      "Microsoft.Data.Sqlite.Core": {
+        "type": "Transitive",
+        "resolved": "8.0.31",
+        "contentHash": "o6muD6VLO/Et5Cmi5UGSvj5cwjTpc26/OP6z96+4aK4YhCmKlSHkFTEKCiR/JzDDI6E/qrkfEt9ybu9J0tiKrQ==",
+        "dependencies": {
+          "SQLitePCLRaw.core": "2.1.12"
+        }
+      },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.4.1",
+        "contentHash": "ZxhU/wg9BOc3ohibhLl18toPLWm96ysQoE+3OhCgrZ0TUPZd7bsUmGteeatz08yweyuPIEhtyUzEZTF+3bMWEQ==",
+        "dependencies": {
+          "System.Text.Json": "10.0.4"
+        }
+      },
+      "Microsoft.Win32.SystemEvents": {
+        "type": "Transitive",
+        "resolved": "8.0.0",
+        "contentHash": "9opKRyOKMCi2xJ7Bj7kxtZ1r9vbzosMvRrdEhVhDz8j8MoBGgB+WmC94yH839NPH+BclAjtQ/pyagvi/8gDLkw=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.android-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "0bEXZHGGu3ywaXjx0nwmHoBkPsVDKQjfC6FpqGGpBLnfokMbvPaGXgFShFW73bW8PSOB4gc9cLrVRkgOImy67A=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.android-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "BMltFcQOnoIgWRUDb2lNGF2FHuoWoWMP6DKrJgzsdkRXCIdl3jX0lpbj+etBeW+8wdXmKxREGA2hrvO8h42k0g=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "Vg6iDY3YDILvapwKrCrByAnBu2OImxuZNsB0Sg1k+Gox3GV2runHidTZtNTHJZUA9zFdjAz9Ab4HzqsaATjrzg=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "rqWNcekzaZHKX0xwYHePwGMwa9lb/JiuNh6Cc0f+Jnz6r5U45BdAtqUUJNh9F5DO2d2CuabAbBe3IqkngtVR8w=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "lhEqIPi/KlleNXrNMxXLpBrT1e3uONY/Nt0v7kswxXzvOwj89484ylpMu4jns7rpVug0Y/MfFP6kCDuV2CZo5Q=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "jUYwCbi+y7yNHbAFB3u2pyQihsrdk0fl8tC5yPvaqeLqgfUn1wdsrXsS+maJTx/8Phxfx+HHlcii31zlQHSv2w=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "EQk0M1dpvIOG9uVtYz7kgkmlrdajQcqbzAPCdTHeOOSYy68biXk1/O8pyHeBwTF9J9i2xDiJq+PtyNc7C8Vmbg=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "qQS9IQTRet05fl82IlM93XLNnuhW50lhepOBR2qzbjxWKjSXFTvx8SlALAoCLDGyURrQ5iOgl97JZFEeIG9A9g=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "QbpkOX0LBcYq/AUZTIlrwz7tPunhqVAFT8A9+JnVw6a6TYRFKvSBwxIWUPbNfpyGYPkTFNunpFIJzcLyiek0gg=="
+      },
+      "SQLitePCLRaw.bundle_e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "mAgscpQMLw5/nfA1Q5oJVAT29yROUo1ifZGbbTpx/lwZpSxMUGoYbKfmvdm8oXER+RzxqBmmQzeBEVKfeHv2nw==",
+        "dependencies": {
+          "SQLitePCLRaw.lib.e_sqlite3": "2.1.12",
+          "SQLitePCLRaw.provider.e_sqlite3": "2.1.12"
+        }
+      },
+      "SQLitePCLRaw.core": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "ETpNw9DY3ckWLgRRAeCHj+GKOuPi61aeczkXhgHexUvqoZBAYg8RYESE2J7O1M7+o6QbdSEZwrw9bfqztUVWXg==",
+        "dependencies": {
+          "System.Memory": "4.5.3"
+        }
+      },
+      "SQLitePCLRaw.lib.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "fWi8Dbknuhgg72fWinIdjXVaqO1hHL4YBBwVLnr7e1c9TAZwJ0QE38j9syW1hwx6HaqEVTwI+O07WPdZn8Rp0w=="
+      },
+      "SQLitePCLRaw.provider.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "W3oH4XIfCzFrgUSDKHhN6N+dgzA5YHOR2VxX8GB6Qy7CyrJJgxPEG8NirgYWlPQC5P2jz2knSsexWu4tDUL33g==",
+        "dependencies": {
+          "SQLitePCLRaw.core": "2.1.12"
+        }
+      },
+      "System.Diagnostics.DiagnosticSource": {
+        "type": "Transitive",
+        "resolved": "10.0.5",
+        "contentHash": "CCbzHQ26L3jskdwHh+4bxxW84lUMIrAAmeSlpO69AlrQV0DKbj1/I+feLaLSuZeqXPr9UlSy0OcgZoXOk2a6/g=="
+      },
+      "System.Interactive.Async": {
+        "type": "Transitive",
+        "resolved": "7.0.0",
+        "contentHash": "Ckj+tg2BVOZ0oLp7FAbjfvRyA/BMkUhVxROLd+x22zncRR6KD7CdFzAYp+9Mo2cedxAMo2X9ZNyhZu68jdDITw==",
+        "dependencies": {
+          "System.Linq.AsyncEnumerable": "10.0.0"
+        }
+      },
+      "System.IO.Pipelines": {
+        "type": "Transitive",
+        "resolved": "10.0.4",
+        "contentHash": "V7+RO17s/tzCpgqyj6t5vb54HFCvrRaMEwTcKDwpoQK66DRROzSff6kqtzHyiWRj6hrQQUmW80NL4pFSNhYpYA=="
+      },
+      "System.Linq.Async": {
+        "type": "Transitive",
+        "resolved": "7.0.0",
+        "contentHash": "A2Wci92Oyuodi8YLMQCJJ0vHqzgRFgEUG1K6tQNcoxHd3w05B1LvGzXvxQnGYPIL4Cr4hicHytpk2F2Jx8TZHg==",
+        "dependencies": {
+          "System.Interactive.Async": "7.0.0",
+          "System.Linq.AsyncEnumerable": "10.0.0"
+        }
+      },
+      "System.Linq.AsyncEnumerable": {
+        "type": "Transitive",
+        "resolved": "10.0.2",
+        "contentHash": "W0iDxrcnNJAbm0WSSZ8Z6PtN27+ETwfj3HUtERP/sfLMjPFGAS79lZ0uPS/6OxsIy0MEjprPH2nERRhNMuddDw=="
+      },
+      "System.Memory": {
+        "type": "Transitive",
+        "resolved": "4.5.3",
+        "contentHash": "3oDzvc/zzetpTKWMShs1AADwZjQ/36HnsufHRPcOjyRAAMLDlu2iD33MBI2opxnezcVUtXyqDXXjoFMOU9c7SA=="
+      },
+      "System.Numerics.Tensors": {
+        "type": "Transitive",
+        "resolved": "10.0.5",
+        "contentHash": "2Njj2ree91ur3lWNyQrjlVgxtOz8hV7f92ezTdQc//2S1TEQiNJ6DR9/gxM91Sca0Khk28QjYiCy7C2fPgqcCw=="
+      },
+      "System.Reflection.Emit": {
+        "type": "Transitive",
+        "resolved": "4.7.0",
+        "contentHash": "VR4kk8XLKebQ4MZuKuIni/7oh+QGFmZW3qORd1GvBq/8026OpW501SzT/oypwiQl4TvT8ErnReh/NzY9u+C6wQ=="
+      },
+      "System.Text.Encodings.Web": {
+        "type": "Transitive",
+        "resolved": "10.0.4",
+        "contentHash": "6g3B7jNsPRNf4luuYt1qE4R8S3JI+zMsfGWL9Idv4Mk1Z9Gh+rCagp9sG3AejPS87yBj1DjopM4i3wSz0WnEqg=="
+      },
+      "System.Text.Json": {
+        "type": "Transitive",
+        "resolved": "10.0.4",
+        "contentHash": "1tRPRt8D/kzjGL7em1uJ3iJlvVIC3G/sZJ+ZgSvtVYLXGGO26Clkqy2b5uts/pyR706Yw8/xA7exeI2PI50dpw==",
+        "dependencies": {
+          "System.IO.Pipelines": "10.0.4",
+          "System.Text.Encodings.Web": "10.0.4"
+        }
+      },
+      "Whisper.net.Runtime.Metal": {
+        "type": "Transitive",
+        "resolved": "1.9.1",
+        "contentHash": "Ut5tZyCUwXMVdThoLvdvQ7GyLwjRMreR/p3LuMJvRiXidQ2AXxx2Tv8UOGtMxvL395AC3+IkHdN/kMfd+EPSEw=="
+      },
+      "memento.ai": {
+        "type": "Project",
+        "dependencies": {
+          "Memento.Core": "[2.3.1, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )"
+        }
+      },
+      "memento.ai.local": {
+        "type": "Project",
+        "dependencies": {
+          "LLamaSharp": "[0.27.0, )",
+          "LLamaSharp.Backend.Cpu": "[0.27.0, )",
+          "LLamaSharp.Backend.Vulkan.Windows": "[0.27.0, )",
+          "Memento.AI": "[2.3.1, )"
+        }
+      },
+      "memento.audio": {
+        "type": "Project",
+        "dependencies": {
+          "Memento.Core": "[2.3.1, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
+          "NAudio.Core": "[2.4.0, )",
+          "NAudio.Wasapi": "[2.4.0, )",
+          "System.Drawing.Common": "[8.0.8, )"
+        }
+      },
+      "memento.core": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Data.Sqlite": "[8.0.31, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )",
+          "System.Security.Cryptography.ProtectedData": "[8.0.0, )"
+        }
+      },
+      "memento.transcription": {
+        "type": "Project",
+        "dependencies": {
+          "Memento.Core": "[2.3.1, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[8.0.2, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[8.0.3, )"
+        }
+      },
+      "LLamaSharp": {
+        "type": "CentralTransitive",
+        "requested": "[0.27.0, )",
+        "resolved": "0.27.0",
+        "contentHash": "y/lkHRIiChk9lP1VGIH+bXUkx7CPFZiAqmmzLmKcphtDS1wk2utVemd5EsSXH6rvKYa/S68/6NzUItHmSrt/Ow==",
+        "dependencies": {
+          "CommunityToolkit.HighPerformance": "8.4.2",
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.5",
+          "Microsoft.Bcl.Memory": "10.0.5",
+          "Microsoft.Extensions.AI.Abstractions": "10.4.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.5",
+          "System.Linq.Async": "7.0.0",
+          "System.Linq.AsyncEnumerable": "10.0.2",
+          "System.Numerics.Tensors": "10.0.5"
+        }
+      },
+      "LLamaSharp.Backend.Cpu": {
+        "type": "CentralTransitive",
+        "requested": "[0.27.0, )",
+        "resolved": "0.27.0",
+        "contentHash": "fZOfnsWKx/kaOqCMSkZ2w5ww++/YGq56T8PWst0KjtmXQBthNAuE11HIaxMK5TBD0EWqoCxqlC8oVCOssF4+MQ=="
+      },
+      "LLamaSharp.Backend.Vulkan.Windows": {
+        "type": "CentralTransitive",
+        "requested": "[0.27.0, )",
+        "resolved": "0.27.0",
+        "contentHash": "eq2LNJLJ+rJmfFk5rSgFxV8Yer4ZGxNuYmGApUEk5illaj15hwYBmo2cWHq7UKVkbMQ5KZAGq5NkS3LJeMSiZw==",
+        "dependencies": {
+          "LLamaSharp.Backend.Cpu": "0.27.0"
+        }
+      },
+      "Microsoft.Data.Sqlite": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.31, )",
+        "resolved": "8.0.31",
+        "contentHash": "WBM+0lBcUKeItKCAdBuTariYoV2tAICxE4FSzFDxlZXx9mO1YSr9NBD7vX2tYrKCHKOhpdwVJPa7fMD6zVHDjw==",
+        "dependencies": {
+          "Microsoft.Data.Sqlite.Core": "8.0.31",
+          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.12"
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.2, )",
+        "resolved": "10.0.5",
+        "contentHash": "iVMtq9eRvzyhx8949EGT0OCYJfXi737SbRVzWXE5GrOgGj5AaZ9eUuxA/BSUfmOMALKn/g8KfFaNQw0eiB3lyA=="
+      },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.3, )",
+        "resolved": "10.0.5",
+        "contentHash": "9HOdqlDtPptVcmKAjsQ/Nr5Rxfq6FMYLdhvZh1lVmeKR738qeYecQD7+ldooXf+u2KzzR1kafSphWngIM3C6ug==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.5",
+          "System.Diagnostics.DiagnosticSource": "10.0.5"
+        }
+      },
+      "NAudio.Core": {
+        "type": "CentralTransitive",
+        "requested": "[2.4.0, )",
+        "resolved": "2.4.0",
+        "contentHash": "VDXi1Wp1CUFgMxYyyajaG8sM9c9v5Mf2AdJkYUnksqwENSqVlrXsPe9l/mG55pNIv9eMYXGHiIxVuhS7+a3BQg=="
+      },
+      "NAudio.Wasapi": {
+        "type": "CentralTransitive",
+        "requested": "[2.4.0, )",
+        "resolved": "2.4.0",
+        "contentHash": "DKwpFzgJkUkge4sR+5t/DND1SbuHOJXQX3BBqnmd0n/zjM/CqBqbKA1wMXKIKdN2R1PtETVDu5C9ODPif37hhw==",
+        "dependencies": {
+          "NAudio.Core": "2.4.0"
+        }
+      },
+      "System.Drawing.Common": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.8, )",
+        "resolved": "8.0.8",
+        "contentHash": "4ZM1wvLjz9nVVExsfPAaSl/qOvU+QNedJL5rQ+2Wbow+iGeyO0e7XN07707rMBgaffEeeLrCZBwC0oHUuvRdPw==",
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "8.0.0"
+        }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "CentralTransitive",
+        "requested": "[8.0.0, )",
+        "resolved": "8.0.0",
+        "contentHash": "+TUFINV2q2ifyXauQXRwy4CiBhqvDEDZeVJU7qfxya4aRYOKzVBpN+4acx25VcPB9ywUN6C0n8drWl110PhZEg=="
+      }
+    },
+    "net8.0-windows7.0/win-x64": {
+      "NtvLibs.MSVCP.msvcp140.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "9krfk9rPuRbhfOEqxgldif3s8rDDbnJ1eYXE4DUg1hV0UT9FAw8soCadj9Yz5V+nVhAESuXCFVvDo/79AlUeJQ=="
+      },
+      "NtvLibs.MSVCP.vcomp140.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "uh7qR1JtGhX5chKbEQ+cwFlRbBPls/e1+oiJPvcFv5GZYdm0R2tofLfW7DaadqzqPfuf/2pvs3JEcdgS8blB0A=="
+      },
+      "NtvLibs.MSVCP.vcruntime140.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "LCI+KPXwPK+o4l/dO0SeAFpkpTbSIdvlsu1WWqkMLIuqNWIMCAWDJ51oQ2DmobzIb5SLIb1kaL5oYq4z4Um4/A=="
+      },
+      "NtvLibs.MSVCP.vcruntime140_1.runtime.win-x64": {
+        "type": "Direct",
+        "requested": "[14.42.34430, )",
+        "resolved": "14.42.34430",
+        "contentHash": "Q8MdHqvsxkquGM72jLFMQRl1y30zDV/TUzelTfi+OtG2hmJWPO1/kDO9R3L06Bh0J7IXBy9+92NvC7ybFAhFTg=="
+      },
+      "Microsoft.Win32.SystemEvents": {
+        "type": "Transitive",
+        "resolved": "8.0.0",
+        "contentHash": "9opKRyOKMCi2xJ7Bj7kxtZ1r9vbzosMvRrdEhVhDz8j8MoBGgB+WmC94yH839NPH+BclAjtQ/pyagvi/8gDLkw=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.android-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "0bEXZHGGu3ywaXjx0nwmHoBkPsVDKQjfC6FpqGGpBLnfokMbvPaGXgFShFW73bW8PSOB4gc9cLrVRkgOImy67A=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.android-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "BMltFcQOnoIgWRUDb2lNGF2FHuoWoWMP6DKrJgzsdkRXCIdl3jX0lpbj+etBeW+8wdXmKxREGA2hrvO8h42k0g=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.linux-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "Vg6iDY3YDILvapwKrCrByAnBu2OImxuZNsB0Sg1k+Gox3GV2runHidTZtNTHJZUA9zFdjAz9Ab4HzqsaATjrzg=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.linux-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "rqWNcekzaZHKX0xwYHePwGMwa9lb/JiuNh6Cc0f+Jnz6r5U45BdAtqUUJNh9F5DO2d2CuabAbBe3IqkngtVR8w=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.osx-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "lhEqIPi/KlleNXrNMxXLpBrT1e3uONY/Nt0v7kswxXzvOwj89484ylpMu4jns7rpVug0Y/MfFP6kCDuV2CZo5Q=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.osx-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "jUYwCbi+y7yNHbAFB3u2pyQihsrdk0fl8tC5yPvaqeLqgfUn1wdsrXsS+maJTx/8Phxfx+HHlcii31zlQHSv2w=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.win-arm64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "EQk0M1dpvIOG9uVtYz7kgkmlrdajQcqbzAPCdTHeOOSYy68biXk1/O8pyHeBwTF9J9i2xDiJq+PtyNc7C8Vmbg=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.win-x64": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "qQS9IQTRet05fl82IlM93XLNnuhW50lhepOBR2qzbjxWKjSXFTvx8SlALAoCLDGyURrQ5iOgl97JZFEeIG9A9g=="
+      },
+      "org.k2fsa.sherpa.onnx.runtime.win-x86": {
+        "type": "Transitive",
+        "resolved": "1.13.8",
+        "contentHash": "QbpkOX0LBcYq/AUZTIlrwz7tPunhqVAFT8A9+JnVw6a6TYRFKvSBwxIWUPbNfpyGYPkTFNunpFIJzcLyiek0gg=="
+      },
+      "SQLitePCLRaw.lib.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "fWi8Dbknuhgg72fWinIdjXVaqO1hHL4YBBwVLnr7e1c9TAZwJ0QE38j9syW1hwx6HaqEVTwI+O07WPdZn8Rp0w=="
+      },
+      "System.Text.Encodings.Web": {
+        "type": "Transitive",
+        "resolved": "10.0.4",
+        "contentHash": "6g3B7jNsPRNf4luuYt1qE4R8S3JI+zMsfGWL9Idv4Mk1Z9Gh+rCagp9sG3AejPS87yBj1DjopM4i3wSz0WnEqg=="
+      }
+    }
+  }
+}

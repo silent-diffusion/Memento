@@ -16,9 +16,26 @@
     <Deterministic>true</Deterministic>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <!--
+      Every project records its resolved packages in packages.lock.json (security audit 2, SA2-63). CI restores with
+      locked mode, so a package graph that differs from the committed lockfiles fails the build instead of changing it.
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!--
+      Memento ships for win-x64 only. build/pack.ps1 publishes with -r win-x64, which every referenced project
+      restores with too; naming the runtime here gives every lockfile its win-x64 section, so that restore and the
+      solution restore agree and both pass in locked mode. It does not make a library's build runtime-specific.
+    -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(CI)' != ''">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <!--
+      In CI every restore is locked, including the implicit ones the workflows' explicit steps do not cover:
+      build/pack.ps1's dotnet publish and the separate dotnet publish of the worker it starts (MementoPublishWorker).
+    -->
+    <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
   </PropertyGroup>
 </Project>
