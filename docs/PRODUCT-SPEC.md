@@ -395,7 +395,7 @@ Speaker 3 → John
 
 Speaker information should remain linked to transcript segments and remain editable. Renaming a speaker updates every segment, the people list, and any documents regenerated afterwards.
 
-Segments whose speaker assignment is uncertain should be marked so the user can confirm or reassign them. Talk-time share per speaker may be shown as a sanity check.
+Segments whose speaker assignment is uncertain should be marked so the user can confirm or reassign them; since 2.6.0 the mark also covers lines whose raw voice sounds unlike the rest of the speaker it was grouped into, so the marks point at the lines worth checking. Talk-time share per speaker may be shown as a sanity check.
 
 Speaker identification should be independently toggleable in Settings. Remembering renamed speakers across recordings (by voice) should be a separate, optional setting.
 
