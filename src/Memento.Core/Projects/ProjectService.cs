@@ -321,7 +321,10 @@ public sealed partial class ProjectService(
             .ToList();
     }
 
-    /// <summary>A count from 1 to 20 or none; at most 20 names of 1–100 characters (trimmed, repeats ignoring case dropped).</summary>
+    /// <summary>
+    /// A count from 1 to 20 or none; at most 20 names of 1–100 characters (trimmed, repeats ignoring case dropped); at most
+    /// 200 Speaking now marks, each naming one of the names (spelled as the name is) at 0 ms or later.
+    /// </summary>
     public static WhoSpoke ValidateWhoSpoke(WhoSpoke whoSpoke)
     {
         ArgumentNullException.ThrowIfNull(whoSpoke);
@@ -350,7 +353,30 @@ public sealed partial class ProjectService(
             throw Invalid($"At most {WhoSpoke.MaxNames} speakers can be named; this list has {names.Count}.");
         }
 
-        return new WhoSpoke(whoSpoke.Count, names);
+        var marks = new List<SpokeMark>();
+        foreach (var mark in whoSpoke.Marks ?? [])
+        {
+            if (mark is null)
+            {
+                continue;
+            }
+
+            var name = names.FirstOrDefault(n => string.Equals(n, (mark.Name ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase))
+                ?? throw Invalid($"A Speaking now mark needs the name of one of the speakers listed; \"{(mark.Name ?? string.Empty).Trim()}\" is not one of them.");
+            if (mark.AtMs < 0)
+            {
+                throw Invalid("A Speaking now mark needs a time within the recording (0 or more milliseconds).");
+            }
+
+            marks.Add(new SpokeMark(name, mark.AtMs));
+        }
+
+        if (marks.Count > WhoSpoke.MaxMarks)
+        {
+            throw Invalid($"At most {WhoSpoke.MaxMarks} Speaking now marks can be kept; this list has {marks.Count}.");
+        }
+
+        return new WhoSpoke(whoSpoke.Count, names, marks);
     }
 
     private static Agenda ValidateAgenda(Agenda agenda)

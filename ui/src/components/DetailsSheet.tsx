@@ -33,6 +33,8 @@ interface DetailsSheetProps {
   speakerNames?: readonly string[];
   /** Registers "add participants from speakers" with Undo (Review). */
   onUndoable?: (entry: UndoEntry) => void;
+  /** 2.6.0, the Record screen while recording: the recording timer's time now, for Who spoke's Speaking now. */
+  speakingNow?: (() => number) | undefined;
 }
 
 export function typeOptions(current: RecordingType): { value: string; label: string }[] {
@@ -142,7 +144,7 @@ export function TagEditor({
 // The sheet
 // ---------------------------------------------------------------------------------------------
 
-export function DetailsSheet({ saver, onClose, agendaMode = null, speakerNames, onUndoable }: DetailsSheetProps): JSX.Element {
+export function DetailsSheet({ saver, onClose, agendaMode = null, speakerNames, onUndoable, speakingNow }: DetailsSheetProps): JSX.Element {
   const details = saver.details.value;
   const { store } = useServices();
   const expected = store.settings.value?.speakers.expectedSpeakers ?? 'auto';
@@ -284,6 +286,7 @@ export function DetailsSheet({ saver, onClose, agendaMode = null, speakerNames, 
               value={details.whoSpoke}
               participants={details.participants}
               settingsDefault={settingsDefault}
+              speakingNow={speakingNow}
               onChange={(whoSpoke) => {
                 update({ whoSpoke });
               }}

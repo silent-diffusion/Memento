@@ -258,7 +258,25 @@ public sealed class ProjectStoreTests : IDisposable
         Assert.Empty(loaded.Details.WhoSpoke.Names);
         var written = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         Assert.Equal(ProjectManifest.CurrentSchemaVersion, written["schemaVersion"]!.GetValue<int>());
-        Assert.Equal("""{"count":null,"names":[]}""", written["details"]!["whoSpoke"]!.ToJsonString());
+        Assert.Equal("""{"count":null,"names":[],"marks":[]}""", written["details"]!["whoSpoke"]!.ToJsonString());
+    }
+
+    /// <summary>2.6.0 adds Speaking now marks without a schema step: a current-version file from before reads as having none.</summary>
+    [Fact]
+    public async Task AManifestFromBeforeSpeakingNowReadsWithoutMarksAndKeepsItsVersion()
+    {
+        var created = await CreateAsync();
+        var path = Path.Combine(Store.GetProjectFolder(created.Id), "project.json");
+        var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        node["details"]!["whoSpoke"] = new JsonObject { ["count"] = 3, ["names"] = new JsonArray("Ana", "Ben") };
+        await File.WriteAllTextAsync(path, node.ToJsonString());
+
+        var loaded = await Store.LoadAsync(created.Id, CancellationToken.None);
+
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, loaded.SchemaVersion);
+        Assert.Equal(3, loaded.Details.WhoSpoke.Count);
+        Assert.Equal(["Ana", "Ben"], loaded.Details.WhoSpoke.Names);
+        Assert.Empty(loaded.Details.WhoSpoke.Marks);
     }
 
     [Theory]

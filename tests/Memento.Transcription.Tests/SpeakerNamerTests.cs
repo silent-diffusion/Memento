@@ -31,6 +31,36 @@ public sealed class SpeakerNamerTests
     }
 
     [Fact]
+    public void ASpeakingNowMarkNamesItsPersonBeforeTheOrderOfFirstAppearance()
+    {
+        var (speakers, segments) = NewPass();
+        var marked = new Dictionary<string, string>(StringComparer.Ordinal) { ["spk2"] = "Avery Stone" };
+
+        var result = SpeakerNamer.Name(speakers, segments, null, null, ["Avery Stone", "Rowan Hale"], null, marked);
+
+        // Avery was pressed while spk2 talked; Rowan goes to the first speaker left, by order of appearance.
+        Assert.Equal(["Rowan Hale", "Avery Stone", "Speaker 3"], result.Speakers.Select(s => s.Name));
+        Assert.Equal([true, true, false], result.Speakers.Select(s => s.Renamed));
+        Assert.Equal((0, 1, 1), (result.Carried, result.Known, result.Marked));
+    }
+
+    [Fact]
+    public void ANameKeptFromBeforeBeatsASpeakingNowMarkAndTheMarksNameIsNeverGivenTwice()
+    {
+        var (speakers, segments) = NewPass();
+        Speaker[] before = [new("spk7", "Sam Okafor", true, 3, 0)];
+        TranscriptSegment[] old = [Line("s2", 10, 20, "spk7")];
+        var marked = new Dictionary<string, string>(StringComparer.Ordinal) { ["spk2"] = "Avery Stone", ["spk3"] = "Sam Okafor" };
+
+        var result = SpeakerNamer.Name(speakers, segments, before, old, ["Avery Stone"], null, marked);
+
+        // spk2 keeps Sam (carried over); the mark on spk3 asks for Sam too, which is taken, so spk3 stays unnamed;
+        // Avery's mark lost its person to Sam, so Avery goes by order of appearance to spk1.
+        Assert.Equal(["Avery Stone", "Sam Okafor", "Speaker 3"], result.Speakers.Select(s => s.Name));
+        Assert.Equal((1, 1, 0), (result.Carried, result.Known, result.Marked));
+    }
+
+    [Fact]
     public void ANameGivenBeforeGoesToTheSpeakerThatTookItsLines()
     {
         var (speakers, segments) = NewPass();

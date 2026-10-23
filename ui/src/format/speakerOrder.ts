@@ -2,7 +2,7 @@
 // the merge menu, participant pickers): people the user named come first, then the unnamed
 // "Speaker n" ones; within each group, in order of first appearance in the transcript (speakers
 // with no line keep their place at the end of their group).
-import type { Speaker, TranscriptSegment, WhoSpoke } from '../bridge/types';
+import type { Speaker, SpokeMark, TranscriptSegment, WhoSpoke } from '../bridge/types';
 
 /** At most this many people in Who spoke (count and names), as the host allows. */
 export const WHO_SPOKE_MAX = 20;
@@ -55,7 +55,13 @@ export function participantsFromSpeakers(participants: readonly string[], names:
 /** Who spoke with the participants as its names ("Use participants"): replaces the names, deduplicated, at most 20. */
 export function whoSpokeFromParticipants(whoSpoke: WhoSpoke, participants: readonly string[]): WhoSpoke {
   const names = participantsFromSpeakers([], participants).slice(0, WHO_SPOKE_MAX);
-  return { count: whoSpoke.count, names };
+  return { count: whoSpoke.count, names, marks: marksFor(whoSpoke.marks, names) };
+}
+
+/** The Speaking now marks that still name one of `names` (a name taken off the list takes its marks with it). */
+export function marksFor(marks: readonly SpokeMark[], names: readonly string[]): SpokeMark[] {
+  const kept = new Set(names.map((n) => n.trim().toLocaleLowerCase()));
+  return marks.filter((m) => kept.has(m.name.trim().toLocaleLowerCase()));
 }
 
 /** The count speakers are identified with: the count, else the number of names, else null (Settings decide). */

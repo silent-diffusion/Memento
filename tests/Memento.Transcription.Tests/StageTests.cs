@@ -554,6 +554,32 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task ASpeakingNowMarkNamesTheVoiceHeardThenAheadOfTheOrderOfFirstAppearance()
+    {
+        InstallAll();
+        SpeechOnBothTracks();
+        _host.Workers.Script = TwoTrackDiarizer((_, _) => Task.FromResult(true));
+        var id = await RecordAndProcessAsync();
+
+        // Avery was marked at 1.5 s, inside the second voice's turn (1.1–2 s): Avery names that person, not the first one.
+        var marks = new[] { new { name = "Avery Stone", atMs = 1_500L } };
+        await _host.ResultAsync("project.updateDetails", JsonSerializer.Serialize(new { recordingId = id, details = new { whoSpoke = new { count = 2, names = TwoNames, marks } } }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(["Rowan Hale", "Avery Stone"], transcript.Speakers.Select(s => s.Name));
+        Assert.All(transcript.Speakers, s => Assert.True(s.Renamed));
+        var later = transcript.Segments.OrderBy(s => s.Start).Last();
+        Assert.Equal("Avery Stone", transcript.Speakers.Single(s => s.Id == later.Speaker).Name);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var started = history.Where(h => h.Stage == "speakers" && h.Event == "started").Last();
+        Assert.Contains("2 names given · 1 Speaking now mark", started.Detail, StringComparison.Ordinal);
+        var found = history.Where(h => h.Stage == "speakers" && h.Event == "completed").Last();
+        Assert.Contains("1 name from Speaking now and 1 name from Who spoke", found.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NamesGivenInTheTranscriptCarryOverAndTheCorrectionsAreKeptAsAVersion()
     {
         InstallAll();

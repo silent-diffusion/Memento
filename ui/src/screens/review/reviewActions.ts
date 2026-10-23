@@ -271,7 +271,7 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
     },
 
     async setWhoSpoke(whoSpoke) {
-      const before = deps().project?.details.whoSpoke ?? { count: null, names: [] };
+      const before = deps().project?.details.whoSpoke ?? { count: null, names: [], marks: [] };
       await updateDetails({ whoSpoke });
       deps().undo.push(
         {
