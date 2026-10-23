@@ -35,6 +35,8 @@ export interface LineActions {
   merge: (from: Speaker, into: Speaker) => Promise<void>;
   /** 2.6.0: the two speakers trade their lines from the line on (null: everywhere). */
   swap: (speaker: Speaker, other: Speaker, from: TranscriptSegment | null) => Promise<void>;
+  /** 2.6.0: the line joined with the next line of its track (one Undo step). */
+  join?: (line: TranscriptSegment) => Promise<void>;
   highlight: (lines: readonly TranscriptSegment[]) => Promise<number>;
   removeHighlights: (highlights: readonly Highlight[]) => Promise<number>;
   chapterAt: (line: TranscriptSegment) => Promise<void>;
@@ -151,6 +153,8 @@ function menuItems(
     play: () => void;
     select: () => void;
     assign: () => void;
+    /** 2.6.0: present when the line can be joined with the next line of its track. */
+    join?: (() => void) | undefined;
     highlight: () => void;
     unhighlight: () => void;
     chapter: () => void;
@@ -169,6 +173,9 @@ function menuItems(
   }
   items.push('divider');
   items.push({ id: 'assign', label: many ? `Assign speaker to ${target.lines.length} lines…` : 'Assign speaker…', run: run.assign });
+  if (!many && run.join !== undefined) {
+    items.push({ id: 'join', label: 'Join with the next line', run: run.join });
+  }
   if (unmarked > 0) {
     items.push({ id: 'highlight', label: many ? `Highlight ${unmarked} ${unmarked === 1 ? 'line' : 'lines'}` : 'Highlight', run: run.highlight });
   }
@@ -378,6 +385,16 @@ export function useLineSelection({
         actions?.play(first);
       }
     },
+    // 2.6.0: the line joined with the next line of its track.
+    join: () => {
+      const first = lines[0];
+      const join = actions?.join;
+      if (actions !== undefined && join !== undefined && first !== undefined) {
+        act('The lines were not joined', () => join(first).then(() => {
+          actions.announce(`Joined the line at ${formatDuration(first.start * 1000)} with the next`);
+        }));
+      }
+    },
     select: () => {
       const first = lines[0];
       if (first !== undefined) {
@@ -536,10 +553,16 @@ export function useLineSelection({
             setMenuTarget(null);
             fn();
           };
+          // 2.6.0: one line can be joined with the next line shown of its track (the host refuses any other).
+          const first = menuTarget.lines[0];
+          const index = first === undefined ? -1 : allSegments.findIndex((s) => s.id === first.id);
+          const next = index < 0 ? undefined : allSegments[index + 1];
+          const joinable = menuTarget.lines.length === 1 && first !== undefined && next?.track === first.track && actions.join !== undefined;
           return {
             play: close(r.play),
             select: close(r.select),
             assign: close(r.assign),
+            join: joinable ? close(r.join) : undefined,
             highlight: close(r.highlight),
             unhighlight: close(r.unhighlight),
             chapter: close(r.chapter),

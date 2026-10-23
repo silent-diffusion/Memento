@@ -39,6 +39,13 @@ export interface ReviewActions {
    * a new speaker (one Undo step: the merge back). Rejects with the host's reason when the speaker cannot be split.
    */
   splitSpeaker(speaker: Speaker): Promise<void>;
+  /**
+   * 2.6.0: the line cut in two at `at` (a character offset into its text, moved to the nearest word); resolves to the
+   * second part, so its speaker can be picked next. One Undo step: the join of the two parts.
+   */
+  splitLine(segment: TranscriptSegment, at: number): Promise<TranscriptSegment>;
+  /** 2.6.0: the line joined with the next line of its track; resolves to the joined line. One Undo step: the cut at the join. */
+  joinLines(segment: TranscriptSegment): Promise<TranscriptSegment>;
   /** Merges the most alike speakers until `count` are left (one Undo step); resolves to how many were merged and who is left. */
   reduceSpeakers(count: number): Promise<{ merged: number; left: Speaker[] }>;
   /** The recording's own speaker count and names (Who spoke). */
@@ -235,6 +242,44 @@ export function createReviewActions(get: () => ReviewActionDeps): ReviewActions 
         undo: () => deps().api.mergeSpeakers(deps().undo.resolveId(created.id), speaker.id).then(() => undefined),
         redo: () => recreate(created.id, async () => (await deps().api.splitSpeaker(speaker.id)).created.id),
       });
+    },
+
+    async splitLine(segment, at) {
+      const { api, undo } = deps();
+      const parts = await api.splitLine(segment.id, at);
+      const first = parts[0];
+      const second = parts[1];
+      if (first === undefined || second === undefined) {
+        throw new Error('Memento did not answer with the two parts of the line.');
+      }
+      // Undo joins the parts again (the first keeps the id); Redo cuts again and points the old second id at the new one.
+      undo.push({
+        label: 'split line',
+        undo: async () => {
+          const { highlights } = await deps().api.joinLines(first.id);
+          deps().patch({ highlights });
+        },
+        redo: () => recreate(second.id, async () => (await deps().api.splitLine(first.id, at))[1]?.id ?? ''),
+      });
+      return second;
+    },
+
+    async joinLines(segment) {
+      const { api, undo, patch } = deps();
+      const answer = await api.joinLines(segment.id);
+      patch({ highlights: answer.highlights });
+      // The joined text is this line's words, a space, then the next line's: the cut for Undo falls right after them.
+      const at = segment.text.trim().length + 1;
+      const removed = answer.removedId;
+      undo.push({
+        label: 'join lines',
+        undo: () => recreate(removed, async () => (await deps().api.splitLine(segment.id, at))[1]?.id ?? ''),
+        redo: async () => {
+          const again = await deps().api.joinLines(segment.id);
+          deps().patch({ highlights: again.highlights });
+        },
+      });
+      return answer.segment;
     },
 
     async swapSpeakers(speaker, other, from) {

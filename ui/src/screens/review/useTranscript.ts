@@ -12,6 +12,7 @@ import type {
   StageName,
   StageStatus,
   TranscriptGetResult,
+  TranscriptJoinSegmentsResult,
   TranscriptSearchMatch,
   TranscriptSegment,
   TranscriptSetSegmentSpeakerResult,
@@ -48,6 +49,10 @@ export interface TranscriptApi {
   sameVoice: (segmentId: string) => Promise<string[]>;
   /** 2.6.0: the speaker's raw voices grouped into two by sound; the smaller half's lines move to a new speaker (the answer). */
   splitSpeaker: (speakerId: string) => Promise<TranscriptSplitSpeakerResult>;
+  /** 2.6.0: the line cut in two at a character offset of its text; resolves to the two parts (the first keeps the id). */
+  splitLine: (segmentId: string, at: number) => Promise<TranscriptSegment[]>;
+  /** 2.6.0: the line joined with the next line of its track; resolves to the host's answer (the id gone, the highlights as they are now). */
+  joinLines: (segmentId: string) => Promise<TranscriptJoinSegmentsResult>;
   markReviewed: (reviewed: boolean) => Promise<string | null>;
   retry: (stage: StageName, remedyId?: string) => Promise<string | null>;
   transcribe: (modelId?: string, language?: string) => Promise<string | null>;
@@ -237,6 +242,29 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
       const moved = new Set(answer.segmentIds);
       apply((r) => withSpeakers(r, answer.speakers, (s) => (moved.has(s.id) ? { ...s, speaker: answer.created.id } : s)));
       setReload((n) => n + 1);
+      return answer;
+    },
+    splitLine: async (segmentId, at) => {
+      const { segments, speakers } = await bridge.call('transcript.splitSegment', { recordingId, segmentId, at });
+      apply((r) =>
+        r.transcript === null ? r : { ...r, transcript: { ...r.transcript, speakers, segments: r.transcript.segments.flatMap((s) => (s.id === segmentId ? segments : [s])) } },
+      );
+      return segments;
+    },
+    joinLines: async (segmentId) => {
+      const answer = await bridge.call('transcript.joinSegments', { recordingId, segmentId });
+      apply((r) =>
+        r.transcript === null
+          ? r
+          : {
+              ...r,
+              transcript: {
+                ...r.transcript,
+                speakers: answer.speakers,
+                segments: r.transcript.segments.filter((s) => s.id !== answer.removedId).map((s) => (s.id === answer.segment.id ? answer.segment : s)),
+              },
+            },
+      );
       return answer;
     },
     markReviewed: (reviewed) =>

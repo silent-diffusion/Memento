@@ -143,6 +143,7 @@ export function useReview20Wiring({
     addSpeaker: (lines, name) => actions20.addSpeakerToLines(lines, name),
     merge: (from, into) => actions.mergeSpeakers(from, into),
     swap: (speaker, other, from) => actions.swapSpeakers(speaker, other, from),
+    join: (line) => actions.joinLines(line).then(() => undefined),
     highlight: (lines) => actions20.highlightLines(lines),
     removeHighlights: (highlights) => actions20.removeLineHighlights(highlights),
     chapterAt: (line) => actions20.chapterAtLine(line),

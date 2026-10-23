@@ -30,6 +30,11 @@ export interface SegmentHandlers {
   draft: (text: string) => void;
   save: () => void;
   cancel: () => void;
+  /**
+   * 2.6.0: Ctrl+Enter while editing: the draft is saved if it changed, then the line is cut at the caret (a character
+   * offset into the draft) and the second part's speaker menu opens, so the next keystroke picks who said it.
+   */
+  splitAt?: (caret: number) => void;
   /** Move the line to another speaker ("Just this line"). */
   assign: (segment: TranscriptSegment, speaker: Speaker) => void;
   /** Create a speaker with this name and move the line to them. */
@@ -97,6 +102,8 @@ interface SegmentProps {
    * menu asked gets it, so the other rows do not redraw); null before that or for the other rows.
    */
   sameVoice?: readonly string[] | null;
+  /** 2.6.0: a value above 0 opens the line's speaker menu by itself (the second part of a line just cut). */
+  openMenu?: number;
 }
 
 const AUTHORS: Record<Highlight['origin'], string> = { user: 'You', local: 'Suggested', ai: 'AI' };
@@ -154,6 +161,7 @@ function SegmentEditor({
   onDraft,
   onSave,
   onCancel,
+  onSplit,
 }: {
   value: string;
   caret: number | null;
@@ -161,6 +169,8 @@ function SegmentEditor({
   onDraft: (text: string) => void;
   onSave: () => void;
   onCancel: () => void;
+  /** 2.6.0: Ctrl+Enter cuts the line at the caret (after saving the draft). */
+  onSplit?: ((caret: number) => void) | undefined;
 }): JSX.Element {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   useLayoutEffect(() => {
@@ -182,7 +192,8 @@ function SegmentEditor({
     <textarea
       ref={ref}
       class="field segm-editor"
-      aria-label="Edit this line. Enter saves, Esc cancels."
+      aria-label={onSplit === undefined ? 'Edit this line. Enter saves, Esc cancels.' : 'Edit this line. Enter saves, Ctrl+Enter splits the line at the caret, Esc cancels.'}
+      title={onSplit === undefined ? undefined : 'Enter saves · Ctrl+Enter splits the line at the caret · Esc cancels'}
       value={value}
       rows={1}
       disabled={saving}
@@ -200,7 +211,10 @@ function SegmentEditor({
         if (undoKeyOf(event) === null) {
           event.stopPropagation();
         }
-        if (event.key === 'Enter' && !event.shiftKey) {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && onSplit !== undefined) {
+          event.preventDefault();
+          onSplit(event.currentTarget.selectionStart);
+        } else if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           onSave();
         } else if (event.key === 'Escape') {
@@ -287,6 +301,7 @@ function SpeakerMenu({
   onOpen,
   onAdd,
   onRename,
+  autoOpen,
 }: {
   segment: TranscriptSegment;
   speaker: Speaker | null;
@@ -300,6 +315,8 @@ function SpeakerMenu({
   onOpen: (() => void) | undefined;
   onAdd: (name: string) => void;
   onRename: (name: string) => void;
+  /** 2.6.0: a new value above 0 opens the menu by itself (the second part of a line just cut asks who said it). */
+  autoOpen: number;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -315,6 +332,12 @@ function SpeakerMenu({
       openRef.current?.();
     }
   }, [open]);
+  useEffect(() => {
+    if (autoOpen > 0) {
+      setRenaming(false);
+      setOpen(true);
+    }
+  }, [autoOpen]);
 
   // The rename form: its field takes focus, and a click elsewhere closes it.
   useEffect(() => {
@@ -507,6 +530,7 @@ function SegmentRow({
   selected = null,
   previewed = false,
   sameVoice = null,
+  openMenu = 0,
 }: SegmentProps): JSX.Element {
   const lastEnter = useRef(0);
   const selecting = selected !== null;
@@ -678,6 +702,7 @@ function SegmentRow({
             pickChoices={pickChoices}
             onPreview={handlers.preview}
             onOpen={handlers.prepare === undefined ? undefined : () => handlers.prepare?.(segment)}
+            autoOpen={openMenu}
             onAdd={(name) => {
               handlers.addSpeaker(segment, name);
             }}
@@ -708,7 +733,7 @@ function SegmentRow({
             onSelect={selectClick}
           />
         ) : (
-          <SegmentEditor value={editing} caret={caret} saving={saving} onDraft={handlers.draft} onSave={handlers.save} onCancel={handlers.cancel} />
+          <SegmentEditor value={editing} caret={caret} saving={saving} onDraft={handlers.draft} onSave={handlers.save} onCancel={handlers.cancel} onSplit={handlers.splitAt} />
         )}
         {highlights.map((h) => (
           <SegmentNote

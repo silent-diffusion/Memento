@@ -23,6 +23,10 @@ import type {
   StageStatus,
   Transcript,
   TranscriptEditSegmentParams,
+  TranscriptJoinSegmentsParams,
+  TranscriptJoinSegmentsResult,
+  TranscriptSplitSegmentParams,
+  TranscriptSplitSegmentResult,
   TranscriptGetResult,
   TranscriptMergeSpeakersParams,
   TranscriptRemoveSpeakerParams,
@@ -104,6 +108,10 @@ export interface MockTranscription {
   /** Builds a sample recording's transcript (and its history and highlight links) if not yet done. */
   prepare(recordingId: string): void;
   editSegment(params: TranscriptEditSegmentParams): { segment: TranscriptSegment; version: number };
+  /** 2.6.0: one line cut in two at the word nearest a character offset (the host's rules). */
+  splitSegment(params: TranscriptSplitSegmentParams): TranscriptSplitSegmentResult;
+  /** 2.6.0: a line joined with the next line of its track; a highlight on the gone line moves to the joined one. */
+  joinSegments(params: TranscriptJoinSegmentsParams): TranscriptJoinSegmentsResult;
   setSegmentSpeaker(params: TranscriptSetSegmentSpeakerParams): { segment: TranscriptSegment; speakers: Speaker[] };
   renameSpeaker(params: TranscriptRenameSpeakerParams): { speakers: Speaker[] };
   mergeSpeakers(params: TranscriptMergeSpeakersParams): { speakers: Speaker[]; segmentsChanged: number };
@@ -764,6 +772,106 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       recordEdit(p, entry);
       notify(recordingId, transcript, 'edited');
       return { segment: clone(changed), version };
+    },
+
+    // 2.6.0: the host's SegmentSplitter — the cut snaps to the nearest word start, both parts keep a word, the first
+    // keeps the id, the words (when they still describe the text) set the times at the cut.
+    splitSegment: ({ recordingId, segmentId, at: offset }) => {
+      const p = project(recordingId);
+      const { entry, transcript } = transcriptOf(recordingId);
+      const segment = segmentOf(transcript, segmentId);
+      const text = segment.text;
+      if (offset <= 0 || offset >= text.length) {
+        throw invalid("Choose a place inside the line's words.");
+      }
+      const tokens: { start: number; end: number }[] = [];
+      const word = /\S+/g;
+      for (let m = word.exec(text); m !== null; m = word.exec(text)) {
+        tokens.push({ start: m.index, end: m.index + m[0].length });
+      }
+      if (tokens.length < 2) {
+        throw invalid('Both parts of a split line need at least one word.');
+      }
+      let cut = 1;
+      for (let k = 2; k < tokens.length; k++) {
+        if (Math.abs((tokens[k]?.start ?? 0) - offset) < Math.abs((tokens[cut]?.start ?? 0) - offset)) {
+          cut = k;
+        }
+      }
+      const cutStart = tokens[cut]?.start ?? 0;
+      const usable = segment.words.length === tokens.length && segment.words.every((w, k) => w.w === text.slice(tokens[k]?.start ?? 0, tokens[k]?.end ?? 0));
+      const firstWords = usable ? segment.words.slice(0, cut) : [];
+      const secondWords = usable ? segment.words.slice(cut) : [];
+      const boundary = Math.round((segment.start + ((segment.end - segment.start) * cutStart) / text.length) * 1000) / 1000;
+      const firstEnd = usable ? Math.min(Math.max(firstWords[firstWords.length - 1]?.e ?? boundary, segment.start), segment.end) : boundary;
+      const secondStart = usable ? Math.min(Math.max(secondWords[0]?.s ?? boundary, firstEnd), segment.end) : boundary;
+      const taken = new Set(transcript.segments.map((s) => s.id));
+      let n = 2;
+      while (taken.has(`${segment.id}-${n}`)) {
+        n += 1;
+      }
+      const first: TranscriptSegment = {
+        ...segment,
+        end: firstEnd,
+        text: text.slice(0, cutStart).trimEnd(),
+        confidence: firstWords.length === 0 ? segment.confidence : Math.min(...firstWords.map((w) => w.c)),
+        words: firstWords,
+      };
+      const second: TranscriptSegment = {
+        ...segment,
+        id: `${segment.id}-${n}`,
+        start: secondStart,
+        text: text.slice(cutStart).trimStart(),
+        confidence: secondWords.length === 0 ? segment.confidence : Math.min(...secondWords.map((w) => w.c)),
+        words: secondWords,
+      };
+      if (entry.origin !== 'edited') {
+        keepVersion(entry, transcript);
+        entry.origin = 'edited';
+      }
+      transcript.segments = transcript.segments.flatMap((s) => (s.id === segment.id ? [first, second] : [s]));
+      recountTalk(transcript);
+      bump(transcript);
+      recordEdit(p, entry);
+      notify(recordingId, transcript, 'edited');
+      return { segments: [clone(first), clone(second)], speakers: clone(transcript.speakers) };
+    },
+
+    // 2.6.0: the host's SegmentJoiner — the next line of the track joins this one, which keeps its id and speaker.
+    joinSegments: ({ recordingId, segmentId }) => {
+      const p = project(recordingId);
+      const { entry, transcript } = transcriptOf(recordingId);
+      const first = segmentOf(transcript, segmentId);
+      const index = transcript.segments.findIndex((s) => s.id === first.id);
+      const second = transcript.segments[index + 1];
+      if (second === undefined) {
+        throw new MockHostError('transcript.cannotJoin', 'There is no line after this one. Nothing was changed.', segmentId);
+      }
+      if (second.track !== first.track) {
+        throw new MockHostError('transcript.cannotJoin', 'The next line is on another track, so the two cannot be joined. Nothing was changed.', segmentId);
+      }
+      const a = first.edited?.original ?? first.text;
+      const b = second.edited?.original ?? second.text;
+      const joined: TranscriptSegment = {
+        ...first,
+        start: Math.min(first.start, second.start),
+        end: Math.max(first.end, second.end),
+        text: `${first.text.trim()} ${second.text.trim()}`.trim(),
+        confidence: Math.min(first.confidence, second.confidence),
+        words: first.words.length > 0 && second.words.length > 0 ? [...first.words, ...second.words] : [],
+        edited: first.edited === null && second.edited === null ? null : { at: at(), original: first.edited !== null && second.edited !== null && a === b ? a : `${a} ${b}` },
+      };
+      if (entry.origin !== 'edited') {
+        keepVersion(entry, transcript);
+        entry.origin = 'edited';
+      }
+      transcript.segments = transcript.segments.filter((s) => s.id !== second.id).map((s) => (s.id === first.id ? joined : s));
+      recountTalk(transcript);
+      p.highlights = p.highlights.map((h) => (h.segmentId === second.id ? { ...h, segmentId: first.id } : h));
+      bump(transcript);
+      recordEdit(p, entry);
+      notify(recordingId, transcript, 'edited');
+      return { segment: clone(joined), speakers: clone(transcript.speakers), removedId: second.id, highlights: clone(p.highlights) };
     },
 
     setSegmentSpeaker: ({ recordingId, segmentId, speakerId, newSpeakerName }) => {
