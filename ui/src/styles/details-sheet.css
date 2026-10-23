@@ -471,6 +471,53 @@ button.btn.add-pill {
   color: var(--text-3);
 }
 
+/* Speaking now (2.6.0): one row per name with its mark count, and while recording the row-size ghost
+   Speaking now and a clear × once there are marks; outside a recording only names with marks are
+   listed, read-only. The row's own classes lay the buttons out and never restyle the recipes. */
+.who-spoke-marks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.who-spoke-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 28px;
+}
+
+.who-spoke-mark-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.who-spoke-mark-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.who-spoke-mark-btn {
+  flex: none;
+}
+
+.who-spoke-mark-clear {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
 .sheet-from-speakers {
   flex: none;
 }

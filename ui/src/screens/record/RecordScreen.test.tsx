@@ -450,6 +450,55 @@ describe('Recording session (against the browser-preview host)', () => {
     expect(details.participants).toEqual(['Avery Stone', 'Rowan Hale']);
   });
 
+  it('while recording, Speaking now beside a name stamps the timer and saves the mark with the details (2.6.0)', async () => {
+    await setUp();
+    store.route.value = { name: 'record', sessionId: null };
+    await mount();
+    await until(() => container.querySelectorAll('.rec-video-src').length === 3);
+    await act(async () => {
+      button('Start recording').click();
+      await Promise.resolve();
+    });
+    await until(() => store.recording.value?.state === 'recording');
+    const recordingId = store.recording.value?.recordingId ?? '';
+    await settle(100);
+
+    await act(async () => {
+      button('Details and agenda').click();
+      await Promise.resolve();
+    });
+    const sheet = document.querySelector<HTMLElement>('.sheet');
+    expect(sheet?.querySelector('.who-spoke-marks')).toBeNull();
+    const names = document.querySelector<HTMLInputElement>('#sheet-who-spoke-name');
+    await act(async () => {
+      if (names !== null) {
+        names.value = 'Avery Stone,';
+        names.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      await Promise.resolve();
+    });
+    expect(sheet?.querySelector('.who-spoke-mark-name')?.textContent).toBe('Avery Stone');
+    await act(async () => {
+      button('Mark Avery Stone speaking now').click();
+      await Promise.resolve();
+    });
+    expect(sheet?.querySelector('.who-spoke-mark-count')?.textContent).toBe('1 mark');
+    await settle(700);
+    const marked = (await bridge.call('project.get', { recordingId })).details.whoSpoke;
+    expect(marked.names).toEqual(['Avery Stone']);
+    expect(marked.marks).toHaveLength(1);
+    expect(marked.marks[0]?.name).toBe('Avery Stone');
+    expect(marked.marks[0]?.atMs).toBeGreaterThanOrEqual(0);
+
+    await act(async () => {
+      button("Clear Avery Stone's marks").click();
+      await Promise.resolve();
+    });
+    expect(sheet?.querySelector('.who-spoke-mark-count')?.textContent).toBe('');
+    await settle(700);
+    expect((await bridge.call('project.get', { recordingId })).details.whoSpoke.marks).toEqual([]);
+  });
+
   it('says live transcription is off when Timing is After recording', async () => {
     await setUp();
     store.route.value = { name: 'record', sessionId: null };

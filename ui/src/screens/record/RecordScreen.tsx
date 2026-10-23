@@ -927,6 +927,8 @@ export function RecordScreen(): JSX.Element {
       {sheetOpen ? (
         <DetailsSheet
           saver={saver}
+          // 2.6.0: Speaking now stamps the timer's time while this screen's recording runs (not while paused).
+          speakingNow={own?.state === 'recording' ? () => clock.read(performance.now()) : undefined}
           onClose={() => {
             setSheetOpen(false);
           }}

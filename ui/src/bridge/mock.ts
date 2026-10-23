@@ -822,7 +822,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           throw invalid(`At most 20 speakers can be named; this list has ${names.length}.`);
         }
         const marks: SpokeMark[] = [];
-        for (const mark of whoSpoke.marks ?? []) {
+        for (const mark of whoSpoke.marks) {
           const name = names.find((n) => n.toLocaleLowerCase() === mark.name.trim().toLocaleLowerCase());
           if (name === undefined) {
             throw invalid(`A Speaking now mark needs the name of one of the speakers listed; "${mark.name.trim()}" is not one of them.`);

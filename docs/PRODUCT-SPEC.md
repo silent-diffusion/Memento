@@ -373,6 +373,8 @@ A transcript line that holds two people's words should be cut where the voice ch
 
 Corrections should guide the next pass (2.6.0): a line the user placed on a speaker keeps that speaker when speakers are identified again, and the voice heard under it is pinned to that person, so voices the user put on different people are never grouped together and one corrected line per voice fixes every line of that voice.
 
+While recording, the user should be able to mark that a named person is speaking now (2.6.0): the speakers stage names the voice heard at those moments after that person, ahead of naming the rest in the order they first speak. When a recording has no speaker count of its own, Review should ask whether the number of speakers found is right, and a different answer regroups the voices at once.
+
 Possible information:
 
 ```text
