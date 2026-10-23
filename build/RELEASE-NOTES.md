@@ -3,6 +3,17 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.5.0
+
+### Your own server
+
+- **Settings › AI and privacy › Your own server** points Memento at an OpenAI-compatible server you already run: Ollama, LM Studio, vLLM, llama.cpp's server, or anything else that answers `/v1/chat/completions`. Enter the address (`http://localhost:11434` for Ollama), press **Test connection** to see the server's name and its models, choose a model, set the context size to what the server actually runs (Ollama's default is 4096 unless `num_ctx` was raised; a transcript is split to fit a quarter of it), and add a key only if the server asks for one. The Builder offers it as a fourth provider card beside Claude, ChatGPT and the local model, and a template or the default provider can name it.
+- **A server on this PC never leaves it.** A `localhost` address works with "Allow external AI services" off, is never asked about before a send, and "How this was made" and History say "Your own server · qwen3:8b at localhost:11434 (this PC)". A server on your network or elsewhere needs "Allow external AI services" on, gets the same confirmation as the cloud services, carries the "(on your network)" or "(remote)" label, and is reached over plain http only inside your own network; a public address must be https. Settings never contacts the server by itself; only Test connection and a generation you start do.
+- **It speaks what the servers speak.** Requests stream, ask for a JSON schema when the server supports one, and fall back to plain JSON with the schema in the prompt when a server refuses schemas (vLLM and llama.cpp do), remembering that for the session. Answers wrapped in `<think>` blocks or code fences are unwrapped. Requests go one at a time, since most servers run a single slot.
+- **Errors name the server and the fix.** "Nothing is listening at http://localhost:11434. Nothing was sent and no document was changed. Start Ollama or LM Studio, or check the address in Settings › AI and privacy." Likewise for a server that is not OpenAI-compatible, one that asks for a key, a model it does not offer (with Choose a model leading to Settings), a context the text does not fit (with the token counts), and a redirect, which Memento refuses as it does for the cloud services.
+- **Tested against fakes only.** Three fake servers shaped like Ollama, LM Studio and vLLM/llama.cpp cover the model list, the schema fallback, usage chunks, `[DONE]`, keys, unknown models, redirects, oversized answers and context overflows; the whole-session network test proves an unconfigured server is never built or contacted, and a configured loopback server receives exactly one request per pass and nothing else. The m14 end-to-end check drives the published app against a fake server with a private data root. No real server or service was contacted.
+
+
 ## 2.4.0
 
 A hardening release: the rest of the 2026-10-22 usability review's recommendations, and the quick items from security audit 2's follow-up list. No new screens.

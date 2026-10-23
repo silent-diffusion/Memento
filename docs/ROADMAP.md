@@ -169,10 +169,14 @@ Volume normalization and the quiet microphone (2.1.0, 2.1.1 and 2.1.2 for the se
 
 The review's remaining recommendations (R1 ask before Back drops template changes, R5 one ghost recipe in three sizes, R6 the contrast tokens) and the quick items from audit 2's §9: NuGet lockfiles with locked restores, GitHub Actions and the SDK pinned, catalog downloads pinned to commits, a default and a load-time repair for every file and bridge schema collection, and the worker's native import scan. What was closed and what remains is in the two audit documents' follow-up sections. Still for audit 3: the library host narrowing (SA-02, SA2-11, SA2-10), Media Foundation in the worker (SA-59, SA2-53), the netwatch re-run and the `ocr` child-process restriction (SA2-23, SA2-22), Tesseract ≥ 5.5.3 when a build exists (SA2-24).
 
+## 2.5.0 — Your own server — Done
+
+An OpenAI-compatible server provider (Ollama, LM Studio, vLLM, llama.cpp) behind `IAiProvider`: Settings › AI and privacy › Your own server (address, Test connection, model, context size, optional key), the Builder's fourth card, consent keyed on whether the address leaves the PC (a loopback server works with external AI off and is never asked about; a network or remote one needs the switch, the confirmation and https outside your network), the JSON-schema fallback for servers without it, and fake Ollama-, LM Studio- and vLLM-shaped servers in the tests plus the m14 end-to-end check. Azure OpenAI and Mistral stay candidates.
+
 ## 2.x — candidates
 
 - The Library's selection mode and context menu (DESIGN.md §19), and small-window layouts below 1024 px (§20).
-- Additional AI providers behind `IAiProvider` (a local OpenAI-compatible server such as Ollama or LM Studio, Azure OpenAI, Mistral).
+- Additional AI providers behind `IAiProvider` (Azure OpenAI, Mistral; the OpenAI-compatible server shipped in 2.5.0).
 - Calendar integration for prefilled titles and participants.
 - A camera check on a PC with a camera, and the screen-capture privacy page's exact name on a PC where it is turned off.
 - Agenda-item and reviewed-line transcript filters (no agenda times yet; only a whole-transcript reviewed flag).
