@@ -371,6 +371,8 @@ The system should attempt to associate transcript segments with speakers.
 
 A transcript line that holds two people's words should be cut where the voice changes before speakers are assigned, so each part can carry its own speaker (2.6.0; a setting, on by default). Lines the user edited, and lines of a transcript whose speakers are identified again, are never cut: other data refers to them by id.
 
+Speech the microphone hears from the speakers is kept once (2.6.0; Settings › Transcription › Keep speech heard twice once, on by default): a microphone line that says what a system-audio line says at the same time is left out of a fresh transcript, and the system track keeps it, so an exchange is neither read twice nor given a second speaker. A short match (under four words and under a second and a half) is two people, not bleed.
+
 Corrections should guide the next pass (2.6.0): a line the user placed on a speaker keeps that speaker when speakers are identified again, and the voice heard under it is pinned to that person, so voices the user put on different people are never grouped together and one corrected line per voice fixes every line of that voice.
 
 While recording, the user should be able to mark that a named person is speaking now (2.6.0): the speakers stage names the voice heard at those moments after that person, ahead of naming the rest in the order they first speak. When a recording has no speaker count of its own, Review should ask whether the number of speakers found is right, and a different answer regroups the voices at once.
