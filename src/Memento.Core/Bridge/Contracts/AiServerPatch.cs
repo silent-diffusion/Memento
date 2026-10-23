@@ -15,6 +15,6 @@ public sealed record AiServerPatch
     /// <summary>The model the server is asked for, or <c>null</c> to clear it; omitted keeps it.</summary>
     public JsonElement Model { get; init; }
 
-    /// <summary>The server's context in tokens, 1,024 to 2,000,000; omitted keeps it.</summary>
+    /// <summary>The server's context in tokens, clamped to 2,048…1,048,576 (as the page does); omitted keeps it.</summary>
     public int? ContextTokens { get; init; }
 }

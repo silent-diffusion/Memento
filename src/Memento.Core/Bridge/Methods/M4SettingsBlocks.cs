@@ -146,7 +146,7 @@ internal static class M4SettingsBlocks
 
     /// <summary>
     /// 2.5.0, <c>ai.providers.server</c>: the address is saved normalized (<see cref="ServerAddress.Text"/>), or cleared by
-    /// <c>null</c>; the model as the server spells it, or cleared; the context within 1,024…2,000,000 tokens. A bad value
+    /// <c>null</c>; the model as the server spells it, or cleared; the context clamped to 2,048…1,048,576 tokens, as the page clamps it. A bad value
     /// names its field and nothing is written. The address is never contacted here.
     /// </summary>
     private static AiServerSettings MergeServer(AiServerSettings current, AiServerPatch? patch)
@@ -158,7 +158,6 @@ internal static class M4SettingsBlocks
 
         const string AddressField = "ai.providers.server.address";
         const string ModelField = "ai.providers.server.model";
-        const string ContextField = "ai.providers.server.contextTokens";
         var address = Choice(patch.Address, AddressField, current.Address, text => ServerAddress.Parse(text, out var problem) is null
             ? $"{AddressField}: {Shown(text)} is not a server address: {problem}. Enter it as http://localhost:11434 or https://server.example. Nothing was changed."
             : null);
@@ -170,19 +169,7 @@ internal static class M4SettingsBlocks
         var model = Choice(patch.Model, ModelField, current.Model, id => AiServerSettings.IsValidModel(id)
             ? null
             : $"{ModelField}: {Shown(id)} is not a model name. Use the name the server lists (letters, digits and . _ : / - @ +, up to {AiServerSettings.MaxModelLength} characters), or null for none. Nothing was changed.");
-        var context = current.ContextTokens;
-        if (patch.ContextTokens is { } tokens)
-        {
-            if (tokens is < AiServerSettings.MinContextTokens or > AiServerSettings.MaxContextTokens)
-            {
-                throw new BridgeException(
-                    DomainErrorCodes.SettingsInvalidValue,
-                    string.Create(CultureInfo.InvariantCulture, $"{ContextField}: {tokens:N0} tokens is outside 1,024 to 2,000,000. Enter the context the server runs the model with (Ollama runs 4,096 unless num_ctx was raised). Nothing was changed."),
-                    ContextField);
-            }
-
-            context = tokens;
-        }
+        var context = patch.ContextTokens is { } tokens ? AiServerSettings.ClampContext(tokens) : current.ContextTokens;
 
         return current with { Address = address, Model = model, ContextTokens = context };
     }

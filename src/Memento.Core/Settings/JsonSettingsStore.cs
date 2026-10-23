@@ -212,7 +212,7 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
     /// <summary>
     /// "Your own server" (2.5.0): a blank address reads as none; one that is not an absolute http(s) URL without a
     /// query, fragment or user name reads as none and is logged (by what is wrong, never by its text, which could hold a
-    /// password); an implausible model reads as none; the context is kept within 1,024…2,000,000 tokens.
+    /// password); an implausible model reads as none; the context is kept within 2,048…1,048,576 tokens.
     /// </summary>
     private AiServerSettings NormalizeServer(AiServerSettings? server)
     {

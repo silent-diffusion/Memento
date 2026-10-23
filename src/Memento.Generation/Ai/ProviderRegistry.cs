@@ -131,9 +131,9 @@ public sealed class ProviderRegistry(
     }
 
     /// <summary>
-    /// "Your own server" (2.5.0), from Settings only (no request, no lookup): no address is <c>ai.noServer</c>; an address
-    /// that leaves the PC while external AI is off is <c>ai.disabled</c>; plain http outside this PC and the local network is
-    /// <c>ai.serverInsecure</c>; no model is <c>ai.noModel</c>. A ready server names the model, the address and where the
+    /// "Your own server" (2.5.0), from Settings only (no request, no lookup), in this order: no address is
+    /// <c>ai.noServer</c>; plain http outside this PC and the local network is <c>ai.serverInsecure</c>; an address that
+    /// leaves the PC while external AI is off is <c>ai.disabled</c>; no model is <c>ai.noModel</c>. A ready server names the model, the address and where the
     /// inputs go. Whether the server answers is "Test connection"'s to say, or the generation's.
     /// </summary>
     private ProviderStatus ServerStatus()
@@ -157,15 +157,15 @@ public sealed class ProviderRegistry(
         ProviderStatus Status(bool ready, string? code, string? reason, string? detail) =>
             new(Id, ready, code, reason, detail, model, label) { ServerAddress = address, ServerContextTokens = context };
 
+        if (address.IsInsecure)
+        {
+            return Status(false, DomainErrorCodes.AiServerInsecure, "Needs https", AiErrors.ServerInsecure(name, address.Text).Message);
+        }
+
         if (address.LeavesPc && !settings.Current.Ai.Enabled)
         {
             return Status(false, Core.Bridge.DomainErrorCodes.AiDisabled, "External AI is off",
                 $"The server at {address.Text} is not on this PC, so with external AI off nothing is sent to it. Turn on \"Allow external AI services\" in Settings › AI and privacy, or use a server on this PC.");
-        }
-
-        if (address.IsInsecure)
-        {
-            return Status(false, DomainErrorCodes.AiServerInsecure, "Needs https", AiErrors.ServerInsecure(name, address.Text).Message);
         }
 
         if (model is null)

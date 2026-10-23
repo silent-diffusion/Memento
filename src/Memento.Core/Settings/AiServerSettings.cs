@@ -15,9 +15,11 @@ public sealed record AiServerSettings
     /// <summary>Ollama's own default context (unless <c>num_ctx</c> was raised), so the default errs small.</summary>
     public const int DefaultContextTokens = 8192;
 
-    public const int MinContextTokens = 1024;
+    /// <summary>The smallest context Settings takes (the page clamps to the same range).</summary>
+    public const int MinContextTokens = 2048;
 
-    public const int MaxContextTokens = 2_000_000;
+    /// <summary>The largest context Settings takes (1M tokens; the page clamps to the same range).</summary>
+    public const int MaxContextTokens = 1_048_576;
 
     /// <summary>Longest model name accepted (Hugging Face paths with a quantisation tag run long).</summary>
     public const int MaxModelLength = 200;

@@ -40,14 +40,14 @@ public sealed class AiServerProbeMethod(Lazy<AiHttpClient> http, ISecretReader s
         AiServerProbeResult Result(bool reachable, string? name, IReadOnlyList<string> models, string? code, string detail) =>
             new(reachable, name, models, code, detail, address.IsLoopback, address.LeavesPc, address.IsInsecure);
 
-        if (address.LeavesPc && !settings.Current.Ai.Enabled)
-        {
-            return Result(false, null, [], DomainErrorCodes.AiDisabled, $"The server at {address.Text} is not on this PC, and external AI is off, so Memento did not contact it. Turn on \"Allow external AI services\" in Settings › AI and privacy to test it, or use a server on this PC.");
-        }
-
         if (address.IsInsecure)
         {
             return Result(false, null, [], DomainErrorCodes.AiServerInsecure, $"{address.Text} is outside this PC and your local network, and Memento sends there only over https, so it did not contact it. Use an https:// address.");
+        }
+
+        if (address.LeavesPc && !settings.Current.Ai.Enabled)
+        {
+            return Result(false, null, [], DomainErrorCodes.AiDisabled, $"The server at {address.Text} is not on this PC, and external AI is off, so Memento did not contact it. Turn on \"Allow external AI services\" in Settings › AI and privacy to test it, or use a server on this PC.");
         }
 
         var key = secrets.HasKey(AiProviders.Server) ? await secrets.GetKeyAsync(AiProviders.Server, cancellationToken) : null;

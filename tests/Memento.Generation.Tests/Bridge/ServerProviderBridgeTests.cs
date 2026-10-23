@@ -34,6 +34,10 @@ public sealed class ServerProviderBridgeTests : IDisposable
     {
         Assert.Equal((false, DomainErrorCodes.AiNoServer, "No server address"), await StatusAsync());
 
+        // Plain http outside the local network comes before external AI being off.
+        await ServerAsync("http://203.0.113.10:8000", model: null);
+        Assert.Equal((false, DomainErrorCodes.AiServerInsecure, "Needs https"), await StatusAsync());
+
         await ServerAsync(Network, model: null);
         Assert.Equal((false, DomainErrorCodes.AiDisabled, "External AI is off"), await StatusAsync());
         Assert.Contains($"The server at {Network} is not on this PC", (await InfoAsync()).GetProperty("detail").GetString(), StringComparison.Ordinal);

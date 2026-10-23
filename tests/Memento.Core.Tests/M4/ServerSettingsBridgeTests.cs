@@ -69,8 +69,6 @@ public sealed class ServerSettingsBridgeTests : IDisposable
     [InlineData("""{"address":42}""", "ai.providers.server.address")]
     [InlineData("""{"model":"has space"}""", "ai.providers.server.model")]
     [InlineData("""{"model":""}""", "ai.providers.server.model")]
-    [InlineData("""{"contextTokens":512}""", "ai.providers.server.contextTokens")]
-    [InlineData("""{"contextTokens":3000000}""", "ai.providers.server.contextTokens")]
     public async Task ABadValueNamesItsFieldAndChangesNothing(string server, string field)
     {
         var response = await _host.Host.CallAsync("settings.set", """{"theme":"dark","ai":{"providers":{"server":""" + server + "}}}");
@@ -81,6 +79,18 @@ public sealed class ServerSettingsBridgeTests : IDisposable
         Assert.DoesNotContain("hunter2", error.GetRawText(), StringComparison.Ordinal);
         Assert.Equal("system", _host.Host.Settings.Current.Theme);
         Assert.Null(_host.Host.Settings.Current.Ai.Server.Address);
+    }
+
+    [Theory]
+    [InlineData(512, 2048)]
+    [InlineData(4096, 4096)]
+    [InlineData(3_000_000, 1_048_576)]
+    public async Task TheContextIsClampedAsThePageClampsIt(int sent, int saved)
+    {
+        var set = await _host.Host.ResultAsync("settings.set", JsonSerializer.Serialize(new { ai = new { providers = new { server = new { contextTokens = sent } } } }));
+
+        Assert.Equal(saved, set.GetProperty("ai").GetProperty("providers").GetProperty("server").GetProperty("contextTokens").GetInt32());
+        Assert.Equal(saved, _host.Host.Settings.Current.Ai.Server.ContextTokens);
     }
 
     [Fact]
