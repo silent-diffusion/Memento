@@ -35,6 +35,8 @@ import { DateFormatRow } from './DateFormat';
 import { DeleteAudioRow } from './DeleteAudio';
 import { AiProviderDefaults } from './sections-m4';
 import { CloudModelSetting } from './CloudModelSetting';
+import { ServerSettings } from './ServerSettings';
+import { withKey } from '../../bridge/serverSettings';
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Memento did not answer.';
@@ -331,7 +333,7 @@ export function AiPrivacySection(): JSX.Element {
       .then(({ hasKey }) => {
         const current = store.settings.value;
         if (current !== null) {
-          store.settings.value = { ...current, ai: { ...current.ai, providers: { ...current.ai.providers, [provider]: { ...current.ai.providers[provider], hasKey } } } };
+          store.settings.value = { ...current, ai: { ...current.ai, providers: withKey(current.ai.providers, provider, hasKey) } };
         }
       })
       .catch((e: unknown) => {
@@ -423,6 +425,8 @@ export function AiPrivacySection(): JSX.Element {
           );
         })}
       </SettingsGroup>
+      {/* 2.5: an OpenAI-compatible server the user runs, after the cloud services and before the local model. */}
+      <ServerSettings />
       <SettingsGroup label="What may be shared">
         <SettingsRow
           label="Allowed data"

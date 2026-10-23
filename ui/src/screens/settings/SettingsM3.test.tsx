@@ -154,6 +154,11 @@ describe('Settings completed in M3 (DESIGN.md §11, against the browser-preview 
       'Claude model',
       'ChatGPT (OpenAI)',
       'ChatGPT model',
+      // 2.5: Your own server
+      'Address',
+      'Model',
+      'Context size',
+      'Key',
       'Allowed data',
       // M4
       'Default provider',

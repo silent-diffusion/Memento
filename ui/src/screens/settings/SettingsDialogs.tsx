@@ -2,7 +2,8 @@
 // field; the key is never shown again) and confirming a library move (copy, verify, then delete).
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
-import type { AiProvider } from '../../bridge/types';
+import { withKey } from '../../bridge/serverSettings';
+import type { AiKeyProvider } from '../../bridge/types';
 import { Dialog } from '../../components/Overlay';
 import { useServices } from '../../state/context';
 import type { DialogRequest } from '../../state/dialogs';
@@ -12,19 +13,28 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Memento did not answer.';
 }
 
-export const PROVIDER_NAMES: Record<AiProvider, string> = {
+export const PROVIDER_NAMES: Record<AiKeyProvider, string> = {
   anthropic: 'Claude (Anthropic)',
   openai: 'ChatGPT (OpenAI)',
+  server: 'Your own server',
 };
 
-const PROVIDER_SHORT: Record<AiProvider, string> = { anthropic: 'Claude', openai: 'ChatGPT' };
+const PROVIDER_SHORT: Record<AiKeyProvider, string> = { anthropic: 'Claude', openai: 'ChatGPT', server: 'your own server' };
+
+/** "Add a Claude key", "Replace the key for your own server". */
+function keyTitle(provider: AiKeyProvider, replacing: boolean): string {
+  if (provider === 'server') {
+    return replacing ? 'Replace the key for your own server' : 'Add a key for your own server';
+  }
+  return replacing ? `Replace the ${PROVIDER_SHORT[provider]} key` : `Add a ${PROVIDER_SHORT[provider]} key`;
+}
 
 export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest, { kind: 'aiKey' }>; close: () => void }): JSX.Element {
   const { bridge, store } = useServices();
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const name = PROVIDER_SHORT[request.provider];
+  const server = request.provider === 'server';
   const save = (): void => {
     if (key.trim() === '' || busy) {
       return;
@@ -36,10 +46,7 @@ export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest
       .then(({ hasKey }) => {
         const settings = store.settings.value;
         if (settings !== null) {
-          store.settings.value = {
-            ...settings,
-            ai: { ...settings.ai, providers: { ...settings.ai.providers, [request.provider]: { ...settings.ai.providers[request.provider], hasKey } } },
-          };
+          store.settings.value = { ...settings, ai: { ...settings.ai, providers: withKey(settings.ai.providers, request.provider, hasKey) } };
         }
         setKey('');
         close();
@@ -52,7 +59,7 @@ export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest
   return (
     <Dialog
       titleId="ai-key-title"
-      title={request.replacing ? `Replace the ${name} key` : `Add a ${name} key`}
+      title={keyTitle(request.provider, request.replacing)}
       onEscape={close}
       actions={
         <>
@@ -66,8 +73,9 @@ export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest
       }
     >
       <p class="dialog-body">
-        The key is stored on this PC, encrypted for your Windows account, and is never shown again. It is used only while
-        external AI is allowed, and you are asked before anything is sent.
+        {server
+          ? 'The key is stored on this PC, encrypted for your Windows account, and is never shown again. It is sent only to your own server’s address, as a bearer token.'
+          : 'The key is stored on this PC, encrypted for your Windows account, and is never shown again. It is used only while external AI is allowed, and you are asked before anything is sent.'}
         {request.replacing ? ' The key stored now is replaced.' : ''}
       </p>
       <form
@@ -79,7 +87,7 @@ export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest
         }}
       >
         <label class="field-label" for="ai-key-input">
-          {PROVIDER_NAMES[request.provider]} API key
+          {server ? 'Key for your own server' : `${PROVIDER_NAMES[request.provider]} API key`}
         </label>
         <input
           id="ai-key-input"
@@ -94,7 +102,11 @@ export function AiKeyDialog({ request, close }: { request: Extract<DialogRequest
             setKey(event.currentTarget.value);
           }}
         />
-        <p class="field-note">Create a key in the provider’s console. Memento checks only that it looks complete.</p>
+        <p class="field-note">
+          {server
+            ? 'The key the server asks for (for vLLM, the one given with --api-key). Memento checks only that it looks complete.'
+            : 'Create a key in the provider’s console. Memento checks only that it looks complete.'}
+        </p>
       </form>
       {error === null ? null : (
         <p class="dialog-error" role="alert">

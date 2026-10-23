@@ -56,7 +56,7 @@ export function previewInputs(source: MockPreviewSource): PreviewInput[] {
   return INPUTS.map(({ key, label }) => {
     const text = source.used[key] ? (source.sections[key] ?? '') : '';
     const ticked = source.ticked[key];
-    const heldBack = ticked && source.provider.kind === 'cloud' && !source.allowed[key];
+    const heldBack = ticked && source.provider.leavesPc && !source.allowed[key];
     return {
       key,
       label,

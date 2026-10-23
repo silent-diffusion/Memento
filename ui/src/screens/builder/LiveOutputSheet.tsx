@@ -10,6 +10,7 @@ import type { GenerationOutputStep } from '../../bridge/types';
 import { CloseIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
 import { useModal } from '../../components/Overlay';
+import { providerPlace, serverLine, staysOnPc } from '../../format/serverAddress';
 import { useServices } from '../../state/context';
 import { closeLiveOutput, liveOutputOf, liveOutputOpen, type LiveOutput, type LivePass } from './liveOutput';
 import './liveoutput.css';
@@ -36,6 +37,10 @@ function seconds(ms: number): string {
 export function providerWords(live: LiveOutput): string {
   if (live.provider.kind === 'local') {
     return `${live.provider.modelLabel ?? 'The local model'} · on this PC`;
+  }
+  if (live.provider.kind === 'server') {
+    // 2.5: "Your own server · qwen3:8b at localhost:11434 (this PC)".
+    return serverLine(live.provider.name, live.provider.modelLabel, providerPlace(live.provider));
   }
   return live.provider.modelLabel === null ? live.provider.name : `${live.provider.name} · ${live.provider.modelLabel}`;
 }
@@ -79,7 +84,8 @@ export function passStats(pass: LivePass): string[] {
 
 function statusWords(live: LiveOutput): string {
   if (!live.ended && live.outcome === 'running') {
-    return live.provider.kind === 'local' ? 'Writing' : 'Sending and receiving';
+    // The local model and Your own server stream as they write; a cloud service answers whole.
+    return live.provider.kind === 'cloud' ? 'Sending and receiving' : 'Writing';
   }
   switch (live.outcome) {
     case 'done':
@@ -126,6 +132,20 @@ export function LiveOutputSheet({ live, onClose }: SheetProps): JSX.Element {
   const latest = newest(live.passes);
   const selected = (follow ? latest : (live.passes.find((p) => p.id === selectedId) ?? latest)) ?? null;
   const local = live.provider.kind === 'local';
+  const server = live.provider.kind === 'server';
+  const onPc = staysOnPc(live.provider);
+  const requestLabel = local
+    ? 'Request · read by the local model'
+    : server
+      ? onPc
+        ? 'Request · read by your own server on this PC'
+        : 'Request · sent to your own server'
+      : `Request · sent to ${live.provider.name}`;
+  const footerNote = local
+    ? 'Read by the local model on this PC; nothing leaves it. Shown only here and not saved.'
+    : server && onPc
+      ? 'Read by your own server on this PC; nothing leaves it. Shown only here and not saved.'
+      : `Only what was sent to ${server ? 'your own server' : live.provider.name} and what it answered. Nothing more is sent; shown only here and not saved.`;
 
   // Following keeps the reply at its end as text arrives; scrolling up (or choosing a pass) pauses it. The jump is
   // instant, never animated (and so the same with reduced motion).
@@ -283,7 +303,7 @@ export function LiveOutputSheet({ live, onClose }: SheetProps): JSX.Element {
                   <>
                     <div class="live-label-row">
                       <span class="lbl" id="live-request-label">
-                        {local ? 'Request · read by the local model' : `Request · sent to ${live.provider.name}`}
+                        {requestLabel}
                       </span>
                     </div>
                     <pre class="live-well live-request mono" tabIndex={0} aria-labelledby="live-request-label">
@@ -321,9 +341,7 @@ export function LiveOutputSheet({ live, onClose }: SheetProps): JSX.Element {
         </div>
         <div class="sheet-footer">
           <span class="sheet-footer-note">
-            {local
-              ? 'Read by the local model on this PC; nothing leaves it. Shown only here and not saved.'
-              : `Only what was sent to ${live.provider.name} and what it answered. Nothing more is sent; shown only here and not saved.`}
+            {footerNote}
           </span>
           <button class="btn p" type="button" onClick={onClose}>
             Done

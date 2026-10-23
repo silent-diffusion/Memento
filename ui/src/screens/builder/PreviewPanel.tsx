@@ -9,6 +9,8 @@ import { NEVER_SENT, NeverSentRow } from '../../components/NeverSentRow';
 import { AlertIcon } from '../../components/paper/icons';
 import { Paper } from '../../components/paper/Paper';
 import { INPUT_NAMES } from '../../format/documents';
+import { serverPlace, type ServerPlace } from '../../format/serverAddress';
+import type { ServerFocusTarget } from '../settings/serverFocus';
 import type { BuilderTab } from './draft';
 import { failureLead, failureWords, progressWords, type ActiveGeneration } from './generation';
 
@@ -52,6 +54,8 @@ interface PreviewPanelProps {
   providerId: ProviderId | null;
   onProvider: (id: ProviderId) => void;
   onOpenAiSettings: () => void;
+  /** 2.5: Settings › AI and privacy at Your own server's field ("Set the address", "Choose a model", "Add the key"). */
+  onOpenServerSettings: (target: ServerFocusTarget) => void;
   styles: readonly Style[];
   styleId: string;
   onStyle: (styleId: string) => void;
@@ -99,7 +103,7 @@ export function ProgressCard({
             Show live output
           </button>
         )}
-        <span class="gen-note">{job.provider.kind === 'local' ? 'Running on this PC. Nothing leaves it.' : 'Audio and video are not sent.'}</span>
+        <span class="gen-note">{job.provider.leavesPc ? 'Audio and video are not sent.' : 'Running on this PC. Nothing leaves it.'}</span>
       </div>
     </div>
   );
@@ -113,6 +117,7 @@ function FailureCard({
   onDismiss,
   onShowLiveOutput,
   onChooseModel,
+  onOpenServerSettings,
 }: {
   job: ActiveGeneration;
   alternative: ProviderInfo | null;
@@ -121,10 +126,14 @@ function FailureCard({
   onDismiss: () => void;
   onShowLiveOutput?: (() => void) | undefined;
   onChooseModel: () => void;
+  onOpenServerSettings: (target: ServerFocusTarget) => void;
 }): JSX.Element {
   const lead = failureLead(job);
+  const code = job.failureCode === null ? (job.progress?.code ?? null) : null;
   // After 2.1: the service does not offer the model chosen in Settings; the specific fix comes first (DESIGN.md §17).
-  const unknownModel = job.failureCode === null && job.progress?.code === 'ai.unknownModel';
+  // 2.5: the same for a model Your own server does not serve.
+  const unknownModel = code === 'ai.unknownModel';
+  const serverFix = serverFailureFix(code);
   return (
     <div class="ai-failure" role="alert" data-code={job.progress?.code ?? job.failureCode ?? undefined}>
       <div class="ai-failure-text">
@@ -139,6 +148,17 @@ function FailureCard({
             Choose a model
           </button>
         ) : null}
+        {serverFix === null ? null : (
+          <button
+            class="btn g"
+            type="button"
+            onClick={() => {
+              onOpenServerSettings(serverFix.target);
+            }}
+          >
+            {serverFix.label}
+          </button>
+        )}
         <button class="btn g" type="button" onClick={onRetry}>
           Try again
         </button>
@@ -150,7 +170,7 @@ function FailureCard({
               onSwitch(alternative);
             }}
           >
-            Switch to {alternative.kind === 'local' ? 'the local model' : alternative.name}
+            Switch to {alternative.kind === 'local' ? 'the local model' : alternative.kind === 'server' ? 'your own server' : alternative.name}
           </button>
         )}
         {onShowLiveOutput === undefined ? null : (
@@ -166,7 +186,46 @@ function FailureCard({
   );
 }
 
+/** 2.5: the specific fix a Your own server failure offers first (DESIGN.md §17), opening its field in Settings. */
+export function serverFailureFix(code: string | null): { label: string; target: ServerFocusTarget } | null {
+  switch (code) {
+    case 'ai.serverModelUnknown':
+      return { label: 'Choose a model', target: 'model' };
+    case 'ai.serverNeedsKey':
+      return { label: 'Add the key', target: 'key' };
+    case 'ai.serverUnreachable':
+    case 'ai.serverNotCompatible':
+    case 'ai.serverInsecure':
+      return { label: 'Check the address', target: 'address' };
+    default:
+      return null;
+  }
+}
+
+/** 2.5: what a Your own server card that is not ready offers, by its code: the field in Settings that fixes it. */
+export function serverCardAction(code: string | null): { label: string; target: ServerFocusTarget | null } | null {
+  switch (code) {
+    case 'ai.noServer':
+      return { label: 'Set the address', target: 'address' };
+    case 'ai.noModel':
+      return { label: 'Choose a model', target: 'model' };
+    case 'ai.disabled':
+      return { label: 'Allow external AI services', target: null };
+    case 'ai.serverInsecure':
+      return { label: 'Change the address', target: 'address' };
+    default:
+      return null;
+  }
+}
+
+/** Where a ready server card says it runs. */
+const CARD_PLACE: Record<ServerPlace, string> = { loopback: 'on this PC', network: 'on your network', remote: 'remote' };
+
 function providerNote(p: ProviderInfo): string {
+  if (p.kind === 'server') {
+    // "qwen3:8b at localhost:11434 · on this PC"; not ready: the reason alone (the vendor is the name already).
+    return p.ready ? `${p.modelLabel ?? p.address ?? ''} · ${CARD_PLACE[serverPlace(p, p.address)]}` : (p.reason ?? 'Not ready').toLocaleLowerCase();
+  }
   if (!p.ready) {
     return `${p.vendor} · ${(p.reason ?? 'not ready').toLocaleLowerCase()}`;
   }
@@ -184,7 +243,9 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
   const failed = job?.phase === 'failed';
   const cloud = (props.providers ?? []).filter((p) => p.kind === 'cloud');
   const local = (props.providers ?? []).filter((p) => p.kind === 'local');
-  const shownProviders = props.externalAiEnabled ? [...cloud, ...local] : local;
+  // 2.5: Your own server is always offered: on this PC it needs nothing; elsewhere its card says what it needs.
+  const server = (props.providers ?? []).filter((p) => p.kind === 'server');
+  const shownProviders = props.externalAiEnabled ? [...cloud, ...server, ...local] : [...server, ...local];
   return (
     <section class="builder-side" aria-label="Preview and inputs">
       <div
@@ -221,7 +282,16 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
 
       {running ? <ProgressCard job={job} moduleName={props.moduleName} onCancel={props.onCancel} onShowLiveOutput={props.onShowLiveOutput} /> : null}
       {failed ? (
-        <FailureCard job={job} alternative={props.alternative} onRetry={props.onRetry} onSwitch={props.onSwitch} onDismiss={props.onDismissFailure} onShowLiveOutput={props.onShowLiveOutput} onChooseModel={props.onOpenAiSettings} />
+        <FailureCard
+          job={job}
+          alternative={props.alternative}
+          onRetry={props.onRetry}
+          onSwitch={props.onSwitch}
+          onDismiss={props.onDismissFailure}
+          onShowLiveOutput={props.onShowLiveOutput}
+          onChooseModel={props.onOpenAiSettings}
+          onOpenServerSettings={props.onOpenServerSettings}
+        />
       ) : null}
 
       {tab === 'preview' ? (
@@ -277,8 +347,9 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
             </span>
             {!props.externalAiEnabled ? (
               <div class="provider-off">
-                <span>External AI is off in Settings › AI and privacy, so nothing can be sent to Claude or ChatGPT.</span>
+                <span>External AI is off in Settings › AI and privacy, so nothing can be sent to Claude, ChatGPT or a server that is not on this PC.</span>
                 {local.some((p) => p.ready) ? <span>The local model on this PC can still write the {props.documentWord}.</span> : null}
+                {server.some((p) => p.ready && !p.leavesPc) ? <span>Your own server on this PC can still write it too.</span> : null}
                 <button class="btn link-btn" type="button" onClick={props.onOpenAiSettings}>
                   Open AI and privacy settings
                 </button>
@@ -288,33 +359,56 @@ export function PreviewPanel(props: PreviewPanelProps): JSX.Element {
               <span class="inputs-note">Checking the providers…</span>
             ) : (
               <div class="providers" role="radiogroup" aria-labelledby="inputs-provider">
-                {shownProviders.map((p) => (
-                  <label
-                    key={p.id}
-                    class={['provider', props.providerId === p.id ? 'on' : '', p.ready ? '' : 'provider--off', p.gpuNote === null && p.memoryPlan === null ? '' : 'provider--detail'].filter((c) => c !== '').join(' ')}
-                  >
-                    <input
-                      class="chk"
-                      type="radio"
-                      name="provider"
-                      checked={props.providerId === p.id}
-                      disabled={!p.ready}
-                      onChange={() => {
-                        props.onProvider(p.id);
-                      }}
-                    />
-                    <span class="provider-name">{p.name}</span>
-                    <span class="provider-note">{providerNote(p)}</span>
-                    {/* The local model on the processor because another program holds the card: who, how much, the fix. */}
-                    {p.gpuNote === null ? null : <span class="provider-detail">{p.gpuNote}</span>}
-                    {/* 2.2: a larger model names where it runs, how fast and how much RAM it takes (or why it does not fit). */}
-                    {p.memoryPlan === null ? null : (
-                      <span class={p.memoryPlan.fits ? 'provider-detail provider-detail--plan' : 'provider-detail'} data-memory-plan={p.memoryPlan.modelId}>
-                        {p.memoryPlan.line}
-                      </span>
-                    )}
-                  </label>
-                ))}
+                {shownProviders.map((p) => {
+                  const action = p.kind === 'server' && !p.ready ? serverCardAction(p.code) : null;
+                  return (
+                    <label
+                      key={p.id}
+                      data-provider={p.id}
+                      class={['provider', props.providerId === p.id ? 'on' : '', p.ready ? '' : 'provider--off', p.gpuNote === null && p.memoryPlan === null && action === null ? '' : 'provider--detail'].filter((c) => c !== '').join(' ')}
+                    >
+                      <input
+                        class="chk"
+                        type="radio"
+                        name="provider"
+                        checked={props.providerId === p.id}
+                        disabled={!p.ready}
+                        onChange={() => {
+                          props.onProvider(p.id);
+                        }}
+                      />
+                      <span class="provider-name">{p.name}</span>
+                      <span class="provider-note">{providerNote(p)}</span>
+                      {/* The local model on the processor because another program holds the card: who, how much, the fix. */}
+                      {p.gpuNote === null ? null : <span class="provider-detail">{p.gpuNote}</span>}
+                      {/* 2.2: a larger model names where it runs, how fast and how much RAM it takes (or why it does not fit). */}
+                      {p.memoryPlan === null ? null : (
+                        <span class={p.memoryPlan.fits ? 'provider-detail provider-detail--plan' : 'provider-detail'} data-memory-plan={p.memoryPlan.modelId}>
+                          {p.memoryPlan.line}
+                        </span>
+                      )}
+                      {/* 2.5: a server that is not ready says what fixes it, and the button opens that field in Settings. */}
+                      {action === null ? null : (
+                        <span class="provider-detail provider-detail--action">
+                          <button
+                            class="btn link-btn inline-link"
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              if (action.target === null) {
+                                props.onOpenAiSettings();
+                              } else {
+                                props.onOpenServerSettings(action.target);
+                              }
+                            }}
+                          >
+                            {action.label}
+                          </button>
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             )}
             <span class="inputs-note">

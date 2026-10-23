@@ -3,6 +3,7 @@
 import type { JSX } from 'preact';
 import type { DocumentSummary, DocumentVersion, GenerationRecord, HistorySettings } from '../../bridge/types';
 import { INPUT_PILLS, inputsUsed, PROVIDER_FULL, shortDuration, VERSION_REASONS, whenWords } from '../../format/documents';
+import { recordPlace, serverLine } from '../../format/serverAddress';
 
 interface HowMadeProps {
   summary: DocumentSummary;
@@ -30,6 +31,9 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
     );
   }
   const local = record.providerId === 'local';
+  // 2.5: Your own server reads as one line with where it was: "Your own server · qwen3:8b at localhost:11434 (this PC)".
+  const server = record.providerId === 'server';
+  const stayed = local || (server && record.stayedOnPc);
   const used = inputsUsed(record.inputs);
   return (
     <div class="side-card how-made">
@@ -40,9 +44,11 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
         <dt>Style</dt>
         <dd>{styleName}</dd>
         <dt>Provider</dt>
-        <dd>{local ? `${record.modelLabel} (this PC)` : PROVIDER_FULL[record.providerId]}</dd>
+        <dd>
+          {local ? `${record.modelLabel} (this PC)` : server ? serverLine(PROVIDER_FULL.server, record.modelLabel === '' ? null : record.modelLabel, recordPlace(record.stayedOnPc, record.modelLabel)) : PROVIDER_FULL[record.providerId]}
+        </dd>
         {/* After 2.1: the cloud model the requests went to, as chosen in Settings › AI and privacy. */}
-        {local || record.modelLabel === '' ? null : (
+        {local || server || record.modelLabel === '' ? null : (
           <>
             <dt>Model</dt>
             <dd class="mono how-model">{record.modelLabel}</dd>
@@ -61,7 +67,7 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
         </dd>
       </dl>
       <div class="how-sent">
-        <span class="how-note">{local ? 'Read by the local model' : 'Sent to the provider'}</span>
+        <span class="how-note">{local ? 'Read by the local model' : server ? (stayed ? 'Read by your own server on this PC' : 'Sent to your own server') : 'Sent to the provider'}</span>
         <div class="pill-row how-pills">
           {used.length === 0 ? (
             <span class="how-note">Only the instructions</span>
@@ -73,7 +79,7 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
             ))
           )}
         </div>
-        <span class="how-note">{local ? 'Everything stayed on this PC. Audio and video were not used.' : 'Audio and video were not sent.'}</span>
+        <span class="how-note">{stayed ? 'Everything stayed on this PC. Audio and video were not used.' : 'Audio and video were not sent.'}</span>
       </div>
       {onRegenerate === null ? null : (
         <button class="btn ghost" type="button" onClick={onRegenerate}>

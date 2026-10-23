@@ -5,13 +5,16 @@ import type { ComponentChildren, JSX } from 'preact';
 interface SettingsGroupProps {
   label: string;
   children: ComponentChildren;
+  /** 2.5: a line under the card (Your own server says where the server is). */
+  after?: ComponentChildren;
 }
 
-export function SettingsGroup({ label, children }: SettingsGroupProps): JSX.Element {
+export function SettingsGroup({ label, children, after }: SettingsGroupProps): JSX.Element {
   return (
     <div class="settings-group">
       <h2 class="lbl settings-group-label">{label}</h2>
       <div class="settings-card">{children}</div>
+      {after}
     </div>
   );
 }

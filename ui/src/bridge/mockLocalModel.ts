@@ -78,7 +78,7 @@ function placementWords(plan: LocalModelPlanInfo): string {
 
 /** The Local provider's readiness, with the model, the device and why. */
 export function localProviderInfo(models: readonly ModelInfo[], chosen: string | null, vram: VramFlag): ProviderInfo {
-  const base = { id: 'local', name: 'Local model', vendor: 'This PC', kind: 'local' } as const;
+  const base = { id: 'local', name: 'Local model', vendor: 'This PC', kind: 'local', leavesPc: false, address: null } as const;
   const id = effectiveLocalModelId(models, chosen, vram);
   const model = models.find((m) => m.id === id);
   const nameOf = (modelId: string): string => models.find((m) => m.id === modelId)?.name ?? modelId;

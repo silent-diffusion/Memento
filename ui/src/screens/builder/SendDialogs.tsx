@@ -21,10 +21,13 @@ interface ConfirmSendProps {
 }
 
 export function ConfirmSendDialog({ summary, documentWord, onAnswer }: ConfirmSendProps): JSX.Element {
+  // 2.5: Your own server is asked only when it is not on this PC (the host keys the question on leavesPc).
+  const server = summary.providerId === 'server';
+  const to = server ? `your own server${summary.modelLabel === null ? '' : ` (${summary.modelLabel})`}` : PROVIDER_FULL[summary.providerId];
   return (
     <Dialog
       titleId="confirm-send-title"
-      title={`Send to ${summary.providerName}?`}
+      title={server ? 'Send to your own server?' : `Send to ${summary.providerName}?`}
       onEscape={() => {
         onAnswer(false);
       }}
@@ -54,8 +57,7 @@ export function ConfirmSendDialog({ summary, documentWord, onAnswer }: ConfirmSe
       }
     >
       <p class="dialog-body">
-        To write the {documentWord}, Memento sends these parts of the recording to {PROVIDER_FULL[summary.providerId]}. You asked to confirm every send in Settings › AI and
-        privacy.
+        To write the {documentWord}, Memento sends these parts of the recording to {to}. You asked to confirm every send in Settings › AI and privacy.
       </p>
       <dl class="payload-facts confirm-facts">
         <dt>Provider</dt>

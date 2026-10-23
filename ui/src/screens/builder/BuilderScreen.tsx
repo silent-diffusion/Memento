@@ -39,6 +39,7 @@ import { ConfirmSendDialog } from './SendDialogs';
 import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
 import { TemplateChooser } from './TemplateChooser';
+import { requestServerFocus } from '../settings/serverFocus';
 
 /** The preview paper is asked for once changes pause this long. */
 export const PREVIEW_DEBOUNCE_MS = 200;
@@ -519,8 +520,9 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
 
   const inputRows = useMemo((): InputRow[] => {
     const share = settings?.ai.share;
-    const cloud = provider?.kind !== 'local';
-    const off = (allowed: boolean | undefined): boolean => cloud && allowed === false;
+    // What may be shared limits whatever leaves this PC: the cloud services and (2.5) a server that is not on this PC.
+    const leaves = provider?.leavesPc ?? true;
+    const off = (allowed: boolean | undefined): boolean => leaves && allowed === false;
     const p = project;
     const transcribed = p?.summary.stages.some((s) => s.stage === 'transcript' && s.state === 'done') ?? false;
     const highlights = p?.highlights.length ?? 0;
@@ -544,9 +546,9 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       row('attachments', attachmentCount === 0 ? 'none attached' : `${attachmentCount} attached`, share?.attachments),
       row('previousDocuments', earlierCount === 0 ? 'none yet' : `${earlierCount} in this recording`, true),
     ];
-  }, [settings?.ai.share, provider?.kind, project, attachmentCount, earlierCount]);
+  }, [settings?.ai.share, provider?.leavesPc, project, attachmentCount, earlierCount]);
 
-  const alternative = mine?.phase === 'failed' ? (providerList.find((p) => p.ready && p.id !== mine.provider.id && (p.kind === 'local' || providers?.externalAiEnabled === true)) ?? null) : null;
+  const alternative = mine?.phase === 'failed' ? (providerList.find((p) => p.ready && p.id !== mine.provider.id && (!p.leavesPc || providers?.externalAiEnabled === true)) ?? null) : null;
 
   const header = (
     <SpokeHeader
@@ -749,6 +751,10 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
                 patchTemplate({ providerId: id });
               }}
               onOpenAiSettings={() => {
+                router.navigate({ name: 'settings', section: 'ai-privacy' });
+              }}
+              onOpenServerSettings={(target) => {
+                requestServerFocus(store, target);
                 router.navigate({ name: 'settings', section: 'ai-privacy' });
               }}
               styles={styles}

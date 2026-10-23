@@ -7,6 +7,7 @@ import type { BridgeClient } from '../../bridge/client';
 import { BridgeCallError } from '../../bridge/client';
 import type { GenerationProgress, GenerationSendSummary, ProviderInfo, Template } from '../../bridge/types';
 import { documentWord } from '../../format/documents';
+import { serverHostOf, serverModelOf } from '../../format/serverAddress';
 import type { AppServices } from '../../state/context';
 import type { AppStore } from '../../state/store';
 
@@ -127,11 +128,23 @@ export function failureWords(message: string): string {
 
 /** The failure card's lead: the provider and what happened, from the failure code. */
 export function failureLead(job: Pick<ActiveGeneration, 'template' | 'provider' | 'failureCode' | 'progress'>): string {
-  const name = job.provider.kind === 'local' ? 'The local model' : job.provider.name;
+  const name = job.provider.kind === 'local' ? 'The local model' : job.provider.kind === 'server' ? 'Your own server' : job.provider.name;
   if (job.failureCode !== null) {
     return `The ${job.template.name.toLocaleLowerCase()} could not be started`;
   }
+  // 2.5: Your own server, by what its host said.
+  const at = serverHostOf(job.provider.modelLabel) ?? job.provider.address ?? 'its address';
   switch (job.progress?.code) {
+    case 'ai.serverUnreachable':
+      return `Nothing answered at ${at}`;
+    case 'ai.serverNotCompatible':
+      return `${at} did not answer as an OpenAI-compatible server`;
+    case 'ai.serverNeedsKey':
+      return `The server at ${at} asks for a key`;
+    case 'ai.serverModelUnknown':
+      return `The server at ${at} does not serve ${serverModelOf(job.provider.modelLabel) ?? 'this model'}`;
+    case 'ai.serverInsecure':
+      return `${at} is a public address over plain http`;
     case 'ai.invalidKey':
       return `${name} did not accept the key`;
     case 'ai.rateLimited':
@@ -253,11 +266,21 @@ export function progressWords(job: ActiveGeneration, moduleName: (moduleId: stri
   const word = documentWord(job.template.name);
   const progress = job.progress;
   const percent = progress?.percent ?? 0;
-  const where = job.provider.kind === 'local' ? 'on this PC' : `with ${job.provider.name}`;
+  const kind = job.provider.kind;
+  const where = kind === 'local' ? 'on this PC' : kind === 'server' ? 'with your own server' : `with ${job.provider.name}`;
   switch (progress?.stage) {
     case undefined:
     case 'composing':
-      return { title: `Preparing the ${word}`, detail: job.provider.kind === 'local' ? 'Putting the inputs together for the local model' : `Putting together what is sent to ${job.provider.name}`, percent };
+      return {
+        title: `Preparing the ${word}`,
+        detail:
+          kind === 'local'
+            ? 'Putting the inputs together for the local model'
+            : kind === 'server'
+              ? `Putting together what ${job.provider.leavesPc ? 'is sent to' : 'is read by'} your own server`
+              : `Putting together what is sent to ${job.provider.name}`,
+        percent,
+      };
     case 'generating': {
       const name = progress.moduleId === null ? null : moduleName(progress.moduleId);
       return { title: `Writing the ${word} ${where}`, detail: name === null ? 'Writing' : `Writing ${name}`, percent };

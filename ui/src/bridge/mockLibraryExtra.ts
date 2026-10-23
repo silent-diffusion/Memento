@@ -9,9 +9,10 @@ import { createMockExport, type ExportFlag, type MockExport } from './mockExport
 import { visibleStages } from './mockLibrary';
 import { MODEL_IDS } from './mockModels';
 import { MockHostError } from './mockSession';
+import { NO_SERVER, withKey } from './serverSettings';
 import { mergeSettings } from './settingsMerge';
 import type {
-  AiProvider,
+  AiKeyProvider,
   Attachment,
   EventName,
   EventPayload,
@@ -156,7 +157,8 @@ export function defaultM3Settings(): Pick<SettingsSnapshot, 'general' | 'export'
       keepRecord: true,
       share: { transcript: true, details: true, participants: true, agenda: true, highlights: true, attachments: false },
       // The preview pretends a Claude key is stored so the masked row and Replace can be seen.
-      providers: { anthropic: providerState('anthropic', true, null), openai: providerState('openai', false, null) },
+      // 2.5: Your own server starts without an address (`?server=` gives it one).
+      providers: { anthropic: providerState('anthropic', true, null), openai: providerState('openai', false, null), server: NO_SERVER },
       // M4
       defaultProviderId: null,
       localModelId: MODEL_IDS.qwen,
@@ -483,13 +485,13 @@ export function createMockM3(env: MockM3Environment): MockM3 {
     runImport(recordingId, name);
   };
 
-  const setProvider = (provider: AiProvider, hasKey: boolean): { hasKey: boolean } => {
+  const setProvider = (provider: AiKeyProvider, hasKey: boolean): { hasKey: boolean } => {
     const settings = env.settings();
-    env.setSettings({ ...settings, ai: { ...settings.ai, providers: { ...settings.ai.providers, [provider]: { ...settings.ai.providers[provider], hasKey } } } });
+    env.setSettings({ ...settings, ai: { ...settings.ai, providers: withKey(settings.ai.providers, provider, hasKey) } });
     return { hasKey };
   };
-  const checkProvider = (provider: string): AiProvider => {
-    if (provider !== 'anthropic' && provider !== 'openai') {
+  const checkProvider = (provider: string): AiKeyProvider => {
+    if (provider !== 'anthropic' && provider !== 'openai' && provider !== 'server') {
       throw new MockHostError('bridge.invalidParams', `'${provider}' is not a provider Memento knows. Nothing was changed.`, provider);
     }
     return provider;

@@ -77,8 +77,10 @@ describe('M3 contract names', () => {
     expect(ERROR_CODES.slice(h1, h1 + h1Codes.length + 1)).toEqual([...h1Codes, 'clipboard.unavailable']);
     const voices = ERROR_CODES.indexOf('voices.notFound');
     expect(ERROR_CODES.slice(voices, voices + 2)).toEqual(['voices.notFound', 'voices.newerVersion']);
-    // 2.0 video (BRIDGE.md "Error codes (2.0, proposed)"), then the 2.1 folder codes and the 2.1 update code close the list.
-    expect(ERROR_CODES.slice(voices + 2, -4)).toEqual([
+    // 2.0 video (BRIDGE.md "Error codes (2.0, proposed)"), then the 2.1 folder codes, the 2.1 update code and (2.5) Your
+    // own server's codes close the list.
+    const server = ERROR_CODES.indexOf('ai.noServer');
+    expect(ERROR_CODES.slice(voices + 2, server - 4)).toEqual([
       'video.sourceNotFound',
       'video.protectedContent',
       'video.captureBlocked',
@@ -88,7 +90,16 @@ describe('M3 contract names', () => {
       'video.diskFull',
     ]);
     // 2.1.0: Check now and Update now separated.
-    expect(ERROR_CODES.slice(-4)).toEqual(['folder.notFound', 'folder.nameTaken', 'folder.invalid', 'updates.nothingToDownload']);
+    expect(ERROR_CODES.slice(server - 4, server)).toEqual(['folder.notFound', 'folder.nameTaken', 'folder.invalid', 'updates.nothingToDownload']);
+    expect(ERROR_CODES.slice(server)).toEqual([
+      'ai.noServer',
+      'ai.noModel',
+      'ai.serverUnreachable',
+      'ai.serverNotCompatible',
+      'ai.serverNeedsKey',
+      'ai.serverModelUnknown',
+      'ai.serverInsecure',
+    ]);
   });
 });
 

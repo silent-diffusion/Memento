@@ -118,8 +118,9 @@ describe('Local model readiness in Settings and the Builder (against the browser
     await until(() => document.querySelector('.mod') !== null);
     await click(button('Inputs and output'));
     await until(() => document.querySelector('.providers .provider') !== null);
-    expect(document.querySelector('.provider-detail')).toBeNull();
-    expect(document.querySelector('.provider--detail')).toBeNull();
+    // The local card only: Your own server, not set up, has its own "Set the address" line.
+    expect(document.querySelector('.provider[data-provider="local"] .provider-detail')).toBeNull();
+    expect(document.querySelector('.provider--detail[data-provider="local"]')).toBeNull();
   });
 
   it('Settings shows the card with nothing to fix when the model fits, and Check again reads the card and the models again', async () => {

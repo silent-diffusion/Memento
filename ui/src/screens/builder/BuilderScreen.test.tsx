@@ -212,7 +212,13 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
     await open({ m4: { ai: 'nokey' } });
     await click(document.querySelector('#builder-tab-inputs'));
     const providers = (): string[] => [...document.querySelectorAll('.provider')].map((p) => p.textContent.trim());
-    expect(providers()).toEqual(['ClaudeAnthropic · no key saved', 'ChatGPTOpenAI · no key saved', 'Local modelThis PC · model not installed']);
+    expect(providers()).toEqual([
+      'ClaudeAnthropic · no key saved',
+      'ChatGPTOpenAI · no key saved',
+      // 2.5: Your own server says what it needs and opens Settings for it.
+      'Your own serverno server addressSet the address',
+      'Local modelThis PC · model not installed',
+    ]);
     expect([...document.querySelectorAll<HTMLInputElement>('.provider input')].every((r) => r.disabled)).toBe(true);
     expect(button('Generate minutes').disabled).toBe(true);
     h.unmount();
@@ -220,7 +226,7 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
     await open({ m4: { ai: 'off' } });
     await click(document.querySelector('#builder-tab-inputs'));
     expect(document.querySelector('.provider-off')?.textContent).toContain('External AI is off in Settings › AI and privacy');
-    expect(providers()).toEqual(['Local modelThis PC · model not installed']);
+    expect(providers()).toEqual(['Your own serverno server addressSet the address', 'Local modelThis PC · model not installed']);
     expect(button('Generate minutes').disabled).toBe(true);
     await click(button('Open AI and privacy settings'));
     expect(h.store.route.value).toEqual({ name: 'settings', section: 'ai-privacy' });
@@ -228,7 +234,7 @@ describe('Document builder (DESIGN.md §10, against the browser-preview host)', 
 
     await open({ m4: { ai: 'local' } });
     await click(document.querySelector('#builder-tab-inputs'));
-    expect(providers()).toEqual(['Local modelQwen3.5 4B · graphics card · on this PC']);
+    expect(providers()).toEqual(['Your own serverno server addressSet the address', 'Local modelQwen3.5 4B · graphics card · on this PC']);
     expect(document.querySelector<HTMLInputElement>('.provider.on input')?.checked).toBe(true);
     expect(button('Generate minutes').disabled).toBe(false);
   });

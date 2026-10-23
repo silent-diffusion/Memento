@@ -268,6 +268,49 @@
   }
 }
 
+/* 2.5, Your own server (DESIGN.md §11): the address and context fields beside their buttons, and the line under the
+   card that says where the server is. Only layout here; the fields are the §5.3 recipe and the buttons plain ghosts. */
+.server-address {
+  width: 260px;
+  max-width: 100%;
+  font-size: 13px;
+}
+
+.server-context {
+  width: 110px;
+  font-size: 13px;
+}
+
+.server-model,
+.server-key {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.server-place-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 2px;
+}
+
+.server-place {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.server-place--warn {
+  color: var(--accent-text);
+}
+
+@media (max-width: 640px) {
+  .server-address {
+    width: 100%;
+  }
+}
+
 .settings-inline {
   flex: 1 1 100%;
   margin: 0;

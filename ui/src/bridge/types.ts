@@ -145,6 +145,15 @@ export const ERROR_CODES = [
   'folder.invalid',
   // 2.1.0 updates: Check now and Update now separated
   'updates.nothingToDownload',
+  // 2.5 Your own server (an OpenAI-compatible server the user runs): two not-ready codes of providers.list, then
+  // what generation and ai.serverProbe report.
+  'ai.noServer',
+  'ai.noModel',
+  'ai.serverUnreachable',
+  'ai.serverNotCompatible',
+  'ai.serverNeedsKey',
+  'ai.serverModelUnknown',
+  'ai.serverInsecure',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -987,7 +996,7 @@ export interface AiSettingsPatch {
   defaultProviderId?: ProviderId | null;
   /** M4: a model catalog id (engine `llm`). */
   localModelId?: string;
-  /** M4: the cloud models; a provider left out keeps its model, `model: null` goes back to the default. */
+  /** M4: the cloud models; a provider left out keeps its model, `model: null` goes back to the default. 2.5: and Your own server. */
   providers?: AiProvidersPatch;
 }
 
@@ -1673,15 +1682,41 @@ export interface StorageReclaimParams {
   bitrateKbps?: number | null;
 }
 
+/** The two cloud services: `ai.providers` keeps an AiProviderStatus for each. */
 export type AiProvider = 'anthropic' | 'openai';
 
+/** 2.5: whose key ai.setKey / ai.clearKey change: a cloud service, or Your own server's optional bearer key. */
+export type AiKeyProvider = AiProvider | 'server';
+
 export interface AiSetKeyParams {
-  provider: AiProvider;
+  provider: AiKeyProvider;
   key: string;
 }
 
 export interface AiProviderParams {
-  provider: AiProvider;
+  provider: AiKeyProvider;
+}
+
+/** 2.5: ai.serverProbe asks the typed address (saved or not) what it is and which models it serves. Nothing else is sent. */
+export interface AiServerProbeParams {
+  /** As typed: "http://localhost:11434", "192.168.1.20:1234". */
+  address: string;
+}
+
+/** 2.5: what the server answered. The three address flags are the host's reading of `address`, as in AiServerStatus. */
+export interface AiServerProbeResult {
+  reachable: boolean;
+  /** "Ollama 0.12.3", "LM Studio"; null when the server does not say. */
+  serverName: string | null;
+  /** The model ids /v1/models lists, as the server names them. */
+  models: string[];
+  /** Null when reachable: ai.serverUnreachable, ai.serverNotCompatible, ai.serverNeedsKey or ai.serverInsecure. */
+  code: string | null;
+  /** The DESIGN §17 sentence when not reachable; may be a note when reachable. */
+  detail: string | null;
+  loopback: boolean;
+  leavesPc: boolean;
+  insecure: boolean;
 }
 
 /** The key itself is never returned. */
@@ -1801,6 +1836,40 @@ export interface AiModelChoice {
 export interface AiProvidersPatch {
   anthropic?: { model: string | null };
   openai?: { model: string | null };
+  /** 2.5: Your own server; each field null clears it, left out keeps it. The key goes through ai.setKey. */
+  server?: AiServerPatch;
+}
+
+/** 2.5: settings.set's `ai.providers.server`. */
+export interface AiServerPatch {
+  /** "http://localhost:11434"; null clears it (the provider is then not ready: ai.noServer). */
+  address?: string | null;
+  /** A model id the server serves ("qwen3:8b"); null clears it (ai.noModel). */
+  model?: string | null;
+  /** The context the server runs with, in tokens. Default 8192. */
+  contextTokens?: number;
+}
+
+/** 2.5: Your own server in the settings snapshot (`ai.providers.server`). The key itself is never returned. */
+export interface AiServerStatus {
+  hasKey: boolean;
+  address: string | null;
+  model: string | null;
+  /** What the server runs with; a transcript is split to fit a quarter of it. Default 8192. */
+  contextTokens: number;
+  /** The address is this PC (localhost, 127.0.0.0/8, ::1): nothing leaves it. */
+  loopback: boolean;
+  /** Not loopback: sending needs Allow external AI services, and Ask before every send applies. */
+  leavesPc: boolean;
+  /** Plain http to a public address: never sent to (ai.serverInsecure). */
+  insecure: boolean;
+}
+
+/** The settings snapshot's `ai.providers`: the two cloud services and (2.5) Your own server. */
+export interface AiProvidersStatus {
+  anthropic: AiProviderStatus;
+  openai: AiProviderStatus;
+  server: AiServerStatus;
 }
 
 /** What settings.set accepts for `ai`: the providers are read-only (keys go through ai.setKey). */
@@ -1813,8 +1882,8 @@ export interface AiSettingsInput {
 }
 
 export interface AiSettings extends AiSettingsInput {
-  /** Read side only: whether a key is stored, never the key. */
-  providers: Record<AiProvider, AiProviderStatus>;
+  /** Read side only: whether a key is stored, never the key. 2.5: with Your own server beside the cloud services. */
+  providers: AiProvidersStatus;
   /** M4: the provider the Builder starts with; null picks the first ready one. */
   defaultProviderId: ProviderId | null;
   /**
@@ -1963,26 +2032,38 @@ export interface Template {
   customized?: boolean;
 }
 
-export type ProviderId = 'anthropic' | 'openai' | 'local';
+/** 2.5: 'server' is Your own server (an OpenAI-compatible server the user runs). */
+export type ProviderId = 'anthropic' | 'openai' | 'local' | 'server';
+
+/** 2.5: 'server' beside the cloud services and the local model. */
+export type ProviderKind = 'cloud' | 'local' | 'server';
 
 export interface ProviderInfo {
   id: ProviderId;
-  /** "Claude", "ChatGPT", "Local model". */
+  /** "Claude", "ChatGPT", "Local model", "Your own server". */
   name: string;
-  /** "Anthropic", "OpenAI", "This PC". */
+  /** "Anthropic", "OpenAI", "This PC", "Your own server". */
   vendor: string;
-  kind: 'cloud' | 'local';
+  kind: ProviderKind;
   ready: boolean;
-  /** Why it is not ready: "No key saved", "Model not installed", "External AI is off". */
+  /** Why it is not ready: "No key saved", "Model not installed", "External AI is off", "No server address", "No model chosen". */
   reason: string | null;
+  /** The server: "qwen3:8b at localhost:11434". */
   modelLabel: string | null;
-  /** ai.disabled, ai.noKey, ai.modelNotInstalled or ai.notEnoughVram when not ready. */
+  /**
+   * ai.disabled, ai.noKey, ai.modelNotInstalled or ai.notEnoughVram when not ready; 2.5, the server: ai.noServer,
+   * ai.disabled (external AI is off and the address leaves the PC), ai.noModel or ai.serverInsecure.
+   */
   code: string | null;
+  /** 2.5: requests leave this PC (the cloud services, a server that is not on this PC). The send confirmation keys on it. */
+  leavesPc: boolean;
+  /** 2.5, the server only: its address as saved; null for the others. */
+  address: string | null;
   /** The DESIGN §17 sentence, or a note when ready. */
   detail: string | null;
   /** The local model's catalog id. */
   modelId: string | null;
-  /** After 2.1, cloud only: the model is in Memento's list (false: typed under "Other model…"); null for the local model. */
+  /** After 2.1, cloud only: the model is in Memento's list (false: typed under "Other model…"); null for the local model and the server. */
   modelListed: boolean | null;
   /** Local only: the discrete card's memory and who holds it; null for cloud providers and on PCs without a card. */
   gpuMemory: GpuMemoryInfo | null;
@@ -2086,7 +2167,7 @@ export interface GenerationRecord {
   /** The included sections, as the preview names them: "Transcript (118 segments, 4 speakers)". */
   sent: string[];
   bytes: number;
-  /** True for the local model: nothing was sent. */
+  /** True for the local model and (2.5) a server on this PC: nothing left it. */
   stayedOnPc: boolean;
   claims: GenerationClaim[];
   /** When "keep a record of what was sent" was on. */
@@ -2303,7 +2384,8 @@ export interface GenerationPreviewResult {
 export interface PreviewProviderInfo {
   id: ProviderId;
   name: string;
-  kind: 'cloud' | 'local';
+  /** 2.5: 'server' for Your own server (whether it stays on this PC is `staysOnPc`). */
+  kind: ProviderKind;
   modelLabel: string | null;
 }
 
@@ -2907,6 +2989,8 @@ export interface BridgeMethods {
   'storage.keepOnlyMix': { params: StorageKeepOnlyMixParams; result: JobResult };
   'ai.setKey': { params: AiSetKeyParams; result: AiKeyResult };
   'ai.clearKey': { params: AiProviderParams; result: AiKeyResult };
+  /** 2.5: Your own server's Test connection: GET /v1/models on the typed address, nothing else. */
+  'ai.serverProbe': { params: AiServerProbeParams; result: AiServerProbeResult };
   'app.setStartup': { params: AppStartupParams; result: AppStartupParams };
   // M4
   'modules.list': { params: EmptyParams; result: ModulesListResult };
@@ -3263,6 +3347,8 @@ export const METHOD_NAMES = [
   'generation.copyPreview',
   // 2.1.0 updates: Check now and Update now separated
   'updates.download',
+  // 2.5 Your own server
+  'ai.serverProbe',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
