@@ -215,7 +215,10 @@ describe('preview host transcripts (M2)', () => {
       throw new Error('no transcript');
     }
     const moved = host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: first.id, speakerId: 'sp2' });
-    expect(moved.segment).toMatchObject({ speaker: 'sp2', speakerConfidence: 1 });
+    expect(moved.segment).toMatchObject({ speaker: 'sp2', speakerConfidence: 1, speakerByUser: true });
+    // 2.6.0: a line set to no speaker is not the user's placement.
+    const unset = host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: first.id, speakerId: null });
+    expect(unset.segment).toMatchObject({ speaker: null, speakerConfidence: null, speakerByUser: false });
 
     const created = host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: first.id, speakerId: null, newSpeakerName: 'Jonah Berg' });
     const jonah = created.speakers.find((s) => s.name === 'Jonah Berg');

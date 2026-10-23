@@ -787,7 +787,8 @@ export function createMockTranscription(env: TranscriptionEnvironment): MockTran
       } else if (speakerId !== null) {
         speakerOf(transcript, speakerId);
       }
-      const changed: TranscriptSegment = { ...segment, speaker: target, speakerConfidence: target === null ? null : 1 };
+      // 2.6.0: placed by the user, so the next pass keeps it; a line set to no speaker is not.
+      const changed: TranscriptSegment = { ...segment, speaker: target, speakerConfidence: target === null ? null : 1, speakerByUser: target !== null };
       transcript.segments = transcript.segments.map((s) => (s.id === segmentId ? changed : s));
       recountTalk(transcript);
       bump(transcript);

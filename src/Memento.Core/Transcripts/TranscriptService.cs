@@ -125,7 +125,8 @@ public sealed partial class TranscriptService(
                     target = FindSpeaker(t, speakerId).Id;
                 }
 
-                changed = segment with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0 };
+                // Placed by the user (2.6.0): the next speakers pass keeps it and pins its voice; a line set to no speaker is not.
+                changed = segment with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0, SpeakerByUser = target is not null };
                 var segments = Replace(t.Segments, changed);
                 return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
             },
@@ -171,7 +172,7 @@ public sealed partial class TranscriptService(
                     target = FindSpeaker(t, speakerId).Id;
                 }
 
-                var segments = t.Segments.Select(s => wanted.Contains(s.Id) ? s with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0 } : s).ToList();
+                var segments = t.Segments.Select(s => wanted.Contains(s.Id) ? s with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0, SpeakerByUser = target is not null } : s).ToList();
                 changed = segments.Where(s => wanted.Contains(s.Id)).ToList();
                 return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
             },
