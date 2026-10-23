@@ -11,6 +11,10 @@ Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speak
 
 - **Move a whole section at once.** Picking another speaker for a line now offers, besides **Just this line** and the merge, **This turn · 5 lines** (the run of consecutive lines of that speaker around the line) and **From here on · 23 lines** (this line and every later line of that speaker, for correcting from the top down). Each says exactly how many lines move and from when to when, and while a choice is hovered or active the lines it would move are marked in the transcript, so the count can be checked by eye first. One Undo step each. The merge now shows its line count too.
 
+### Fewer wrong speakers
+
+- **Lines are cut where the speaker changes.** A transcript line that held two people's words ("Yeah. — So what I think is…") used to go whole to whoever talked longest in it. A fresh transcript's lines are now cut at the word where the diarizer hears the voice change, so each part gets its own speaker; a part is never shorter than two words and half a second, the first part keeps the line's id, and a line you edited, or a transcript whose speakers were identified before, is never cut (highlights, chapters and documents point at lines by id). History says "12 lines split where the speaker changes". Settings › Speakers › **Split lines where the speaker changes** turns it off for new transcripts.
+
 ## 2.5.0
 
 ### Your own server
