@@ -7,7 +7,7 @@ namespace Memento.Generation.Generation;
 /// <summary>
 /// Sends a pass's requests: the local model runs every pass of a generation in order on one model load in one worker
 /// process (<see cref="LocalAiProvider.OpenSessionAsync"/>, unloaded when the runner is disposed); a cloud provider
-/// gets them one by one, a few at a time. Each request is recorded by purpose, hash, tokens and stop reason (never by
+/// gets them one by one, a few at a time ("Your own server" one at a time, its reply streamed to the Live output). Each request is recorded by purpose, hash, tokens and stop reason (never by
 /// content). With an <see cref="GenerationOutputFeed"/>, each request, the local model's tokens as they arrive and each
 /// reply also go to the Live output sheet.
 /// </summary>
@@ -61,8 +61,12 @@ public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3
                 await gate.WaitAsync(cancellationToken);
                 try
                 {
-                    var id = output?.Request(PassOf(i), request, streamed: false);
-                    results[i] = await provider.GenerateAsync(request, null, cancellationToken);
+                    // "Your own server" streams its reply to the Live output as it arrives, with the estimated count
+                    // growing (the clouds' replies arrive whole there, as before).
+                    var streams = provider.Kind == AiProviderKind.Server;
+                    var id = output?.Request(PassOf(i), request, streamed: streams);
+                    var relay = streams && id is not null ? new StreamRelay(output!, id) : null;
+                    results[i] = await provider.GenerateAsync(request, relay, cancellationToken);
                     if (id is not null)
                     {
                         output!.Reply(id, results[i]);
@@ -111,6 +115,18 @@ public sealed class RequestRunner(IAiProvider provider, int cloudParallelism = 3
         {
             _session = null;
             await session.DisposeAsync();
+        }
+    }
+
+    /// <summary>"Your own server"'s progress for one request: each piece of the reply and the estimated count so far, to the Live output.</summary>
+    private sealed class StreamRelay(GenerationOutputFeed output, string passId) : IProgress<AiProgress>
+    {
+        public void Report(AiProgress value)
+        {
+            if (value.Stage == AiProgressStage.Generating && value.Delta is { Length: > 0 } delta)
+            {
+                output.Tokens(passId, delta, Math.Max(1, value.OutputTokens), value.Elapsed);
+            }
         }
     }
 

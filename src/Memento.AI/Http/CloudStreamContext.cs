@@ -40,6 +40,6 @@ internal sealed class CloudStreamContext(IProgress<AiProgress>? progress, int at
         _firstTokenAt ??= time.GetTimestamp();
         _text.Append(delta);
         _estimatedTokens += Math.Max(1, counter.Count(delta));
-        progress?.Report(new AiProgress(AiProgressStage.Generating, delta, _estimatedTokens, Attempt: attempt));
+        progress?.Report(new AiProgress(AiProgressStage.Generating, delta, _estimatedTokens, Attempt: attempt, Elapsed: Generation));
     }
 }

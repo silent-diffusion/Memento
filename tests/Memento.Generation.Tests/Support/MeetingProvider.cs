@@ -33,6 +33,29 @@ internal sealed partial class MeetingProvider(AiProviderKind kind = AiProviderKi
 
     public ConcurrentBag<AiRequest> Requests { get; } = [];
 
+    /// <summary>
+    /// The stand-in's answer to a chat completion request a fake "Your own server" was sent: the JSON schema's name says
+    /// which pass it is (<c>commitments</c>, <c>points</c>, <c>verdicts</c>…), as the pipeline names them.
+    /// </summary>
+    public static string AnswerChatRequest(JsonElement body)
+    {
+        var messages = body.GetProperty("messages").EnumerateArray().ToList();
+        var schema = body.TryGetProperty("response_format", out var format) && format.TryGetProperty("json_schema", out var named) ? named.GetProperty("name").GetString() : null;
+        var purpose = schema switch
+        {
+            "verdicts" => "verify.batch",
+            "verdict" or null => "verify.claim",
+            _ => "map." + schema,
+        };
+        var request = new AiRequest
+        {
+            Purpose = purpose,
+            System = messages[0].GetProperty("content").GetString()!,
+            Messages = [AiMessage.User(messages[^1].GetProperty("content").GetString()!)],
+        };
+        return new MeetingProvider(AiProviderKind.Server).GenerateAsync(request, null, CancellationToken.None).GetAwaiter().GetResult().Text;
+    }
+
     public string Id => kind switch { AiProviderKind.Local => "local", AiProviderKind.Server => "server", _ => "anthropic" };
 
     public string DisplayName => kind switch { AiProviderKind.Local => "Local model", AiProviderKind.Server => "Your own server", _ => "Claude" };
