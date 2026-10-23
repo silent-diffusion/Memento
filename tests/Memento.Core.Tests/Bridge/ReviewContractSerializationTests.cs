@@ -95,4 +95,18 @@ public sealed class ReviewContractSerializationTests
         Assert.Equal("""{"segmentIds":["s3","s7"]}""", Json(new TranscriptSameVoiceResult(["s3", "s7"]), ReviewBridgeJsonContext.Default.TranscriptSameVoiceResult));
         Assert.Equal("""{"segmentIds":[]}""", Json(new TranscriptSameVoiceResult([]), ReviewBridgeJsonContext.Default.TranscriptSameVoiceResult));
     }
+
+    [Fact]
+    public void SplitSpeakerParamsNeedTheSpeakerAndTheResultNamesTheNewOne()
+    {
+        var parameters = JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1"}""", ReviewBridgeJsonContext.Default.TranscriptSplitSpeakerParams)!;
+
+        Assert.Equal(("r", "spk1"), (parameters.RecordingId, parameters.SpeakerId));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r"}""", ReviewBridgeJsonContext.Default.TranscriptSplitSpeakerParams));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1","extra":1}""", ReviewBridgeJsonContext.Default.TranscriptSplitSpeakerParams));
+        var created = new Speaker("spk3", "Speaker 3", false, 3, 4000);
+        Assert.Equal(
+            """{"speakers":[{"id":"spk3","name":"Speaker 3","renamed":false,"color":3,"talkTimeMs":4000}],"created":{"id":"spk3","name":"Speaker 3","renamed":false,"color":3,"talkTimeMs":4000},"segmentIds":["s0001"]}""",
+            Json(new SplitSpeakerResult([created], created, ["s0001"]), ReviewBridgeJsonContext.Default.SplitSpeakerResult));
+    }
 }

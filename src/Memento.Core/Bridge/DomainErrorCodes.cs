@@ -45,6 +45,9 @@ public static class DomainErrorCodes
     /// <summary><c>transcript.removeSpeaker</c> for a speaker that lines are still assigned to; <c>detail</c> is the id.</summary>
     public const string TranscriptSpeakerInUse = "transcript.speakerInUse";
 
+    /// <summary><c>transcript.splitSpeaker</c> for a speaker heard as one voice, or whose voices sound alike; <c>detail</c> is the id (2.6.0).</summary>
+    public const string TranscriptCannotSplit = "transcript.cannotSplit";
+
     /// <summary>No catalog model has that id.</summary>
     public const string ModelsNotFound = "models.notFound";
 

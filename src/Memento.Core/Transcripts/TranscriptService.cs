@@ -439,6 +439,39 @@ public sealed partial class TranscriptService(
         return new ReduceSpeakersResult(saved.Speakers, reduced.Merges, reduced.SegmentsChanged, reduced.Basis);
     }
 
+    /// <summary>
+    /// <c>transcript.splitSpeaker</c> (2.6.0): the speaker's raw voices are grouped into two by sound
+    /// (<see cref="SpeakerSplitter"/>) and the half with less talk time becomes a new speaker, in one write. Lines the user
+    /// placed stay. <c>transcript.cannotSplit</c> (the speaker's id as <c>detail</c>) when the speaker was heard as one voice,
+    /// or its voices sound alike.
+    /// </summary>
+    public async Task<SplitSpeakerResult> SplitSpeakerAsync(string recordingId, string speakerId, CancellationToken cancellationToken)
+    {
+        await LoadManifestAsync(recordingId, cancellationToken);
+        var voices = await Transcripts.LoadVoicesAsync(recordingId, cancellationToken);
+        SpeakerSplitter.Result? split = null;
+        string? name = null;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                var speaker = FindSpeaker(t, speakerId);
+                name = speaker.Name;
+                split = SpeakerSplitter.Split(t.Segments, t.Speakers, voices, speaker.Id);
+                if (split.Refusal is { } why)
+                {
+                    throw new BridgeException(DomainErrorCodes.TranscriptCannotSplit, why + " Nothing was changed.", speaker.Id);
+                }
+
+                return t with { Segments = split.Segments, Speakers = split.Speakers };
+            },
+            cancellationToken);
+        var created = split!.Created!;
+        await HistoryAsync(recordingId, "Speaker split", $"{name} · {HumanFormat.Count(split.SegmentIds.Count, "line", "lines")} to {created.Name} by voice", cancellationToken);
+        return new SplitSpeakerResult(saved!.Speakers, saved.Speakers.First(s => s.Id == created.Id), split.SegmentIds);
+    }
+
     /// <summary><c>transcript.removeSpeaker</c> (Undo of adding one): removes a speaker no line is assigned to.</summary>
     public async Task<IReadOnlyList<Speaker>> RemoveSpeakerAsync(string recordingId, string speakerId, CancellationToken cancellationToken)
     {
