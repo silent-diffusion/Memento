@@ -41,6 +41,8 @@ import { asOfWording } from '../../format/history';
 import { restoreTranscriptVersion, useHistoryLinks } from './historyVersions';
 import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptVersionView';
 import { useReview20Wiring } from './Review20';
+import { useHearSpeaker } from './useHearSpeaker';
+import type { FollowPlayhead } from '../../state/followPlayhead';
 import { RemoveVideoDialog, useVideoView, VideoArea, VideoOutlineBlock } from './ReviewVideo';
 import { metaVideoTail, removeFailedBody } from './videoCopy';
 import { rebuildMixAction } from './mixRebuild';
@@ -177,6 +179,11 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const canSkip = transcript !== null && transcript.segments.length > 0;
   const player = usePlayer(project?.mixUrl ?? null, project?.summary.durationMs ?? known?.durationMs ?? 0, canSkip && skipSilences ? silences : null);
   const peaks = usePeaks(project?.peaksUrl ?? null);
+  // 2.6.0: Hear {name} in People plays a few seconds of a speaker's clearest line; the transcript follows it.
+  const followRef = useRef<FollowPlayhead | null>(null);
+  const hear = useHearSpeaker(player, transcript?.segments ?? [], recordingId, () => {
+    followRef.current?.resume();
+  });
   // 2.0 video (DESIGN.md §18.3): the inset, Audio only and Fullscreen, and Remove video.
   const videoView = useVideoView(project?.video ?? null, store);
   const [removingVideo, setRemovingVideo] = useState(false);
@@ -574,6 +581,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               positionMs={player.positionMs}
               onSeek={player.seek}
               speakers={speakersIdentified ? orderedSpeakers : null}
+              {...(project.mixUrl === null ? {} : { hear })}
               speakerFilter={{
                 selected: filter.speakers,
                 counts: view.counts.speakers,
@@ -723,6 +731,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   chapterName={chapterName}
                   inProgress={inProgress}
                   revealRef={revealRef}
+                  followRef={followRef}
                   actions={actions}
                   onSaved={() => {
                     undo.announce('Saved');
