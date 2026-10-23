@@ -42,11 +42,11 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
                     }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                     {
-                        throw Fail(call, AiErrors.TimedOut(call.ProviderName, total.IsCancellationRequested ? options.TotalTimeout : options.ResponseTimeout));
+                        throw Fail(call, TimedOut(call, total.IsCancellationRequested ? options.TotalTimeout : options.ResponseTimeout));
                     }
                     catch (HttpRequestException ex)
                     {
-                        throw Fail(call, MapNetwork(call.ProviderName, ex), ex);
+                        throw Fail(call, call.MapNetwork?.Invoke(ex) ?? MapNetwork(call.ProviderName, ex), ex);
                     }
                 }
 
@@ -91,7 +91,7 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
                     }
                     catch (TimeoutException)
                     {
-                        throw Fail(call, AiErrors.TimedOut(call.ProviderName, options.StreamIdleTimeout));
+                        throw Fail(call, TimedOut(call, options.StreamIdleTimeout));
                     }
                     catch (CloudAnswerTooLongException)
                     {
@@ -117,7 +117,7 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && total.IsCancellationRequested)
         {
-            throw Fail(call, AiErrors.TimedOut(call.ProviderName, options.TotalTimeout));
+            throw Fail(call, TimedOut(call, options.TotalTimeout));
         }
     }
 
@@ -137,6 +137,9 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
         var diagnostic = socket is null ? exception.HttpRequestError.ToString() : socket.SocketErrorCode.ToString();
         return noNetwork ? AiErrors.NoNetwork(provider, diagnostic) : AiErrors.ConnectionFailed(provider, diagnostic);
     }
+
+    private static AiError TimedOut(CloudCall call, TimeSpan after) =>
+        call.MapTimeout?.Invoke(after) ?? AiErrors.TimedOut(call.ProviderName, after);
 
     private TimeSpan Backoff(int attempt)
     {
@@ -168,13 +171,20 @@ internal sealed partial class CloudRequestRunner(HttpClient http, CloudHttpOptio
             }
 
             using var document = JsonDocument.Parse(buffer.AsMemory(0, length));
-            if (document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("error", out var error)
-                && error.ValueKind == JsonValueKind.Object)
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
             {
                 type = Text(error, "type");
                 code = Text(error, "code");
                 message = Text(error, "message");
+            }
+            else if (root.ValueKind == JsonValueKind.Object)
+            {
+                // Servers other than the two clouds: LM Studio and Ollama's native API answer {"error": "text"}, older vLLM
+                // {"object": "error", "message": …, "type": …}, FastAPI-based proxies {"detail": "text"}.
+                type = Text(root, "type");
+                code = Text(root, "code");
+                message = Text(root, "error") ?? Text(root, "message") ?? Text(root, "detail");
             }
         }
         catch (Exception ex) when (ex is JsonException or IOException or HttpRequestException or DecoderFallbackException)

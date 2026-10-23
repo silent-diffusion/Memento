@@ -191,6 +191,88 @@ public static class AiErrors
         $"The local model {model} could not finish the answer. {LocalSafe} Try again, or run the model on the processor.",
         Diagnostic: diagnostic);
 
+    // "Your own server" (2.5.0). Each sentence names the address (and the model where it matters), what is safe and the fix.
+
+    /// <summary>
+    /// Nothing answered at the address. A refused connection starts with the brief's sentence ("Nothing is listening at
+    /// http://localhost:11434."); an unreachable host or a name that does not resolve says it could not be reached.
+    /// </summary>
+    public static AiError ServerUnreachable(string provider, string address, bool refused, string? diagnostic = null) => new(
+        AiErrorCodes.ServerUnreachable,
+        provider,
+        refused
+            ? $"{ServerUnreachableSentence(address, refused)} Nothing was sent and no document was changed. Start Ollama or LM Studio, or check the address in Settings › AI and privacy."
+            : $"{ServerUnreachableSentence(address, refused)} Nothing was sent and no document was changed. Check that the computer is on and the server is running, or check the address in Settings › AI and privacy.",
+        Diagnostic: diagnostic);
+
+    /// <summary>The first sentence of <see cref="ServerUnreachable"/>; "Test connection" shows it with its fix only.</summary>
+    public static string ServerUnreachableSentence(string address, bool refused) => refused
+        ? $"Nothing is listening at {address}."
+        : $"The server at {address} could not be reached.";
+
+    public static AiError ServerTimedOut(string provider, string address, TimeSpan after) => new(
+        AiErrorCodes.Network,
+        provider,
+        $"The server at {address} did not answer within {Duration(after)}. Nothing was sent twice and no document was changed. A large model can take a while to load; try again, or check that the server is running.",
+        Diagnostic: "timeout");
+
+    /// <summary>Something answered, but not like an OpenAI-compatible server (a 404 or 405 on the API path, a page instead of JSON).</summary>
+    public static AiError ServerNotCompatible(string provider, string address, int? status, string path) => new(
+        AiErrorCodes.ServerNotCompatible,
+        provider,
+        status is { } s
+            ? $"The server at {address} does not answer like an OpenAI-compatible server ({Http(s)} at {path}). Nothing was generated and no document was changed. Check the address in Settings › AI and privacy: Memento adds {path} to it."
+            : $"The server at {address} does not answer like an OpenAI-compatible server (no answer Memento could read at {path}). Nothing was generated and no document was changed. Check the address in Settings › AI and privacy: Memento adds {path} to it.",
+        HttpStatus: status,
+        Diagnostic: status is { } code ? Http(code) : "not compatible");
+
+    public static AiError ServerNeedsKey(string provider, string address, int status, bool hasKey) => new(
+        AiErrorCodes.ServerNeedsKey,
+        provider,
+        hasKey
+            ? $"The server at {address} did not accept the saved key ({Http(status)}). Nothing was generated and no document was changed. Replace the server's key in Settings › AI and privacy."
+            : $"The server at {address} asks for a key ({Http(status)}). Nothing was generated and no document was changed. Add the server's key in Settings › AI and privacy.",
+        HttpStatus: status,
+        Diagnostic: Http(status));
+
+    /// <summary>The same shape as <see cref="UnknownModel"/>: the server does not offer the model, and no other is tried.</summary>
+    public static AiError ServerModelUnknown(string provider, string address, string model, int? status) => new(
+        AiErrorCodes.ServerModelUnknown,
+        provider,
+        $"The server at {address} does not offer a model called '{model}'. Nothing was generated and no document was changed. Choose one of its models in Settings › AI and privacy (Test connection lists them), or check the name.",
+        HttpStatus: status,
+        Diagnostic: status is { } s ? Http(s) : "model not found");
+
+    /// <summary>The server refused the request for a reason Memento does not recognise (a 400 that is not about the model, the schema or the context).</summary>
+    public static AiError ServerRejected(string provider, string address, string model, int status, string? errorType = null) => new(
+        AiErrorCodes.ProviderError,
+        provider,
+        $"The server at {address} refused the request ({Http(status, errorType)}). Nothing was generated and no document was changed. Check that {model} runs there and that the server is OpenAI-compatible; if both are right, please report it.",
+        HttpStatus: status,
+        Diagnostic: Http(status, errorType));
+
+    public static AiError ServerError(string provider, string address, int status, string? errorType = null) => new(
+        AiErrorCodes.ProviderError,
+        provider,
+        $"The server at {address} had a problem on its side ({Http(status, errorType)}). Nothing was sent twice and no document was changed. Check the server's own window or log (a model too large for its memory is a common cause), then try again.",
+        HttpStatus: status,
+        Diagnostic: Http(status, errorType));
+
+    public static AiError ServerInsecure(string provider, string address) => new(
+        AiErrorCodes.ServerInsecure,
+        provider,
+        $"{address} is outside this PC and your local network, and Memento sends there only over https. Nothing was sent and no document was changed. Use an https:// address in Settings › AI and privacy.");
+
+    /// <summary>The server said the prompt does not fit its context (llama.cpp, vLLM, LM Studio and Ollama word it differently).</summary>
+    public static AiError ServerContentTooLong(string provider, string address, string model, int? status, int? tokens = null, int? limit = null) => new(
+        AiErrorCodes.ContentTooLong,
+        provider,
+        tokens is { } t && limit is { } l
+            ? $"The text is too long for {model} at {address}: {Count(t)} tokens, the server's limit is {Count(l)}. Nothing was sent twice and no document was changed. Set the context in Settings › AI and privacy to what the server runs, or raise it on the server."
+            : $"The text is too long for {model} at {address}. Nothing was sent twice and no document was changed. Set the context in Settings › AI and privacy to what the server runs, or raise it on the server.",
+        HttpStatus: status,
+        Diagnostic: status is { } s ? Http(s) : "context");
+
     internal static string Duration(TimeSpan span)
     {
         var seconds = (int)Math.Ceiling(Math.Max(1, span.TotalSeconds));

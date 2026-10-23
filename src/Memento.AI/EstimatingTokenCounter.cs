@@ -21,6 +21,13 @@ public sealed class EstimatingTokenCounter : ITokenCounter
     /// <summary>For local models before the tokenizer is loaded.</summary>
     public static EstimatingTokenCounter Generic { get; } = new(1.25);
 
+    /// <summary>
+    /// For "Your own server" (2.5.0), whose model and tokenizer Memento cannot see: the most cautious factor, above every
+    /// other, because the open models such servers run range from large vocabularies (Qwen, Llama 3) to small ones that
+    /// split text more finely, and a context overflow there truncates or fails the request.
+    /// </summary>
+    public static EstimatingTokenCounter Server { get; } = new(1.35);
+
     public EstimatingTokenCounter(double factor)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(factor, 0.5);
