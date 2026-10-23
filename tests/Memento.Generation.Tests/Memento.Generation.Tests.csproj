@@ -26,6 +26,14 @@
   <ItemGroup>
     <Compile Include="..\Memento.Core.Tests\Fakes\*.cs" LinkBase="Fakes" />  </ItemGroup>
 
+  <!-- 2.5.0: the fake OpenAI-compatible server ("Your own server"), shared with Memento.AI.Tests rather than copied. -->
+  <ItemGroup>
+    <Compile Include="..\Memento.AI.Tests\Fakes\FakeOpenAiCompatibleServer.cs" Link="Fakes\FakeOpenAiCompatibleServer.cs" />
+    <Compile Include="..\Memento.AI.Tests\Fakes\ServerPersonality.cs" Link="Fakes\ServerPersonality.cs" />
+    <Compile Include="..\Memento.AI.Tests\Fakes\ScriptedResponse.cs" Link="Fakes\ScriptedResponse.cs" />
+    <Compile Include="..\Memento.AI.Tests\Fakes\RecordedRequest.cs" Link="Fakes\RecordedRequest.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

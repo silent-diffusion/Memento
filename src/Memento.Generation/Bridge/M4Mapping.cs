@@ -42,15 +42,17 @@ public static class M4Mapping
     public static ProviderInfo ToInfo(ProviderStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);
-        return new ProviderInfo(status.Id, status.Name, ProviderIds.Vendor(status.Id), status.IsCloud ? "cloud" : "local", status.Ready, status.Reason, status.ModelLabel)
+        return new ProviderInfo(status.Id, status.Name, ProviderIds.Vendor(status.Id), status.Kind, status.Ready, status.Reason, status.ModelLabel)
         {
             Code = status.Code,
             Detail = status.Detail,
-            ModelId = status.IsCloud ? null : status.Model,
+            ModelId = status.Id == ProviderIds.Local ? status.Model : null,
             ModelListed = status.Cloud?.Listed,
             GpuMemory = status.GpuMemory,
             GpuNote = status.GpuNote,
             MemoryPlan = status.PlanInfo,
+            LeavesPc = status.LeavesPc,
+            Address = status.IsServer ? status.ServerAddress?.Text : null,
         };
     }
 
@@ -126,7 +128,7 @@ public static class M4Mapping
         ArgumentNullException.ThrowIfNull(catalog);
         if (template.ProviderId is { } provider && !ProviderIds.IsValid(provider))
         {
-            throw M4Errors.Invalid($"providerId: '{provider}' is not a provider. Use anthropic, openai, local or null.", "providerId");
+            throw M4Errors.Invalid($"providerId: '{provider}' is not a provider. Use anthropic, openai, server, local or null.", "providerId");
         }
 
         if (string.IsNullOrWhiteSpace(template.Name))

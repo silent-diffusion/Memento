@@ -20,6 +20,12 @@ public static class M4Errors
         $"{provider} is an external service, and external AI is off, so nothing was sent and no document was changed. Turn on \"Allow external AI services\" in Settings › AI and privacy, or choose the local model.",
         provider);
 
+    /// <summary>2.5.0: "Your own server" at an address that is not this PC while external AI is off.</summary>
+    public static BridgeException ServerDisabled(string provider, string address) => new(
+        DomainErrorCodes.AiDisabled,
+        $"The server at {address} is not on this PC, and external AI is off, so nothing was sent and no document was changed. Turn on \"Allow external AI services\" in Settings › AI and privacy, or use a server on this PC or the local model.",
+        provider);
+
     /// <param name="code">The specific reason (<c>ai.noKey</c>, <c>ai.modelNotInstalled</c>, <c>ai.notEnoughVram</c>), put in <c>detail</c>.</param>
     public static BridgeException ProviderNotReady(string code, string message) => new(DomainErrorCodes.AiProviderNotReady, message, code);
 

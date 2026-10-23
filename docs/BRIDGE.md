@@ -416,7 +416,7 @@ interface LibraryUsage { totalBytes: number; freeBytes: number; count: number; l
 | `library.rebuildIndex` | `{}` | `{ recordings: number }` | |
 | `library.move` | `{ newPath }` | `{ jobId }` | Copy, verify hashes, switch, then delete the old folder; refused while recording or processing (`library.busy`). Progress via `library.moveProgress`. |
 | `storage.reclaim` | `{ recordingIds: string[] \| null, downmixMono: boolean, codec: 'aac' \| 'mp3', bitrateKbps?: number \| null }` | `{ jobId }` | Runs the optimize stage on the given (or all older than `settings.storage.reclaimOlderThanDays`) recordings. Transcripts are never touched. |
-| `ai.setKey` / `ai.clearKey` | `{ provider: 'anthropic' \| 'openai', key }` / `{ provider }` | `{ hasKey: boolean }` | DPAPI; the key is never returned. M3 stores keys so Settings is complete; M4 uses them. |
+| `ai.setKey` / `ai.clearKey` | `{ provider: 'anthropic' \| 'openai' \| 'server', key }` / `{ provider }` | `{ hasKey: boolean }` | DPAPI; the key is never returned. M3 stores keys so Settings is complete; M4 uses them. 2.5.0: `server` is the optional bearer key of "Your own server" (1 to 500 characters, no spaces; see "2.5.0 — Your own server"). |
 | `app.setStartup` | `{ startWithWindows: boolean }` | `{ startWithWindows }` | Registry `Run` key for the current user. |
 
 ## Events (M3)
@@ -499,12 +499,13 @@ interface Template {
   processingInstructions?: string;      // whole-document instructions; never override the grounding rules
   customized?: boolean;                 // a built-in with a customised copy (Reset applies)
 }
-type ProviderId = 'anthropic' | 'openai' | 'local';
-interface ProviderInfo { id: ProviderId; name: string; vendor: string /* "Anthropic", "OpenAI", "This PC" */; kind: 'cloud' | 'local'; ready: boolean;
+type ProviderId = 'anthropic' | 'openai' | 'local' | 'server';   // 'server': 2.5.0, "Your own server"
+interface ProviderInfo { id: ProviderId; name: string; vendor: string /* "Anthropic", "OpenAI", "This PC", "Your own server" */; kind: 'cloud' | 'local' | 'server'; ready: boolean;
                          reason: string | null /* "External AI is off", "No key saved", "Model not installed", "Not enough video memory" */; modelLabel: string | null;
-                         code: string | null /* ai.disabled | ai.noKey | ai.modelNotInstalled | ai.notEnoughVram */; detail: string | null /* the §17 sentence, or a note when ready */; modelId: string | null /* local catalog id */;
+                         code: string | null /* ai.disabled | ai.noKey | ai.modelNotInstalled | ai.notEnoughVram; 2.5.0 server: ai.noServer | ai.noModel | ai.serverInsecure */; detail: string | null /* the §17 sentence, or a note when ready */; modelId: string | null /* local catalog id */;
                          modelListed: boolean | null /* after 2.1, cloud only: the model is in Memento's list (false: typed by hand) */;
-                         gpuMemory: GpuMemoryInfo | null /* local only, after 1.1.0 */; gpuNote: string | null /* local only: why a card model is off the card; also starts detail */ }
+                         gpuMemory: GpuMemoryInfo | null /* local only, after 1.1.0 */; gpuNote: string | null /* local only: why a card model is off the card; also starts detail */;
+                         leavesPc: boolean /* 2.5.0: a generation takes the inputs off this PC */; address: string | null /* 2.5.0, server only */ }
 interface StyleSettings { headingFace: 'sans' | 'serif'; bodyFace: 'sans' | 'serif'; baseSize: 'small' | 'normal' | 'large'; headingCase: 'normal' | 'smallCaps'; numberedHeadings: boolean; headingColor: 'navy' | 'ink' | 'forest' | 'burgundy'; tableHeaderFill: boolean; ruleUnderTitle: boolean; linesBetweenSections: boolean; spacing: 'tight' | 'normal' | 'airy'; paper: 'letter' | 'a4'; pageNumbers: boolean; runningHeader: boolean }
 interface Style { id: string; name: string; builtIn: boolean; settings: StyleSettings; usedByTemplates: number; modifiedAt: string | null; customized?: boolean }
 interface DocumentSummary { id: string; name: string; kind: 'generated' | 'written'; templateName: string | null; styleId: string; providerId: ProviderId | null; generatedAt: string | null; version: number; versions: number; modifiedAt: string; sizeBytes: number }
@@ -533,10 +534,10 @@ interface GenerationSendSummary { providerId: ProviderId; providerName: string; 
 | `templates.duplicate` / `templates.delete` / `templates.resetBuiltIn` | `{ templateId }` | `Template` / `{}` / `Template` | Delete refused for built-ins (`templates.builtIn`). |
 | `styles.list` / `styles.get` / `styles.save` / `styles.duplicate` / `styles.delete` / `styles.resetBuiltIn` | likewise | likewise | Presets behave as built-in templates; delete is refused with `styles.inUse` (detail: the templates) while a template uses the style. |
 | `styles.sampleHtml` | `{ settings: StyleSettings }` | `{ html }` | The Style editor's live sample page (fixed sample minutes). |
-| `providers.list` | `{}` | `{ providers: ProviderInfo[], externalAiEnabled: boolean, defaultProviderId: ProviderId \| null }` | Readiness from Settings, keys, the model manager and free video memory. No provider is constructed and nothing is sent. |
+| `providers.list` | `{}` | `{ providers: ProviderInfo[], externalAiEnabled: boolean, defaultProviderId: ProviderId \| null }` | Readiness from Settings, keys, the model manager and free video memory. No provider is constructed and nothing is sent. 2.5.0: in the order Claude, ChatGPT, the local model, "Your own server"; the server's readiness is worked out from its address, model and "Allow external AI services" alone (no request, no lookup; "2.5.0 — Your own server"). |
 | `generation.preview` | `{ recordingId, template: Template }` | `{ payloadText, bytes, chunks, inputsUsed: InputSelection, warnings: string[], providerId, staysOnPc }` (2.0 adds `provider`, `askBeforeSend`, `inputs`, `redactions`, `passes`: see "Preview what will be sent (2.0)") | "Preview exactly what will be sent" (for Local: "nothing leaves this PC"). Nothing is sent. |
 | `generation.previewHtml` | `{ recordingId: string \| null, template: Template, styleId }` | `{ html }` | The Builder's live preview paper with skeletons; `recordingId: null` (a template edited from Settings) shows the sample title and meta line. |
-| `generation.start` | `{ recordingId, template: Template, documentId?: string /* regenerate into */ }` | `{ jobId, confirmationRequired: boolean, summary: GenerationSendSummary \| null }` | Refused with `ai.disabled` (a cloud provider while external AI is off; checked before anything is read or constructed), `ai.providerNotReady` (detail: `ai.noKey`, `ai.modelNotInstalled`, `ai.notEnoughVram`), `generation.noTranscript` (no transcript, or the transcript not among the allowed inputs), `generation.busy`, `documents.notFound` (the regenerated document). With "ask before every send" a **cloud** job returns `confirmationRequired: true` and the summary, and nothing runs until `generation.confirm`; the local model sends nothing and is not asked. |
+| `generation.start` | `{ recordingId, template: Template, documentId?: string /* regenerate into */ }` | `{ jobId, confirmationRequired: boolean, summary: GenerationSendSummary \| null }` | Refused with `ai.disabled` (a provider whose `leavesPc` is true while external AI is off: a cloud provider, or from 2.5.0 "Your own server" at an address that is not this PC; checked before anything is read or constructed), `ai.providerNotReady` (detail: `ai.noKey`, `ai.modelNotInstalled`, `ai.notEnoughVram`), `generation.noTranscript` (no transcript, or the transcript not among the allowed inputs), `generation.busy`, `documents.notFound` (the regenerated document). With "ask before every send" a job whose provider leaves the PC (`leavesPc`: a **cloud** job, or 2.5.0 a server elsewhere) returns `confirmationRequired: true` and the summary, and nothing runs until `generation.confirm`; the local model and a server on this PC send nothing off the PC and are not asked. |
 | `generation.confirm` / `generation.cancel` | `{ jobId, approved }` / `{ jobId }` | `{}` | `generation.notFound` for an unknown or finished job. Declining or cancelling a waiting job ends it with `stage: 'cancelled'`. |
 | `documents.list` | `{ recordingId }` | `{ documents: DocumentSummary[] }` | Newest change first. |
 | `documents.get` | `{ recordingId, documentId }` | `{ document: DocumentContent, summary: DocumentSummary }` | |
@@ -564,7 +565,7 @@ ai: { …M3,
       defaultProviderId: ProviderId | null;    // null: the local model
       localModelId: string | null;             // the local model in effect: the installed choice, else the installed one the hardware suits, else any installed one; with none installed, the choice or the hardware's (to download); null only without local models
       localModelChosen: boolean;               // localModelId was chosen in Settings
-      providers: { anthropic: AiProviderState; openai: AiProviderState } }
+      providers: { anthropic: AiProviderState; openai: AiProviderState; server: AiServerState /* 2.5.0 */ } }
 interface AiProviderState {
   hasKey: boolean;
   model: string;                 // the model in effect: the one chosen, or the list's first
@@ -577,9 +578,9 @@ interface AiModelChoice { id: string; note: string; contextTokens: number }   //
 documents: { defaultTemplateId: string; defaultStyleId: string; ocrEngine: "windows" | "tesseract" }   // "meeting-minutes" and "corporate" until chosen; ocrEngine (2.0) is the engine in effect
 ```
 
-`settings.set` takes `ai.defaultProviderId` (`'anthropic' | 'openai' | 'local' | null`), `ai.localModelId` (an installed `kind: 'llm'` catalog id, or `null` for the hardware default), `ai.providers.anthropic.model` / `ai.providers.openai.model` (a model id, or `null` for the default: one of `models` or any other plausible id, saved trimmed and exactly as typed: letters, digits and `. _ : / -`, starting with a letter or digit, at most 100 characters; an empty string is refused, so none is ever written) and `documents.defaultTemplateId` / `defaultStyleId` (an id, or `null` for the built-in). A field left out keeps its value; `null` clears it; a bad value is `settings.invalidValue` with the field as `detail`, and nothing is written. Keys still change only through `ai.setKey` / `ai.clearKey`.
+`settings.set` takes `ai.defaultProviderId` (`'anthropic' | 'openai' | 'local' | 'server' | null`), 2.5.0 `ai.providers.server` (`AiServerPatch`, see "2.5.0 — Your own server"), `ai.localModelId` (an installed `kind: 'llm'` catalog id, or `null` for the hardware default), `ai.providers.anthropic.model` / `ai.providers.openai.model` (a model id, or `null` for the default: one of `models` or any other plausible id, saved trimmed and exactly as typed: letters, digits and `. _ : / -`, starting with a letter or digit, at most 100 characters; an empty string is refused, so none is ever written) and `documents.defaultTemplateId` / `defaultStyleId` (an id, or `null` for the built-in). A field left out keeps its value; `null` clears it; a bad value is `settings.invalidValue` with the field as `detail`, and nothing is written. Keys still change only through `ai.setKey` / `ai.clearKey`.
 
-"Allow external AI services" (`ai.enabled`) governs the cloud providers only. The local model sends nothing and is available whenever its model is installed, whatever `ai.enabled` says. The share switches (`ai.share`) limit what a cloud provider receives; a template's ticks never exceed them.
+"Allow external AI services" (`ai.enabled`) governs the cloud providers only. The local model sends nothing and is available whenever its model is installed, whatever `ai.enabled` says. The share switches (`ai.share`) limit what a cloud provider receives; a template's ticks never exceed them. 2.5.0: both rules key on `ProviderInfo.leavesPc`, not on the kind: they also govern "Your own server" at an address that is not this PC, and not a server on this PC (loopback), which is treated like the local model.
 
 Cloud models (after 2.1; `AiModelDefaults`, the first of each list is the default):
 
@@ -601,7 +602,7 @@ The local model by hardware: Qwen3.5 4B (`qwen3.5-4b-q4`) when the discrete card
 
 ## Error codes (M4)
 
-`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.unknownModel`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.notEnoughMemory` (after 2.2: a larger local model does not fit in RAM and video memory with the reserves kept, or was unloaded because a recording started; see "After 2.2 — Larger local models"), `ai.workerCrashed`, `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
+`ai.disabled`, `ai.providerNotReady` (detail: the specific code), `ai.noKey`, `ai.invalidKey`, `ai.rateLimited`, `ai.network`, `ai.providerError`, `ai.contentTooLong`, `ai.unknownModel`, `ai.modelNotInstalled`, `ai.notEnoughVram`, `ai.notEnoughMemory` (after 2.2: a larger local model does not fit in RAM and video memory with the reserves kept, or was unloaded because a recording started; see "After 2.2 — Larger local models"), `ai.workerCrashed`, 2.5.0 "Your own server" (see "2.5.0 — Your own server"): `ai.noServer`, `ai.noModel`, `ai.serverInsecure`, `ai.serverUnreachable`, `ai.serverNotCompatible`, `ai.serverNeedsKey`, `ai.serverModelUnknown`; `generation.noTranscript`, `generation.busy`, `generation.notFound`, `templates.notFound`, `templates.builtIn`, `styles.notFound`, `styles.builtIn`, `styles.inUse`, `documents.notFound`, `documents.unsupportedEdit`, `documents.versionNotFound`, `documents.exportFailed`.
 
 The `ai.*` provider codes reach the UI as the code of a failed generation progress event, with the provider's own §17 message ("Claude could not be reached: no network. Nothing was sent twice and no document was changed."); a failure never changes an existing document.
 
@@ -916,7 +917,7 @@ interface DocumentModuleParams { recordingId: string; documentId: string; module
 ## Preview what will be sent (2.0)
 
 ```ts
-interface PreviewProviderInfo { id: ProviderId; name: string; kind: 'cloud' | 'local'; modelLabel: string | null }
+interface PreviewProviderInfo { id: ProviderId; name: string; kind: 'cloud' | 'local' | 'server'; modelLabel: string | null }   // 'server': 2.5.0, modelLabel "qwen3:8b at localhost:11434"
 interface PreviewInput { key: keyof InputSelection | 'instructions'; label: string; ticked: boolean; included: boolean;
                          characters: number; bytes: number; summary: string | null; note: string | null }   // note: "Held back: …", "Nothing to send: …", "Left out: …"
 interface PreviewPass { id: string /* p1… */; step: 'map' | 'verify'; title: string; system: string; user: string;
@@ -1219,3 +1220,79 @@ interface GenerationRecord { /* … */ placement: string | null }   // "Ran on t
 - **Failures.** `ai.notEnoughMemory` (failed `generation.progress`): the RAM was short when the worker was about to load ("… needs 25 GB of memory; this PC has 19 GB free. Nothing left this PC and no document was changed. Close other programs or choose a smaller model."), or a recording started while a larger model wrote and the RAM available would have left capture short (Windows' 2 GB plus the capture reserve): the model is unloaded, the generation ends with "Qwen3.5 35B-A3B was unloaded because a recording started and this PC had 1.5 GB of memory free, too little to keep both. The recording is not affected. Nothing left this PC and no document was changed. Generate the document again when the recording has finished, or choose a smaller model.", and History (stage `minutes`, event `failed`) says "Meeting minutes stopped: Qwen3.5 35B-A3B was unloaded for a recording". The small models are never unloaded for a recording. A spill out of the card's memory while a larger model loads or writes does not fail the generation: the worker loads it again with less on the card (the experts of more blocks, then blocks, in RAM; at most twice while writing, then in RAM alone when loading) and answers the prompt again.
 - **Records.** A document a larger model wrote has `record.placement` (How this was made shows it as Placement), and its History line ends with the same sentence.
 - `settings.set` `ai.localModelId` accepts a larger model's id like any installed local model's.
+
+# 2.5.0 — Your own server
+
+"Your own server" is a fourth provider: any OpenAI-compatible server the user runs, such as Ollama, LM Studio, vLLM or a llama.cpp server (ARCHITECTURE.md §8, SECURITY.md §3). Provider id `server`, `kind: 'server'`, name and vendor "Your own server". Its address, model and context are Settings (`settings.ai.server` on disk); its key, optional, is in the DPAPI store under `server`. Records: `src/Memento.Core/Bridge/Contracts` (`AiServerState`, `AiServerPatch`, `AiServerProbeParams`, `AiServerProbeResult`, the new `ProviderInfo` members), serialized by `BridgeJsonContext` (settings) and `M4BridgeJsonContext` (the probe, `providers.list`).
+
+- **Where the inputs go.** Judged from the address text alone, never by a lookup: `localhost`, 127.0.0.0/8 and `[::1]` are this PC (`loopback: true`, `leavesPc: false`); RFC 1918, link-local (169.254.0.0/16, fe80::/10), fc00::/7, a `.local` name and a single-label host name are the local network; anything else is remote. Only a loopback server keeps everything on the PC: it runs with "Allow external AI services" off, is never held by "Ask before every send", reads what the template ticks (the share switches do not apply), and the preview says it stays on the PC (`staysOnPc: true`) and the record `stayedOnPc: true`. Any other address leaves the PC (`leavesPc: true`): it needs "Allow external AI services" (`ai.disabled` otherwise, checked before anything is read or built), gets the same send confirmation as Claude and ChatGPT, and receives only what the share switches allow. Every one of these decisions keys on `leavesPc`, never on `kind`.
+- **Plain http.** `http://` is accepted for this PC and the local network only. A plain-http remote address can be saved but is not ready (`ai.serverInsecure`), and nothing is ever sent to it, not even by "Test connection".
+- **Addresses.** An absolute `http`/`https` URL without a query, fragment or user name; a missing scheme reads as `http://`; a trailing `/v1` is dropped (Memento adds `/v1/chat/completions` and `/v1/models`); saved normalized without a trailing slash (`localhost:11434/v1` is saved as `http://localhost:11434`). A bad one is `settings.invalidValue` (detail `ai.providers.server.address`); the message never repeats a user name or password. A settings file with an unusable address reads as none.
+- **Models.** As the server names them: letters, digits and `. _ : / - @ +`, at most 200 characters, starting with a letter or digit (`qwen3:8b`, `qwen/qwen3-8b@q4_k_m`, `hf.co/org/Model-GGUF:Q4_K_M`); otherwise `settings.invalidValue` (detail `ai.providers.server.model`). There is no list: "Test connection" shows the server's.
+- **Context.** `contextTokens`, default 8,192, clamped to 2,048…1,048,576 by `settings.set` and on load (the page clamps to the same range). It must be what the server actually gives the model: Ollama gives 4,096 unless `num_ctx` was raised, and a prompt beyond the server's context is cut or refused there. Each request carries at most a quarter of it as transcript (and at most 24,000 tokens), a map answer at most a quarter of it (at most 8,000), and `max_tokens` never more than the context leaves after the prompt. Tokens are estimated, erring high (`EstimatingTokenCounter.Server`).
+- **`providers.list`** (no request; the server is always listed, also with external AI off), in this order: `ai.noServer` "No server address" when none is set; `ai.serverInsecure` "Needs https"; `ai.disabled` "External AI is off" when the address leaves the PC and external AI is off; `ai.noModel` "No model chosen". Ready: `modelLabel` "qwen3:8b at localhost:11434", `modelListed: null`, `modelId: null`, `address` the saved address, `detail` "Sends the ticked inputs to qwen3:8b at http://localhost:11434 when you press Generate. The server runs on this PC, so nothing leaves it. Memento assumes the server gives the model 8,192 tokens of context, as set in Settings (Ollama gives 4,096 unless num_ctx was raised); a long transcript is split into segments of up to 2,048 tokens." ("The server is on your network, so the inputs leave this PC." / "The server is outside your network, …" otherwise).
+- **Generation.** `POST {address}/v1/chat/completions`, `stream: true`, the system prompt and turns as `messages`, `max_tokens`, `temperature` as the pipeline sets it, and for a JSON answer `response_format: { type: 'json_schema', json_schema: { name, schema, strict: true } }`. A server that answers 400 (or 422) naming `response_format`, `json_schema` or a schema gets the request once more with `{ type: 'json_object' }` and the schema in the system message, and is remembered for as long as Memento runs (by address); the pipeline's per-module validation still checks every answer. `Authorization: Bearer` is sent only when a key is saved. No redirect is followed (a 3xx is a specific error), and an answer is read up to 4 MiB of text and 8 MiB per stream line or event, as for the clouds (security audit 1, SA-36 and SA-45). The send summary, the preview, the Live output, History and "How this was made" name the provider, the model and the address; the record's `modelLabel` adds where it ran: "qwen3:8b at localhost:11434 (this PC)", "… (on your network)", "… (remote)". If the address changes between the send confirmation and the run, the confirmed one is used. Requests go one at a time (many such servers run one slot; the clouds take up to three at once), and the Live output shows each reply whole, as for the clouds.
+- **`ai.serverProbe`** ("Test connection"): the only request Memento makes for the server without a generation, and only when the page asks. `GET {address}/v1/models` with the saved key, and `GET {address}/api/version` when the model list says it is Ollama; nothing else, no redirect, 15 seconds each. The address need not be saved and nothing is saved. An address that leaves the PC is not contacted while external AI is off (`code: 'ai.disabled'`), a plain-http remote one never (`ai.serverInsecure`); an address that does not parse is `settings.invalidValue` (detail `address`).
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `ai.serverProbe` | `AiServerProbeParams` | `AiServerProbeResult` | `serverName`: "Ollama 0.12.3", "LM Studio", "vLLM", "llama.cpp server" (from the model list's `owned_by`), else the `Server` header, else the host and port. `models`: the ids from `/v1/models`, sorted. `code`: `null` when it worked; `ai.serverUnreachable`, `ai.serverNeedsKey`, `ai.serverNotCompatible`, `ai.noModel` (it lists none), `ai.disabled`, `ai.serverInsecure`. `detail`: "Connected to Ollama 0.12.3 at http://localhost:11434: 2 models. It runs on this PC, so nothing leaves it.", or the §17 sentence. |
+
+Error codes and their sentences (each names the address; generation failures say what is safe and the fix, DESIGN.md §17):
+
+| Code | When | Sentence (generation; "Test connection" leaves out the middle sentence) |
+|---|---|---|
+| `ai.noServer` | `providers.list`, `generation.start` (as `ai.providerNotReady` detail): no address | "No server address is set, so nothing is sent to Your own server. Enter the address of Ollama, LM Studio or another OpenAI-compatible server in Settings › AI and privacy." |
+| `ai.noModel` | no model chosen; the probe: the server lists none | "No model is chosen for the server at {address}, so nothing is sent to it. Choose one in Settings › AI and privacy (Test connection lists the server's models)." |
+| `ai.serverInsecure` | plain http to a remote address | "{address} is outside this PC and your local network, and Memento sends there only over https. Nothing was sent and no document was changed. Use an https:// address in Settings › AI and privacy." |
+| `ai.serverUnreachable` | connection refused / host unreachable / name not found / the probe timed out | "Nothing is listening at http://localhost:11434. Nothing was sent and no document was changed. Start Ollama or LM Studio, or check the address in Settings › AI and privacy." / "The server at {address} could not be reached. … Check that the computer is on and the server is running, or check the address in Settings › AI and privacy." |
+| `ai.serverNotCompatible` | 404/405/501 at the API path, an answer that is not a completion or a model list, a redirect (probe) | "The server at {address} does not answer like an OpenAI-compatible server (HTTP 404 at /v1/chat/completions). Nothing was generated and no document was changed. Check the address in Settings › AI and privacy: Memento adds /v1/chat/completions to it." |
+| `ai.serverNeedsKey` | 401 or 403 | "The server at {address} asks for a key (HTTP 401). Nothing was generated and no document was changed. Add the server's key in Settings › AI and privacy." ("did not accept the saved key" when one is saved) |
+| `ai.serverModelUnknown` | 404 (or 400) naming the model | "The server at {address} does not offer a model called 'qwen9:1b'. Nothing was generated and no document was changed. Choose one of its models in Settings › AI and privacy (Test connection lists them), or check the name." No other model is tried. |
+| `ai.contentTooLong` | the server's context-overflow messages (vLLM, llama.cpp, LM Studio, Ollama) or 413 | "The text is too long for {model} at {address}: 9,000 tokens, the server's limit is 8,192. Nothing was sent twice and no document was changed. Set the context in Settings › AI and privacy to what the server runs, or raise it on the server." |
+| `ai.network` | no answer in time | "The server at {address} did not answer within 5 minutes. Nothing was sent twice and no document was changed. A large model can take a while to load; try again, or check that the server is running." |
+| `ai.providerError` | a redirect, a 5xx, another 400, an answer too long or not JSON | "The server at {address} answered with a redirect to {host} (HTTP 307), and Memento does not follow redirects, …", "The server at {address} had a problem on its side (HTTP 500). … Check the server's own window or log (a model too large for its memory is a common cause), then try again.", "The server at {address} sent an answer Memento could not read. …" |
+| `ai.disabled` | an address that leaves the PC while external AI is off | "The server at {address} is not on this PC, and external AI is off, so nothing was sent and no document was changed. Turn on \"Allow external AI services\" in Settings › AI and privacy, or use a server on this PC or the local model." |
+
+## 2.5.0 server contract
+
+The exact shapes the host sends and accepts (the UI's `ui/src/bridge/types.ts` mirrors them; `METHOD_NAMES` gains `'ai.serverProbe'` and `ERROR_CODES` gains the seven codes below):
+
+```ts
+type ProviderId = 'anthropic' | 'openai' | 'local' | 'server';
+
+// settings.get / settings.set result: ai.providers.server
+interface AiServerState {
+  hasKey: boolean;          // a bearer key is saved (ai.setKey { provider: 'server' })
+  address: string | null;   // as saved: "http://localhost:11434"; null when none is set
+  model: string | null;     // "qwen3:8b"; null when none is chosen
+  contextTokens: number;    // 2048…1048576 (clamped), default 8192
+  loopback: boolean;        // the address is this PC
+  leavesPc: boolean;        // sending to it takes the inputs off this PC (false when no address is set)
+  insecure: boolean;        // plain http outside this PC and the local network (refused)
+}
+interface AiProvidersSnapshot { anthropic: AiProviderState; openai: AiProviderState; server: AiServerState }
+
+// settings.set params: ai.providers.server (each field optional; null clears address or model)
+interface AiServerPatch { address?: string | null; model?: string | null; contextTokens?: number }
+interface AiProvidersPatch { anthropic?: { model?: string | null }; openai?: { model?: string | null }; server?: AiServerPatch }
+
+// ai.setKey / ai.clearKey
+interface AiProviderParams { provider: 'anthropic' | 'openai' | 'server' }
+
+// providers.list: ProviderInfo gains (every provider)
+interface ProviderInfo { /* … */ kind: 'cloud' | 'local' | 'server'; leavesPc: boolean; address: string | null /* server only */ }
+interface PreviewProviderInfo { id: ProviderId; name: string; kind: 'cloud' | 'local' | 'server'; modelLabel: string | null }
+
+// ai.serverProbe
+interface AiServerProbeParams { address: string }
+interface AiServerProbeResult {
+  reachable: boolean; serverName: string | null; code: string | null; detail: string | null /* always set by this host */;
+  loopback: boolean; leavesPc: boolean; insecure: boolean; models: string[];
+}
+
+// new ERROR_CODES
+'ai.noServer' | 'ai.noModel' | 'ai.serverInsecure' | 'ai.serverUnreachable' | 'ai.serverNotCompatible' | 'ai.serverNeedsKey' | 'ai.serverModelUnknown'
+```
+
+Serialized examples (pinned by `ServerSettingsBridgeTests` and `ServerProviderBridgeTests`): `settings.get` with nothing set gives `"server":{"hasKey":false,"address":null,"model":null,"contextTokens":8192,"loopback":false,"leavesPc":false,"insecure":false}`; a probe of a fake Ollama gives `{"reachable":true,"serverName":"Ollama 0.12.3","code":null,"detail":"Connected to Ollama 0.12.3 at http://127.0.0.1:50123: 2 models. It runs on this PC, so nothing leaves it.","loopback":true,"leavesPc":false,"insecure":false,"models":["llama3.2:3b","qwen3:8b"]}`.

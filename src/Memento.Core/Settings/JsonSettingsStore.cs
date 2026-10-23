@@ -205,7 +205,55 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
                 Anthropic = NormalizeModel("ai.providers.anthropic.model", providers.Anthropic, AiModelDefaults.AnthropicModel),
                 Openai = NormalizeModel("ai.providers.openai.model", providers.Openai, AiModelDefaults.OpenAiModel),
             },
+            Server = NormalizeServer(ai.Server),
         };
+    }
+
+    /// <summary>
+    /// "Your own server" (2.5.0): a blank address reads as none; one that is not an absolute http(s) URL without a
+    /// query, fragment or user name reads as none and is logged (by what is wrong, never by its text, which could hold a
+    /// password); an implausible model reads as none; the context is kept within 2,048…1,048,576 tokens.
+    /// </summary>
+    private AiServerSettings NormalizeServer(AiServerSettings? server)
+    {
+        if (server is null)
+        {
+            return new AiServerSettings();
+        }
+
+        var result = server;
+        if (string.IsNullOrWhiteSpace(server.Address))
+        {
+            result = result with { Address = null };
+        }
+        else if (ServerAddress.Parse(server.Address, out var problem) is { } address)
+        {
+            result = result with { Address = address.Text };
+        }
+        else
+        {
+            LogInvalidValue("ai.server.address", "an address that " + problem, "none");
+            result = result with { Address = null };
+        }
+
+        if (result.Model is { } model && !AiServerSettings.IsValidModel(model.Trim()))
+        {
+            LogInvalidValue("ai.server.model", "an implausible model name", "none");
+            result = result with { Model = null };
+        }
+        else if (result.Model is { } kept)
+        {
+            result = result with { Model = kept.Trim() };
+        }
+
+        var context = AiServerSettings.ClampContext(result.ContextTokens);
+        if (context != result.ContextTokens)
+        {
+            LogInvalidValue("ai.server.contextTokens", result.ContextTokens.ToString(CultureInfo.InvariantCulture), context.ToString(CultureInfo.InvariantCulture));
+            result = result with { ContextTokens = context };
+        }
+
+        return result;
     }
 
     private AiProviderModel NormalizeModel(string field, AiProviderModel? model, string fallback)

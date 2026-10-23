@@ -22,7 +22,7 @@ public sealed record GenerationRecord(
 
     public long Bytes { get; init; }
 
-    /// <summary>The local model read it; nothing left the PC. Audio and video are never sent.</summary>
+    /// <summary>Nothing left the PC: the local model read it, or (2.5.0) "Your own server" on this PC did. Audio and video are never sent.</summary>
     public bool StayedOnPc { get; init; }
 
     public IReadOnlyList<GenerationClaim> Claims { get; init; } = [];

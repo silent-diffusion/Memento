@@ -21,13 +21,13 @@ public sealed record DocumentGenerationRecord
 
     public string ProviderId { get; set; } = string.Empty;
 
-    /// <summary>"Claude", "ChatGPT", "Local model".</summary>
+    /// <summary>"Claude", "ChatGPT", "Your own server", "Local model".</summary>
     public string ProviderName { get; set; } = string.Empty;
 
     /// <summary>The model id the requests went to (cloud id or local catalog id).</summary>
     public string Model { get; set; } = string.Empty;
 
-    /// <summary>"claude-opus-5-5", "Qwen3.5 4B · graphics card".</summary>
+    /// <summary>"claude-opus-5-5", "Qwen3.5 4B · graphics card", "qwen3:8b at localhost:11434 (this PC)" (2.5.0: the server with where it ran).</summary>
     public string ModelLabel { get; set; } = string.Empty;
 
     public DateTimeOffset StartedAt { get; init; }
@@ -51,7 +51,7 @@ public sealed record DocumentGenerationRecord
     /// <summary>The payload text, when "keep a record of what was sent" was on.</summary>
     public string? PayloadText { get; init; }
 
-    /// <summary>The local model read it on this PC: nothing was sent. Audio and video are never sent in any case.</summary>
+    /// <summary>Nothing left this PC: the local model read it, or (2.5.0) "Your own server" at a loopback address. Audio and video are never sent in any case.</summary>
     public bool StayedOnPc { get; init; }
 
     public int Chunks { get; init; }

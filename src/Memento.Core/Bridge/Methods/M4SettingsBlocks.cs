@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Memento.Core.Ai;
 using Memento.Core.Bridge.Contracts;
@@ -19,11 +20,14 @@ internal static class M4SettingsBlocks
     public const string OpenAi = "openai";
     public const string Local = "local";
 
+    /// <summary>2.5.0: "Your own server".</summary>
+    public const string Server = "server";
+
     /// <summary>The template and style a new document starts from when Settings names none (the built-ins).</summary>
     public const string BuiltInTemplateId = "meeting-minutes";
     public const string BuiltInStyleId = "corporate";
 
-    public static IReadOnlyList<string> ProviderIds { get; } = [Anthropic, OpenAi, Local];
+    public static IReadOnlyList<string> ProviderIds { get; } = [Anthropic, OpenAi, Server, Local];
 
     /// <summary>Adds the M4 fields to a snapshot.</summary>
     public static SettingsSnapshot Complete(SettingsSnapshot snapshot, AppSettings settings, EngineSelector selector)
@@ -39,7 +43,10 @@ internal static class M4SettingsBlocks
                 LocalModelChosen = ai.LocalModelId is not null && localModel == ai.LocalModelId,
                 Providers = new AiProvidersSnapshot(
                     WithModel(snapshot.Ai.Providers.Anthropic, AiProviders.Anthropic, ai.Providers.Anthropic.Model),
-                    WithModel(snapshot.Ai.Providers.Openai, AiProviders.OpenAi, ai.Providers.Openai.Model)),
+                    WithModel(snapshot.Ai.Providers.Openai, AiProviders.OpenAi, ai.Providers.Openai.Model))
+                {
+                    Server = snapshot.Ai.Providers.Server,
+                },
             },
             Documents = new DocumentsSettingsSnapshot(settings.Documents.DefaultTemplateId ?? BuiltInTemplateId, settings.Documents.DefaultStyleId ?? BuiltInStyleId)
             {
@@ -79,7 +86,7 @@ internal static class M4SettingsBlocks
             var settings = next.Ai;
             var defaultProvider = Choice(ai.DefaultProviderId, "ai.defaultProviderId", settings.DefaultProviderId, id => ProviderIds.Contains(id, StringComparer.Ordinal)
                 ? null
-                : $"ai.defaultProviderId: '{id}' is not a provider. Choose anthropic, openai or local. Nothing was changed.");
+                : $"ai.defaultProviderId: '{id}' is not a provider. Choose anthropic, openai, server or local. Nothing was changed.");
             var localModel = Choice(ai.LocalModelId, "ai.localModelId", settings.LocalModelId, id =>
             {
                 var entry = models.Catalog.Find(id);
@@ -94,6 +101,7 @@ internal static class M4SettingsBlocks
             });
             var anthropic = Choice(ai.Providers?.Anthropic?.Model ?? default, "ai.providers.anthropic.model", settings.Providers.Anthropic.Model, ModelProblem("ai.providers.anthropic.model"));
             var openai = Choice(ai.Providers?.Openai?.Model ?? default, "ai.providers.openai.model", settings.Providers.Openai.Model, ModelProblem("ai.providers.openai.model"));
+            var server = MergeServer(settings.Server, ai.Providers?.Server);
             next = next with
             {
                 Ai = next.Ai with
@@ -105,6 +113,7 @@ internal static class M4SettingsBlocks
                         Anthropic = next.Ai.Providers.Anthropic with { Model = anthropic },
                         Openai = next.Ai.Providers.Openai with { Model = openai },
                     },
+                    Server = server,
                 },
             };
         }
@@ -133,6 +142,49 @@ internal static class M4SettingsBlocks
         }
 
         return next;
+    }
+
+    /// <summary>
+    /// 2.5.0, <c>ai.providers.server</c>: the address is saved normalized (<see cref="ServerAddress.Text"/>), or cleared by
+    /// <c>null</c>; the model as the server spells it, or cleared; the context clamped to 2,048…1,048,576 tokens, as the page clamps it. A bad value
+    /// names its field and nothing is written. The address is never contacted here.
+    /// </summary>
+    private static AiServerSettings MergeServer(AiServerSettings current, AiServerPatch? patch)
+    {
+        if (patch is null)
+        {
+            return current;
+        }
+
+        const string AddressField = "ai.providers.server.address";
+        const string ModelField = "ai.providers.server.model";
+        var address = Choice(patch.Address, AddressField, current.Address, text => ServerAddress.Parse(text, out var problem) is null
+            ? $"{AddressField}: {Shown(text)} is not a server address: {problem}. Enter it as http://localhost:11434 or https://server.example. Nothing was changed."
+            : null);
+        if (address is not null)
+        {
+            address = ServerAddress.Parse(address, out _)!.Text;
+        }
+
+        var model = Choice(patch.Model, ModelField, current.Model, id => AiServerSettings.IsValidModel(id)
+            ? null
+            : $"{ModelField}: {Shown(id)} is not a model name. Use the name the server lists (letters, digits and . _ : / - @ +, up to {AiServerSettings.MaxModelLength} characters), or null for none. Nothing was changed.");
+        var context = patch.ContextTokens is { } tokens ? AiServerSettings.ClampContext(tokens) : current.ContextTokens;
+
+        return current with { Address = address, Model = model, ContextTokens = context };
+    }
+
+    /// <summary>A refused value as a message shows it: quoted, at most 60 characters, and never an address with a user name or password in it.</summary>
+    private static string Shown(string value)
+    {
+        var scheme = value.IndexOf("://", StringComparison.Ordinal);
+        var at = value.IndexOf('@', StringComparison.Ordinal);
+        if (at >= 0 && (scheme < 0 || at > scheme) && value.IndexOf('/', Math.Max(0, scheme + 3)) is var slash && (slash < 0 || at < slash))
+        {
+            return "an address with a user name";
+        }
+
+        return "'" + (value.Length <= 60 ? value : value[..57] + "...") + "'";
     }
 
     /// <summary>Template and style ids: lower-case letters, digits and hyphens (they are file names).</summary>

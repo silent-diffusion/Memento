@@ -128,7 +128,7 @@ public static class DomainErrorCodes
 
     // M4 (BRIDGE.md "Error codes (M4)"). The ai.* provider codes carry the provider's own copy (DESIGN.md §17).
 
-    /// <summary>A cloud provider was asked for while Settings › AI and privacy › Allow external AI services is off.</summary>
+    /// <summary>A provider that takes the inputs off this PC (Claude, ChatGPT, a server elsewhere) was asked for while Settings › AI and privacy › Allow external AI services is off.</summary>
     public const string AiDisabled = "ai.disabled";
 
     /// <summary>The provider cannot run now; <c>detail</c> is the specific code (<c>ai.noKey</c>, <c>ai.modelNotInstalled</c>…).</summary>
@@ -148,6 +148,29 @@ public static class DomainErrorCodes
     public const string AiNotEnoughMemory = "ai.notEnoughMemory";
 
     public const string AiWorkerCrashed = "ai.workerCrashed";
+
+    // 2.5.0, "Your own server" (BRIDGE.md "Error codes (M4)" and "2.5.0 server contract").
+
+    /// <summary>No server address is set in Settings › AI and privacy.</summary>
+    public const string AiNoServer = "ai.noServer";
+
+    /// <summary>No model is chosen for the server (or the server lists none when tested).</summary>
+    public const string AiNoModel = "ai.noModel";
+
+    /// <summary>A plain <c>http://</c> address outside this PC and the local network; only <c>https://</c> is sent to.</summary>
+    public const string AiServerInsecure = "ai.serverInsecure";
+
+    /// <summary>Nothing answered at the address (connection refused, host unreachable, name not found, no answer in time).</summary>
+    public const string AiServerUnreachable = "ai.serverUnreachable";
+
+    /// <summary>Something answered, but not like an OpenAI-compatible server (no <c>/v1/models</c> or <c>/v1/chat/completions</c>, a redirect).</summary>
+    public const string AiServerNotCompatible = "ai.serverNotCompatible";
+
+    /// <summary>The server refused the request without a valid key (HTTP 401 or 403).</summary>
+    public const string AiServerNeedsKey = "ai.serverNeedsKey";
+
+    /// <summary>The server does not offer the model chosen in Settings.</summary>
+    public const string AiServerModelUnknown = "ai.serverModelUnknown";
 
     /// <summary>The recording has no transcript (or it is empty), so there is nothing to generate from.</summary>
     public const string GenerationNoTranscript = "generation.noTranscript";

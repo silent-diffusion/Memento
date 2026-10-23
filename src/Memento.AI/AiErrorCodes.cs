@@ -42,6 +42,22 @@ public static class AiErrorCodes
     /// <summary>The local model's worker process stopped without an answer.</summary>
     public const string WorkerCrashed = "ai.workerCrashed";
 
+    /// <summary>"Your own server": nothing answered at the address (refused, unreachable, not found, no answer in time).</summary>
+    public const string ServerUnreachable = "ai.serverUnreachable";
+
+    /// <summary>"Your own server": something answered, but not like an OpenAI-compatible server.</summary>
+    public const string ServerNotCompatible = "ai.serverNotCompatible";
+
+    /// <summary>"Your own server": HTTP 401 or 403, a key is missing or wrong.</summary>
+    public const string ServerNeedsKey = "ai.serverNeedsKey";
+
+    /// <summary>"Your own server": it does not offer the model chosen in Settings.</summary>
+    public const string ServerModelUnknown = "ai.serverModelUnknown";
+
+    /// <summary>"Your own server": a plain <c>http://</c> address outside this PC and the local network.</summary>
+    public const string ServerInsecure = "ai.serverInsecure";
+
     public static IReadOnlyList<string> All { get; } =
-        [NoKey, InvalidKey, RateLimited, Network, ProviderError, ContentTooLong, UnknownModel, Cancelled, ModelNotInstalled, NotEnoughVram, NotEnoughMemory, WorkerCrashed];
+        [NoKey, InvalidKey, RateLimited, Network, ProviderError, ContentTooLong, UnknownModel, Cancelled, ModelNotInstalled, NotEnoughVram, NotEnoughMemory, WorkerCrashed,
+         ServerUnreachable, ServerNotCompatible, ServerNeedsKey, ServerModelUnknown, ServerInsecure];
 }

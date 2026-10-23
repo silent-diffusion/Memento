@@ -130,6 +130,11 @@ public sealed class CloudPlumbingTests
             AiErrors.WorkerCrashed("Local model", "Qwen3.5 4B"),
             AiErrors.NotEnoughMemory("Local model", "Qwen3.5 35B-A3B", 25L << 30, 11L << 30),
             AiErrors.UnloadedForRecording("Local model", "Qwen3.5 35B-A3B", 3L << 29),
+            AiErrors.ServerUnreachable("Your own server", "http://localhost:11434", refused: true),
+            AiErrors.ServerNotCompatible("Your own server", "http://localhost:11434", 404, "/v1/chat/completions"),
+            AiErrors.ServerNeedsKey("Your own server", "http://192.168.1.20:8000", 401, hasKey: false),
+            AiErrors.ServerModelUnknown("Your own server", "http://localhost:11434", "qwen9:1b", 404),
+            AiErrors.ServerInsecure("Your own server", "http://203.0.113.10:8000"),
         };
 
         Assert.Equal(AiErrorCodes.All.ToHashSet(), errors.Select(e => e.Code).ToHashSet());
@@ -137,6 +142,11 @@ public sealed class CloudPlumbingTests
         Assert.Equal("Claude could not be reached: no network. Nothing was sent twice and no document was changed.", AiErrors.NoNetwork("Claude").Message);
         Assert.Equal("The graphics card has 2.0 GB of free memory and Qwen3.5 4B needs 3.0 GB. Nothing left this PC and no document was changed. Close apps that use the graphics card, or run the model on the processor.", errors[9].Message);
         Assert.Contains("Try again in 30 seconds.", errors[2].Message, StringComparison.Ordinal);
+
+        // 2.5.0, "Your own server": the brief's sentence first, then what is safe and the fix.
+        Assert.Equal("Nothing is listening at http://localhost:11434. Nothing was sent and no document was changed. Start Ollama or LM Studio, or check the address in Settings › AI and privacy.", errors[13].Message);
+        Assert.Equal("The server at http://localhost:11434 does not offer a model called 'qwen9:1b'. Nothing was generated and no document was changed. Choose one of its models in Settings › AI and privacy (Test connection lists them), or check the name.", errors[16].Message);
+        Assert.StartsWith("http://203.0.113.10:8000 is outside this PC and your local network, and Memento sends there only over https.", errors[17].Message, StringComparison.Ordinal);
         Assert.Equal("Qwen3.5 35B-A3B needs 25 GB of memory; this PC has 11 GB free. Nothing left this PC and no document was changed. Close other programs or choose a smaller model.", errors[11].Message);
         Assert.Equal("Qwen3.5 35B-A3B was unloaded because a recording started and this PC had 1.5 GB of memory free, too little to keep both. The recording is not affected. Nothing left this PC and no document was changed. Generate the document again when the recording has finished, or choose a smaller model.", errors[12].Message);
     }

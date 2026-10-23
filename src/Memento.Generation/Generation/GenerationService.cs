@@ -27,10 +27,11 @@ namespace Memento.Generation.Generation;
 
 /// <summary>
 /// <c>generation.*</c>: the payload preview, the Builder's preview paper, and generation as a cancellable job with
-/// <c>generation.progress</c>. One generation runs at a time. External AI must be allowed for a cloud provider, which is
-/// checked before anything is constructed; "ask before every send" holds a cloud job until <c>generation.confirm</c>
-/// (the local model sends nothing, so it is not asked). A failure keeps the provider's specific copy and code and never
-/// touches an existing document; a regeneration keeps the replaced content as a version.
+/// <c>generation.progress</c>. One generation runs at a time. External AI must be allowed for a provider that takes the
+/// inputs off this PC (<see cref="ProviderStatus.LeavesPc"/>: a cloud one, or "Your own server" elsewhere), which is
+/// checked before anything is constructed; "ask before every send" holds such a job until <c>generation.confirm</c>
+/// (the local model and a server on this PC send nothing off it, so they are not asked). A failure keeps the provider's
+/// specific copy and code and never touches an existing document; a regeneration keeps the replaced content as a version.
 /// </summary>
 public sealed partial class GenerationService(
     ProviderRegistry providers,
@@ -140,9 +141,9 @@ public sealed partial class GenerationService(
             prepared.Facts,
             status.ChunkTokens,
             status.MapOutputTokens,
-            Bounded: !status.IsCloud,
-            VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize);
-        var inputs = PayloadPreview.Inputs(prepared.Ticked, prepared.Selection, prepared.Payload, status.IsCloud);
+            Bounded: Bounded(status),
+            VerifyBatch: VerifyBatch(status));
+        var inputs = PayloadPreview.Inputs(prepared.Ticked, prepared.Selection, prepared.Payload, status.LeavesPc);
         return new GenerationPreviewResult(
             prepared.Payload.RenderPreview(preview),
             Encoding.UTF8.GetByteCount(prepared.Payload.Text),
@@ -151,8 +152,8 @@ public sealed partial class GenerationService(
             warnings)
         {
             ProviderId = status.Id,
-            StaysOnPc = !status.IsCloud,
-            Provider = new PreviewProviderInfo(status.Id, status.Name, status.IsCloud ? "cloud" : "local", status.ModelLabel ?? status.Model),
+            StaysOnPc = !status.LeavesPc,
+            Provider = new PreviewProviderInfo(status.Id, status.Name, status.Kind, status.ModelLabel ?? status.Model),
             AskBeforeSend = settings.Current.Ai.AskBeforeSend,
             Inputs = inputs,
             Redactions = PayloadPreview.Redactions(inputs, prepared.Payload),
@@ -180,11 +181,14 @@ public sealed partial class GenerationService(
     {
         ArgumentNullException.ThrowIfNull(template);
 
-        // The privacy rule first: a cloud provider with external AI off is refused before anything is read or built.
+        // The privacy rule first: a provider that takes the inputs off this PC (a cloud one, or a server elsewhere) with
+        // external AI off is refused before anything is read or built.
         var providerId = providers.ResolveId(template.ProviderId);
-        if (ProviderIds.IsCloud(providerId) && !settings.Current.Ai.Enabled)
+        if (providers.LeavesPc(providerId) && !settings.Current.Ai.Enabled)
         {
-            throw M4Errors.AiDisabled(ProviderIds.DisplayName(providerId));
+            throw providerId == ProviderIds.Server
+                ? M4Errors.ServerDisabled(ProviderIds.DisplayName(providerId), settings.Current.Ai.Server.ParsedAddress()?.Text ?? "the saved address")
+                : M4Errors.AiDisabled(ProviderIds.DisplayName(providerId));
         }
 
         if (documentId is not null)
@@ -208,7 +212,7 @@ public sealed partial class GenerationService(
             throw M4Errors.TranscriptNotSent(Title(prepared.Material));
         }
 
-        var confirm = prepared.Status.IsCloud && settings.Current.Ai.AskBeforeSend;
+        var confirm = prepared.Status.LeavesPc && settings.Current.Ai.AskBeforeSend;
         Job job;
         lock (_gate)
         {
@@ -325,8 +329,9 @@ public sealed partial class GenerationService(
         {
             Publish(job, "composing", null, 1, "Preparing the inputs", force: true);
 
-            // Video memory may have changed since the start was accepted; plan the local model again now.
-            var status = prepared.Status.IsCloud ? prepared.Status : providers.Status(prepared.Status.Id);
+            // Video memory may have changed since the start was accepted; plan the local model again now. A provider that
+            // sends keeps the status the start (and the person's confirmation) was given, so a changed address is never used.
+            var status = prepared.Status.Id == ProviderIds.Local ? providers.Status(prepared.Status.Id) : prepared.Status;
             if (!status.Ready)
             {
                 throw new AiException(new AiError(status.Code ?? AiErrorCodes.ProviderError, status.Name, status.Detail ?? status.Reason ?? "The local model is not ready."));
@@ -345,8 +350,8 @@ public sealed partial class GenerationService(
                 prepared.Facts,
                 status.ChunkTokens,
                 status.MapOutputTokens,
-                Bounded: !status.IsCloud,
-                VerifyBatch: status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize)
+                Bounded: Bounded(status),
+                VerifyBatch: VerifyBatch(status))
             {
                 Output = job.Output,
             };
@@ -477,9 +482,9 @@ public sealed partial class GenerationService(
         var material = await loader.LoadAsync(recordingId, excludeDocumentId, cancellationToken);
         var status = providers.Status(providers.ResolveId(stored.ProviderId));
         var selection = M4Mapping.Selection(stored.Inputs);
-        if (status.IsCloud)
+        if (status.LeavesPc)
         {
-            // Settings › AI and privacy decides what external services may receive; a template's ticks never exceed it.
+            // Settings › AI and privacy decides what may leave the PC; a template's ticks never exceed it.
             selection = selection.Intersect(PayloadSelection.FromShareSettings(settings.Current.Ai.Share));
         }
 
@@ -511,7 +516,7 @@ public sealed partial class GenerationService(
             ProviderId = status.Id,
             ProviderName = status.Name,
             Model = status.Model ?? string.Empty,
-            ModelLabel = status.ModelLabel ?? status.Model ?? string.Empty,
+            ModelLabel = RecordLabel(status),
             StartedAt = started,
             DurationMs = durationMs,
             Inputs = M4Mapping.ToRecord(prepared.Selection),
@@ -520,7 +525,7 @@ public sealed partial class GenerationService(
             Bytes = Encoding.UTF8.GetByteCount(prepared.Payload.Text),
             PayloadHash = prepared.Payload.Hash,
             PayloadText = settings.Current.Ai.KeepRecord ? prepared.Payload.Text : null,
-            StayedOnPc = !status.IsCloud,
+            StayedOnPc = !status.LeavesPc,
             Chunks = outcome.Chunks,
             Requests = outcome.Requests,
             Timings = outcome.Timings,
@@ -529,11 +534,32 @@ public sealed partial class GenerationService(
         };
     }
 
+    /// <summary>
+    /// The record's model label: the provider's, and for "Your own server" where it ran as well ("qwen3:8b at
+    /// localhost:11434 (this PC)", "… (on your network)", "… (remote)"), so "How this was made" and History say it.
+    /// </summary>
+    private static string RecordLabel(ProviderStatus status)
+    {
+        var label = status.ModelLabel ?? status.Model ?? string.Empty;
+        return status.ServerAddress is { } address ? $"{label} ({address.ZoneLabel})" : label;
+    }
+
+    /// <summary>
+    /// Item limits in the map schemas: the local model's grammar, and "Your own server", which turns a schema into a
+    /// grammar too (Ollama, llama.cpp, vLLM, LM Studio) and usually runs a small model in a small context.
+    /// </summary>
+    private static bool Bounded(ProviderStatus status) => !status.IsCloud;
+
+    /// <summary>Questions per verify request: a cloud model's batches of 25 with reasons, else the local model's 6 per family (a server's context is small too).</summary>
+    private static int VerifyBatch(ProviderStatus status) => status.IsCloud ? GenerationPipeline.VerifyBatchSize : GenerationPipeline.LocalVerifyBatchSize;
+
     /// <summary>The History line's detail: exactly what was sent, where, how much, and the result.</summary>
     private static string Sent(DocumentGenerationRecord record)
     {
         var ai = record.Modules.Where(m => m.Source == "ai").ToList();
-        var where = record.StayedOnPc ? "read by the local model on this PC; nothing was sent" : $"sent to {record.ProviderName} ({record.Model})";
+        var where = record.ProviderId == ProviderIds.Server
+            ? record.StayedOnPc ? $"sent to {record.ProviderName} ({record.ModelLabel}); nothing left this PC" : $"sent to {record.ProviderName} ({record.ModelLabel})"
+            : record.StayedOnPc ? "read by the local model on this PC; nothing was sent" : $"sent to {record.ProviderName} ({record.Model})";
         return string.Create(
             CultureInfo.InvariantCulture,
             $"Inputs: {(record.Sent.Count == 0 ? "none" : string.Join("; ", record.Sent))} · {HumanFormat.Bytes(record.Bytes)} in {record.Chunks} chunk{(record.Chunks == 1 ? string.Empty : "s")}, {where}. Audio and video were not sent. {ai.Count} generated section{(ai.Count == 1 ? string.Empty : "s")}: {ai.Sum(m => m.Claims)} claims, {ai.Sum(m => m.Verified)} verified, {ai.Sum(m => m.Dropped)} dropped{(ai.Count(m => m.NotDiscussed) is var n and > 0 ? $", {n} not discussed" : string.Empty)}. Took {HumanFormat.Clock(record.DurationMs)}.");

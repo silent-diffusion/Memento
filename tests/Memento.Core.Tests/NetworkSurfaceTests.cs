@@ -9,7 +9,8 @@ namespace Memento.Core.Tests;
 
 /// <summary>
 /// Memento makes HTTP requests in exactly two places, so what leaves the PC can be reviewed there: the model download
-/// client and the cloud AI client. This scans the source tree so a new client elsewhere fails the build's tests.
+/// client and the AI client (Claude, ChatGPT and, from 2.5.0, "Your own server" share it). This scans the source tree
+/// so a new client elsewhere fails the build's tests.
 /// </summary>
 public sealed partial class NetworkSurfaceTests
 {
@@ -49,6 +50,24 @@ public sealed partial class NetworkSurfaceTests
 
         Assert.Empty(offenders);
         Assert.Equal(HttpClientFiles.Order(StringComparer.OrdinalIgnoreCase), found.Order(StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void YourOwnServerSendsThroughTheSharedAiClient()
+    {
+        // 2.5.0 (security audit 1, section 9: "the source-scan test for HttpClient construction" for each new AI client):
+        // the server provider and "Test connection" are handed the shared client (no redirects, the same caps), and the
+        // bridge reaches them through the lazy AiHttpClient, never a client of their own.
+        var root = RepoRoot();
+        foreach (var file in new[] { "ServerProvider.cs", "ServerProbe.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(root, "src", "Memento.AI", "Server", file));
+            Assert.Contains("(HttpClient http,", text, StringComparison.Ordinal);
+            Assert.DoesNotMatch(HttpClientConstruction(), text);
+        }
+
+        Assert.Contains("http.Value.Client", File.ReadAllText(Path.Combine(root, "src", "Memento.Generation", "Bridge", "Methods", "AiServerProbeMethod.cs")), StringComparison.Ordinal);
+        Assert.Contains("new ServerProvider(http.Value.Client", File.ReadAllText(Path.Combine(root, "src", "Memento.Generation", "Ai", "AiProviderFactory.cs")), StringComparison.Ordinal);
     }
 
     [Fact]

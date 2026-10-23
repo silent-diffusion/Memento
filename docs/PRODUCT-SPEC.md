@@ -630,6 +630,7 @@ Initial supported providers:
 * OpenAI / ChatGPT
 * Anthropic / Claude
 * Local (an on-device model, downloaded and managed in Settings like the transcription models; nothing leaves the PC; no key)
+* Your own server (2.5.0): an OpenAI-compatible server the user runs, such as Ollama, LM Studio, vLLM or a llama.cpp server, with its address, model, context size and an optional key in Settings. A server on this PC (localhost) keeps everything on the PC and needs no "Allow external AI services"; any other address leaves the PC and is treated like a cloud provider (external AI must be on, "ask before every send" and the share switches apply); plain http is accepted only on this PC and the local network. "Test connection" lists the server's models.
 
 The architecture should allow additional providers to be added later.
 

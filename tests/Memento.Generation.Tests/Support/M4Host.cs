@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Memento.AI;
 using Memento.AI.Local;
+using Memento.AI.Server;
 using Memento.Core.Bridge;
 using Memento.Core.Library;
 using Memento.Core.Models;
@@ -169,6 +170,20 @@ internal sealed class M4Host : IDisposable
             CloudCreated++;
             Cloud.Add((id, model));
             return Last = Make?.Invoke(AiProviderKind.Cloud) ?? new MeetingProvider(AiProviderKind.Cloud, 1_000_000);
+        }
+
+        public int ServerCreated { get; private set; }
+
+        public List<ServerOptions> Server { get; } = [];
+
+        /// <summary>Builds the server provider instead of the stand-in (the real one, against a fake server).</summary>
+        public Func<ServerOptions, IAiProvider>? MakeServer { get; set; }
+
+        public IAiProvider CreateServer(ServerOptions options)
+        {
+            ServerCreated++;
+            Server.Add(options);
+            return Last = MakeServer?.Invoke(options) ?? Make?.Invoke(AiProviderKind.Server) ?? new MeetingProvider(AiProviderKind.Server, options.ContextTokens);
         }
 
         public IAiProvider CreateLocal(LocalModelEntry model, string modelPath, LocalAiOptions options, Func<long?> freeVram)

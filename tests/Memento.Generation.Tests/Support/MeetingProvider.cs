@@ -33,13 +33,13 @@ internal sealed partial class MeetingProvider(AiProviderKind kind = AiProviderKi
 
     public ConcurrentBag<AiRequest> Requests { get; } = [];
 
-    public string Id => kind == AiProviderKind.Local ? "local" : "anthropic";
+    public string Id => kind switch { AiProviderKind.Local => "local", AiProviderKind.Server => "server", _ => "anthropic" };
 
-    public string DisplayName => kind == AiProviderKind.Local ? "Local model" : "Claude";
+    public string DisplayName => kind switch { AiProviderKind.Local => "Local model", AiProviderKind.Server => "Your own server", _ => "Claude" };
 
     public AiProviderKind Kind => kind;
 
-    public string Model => kind == AiProviderKind.Local ? "qwen3.5-4b-q4" : "claude-opus-5-5";
+    public string Model => kind switch { AiProviderKind.Local => "qwen3.5-4b-q4", AiProviderKind.Server => "qwen3:8b", _ => "claude-opus-5-5" };
 
     public AiCapabilities Capabilities { get; } = new(context, context / 2, true, kind == AiProviderKind.Local, true, false);
 
