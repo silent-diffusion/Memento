@@ -58,7 +58,7 @@
       CPU backends referenced directly; the LLamaSharp.Backend.Vulkan meta-package adds 65 MB of Linux binaries
       (ENGINE-NOTES.md section H). The cloud providers use HttpClient only, so the app keeps its .NET 8 assemblies.
     -->
-    <PackageVersion Include="LLamaSharp" Version="0.27.0" />
+    <PackageVersion Include="LLamaSharp" Version="0.30.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
     <PackageVersion Include="LLamaSharp.Backend.Vulkan.Windows" Version="0.27.0" />
   </ItemGroup>
