@@ -576,6 +576,64 @@ public sealed class StageTests : IDisposable
         Assert.Contains(versions.GetProperty("versions").EnumerateArray(), v => v.GetProperty("reason").GetString() == "edited");
     }
 
+    /// <summary>One mic line across both diarizer turns (0–1.1 s speaker 0, 1.1–2 s speaker 1), words on both sides of the change.</summary>
+    private void OneLineAcrossTwoSpeakers() => Windows["mic"] =
+    [
+        [
+            new WorkerSegment(
+                0.2,
+                1.9,
+                "Yes, sure. So then go.",
+                0.7,
+                [new TranscriptWord("Yes,", 0.2, 0.5, 0.8), new TranscriptWord("sure.", 0.5, 1.0, 0.9), new TranscriptWord("So", 1.2, 1.4, 0.7), new TranscriptWord("then", 1.4, 1.6, 0.9), new TranscriptWord("go.", 1.6, 1.9, 0.85)]),
+        ],
+    ];
+
+    [Fact]
+    public async Task AFreshTranscriptsLineIsCutWhereTheSpeakerChanges()
+    {
+        InstallAll();
+        OneLineAcrossTwoSpeakers();
+
+        var id = await RecordAndProcessAsync();
+
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(["s0001", "s0001-2"], transcript.Segments.Select(s => s.Id));
+        Assert.Equal(["Yes, sure.", "So then go."], transcript.Segments.Select(s => s.Text));
+        Assert.Equal(["spk1", "spk2"], transcript.Segments.Select(s => s.Speaker));
+        Assert.Equal([(0.2, 1.0), (1.2, 1.9)], transcript.Segments.Select(s => (s.Start, s.End)));
+        Assert.Equal([0.8, 0.7], transcript.Segments.Select(s => s.Confidence));
+        Assert.Equal(2, transcript.Speakers.Count);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.Contains(history, h => h.Stage == "speakers" && h.Event == "completed" && h.Detail!.Contains(" · 1 line split where the speaker changes", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task LinesStayWholeWithTheSettingOffAndOnceEditedOrIdentifiedAgain()
+    {
+        InstallAll();
+        OneLineAcrossTwoSpeakers();
+        await _host.ResultAsync("settings.set", """{"speakers":{"splitAtSpeakerChanges":false}}""");
+        var id = await RecordAndProcessAsync();
+        Assert.Equal(["s0001"], (await TranscriptAsync(id)).Segments.Select(s => s.Id));
+
+        // Switched on later: Identify speakers again keeps the line (its speakers were identified before).
+        await _host.ResultAsync("settings.set", """{"speakers":{"splitAtSpeakerChanges":true}}""");
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+        Assert.Equal(["s0001"], (await TranscriptAsync(id)).Segments.Select(s => s.Id));
+
+        // And so does a pass over an edited transcript.
+        await _host.ResultAsync("transcript.editSegment", JsonSerializer.Serialize(new { recordingId = id, segmentId = "s0001", text = "Yes, sure. So then go on." }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(["s0001"], transcript.Segments.Select(s => s.Id));
+        Assert.Equal("Yes, sure. So then go on.", transcript.Segments[0].Text);
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.DoesNotContain(history, h => h.Stage == "speakers" && h.Detail!.Contains("split where the speaker changes", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task ALineTheEngineRepeatsIsDroppedAndHistorySaysSo()
     {
