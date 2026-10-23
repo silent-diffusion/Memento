@@ -43,6 +43,8 @@ export interface TranscriptApi {
   restoreSpeakers: (entries: SpeakerLines[]) => Promise<void>;
   /** 2.6.0: two speakers trade their lines, from a line on (transcript order) or everywhere (null); its own inverse. */
   swapSpeakers: (speakerId: string, otherSpeakerId: string, fromSegmentId: string | null) => Promise<void>;
+  /** 2.6.0: the other lines the last speaker pass heard as the same voice as this one (reads only; empty without voices). */
+  sameVoice: (segmentId: string) => Promise<string[]>;
   markReviewed: (reviewed: boolean) => Promise<string | null>;
   retry: (stage: StageName, remedyId?: string) => Promise<string | null>;
   transcribe: (modelId?: string, language?: string) => Promise<string | null>;
@@ -226,6 +228,7 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
       apply((r) => withSpeakers(r, speakers, (s) => changed.get(s.id) ?? s));
       setReload((n) => n + 1);
     },
+    sameVoice: async (segmentId) => (await bridge.call('transcript.sameVoice', { recordingId, segmentIds: [segmentId] })).segmentIds,
     markReviewed: (reviewed) =>
       attempt(async () => {
         const answer = await bridge.call('transcript.markReviewed', { recordingId, reviewed });

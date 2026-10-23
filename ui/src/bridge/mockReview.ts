@@ -17,6 +17,8 @@ import type {
   RecordingIdParams,
   SettingsSnapshot,
   Speaker,
+  TranscriptSameVoiceParams,
+  TranscriptSameVoiceResult,
   TranscriptSegment,
   TranscriptSetSegmentsSpeakerParams,
   TranscriptSetSegmentsSpeakerResult,
@@ -57,6 +59,7 @@ export interface MockReview {
     'annotations.restoreSuggestion': (params: ChapterSuggestionParams) => ChapterSuggestionsResult;
     'transcript.setSegmentsSpeaker': (params: TranscriptSetSegmentsSpeakerParams) => TranscriptSetSegmentsSpeakerResult;
     'transcript.swapSpeakers': (params: TranscriptSwapSpeakersParams) => TranscriptSetSegmentsSpeakerResult;
+    'transcript.sameVoice': (params: TranscriptSameVoiceParams) => TranscriptSameVoiceResult;
   };
   /** Adds a known voice directly (tests and the preview's sample data). */
   seedVoice: (voice: { name: string; speakerId: string; recordings?: number }) => string;
@@ -129,6 +132,33 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
       throw new MockHostError('transcript.none', 'This recording has no transcript yet, so there are no speakers to remember. Nothing was changed.', recordingId);
     }
     return transcript;
+  };
+  // 2.6.0: what voices.json would say. The real host keeps each raw diarizer voice with the lines it won; this stand-in
+  // deals every speaker's lines (as they stand when first asked) into two voices by turns, so "the lines that sound the
+  // same" is half of a speaker's lines, and keeps that until the transcript's lines change (a new pass).
+  const voicesOf = new Map<string, { ids: string; voices: string[][] }>();
+  const sameVoice = (recordingId: string, segmentIds: string[]): string[] => {
+    const transcript = transcriptOf(recordingId);
+    const ids = transcript.segments.map((s) => s.id).join('\n');
+    let kept = voicesOf.get(recordingId);
+    if (kept?.ids !== ids) {
+      const voices = new Map<string, string[]>();
+      const dealt = new Map<string, number>();
+      for (const s of transcript.segments) {
+        if (s.speaker === null) {
+          continue;
+        }
+        const n = dealt.get(s.speaker) ?? 0;
+        dealt.set(s.speaker, n + 1);
+        const voice = `${s.speaker}/${n % 2}`;
+        voices.set(voice, [...(voices.get(voice) ?? []), s.id]);
+      }
+      kept = { ids, voices: [...voices.values()] };
+      voicesOf.set(recordingId, kept);
+    }
+    const asked = new Set(segmentIds);
+    const alike = new Set(kept.voices.filter((lines) => lines.some((id) => asked.has(id))).flat());
+    return transcript.segments.filter((s) => alike.has(s.id) && !asked.has(s.id)).map((s) => s.id);
   };
   const talkSeconds = (segments: TranscriptSegment[], speakerId: string): number =>
     segments.filter((s) => s.speaker === speakerId).reduce((sum, s) => sum + (s.end - s.start), 0);
@@ -401,6 +431,19 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
         const wanted = new Set(moves.map((m) => m.id));
         const after = env.transcription.get(recordingId).transcript;
         return { segments: (after?.segments ?? []).filter((s) => wanted.has(s.id)), speakers };
+      },
+      // 2.6.0: the other lines heard as the same voice as these (reads only).
+      'transcript.sameVoice': ({ recordingId, segmentIds }) => {
+        if (segmentIds.length === 0) {
+          throw new MockHostError('bridge.invalidParams', 'Choose 1 to 100000 lines.');
+        }
+        const transcript = transcriptOf(recordingId);
+        for (const id of segmentIds) {
+          if (!transcript.segments.some((s) => s.id === id)) {
+            throw new MockHostError('transcript.segmentNotFound', 'That line is not in the transcript any more; it may have been transcribed again. Nothing was changed.', id);
+          }
+        }
+        return { segmentIds: sameVoice(recordingId, segmentIds) };
       },
     },
   };

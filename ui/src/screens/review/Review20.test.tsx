@@ -220,8 +220,11 @@ describe('Review 2.0: known voices, suggested chapters, selection mode', () => {
     await click([...document.querySelectorAll('.speaker-menu [role="option"]')].find((o) => o.textContent.trim() === 'Lena Fischer'));
     await until(() => document.querySelector('.speaker-menu--choices') !== null);
     // The first line is a turn of its own (and nothing of either speaker comes before it, so a swap from here on would
-    // be everywhere): Just this line, From here on, Swap everywhere, Merge, Back.
-    expect([...document.querySelectorAll<HTMLElement>('.speaker-menu--choices [data-choice]')].map((c) => c.dataset.choice)).toEqual(['line', 'onward', 'swapAll', 'merge', 'back']);
+    // be everywhere): Just this line, the lines that sound the same (asked for as the chooser opened; the row appears
+    // once the host answers), From here on, Swap everywhere, Merge, Back.
+    await until(() => document.querySelector('[data-choice="voice"]') !== null);
+    expect(h.callsOf('transcript.sameVoice')).toEqual([{ recordingId: DESIGN_REVIEW, segmentIds: [first.id] }]);
+    expect([...document.querySelectorAll<HTMLElement>('.speaker-menu--choices [data-choice]')].map((c) => c.dataset.choice)).toEqual(['line', 'voice', 'onward', 'swapAll', 'merge', 'back']);
     const onward = before.segments.filter((s) => s.speaker === sam.id).map((s) => s.id);
     expect(document.querySelector('.speaker-menu--choices [data-choice="onward"] .speaker-choice-label')?.textContent).toBe(`From here on · ${onward.length} lines`);
     // Pointing at the choice marks its lines (those rendered near the top).

@@ -1,15 +1,16 @@
-// What a line's speaker menu can move besides the one line (DESIGN.md §9, 2.6.0): the turn the line is in
-// (the run of consecutive lines of its speaker around it), every later line of that speaker ("From here
-// on", for people who correct from the top down), the two speakers' lines traded with each other (a swap,
-// from here on or everywhere, when the names are simply the wrong way round), or every line (the merge).
-// Each choice carries its exact lines, so the menu can say how many and show them while the choice is
-// hovered or active.
+// What a line's speaker menu can move besides the one line (DESIGN.md §9, 2.6.0): the other lines the
+// speaker pass heard as the same voice (transcript.sameVoice: a raw diarizer voice is nearly always one
+// person, so its lines are wrong together), the turn the line is in (the run of consecutive lines of its
+// speaker around it), every later line of that speaker ("From here on", for people who correct from the
+// top down), the two speakers' lines traded with each other (a swap, from here on or everywhere, when the
+// names are simply the wrong way round), or every line (the merge). Each choice carries its exact lines,
+// so the menu can say how many and show them while the choice is hovered or active.
 import type { Speaker, TranscriptSegment } from '../bridge/types';
 import { formatDuration } from './duration';
 
 /** One way to apply a picked speaker to a line with a speaker, with the lines it moves. */
 export interface SectionChoice {
-  id: 'line' | 'turn' | 'onward' | 'swapOnward' | 'swapAll' | 'merge';
+  id: 'line' | 'voice' | 'turn' | 'onward' | 'swapOnward' | 'swapAll' | 'merge';
   label: string;
   /** What happens, in one sentence (DESIGN.md §17). */
   detail: string;
@@ -102,12 +103,14 @@ function swapChoices(segments: readonly TranscriptSegment[], index: number, from
 }
 
 /**
- * The choices for moving the line at `index` (a line of `from`) to `to`: Just this line, This turn, From here
- * on, the swaps (when `to` has lines), Merge. A choice that would move the same lines as one before it is left
- * out: a turn of one line is just the line, and From here on that is the turn (or one line) says nothing new.
- * The merge is always last.
+ * The choices for moving the line at `index` (a line of `from`) to `to`: Just this line, the lines that sound
+ * the same (when `sameVoice` names other lines not yet on `to`), This turn, From here on, the swaps (when `to`
+ * has lines), Merge. A choice that would move the same lines as one before it is left out: a turn of one line
+ * is just the line, and From here on that is the turn (or one line) says nothing new. The merge is always last.
+ * `sameVoice` is what transcript.sameVoice answered for the line (the other lines of its raw voice); undefined
+ * while the answer is not there yet.
  */
-export function sectionChoices(segments: readonly TranscriptSegment[], index: number, from: Speaker, to: Speaker): SectionChoice[] {
+export function sectionChoices(segments: readonly TranscriptSegment[], index: number, from: Speaker, to: Speaker, sameVoice?: readonly string[]): SectionChoice[] {
   const line = segments[index];
   if (line === undefined) {
     return [];
@@ -116,6 +119,17 @@ export function sectionChoices(segments: readonly TranscriptSegment[], index: nu
   const turn = turnAround(segments, index);
   const onward = fromHereOn(segments, index);
   const choices: SectionChoice[] = [{ id: 'line', label: 'Just this line', detail: `The line at ${at(line)} moves to ${to.name}.`, lines: [line] }];
+  const alike = new Set(sameVoice ?? []);
+  const voice = segments.filter((s) => s.id === line.id || (alike.has(s.id) && s.speaker !== to.id));
+  if (voice.length > 1) {
+    const others = voice.length - 1;
+    choices.push({
+      id: 'voice',
+      label: others === 1 ? 'This line and the one that sounds the same' : `This line and the ${others} that sound the same`,
+      detail: `The line at ${at(line)} and ${others} other ${others === 1 ? 'line' : 'lines'} heard as one voice move to ${to.name}.`,
+      lines: voice,
+    });
+  }
   const first = turn[0];
   const last = turn[turn.length - 1];
   if (turn.length > 1 && first !== undefined && last !== undefined) {

@@ -74,7 +74,15 @@ function isTyping(target: EventTarget | null): boolean {
  * Choices for a speaker picked for some lines that share one speaker: for one line the same as its own menu (Just
  * this line, This turn, From here on, Merge; format/speakerRuns.ts), for several just these or the merge.
  */
-function pickChoicesFor(lines: readonly TranscriptSegment[], allSegments: readonly TranscriptSegment[], speakers: readonly Speaker[], actions: LineActions, done: () => void) {
+function pickChoicesFor(
+  lines: readonly TranscriptSegment[],
+  allSegments: readonly TranscriptSegment[],
+  speakers: readonly Speaker[],
+  actions: LineActions,
+  done: () => void,
+  /** 2.6.0, one line: the other lines heard as the same voice, once the host has answered. */
+  sameVoice?: readonly string[],
+) {
   return (chosen: Speaker): readonly PickChoice[] | null => {
     const owners = new Set(lines.map((l) => l.speaker));
     const only = owners.size === 1 ? speakers.find((s) => owners.has(s.id)) : undefined;
@@ -99,7 +107,7 @@ function pickChoicesFor(lines: readonly TranscriptSegment[], allSegments: readon
     const count = lines.length;
     const first = lines[0];
     if (count === 1 && first !== undefined) {
-      return sectionChoices(allSegments, allSegments.findIndex((s) => s.id === first.id), only, chosen).map((choice) => ({
+      return sectionChoices(allSegments, allSegments.findIndex((s) => s.id === first.id), only, chosen, sameVoice).map((choice) => ({
         id: choice.id,
         label: choice.label,
         detail: choice.detail,
@@ -273,6 +281,8 @@ export function useLineSelection({
   actions,
   focusLine,
   preview,
+  prepare,
+  sameVoiceOf,
 }: {
   /** The lines shown, in order. */
   segments: readonly TranscriptSegment[];
@@ -287,11 +297,24 @@ export function useLineSelection({
   focusLine: (segmentId: string) => void;
   /** 2.6.0: marks the lines a hovered or active choice would move (null: none). */
   preview?: (segmentIds: readonly string[] | null) => void;
+  /** 2.6.0: a line's chooser is opening; the host is asked which lines sound like it (the answer feeds `sameVoiceOf`). */
+  prepare?: (segment: TranscriptSegment) => void;
+  /** 2.6.0: the other lines heard as the same voice as the line, once the host has answered. */
+  sameVoiceOf?: (segment: TranscriptSegment) => readonly string[] | undefined;
 }): LineSelectionApi {
   const [selecting, setSelecting] = useState(false);
   const [selection, setSelection] = useState<LineSelection>(NO_SELECTION);
   const [menuTarget, setMenuTarget] = useState<Target | null>(null);
   const [chooser, setChooser] = useState<{ lines: TranscriptSegment[]; at: { x: number; y: number } | null } | null>(null);
+  // The chooser for one line: the lines that sound the same are asked for as it opens.
+  const prepareRef = useRef(prepare);
+  prepareRef.current = prepare;
+  useEffect(() => {
+    const line = chooser?.lines.length === 1 ? chooser.lines[0] : undefined;
+    if (line !== undefined) {
+      prepareRef.current?.(line);
+    }
+  }, [chooser]);
   const [busy, setBusy] = useState(false);
   const assignButton = useRef<HTMLButtonElement | null>(null);
   const chooserRoot = useRef<HTMLSpanElement | null>(null);
@@ -479,7 +502,7 @@ export function useLineSelection({
           onPick={(speaker) => {
             act('The speaker was not changed', () => actions.assign(chooserLines, speaker));
           }}
-          pickChoices={pickChoicesFor(chooserLines, allSegments, speakers, actions, () => undefined)}
+          pickChoices={pickChoicesFor(chooserLines, allSegments, speakers, actions, () => undefined, chooserLines.length === 1 && chooserLines[0] !== undefined ? sameVoiceOf?.(chooserLines[0]) : undefined)}
           onPreview={preview}
           onAdd={(name) => {
             act(`${name} was not added as a speaker`, () => actions.addSpeaker(chooserLines, name));
