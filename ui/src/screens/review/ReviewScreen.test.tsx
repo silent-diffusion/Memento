@@ -429,6 +429,6 @@ describe('Review and transcript (against the browser-preview host)', () => {
     const participants = (await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.participants;
     expect(sheet?.querySelector('.who-spoke-hint')?.textContent).toBe('Speakers are identified as 3 speakers and named in the order they first speak. Rename any that are off in Review.');
     await settle(700);
-    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 3, names: participants.slice(0, 20) });
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 3, names: participants.slice(0, 20), marks: [] });
   });
 });

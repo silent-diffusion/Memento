@@ -60,7 +60,7 @@ public sealed class NullMemberRepairTests : IDisposable
         var id = await ProjectAsync();
         await RewriteAsync(id, ProjectLayout.ManifestFile, node =>
         {
-            node["details"] = new JsonObject { ["title"] = "Kept", ["participants"] = null, ["tags"] = new JsonArray(null, "board"), ["agenda"] = null, ["whoSpoke"] = new JsonObject { ["count"] = 2, ["names"] = null } };
+            node["details"] = new JsonObject { ["title"] = "Kept", ["participants"] = null, ["tags"] = new JsonArray(null, "board"), ["agenda"] = null, ["whoSpoke"] = new JsonObject { ["count"] = 2, ["names"] = null, ["marks"] = null } };
             node["stages"] = null;
             node["integrity"] = null;
             node["failures"] = new JsonArray((JsonNode?)null);
@@ -76,6 +76,7 @@ public sealed class NullMemberRepairTests : IDisposable
         Assert.Empty(manifest.Details.Agenda.Items);
         Assert.Equal(2, manifest.Details.WhoSpoke.Count);
         Assert.Empty(manifest.Details.WhoSpoke.Names);
+        Assert.Empty(manifest.Details.WhoSpoke.Marks);
         Assert.Empty(manifest.Stages);
         Assert.Equal("sha256", manifest.Integrity.Algorithm);
         Assert.Empty(manifest.Failures);

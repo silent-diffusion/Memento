@@ -38,6 +38,7 @@ import type {
   RecordingSummary,
   RecoveredRecording,
   SettingsSnapshot,
+  SpokeMark,
   StageStatus,
   ThemePreference,
 } from './types';
@@ -467,7 +468,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           notes: '',
           tags: [],
           agenda: { source: null, parsedLocally: true, items: [] },
-          whoSpoke: { count: null, names: [] },
+          whoSpoke: { count: null, names: [], marks: [] },
         },
         trackSources: result.tracks.map((t) => t.sourceKind),
         tracks: result.tracks,
@@ -820,7 +821,21 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         if (names.length > 20) {
           throw invalid(`At most 20 speakers can be named; this list has ${names.length}.`);
         }
-        details = { ...details, whoSpoke: { count: whoSpoke.count, names } };
+        const marks: SpokeMark[] = [];
+        for (const mark of whoSpoke.marks ?? []) {
+          const name = names.find((n) => n.toLocaleLowerCase() === mark.name.trim().toLocaleLowerCase());
+          if (name === undefined) {
+            throw invalid(`A Speaking now mark needs the name of one of the speakers listed; "${mark.name.trim()}" is not one of them.`);
+          }
+          if (!Number.isFinite(mark.atMs) || mark.atMs < 0) {
+            throw invalid('A Speaking now mark needs a time within the recording (0 or more milliseconds).');
+          }
+          marks.push({ name, atMs: mark.atMs });
+        }
+        if (marks.length > 200) {
+          throw invalid(`At most 200 Speaking now marks can be kept; this list has ${marks.length}.`);
+        }
+        details = { ...details, whoSpoke: { count: whoSpoke.count, names, marks } };
       }
       project.details = { ...project.details, ...details };
       project.summary = {

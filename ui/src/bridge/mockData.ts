@@ -484,7 +484,7 @@ export function sampleProjects(now: Date): MockProject[] {
                 uncertainReason: null,
               })),
             },
-      whoSpoke: { count: null, names: [] },
+      whoSpoke: { count: null, names: [], marks: [] },
     };
     return {
       summary,

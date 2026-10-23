@@ -44,7 +44,8 @@ interface RecordingDetails {
   organization: string; location: string; notes: string; tags: string[]; agenda: Agenda;
   whoSpoke: WhoSpoke;                       // after 1.2.0: the recording's own speaker count and names
 }
-interface WhoSpoke { count: number | null; /* 1–20, or null */ names: string[]; /* at most 20, 1–100 characters each */ }
+interface WhoSpoke { count: number | null; /* 1–20, or null */ names: string[]; /* at most 20, 1–100 characters each */ marks: SpokeMark[]; /* 2.6.0: Speaking now, at most 200 */ }
+interface SpokeMark { name: string; /* one of names, as spelled there */ atMs: number; /* recorded time when the button was pressed */ }
 
 interface Chapter { id: string; atMs: number; title: string; origin: 'user' | 'local' | 'ai'; }
 interface Highlight { id: string; atMs: number; note: string; origin: 'user' | 'local' | 'ai'; segmentId: string | null; }
@@ -117,7 +118,7 @@ From M2:
 | `library.list` | `{ query?: string, type?: RecordingType \| 'all', sort?: 'newest' \| 'oldest' \| 'longest' \| 'title' \| /* M3: */ 'size' }` | `{ recordings: RecordingSummary[], totalDurationMs, totalCount }` | M1 adds params. `query` searches titles, people and (M2) transcripts. Result reflects the filter. |
 | `library.processing` | `{}` | `{ current: { recordingId, title, meta: RecordingSummary, stages: StageStatus[] } \| null, othersCount }` | M1. The processing card: the newest recording with a stage active or queued. `stages` lists every stage, finished `stored` and `optimize` included; `meta.stages` follows the row rule (see Stages). |
 | `project.get` | `{ recordingId }` | `Project` | M1 |
-| `project.updateDetails` | `{ recordingId, details: Partial<RecordingDetails> }` | `Project` | M1. Works during recording too. After 1.2.0 `whoSpoke` replaces whole: `count` null or a whole number 1–20, `names` at most 20 of 1–100 characters (trimmed; a repeat, ignoring case, is dropped); anything else answers `bridge.invalidParams` and nothing changes. Before recording starts the UI keeps it and sends it with the other pre-start details. |
+| `project.updateDetails` | `{ recordingId, details: Partial<RecordingDetails> }` | `Project` | M1. Works during recording too. After 1.2.0 `whoSpoke` replaces whole: `count` null or a whole number 1–20, `names` at most 20 of 1–100 characters (trimmed; a repeat, ignoring case, is dropped), and since 2.6.0 `marks` at most 200 Speaking now marks, each naming one of `names` (ignoring case; kept spelled as the name is) at `atMs` 0 or more; anything else answers `bridge.invalidParams` naming the problem and nothing changes. Before recording starts the UI keeps it and sends it with the other pre-start details. |
 | `project.deleteEstimate` | `{ recordingId }` | `{ title, sizeBytes, items: string[] }` | M1. Feeds the delete confirmation copy. `items` are lower-case noun phrases the UI joins into one sentence, e.g. `["the recording", "its 3 tracks", "its transcript", "its 2 documents"]`. |
 | `project.delete` | `{ recordingId }` | `{}` | M1. Refused with `project.recording` while that recording is active. |
 | `project.rename` | `{ recordingId, title }` | `Project` | M1 |
@@ -1321,3 +1322,9 @@ What the next speakers pass (`processing.retry` on `speakers`, Review's "Identif
 4. A person pinned by a name the user gave takes that name first (`renamed: true`), before the shared-lines carry-over, which never gives that name to a second speaker; Who spoke's names go to the remaining speakers as before.
 
 History's `speakers` `completed` detail gains `9 corrected lines kept, 3 voices pinned` when any line was placed. A fresh transcript has no speakers, so a first pass has no pins (and is the only pass that cuts lines where the speaker changes).
+
+## Speaking now (2.6.0)
+
+`RecordingDetails.whoSpoke.marks` holds the Speaking now marks: while recording, the Record screen's details show a **Speaking now** button beside each name under Who spoke, and a press adds `{ name, atMs }` with the recording timer's time (recorded time, excluding pauses) and saves the details through `project.updateDetails` like any other edit (`whoSpoke` replaces whole, so the UI sends count, names and marks together; a name taken off the list takes its marks with it). `project.json` keeps them in `details.whoSpoke.marks` without a schema step: a file from before reads as having none.
+
+The speakers stage uses them after it has grouped the voices: for each mark, every raw voice (`voices.json` cluster, any track) with a diarizer turn covering `atMs` votes for the mark's name on the person it was grouped into; each name goes to the person with the most votes for it (ties: the person who speaks first), one name per person and one person per name. Names are given in this order: the labels of placed lines, names carried over from the previous pass, **Speaking now marks**, then the rest of `whoSpoke.names` in order of first appearance. A mark whose moment no turn covers, or whose name is no longer listed, is ignored. The `started` History detail says `3 Speaking now marks`, and the `completed` detail `2 names from Speaking now` beside `1 name from Who spoke`.

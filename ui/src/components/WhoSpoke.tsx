@@ -5,7 +5,7 @@
 // appearance; Settings › Speakers › Expected speakers stays the default for recordings without one.
 import type { JSX } from 'preact';
 import type { WhoSpoke } from '../bridge/types';
-import { effectiveCount, WHO_SPOKE_MAX, whoSpokeFromParticipants } from '../format/speakerOrder';
+import { effectiveCount, marksFor, WHO_SPOKE_MAX, whoSpokeFromParticipants } from '../format/speakerOrder';
 import { NameWell } from './NameWell';
 import { SelectMenu, type SelectOption } from './Menus';
 
@@ -89,7 +89,8 @@ export function WhoSpokeEditor({ value, onChange, participants, settingsDefault,
           maxLength={100}
           placeholder={value.names.length === 0 ? 'In the order they first speak' : 'Add a name'}
           onChange={(names) => {
-            onChange({ ...value, names });
+            // A name taken off the list takes its Speaking now marks with it.
+            onChange({ ...value, names, marks: marksFor(value.marks, names) });
           }}
         />
       </div>

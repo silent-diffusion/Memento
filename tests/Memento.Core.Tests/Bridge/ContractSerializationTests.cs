@@ -211,7 +211,7 @@ public sealed class ContractSerializationTests : IDisposable
         Assert.Equal("summary,details,tracks,mixUrl,peaksUrl,chapters,highlights,topics,history,integrity,sizeBytes,mixOnly,video,mixLevels,audioRemoved,segments,canResume,resumeNote", Names(root));
         Assert.Equal(JsonValueKind.Null, root.GetProperty("video").ValueKind);
         Assert.Equal("title,type,participants,purpose,platform,organization,location,notes,tags,agenda,whoSpoke", Names(root.GetProperty("details")));
-        Assert.Equal("""{"count":null,"names":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":null,"names":[],"marks":[]}""", root.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         Assert.Equal("""{"source":null,"parsedLocally":false,"items":[]}""", root.GetProperty("details").GetProperty("agenda").GetRawText());
         Assert.Equal(
             """{"id":"mic","sourceId":"mic:x","sourceKind":"microphone","name":"Mic","file":"tracks/mic.flac","sampleRate":48000,"channels":1,"durationMs":1000,"sha256":"ab","startOffsetMs":0,"endedEarlyAtMs":null}""",

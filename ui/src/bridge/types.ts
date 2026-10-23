@@ -311,11 +311,20 @@ export interface RecordingDetails {
 /**
  * Who spoke in one recording: how many people (1–20, or null) and/or their names (at most 20, 1–100
  * characters each). Speakers are identified with `count`, else with as many as `names`, else with
- * Settings' expected speakers; the names become the speakers' names in order of first appearance.
+ * Settings' expected speakers; the names become the speakers' names in order of first appearance,
+ * except where a Speaking now mark (2.6.0) says who was talking: that voice gets that name first.
  */
 export interface WhoSpoke {
   count: number | null;
   names: string[];
+  /** Speaking now marks (at most 200), each naming one of `names`. */
+  marks: SpokeMark[];
+}
+
+/** The Speaking now button was pressed beside `name` at `atMs` of recorded time (2.6.0). */
+export interface SpokeMark {
+  name: string;
+  atMs: number;
 }
 
 export type AnnotationOrigin = 'user' | 'local' | 'ai';

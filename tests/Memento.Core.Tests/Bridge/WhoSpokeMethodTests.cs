@@ -26,7 +26,7 @@ public sealed class WhoSpokeMethodTests : IDisposable
 
         var project = await _host.ResultAsync("project.get", Json(new { recordingId }));
 
-        Assert.Equal("""{"count":null,"names":[]}""", project.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":null,"names":[],"marks":[]}""", project.GetProperty("details").GetProperty("whoSpoke").GetRawText());
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public sealed class WhoSpokeMethodTests : IDisposable
         var kept = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { purpose = "Plan Q4" } }));
         var replaced = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = OneName } } }));
 
-        Assert.Equal("""{"count":3,"names":["Avery Stone","Rowan Hale"]}""", kept.GetProperty("details").GetProperty("whoSpoke").GetRawText());
-        Assert.Equal("""{"count":null,"names":["Sam"]}""", replaced.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":3,"names":["Avery Stone","Rowan Hale"],"marks":[]}""", kept.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":null,"names":["Sam"],"marks":[]}""", replaced.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
         Assert.Equal(1, manifest.Details.WhoSpoke.EffectiveCount);
         Assert.Equal("Plan Q4", manifest.Details.Purpose);
@@ -73,5 +73,41 @@ public sealed class WhoSpokeMethodTests : IDisposable
         Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(tooMany));
         Assert.Contains("At most 20 speakers", tooMany.GetProperty("error").GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(tooLong));
+    }
+
+    [Fact]
+    public async Task SpeakingNowMarksAreKeptSpelledAsTheNameAndSurviveOtherEdits()
+    {
+        var recordingId = await _host.RecordAsync("Kickoff", 0.5);
+        var marks = new[] { new { name = "rowan hale ", atMs = 12_500L }, new { name = "Avery Stone", atMs = 0L } };
+
+        var saved = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = RepeatedNames, marks } } }));
+        var kept = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { purpose = "Plan Q4" } }));
+
+        Assert.Equal("""{"count":null,"names":["Avery Stone","Rowan Hale"],"marks":[{"name":"Rowan Hale","atMs":12500},{"name":"Avery Stone","atMs":0}]}""", saved.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal(saved.GetProperty("details").GetProperty("whoSpoke").GetRawText(), kept.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
+        Assert.Equal([("Rowan Hale", 12_500L), ("Avery Stone", 0L)], manifest.Details.WhoSpoke.Marks.Select(m => (m.Name, m.AtMs)));
+    }
+
+    [Fact]
+    public async Task AMarkForANameNotListedOrBeforeTheStartOrTooManyMarksAreRefusedAndNothingChanges()
+    {
+        var recordingId = await _host.RecordAsync("Kickoff", 0.5);
+        var tooMany = Enumerable.Range(0, 201).Select(n => new { name = "Sam", atMs = (long)n * 1000 }).ToArray();
+
+        var unknown = await _host.CallAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = OneName, marks = new[] { new { name = "Ana", atMs = 5L } } }, purpose = "changed" } }));
+        var negative = await _host.CallAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = OneName, marks = new[] { new { name = "Sam", atMs = -1L } } } } }));
+        var many = await _host.CallAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = OneName, marks = tooMany } } }));
+
+        Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(unknown));
+        Assert.Equal("A Speaking now mark needs the name of one of the speakers listed; \"Ana\" is not one of them.", unknown.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(negative));
+        Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(many));
+        Assert.Contains("At most 200 Speaking now marks", many.GetProperty("error").GetProperty("message").GetString(), StringComparison.Ordinal);
+        var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
+        Assert.Empty(manifest.Details.WhoSpoke.Names);
+        Assert.Empty(manifest.Details.WhoSpoke.Marks);
+        Assert.Equal(string.Empty, manifest.Details.Purpose);
     }
 }

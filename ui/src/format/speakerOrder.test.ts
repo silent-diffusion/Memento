@@ -43,17 +43,17 @@ describe('participants from speakers', () => {
 
 describe('who spoke', () => {
   it('uses the participants as the names, keeping the count', () => {
-    expect(whoSpokeFromParticipants({ count: 3, names: ['Old'] }, ['Ana', 'ana', 'Speaker 2', 'Ben'])).toEqual({ count: 3, names: ['Ana', 'Ben'] });
+    expect(whoSpokeFromParticipants({ count: 3, names: ['Old'], marks: [{ name: 'Old', atMs: 5 }] }, ['Ana', 'ana', 'Speaker 2', 'Ben'])).toEqual({ count: 3, names: ['Ana', 'Ben'], marks: [] });
   });
 
   it('takes at most twenty names', () => {
     const many = Array.from({ length: 25 }, (_, i) => `Person ${i + 1}`);
-    expect(whoSpokeFromParticipants({ count: null, names: [] }, many).names).toHaveLength(20);
+    expect(whoSpokeFromParticipants({ count: null, names: [], marks: [] }, many).names).toHaveLength(20);
   });
 
   it('identifies with the count, else as many as the names, else leaves it to Settings', () => {
-    expect(effectiveCount({ count: 2, names: ['A', 'B', 'C'] })).toBe(2);
-    expect(effectiveCount({ count: null, names: ['A', 'B', 'C'] })).toBe(3);
-    expect(effectiveCount({ count: null, names: [] })).toBeNull();
+    expect(effectiveCount({ count: 2, names: ['A', 'B', 'C'], marks: [] })).toBe(2);
+    expect(effectiveCount({ count: null, names: ['A', 'B', 'C'], marks: [] })).toBe(3);
+    expect(effectiveCount({ count: null, names: [], marks: [] })).toBeNull();
   });
 });
