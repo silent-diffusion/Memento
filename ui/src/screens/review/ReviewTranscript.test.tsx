@@ -841,7 +841,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     expect(container.querySelector('.people-who-offer .people-who-note')?.textContent).toBe('4 speakers found, 2 expected.');
     expect(container.querySelector('.who-spoke-hint')?.textContent).toBe('Speakers are identified as 2 speakers.');
     expect(button('Identify speakers again', container.querySelector('.people-who-offer') ?? container)).not.toBeNull();
-    expect(container.querySelector('.people-who-offer')?.textContent).toContain('names you gave are kept where the same voice is found');
+    expect(container.querySelector('.people-who-offer')?.textContent).toContain('lines you corrected keep their speaker and the voices under them guide the rest, and names you gave are kept');
 
     // Use participants: the names come from the details.
     await click(button('Use participants'));

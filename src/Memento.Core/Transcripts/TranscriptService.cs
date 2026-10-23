@@ -125,7 +125,8 @@ public sealed partial class TranscriptService(
                     target = FindSpeaker(t, speakerId).Id;
                 }
 
-                changed = segment with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0 };
+                // Placed by the user (2.6.0): the next speakers pass keeps it and pins its voice; a line set to no speaker is not.
+                changed = segment with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0, SpeakerByUser = target is not null };
                 var segments = Replace(t.Segments, changed);
                 return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
             },
@@ -171,7 +172,7 @@ public sealed partial class TranscriptService(
                     target = FindSpeaker(t, speakerId).Id;
                 }
 
-                var segments = t.Segments.Select(s => wanted.Contains(s.Id) ? s with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0 } : s).ToList();
+                var segments = t.Segments.Select(s => wanted.Contains(s.Id) ? s with { Speaker = target, SpeakerConfidence = target is null ? null : 1.0, SpeakerByUser = target is not null } : s).ToList();
                 changed = segments.Where(s => wanted.Contains(s.Id)).ToList();
                 return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(speakers, segments) };
             },
@@ -183,7 +184,7 @@ public sealed partial class TranscriptService(
     /// <summary>
     /// <c>transcript.swapSpeakers</c> (2.6.0): every line of one speaker takes the other and the other way round, from
     /// <paramref name="fromSegmentId"/> (inclusive, in transcript order) to the end, or everywhere when it is <c>null</c>, in
-    /// one write. Names, ids and colours stay; the lines moved are the user's (confidence 1). Calling it again with the
+    /// one write. Names, ids and colours stay; the lines moved are the user's (confidence 1, `speakerByUser`). Calling it again with the
     /// same parameters puts the lines back (Undo). Nothing is written when no line changes.
     /// </summary>
     public async Task<SegmentsSpeakersResult> SwapSpeakersAsync(string recordingId, string speakerId, string otherSpeakerId, string? fromSegmentId, CancellationToken cancellationToken)
@@ -219,7 +220,7 @@ public sealed partial class TranscriptService(
                         continue;
                     }
 
-                    var swapped = segment with { Speaker = other, SpeakerConfidence = 1.0 };
+                    var swapped = segment with { Speaker = other, SpeakerConfidence = 1.0, SpeakerByUser = true };
                     segments.Add(swapped);
                     changed.Add(swapped);
                 }

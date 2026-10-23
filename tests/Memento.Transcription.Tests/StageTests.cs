@@ -635,6 +635,37 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task LinesTheUserPlacedKeepTheirSpeakerAndPinTheirVoicesWhenSpeakersAreIdentifiedAgain()
+    {
+        InstallAll();
+        var id = await RecordAndProcessAsync();
+        var first = await TranscriptAsync(id);
+        Assert.Equal(["spk1", "spk2"], first.Segments.Select(s => s.Speaker));
+        Assert.All(first.Segments, s => Assert.False(s.SpeakerByUser));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        Assert.DoesNotContain(history, h => h.Stage == "speakers" && h.Detail!.Contains("corrected", StringComparison.Ordinal));
+
+        // The user puts each line on a person of their own, then asks for one speaker: the two pinned voices stay apart.
+        await _host.ResultAsync("transcript.setSegmentSpeaker", JsonSerializer.Serialize(new { recordingId = id, segmentId = "s0001", speakerId = (string?)null, newSpeakerName = "Rowan Hale" }));
+        await _host.ResultAsync("transcript.setSegmentSpeaker", JsonSerializer.Serialize(new { recordingId = id, segmentId = "s0002", speakerId = (string?)null, newSpeakerName = "Sam Okafor" }));
+        await _host.ResultAsync("project.updateDetails", JsonSerializer.Serialize(new { recordingId = id, details = new { whoSpoke = new { count = 1, names = Array.Empty<string>() } } }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(["Rowan Hale", "Sam Okafor"], transcript.Speakers.Select(s => s.Name));
+        Assert.All(transcript.Speakers, s => Assert.True(s.Renamed));
+        Assert.Equal(transcript.Speakers.Select(s => s.Id), transcript.Segments.Select(s => s.Speaker));
+        Assert.All(transcript.Segments, s => Assert.True(s.SpeakerByUser));
+        Assert.All(transcript.Segments, s => Assert.Equal(1.0, s.SpeakerConfidence));
+        history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var found = history.Where(h => h.Stage == "speakers" && h.Event == "completed").Last();
+        Assert.Equal("Found 2 speakers", found.Summary);
+        Assert.Contains(" · 2 corrected lines kept, 2 voices pinned · 2 names kept from before", found.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("grouped into", found.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ALineTheEngineRepeatsIsDroppedAndHistorySaysSo()
     {
         InstallAll();

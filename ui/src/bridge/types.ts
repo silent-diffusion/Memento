@@ -457,6 +457,11 @@ export interface TranscriptSegment {
   /** [] when word timestamps are off. */
   words: TranscriptWord[];
   edited: SegmentEdit | null;
+  /**
+   * 2.6.0: true once the user placed the line on its speaker (a line's menu, selection mode); the next speakers pass
+   * keeps that speaker and pins the line's voice to it. Left out (false) for the pass's own assignments.
+   */
+  speakerByUser?: boolean;
 }
 
 /** Speaker colours sp1..sp4, assigned in order of first appearance and cycled (DESIGN.md §2.1). */

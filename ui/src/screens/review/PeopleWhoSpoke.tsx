@@ -1,7 +1,8 @@
 // Review › People › Who spoke (DESIGN.md §9): the recording's own speaker count and names, and
 // what to do when the speakers found do not match: Reduce to {n} speakers (merges the speakers
 // whose voices sound most alike, one Undo step) or Identify speakers again (listens again with the
-// new count and names; names given in the transcript are kept where the same voice is found).
+// new count and names; lines the user corrected keep their speaker and pin the voices under them, and
+// names given in the transcript are kept).
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
 import type { Speaker, WhoSpoke } from '../../bridge/types';
@@ -23,7 +24,7 @@ export const MIX_ONLY_SPEAKERS =
 export function identifyAgainText(whoSpoke: WhoSpoke, keepsVersions: boolean): string {
   const count = effectiveCount(whoSpoke);
   const as = count === null ? 'as Settings › Speakers says' : `as ${count} ${count === 1 ? 'speaker' : 'speakers'}`;
-  return `Listens to the recording again and identifies the speakers ${as}, which takes a few minutes. Every line gets a speaker again; names you gave are kept where the same voice is found${whoSpoke.names.length > 0 ? ', and the names above go to the others in the order they first speak' : ''}. ${keepsVersions ? 'Lines you corrected are kept as a transcript version you can restore.' : 'Undo cannot take this back.'}`;
+  return `Listens to the recording again and identifies the speakers ${as}, which takes a few minutes. Every other line gets a speaker again; lines you corrected keep their speaker and the voices under them guide the rest, and names you gave are kept${whoSpoke.names.length > 0 ? ', with the names above going to the others in the order they first speak' : ''}. ${keepsVersions ? 'The transcript as it is now is kept as a version you can restore.' : 'Undo cannot take this back.'}`;
 }
 
 interface PeopleWhoSpokeProps {

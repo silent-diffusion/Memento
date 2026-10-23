@@ -36,9 +36,11 @@ public sealed class SwapSpeakersMethodTests : IDisposable
         Assert.Equal(["s0001", "s0002", "s0003"], result.GetProperty("segments").EnumerateArray().Select(s => s.GetProperty("id").GetString()));
         Assert.Equal(["spk2", "spk1", "spk2"], result.GetProperty("segments").EnumerateArray().Select(s => s.GetProperty("speaker").GetString()));
         Assert.All(result.GetProperty("segments").EnumerateArray(), s => Assert.Equal(1.0, s.GetProperty("speakerConfidence").GetDouble()));
+        Assert.All(result.GetProperty("segments").EnumerateArray(), s => Assert.True(s.GetProperty("speakerByUser").GetBoolean()));
         var after = await LoadAsync(id);
         Assert.Equal(before + 1, after.Version);
         Assert.Equal(["spk2", "spk1", "spk2"], after.Segments.Select(s => s.Speaker));
+        Assert.All(after.Segments, s => Assert.True(s.SpeakerByUser));
         Assert.Equal(["spk1", "spk2"], after.Speakers.Select(s => s.Id));
         Assert.Equal(["Speaker 1", "Speaker 2"], after.Speakers.Select(s => s.Name));
         Assert.Equal([4_500L, 9_500L], after.Speakers.Select(s => s.TalkTimeMs));
