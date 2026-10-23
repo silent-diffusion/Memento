@@ -2,7 +2,7 @@
 // DialogHost renders it above everything. Add a kind here, then a case in components/DialogHost.tsx.
 // Recovered recordings have their own queue (store.recoveryQueue) and show when no other dialog is open.
 import type {
-  AiProvider,
+  AiKeyProvider,
   Attachment,
   ExportDestination,
   ExportSelection,
@@ -28,7 +28,7 @@ export type DialogRequest =
   /** Export copies (DESIGN.md §15). `retry` reopens it after a failed job with the same choices and the failure card. */
   | { kind: 'export'; recordingId: string; retry?: ExportRetry; /** M4: the Document viewer's Export ticks Documents with these. */ documentIds?: string[] }
   /** Settings › AI and privacy › Add or Replace a provider key. */
-  | { kind: 'aiKey'; provider: AiProvider; replacing: boolean }
+  | { kind: 'aiKey'; provider: AiKeyProvider; replacing: boolean }
   /** Settings › General › Library location › Change: copy, verify, then delete the old folder. */
   | { kind: 'libraryMove'; from: string; to: string }
   // 2.1 (DESIGN.md §6.1, §6.2)
