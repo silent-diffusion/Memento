@@ -40,7 +40,7 @@ export function VoiceMatchPrompt({
       </span>
       <span class="sug-actions">
         <button
-          class="btn p sug-btn"
+          class="btn p"
           type="button"
           disabled={busy}
           aria-label={`Use the name ${match.name} for ${speakerName}`}
@@ -50,7 +50,7 @@ export function VoiceMatchPrompt({
           Use name
         </button>
         <button
-          class="btn g sug-btn"
+          class="btn g"
           type="button"
           disabled={busy}
           aria-label={`${speakerName} is not ${match.name}`}

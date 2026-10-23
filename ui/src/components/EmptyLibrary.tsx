@@ -45,7 +45,7 @@ export function EmptyLibrary({ onStartRecording, onImport, notice = null }: Empt
           <span class="rec-dot rec-dot-lg" aria-hidden="true" />
           Start your first recording
         </button>
-        <button class="btn ghost import-media" type="button" onClick={onImport}>
+        <button class="btn ghost ghost-stage" type="button" onClick={onImport}>
           Import audio or video
         </button>
       </div>

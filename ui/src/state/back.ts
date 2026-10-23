@@ -2,7 +2,7 @@
 //   - Esc goes back once nothing else wants it. Menus, popovers, inline fields, dialogs and sheets take Esc first
 //     (they stop it or mark it handled), and so do Review's filter, line selection and fullscreen video; the key only
 //     reaches this handler when none of them is open. Never on the Recording session (Esc does nothing there, §8),
-//     never while typing in a field, and not in the Builder while the template has unsaved changes.
+//     never while typing in a field. The Builder with unsaved template changes asks before any of these goes back (2.4.0).
 //   - Alt+← and the keyboard's Browser Back key go back from any spoke, as in other Windows apps.
 //   - The mouse's back button does the same, instead of stepping through WebView2's page history.
 import { useServices } from './context';

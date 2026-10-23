@@ -38,7 +38,7 @@ export function UndoButton(): JSX.Element {
       </span>
       {label === null ? null : (
         <button
-          class="btn ghost spoke-ghost undo-btn"
+          class="btn ghost undo-btn"
           type="button"
           title={`Undo ${label}`}
           aria-label={`Undo ${label}`}

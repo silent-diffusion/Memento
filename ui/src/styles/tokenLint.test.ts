@@ -34,7 +34,6 @@ const ALLOWED: readonly Allowed[] = [
   { file: 'screens/review/reviewVideo.css', selector: /./, kinds: ['colour', 'shadow', 'radius'], why: 'The Review video well and its overlay controls sit on video, dark in both themes (§18.3, renders/ReviewVideo.dc.html).' },
   { file: 'styles/library.css', selector: /\.video-strip/, kinds: ['colour', 'radius'], why: 'The grid card’s video schematic (§18.7), as the Recording session’s.' },
   { file: 'styles/surfaces.css', selector: /\.scrim/, kinds: ['colour'], why: 'The dialog scrim colours are given in §5.19 and have no token.' },
-  { file: 'styles/base.css', selector: /^\.app(\.dark)?$/, kinds: ['colour'], why: 'Token definitions: the measured contrast corrections of text-3 and on-accent (PRODUCT-SPEC Accessibility), to be folded into tokens.css.' },
   { file: 'screens/styleeditor/styleeditor.css', selector: /\.style-ink-dot/, kinds: ['colour'], why: 'The document style’s fixed Ink colour shown for reference (§13), a document colour.' },
   { file: 'styles/review.css', selector: /\.scrubber-knob/, kinds: ['shadow'], why: 'The scrubber knob is the toggle knob of §5.7, whose shadow §5.7 specifies.' },
   { file: 'styles/review.css', selector: /\.(history-open|segm-speaker|people-who-toggle)/, kinds: ['radius'], why: 'Text-like buttons: the radius only shapes the focus ring around the words.' },
@@ -108,10 +107,176 @@ function lintText(file: string, source: string): Finding[] {
   return findings;
 }
 
+// One ghost recipe (DESIGN.md §2.3, §5.1; 2.4.0, review R5). `btn ghost` in base.css is the whole button, and its
+// sizes are the modifiers `ghost-row` (28 px), `ghost-main` (32 px) and `ghost-stage` (48 px) beside the 36 px default.
+// Two checks keep per-screen ghost classes from coming back:
+//   - a stylesheet rule outside base.css that re-declares the ghost: its fill (`background: var(--surface)` or
+//     `transparent`) and its label colour (`color: var(--text-2)`) on a control (a fixed height, `border: none` or a
+//     shadow of its own, `none` included). Cards share the fill and colour but have no height and keep their shadow.
+//   - a class written next to `btn ghost` in a component that sets anything of the recipe or its size (height,
+//     padding, radius, fill, border, shadow, colour, type). Such a class may only lay the button out (flex, margin,
+//     width, alignment).
+// The exceptions are controls that are not the ghost, or whose size another section of DESIGN.md fixes.
+
+interface GhostAllowed {
+  file: string;
+  selector: RegExp;
+  why: string;
+}
+
+const GHOST_RULE_ALLOWED: readonly GhostAllowed[] = [
+  { file: 'styles/spoke.css', selector: /^\.back-btn$/, why: 'The back control is shadowless at rest and raised on hover (§3, the renders); one component, SpokeHeader.' },
+  { file: 'screens/docview/docview.css', selector: /^\.tb-stamp$/, why: 'Insert timestamp sits inside the viewer toolbar card, shadowless like the card’s icon buttons (§5.1 Icon, §12).' },
+  { file: 'screens/builder/builder.css', selector: /^\.btn\.add-module$/, why: 'An “add” affordance: a dashed line-strong outline flat on the ground (§2.3, §10), not a raised ghost.' },
+  { file: 'styles/details-sheet.css', selector: /^button\.btn\.add-row$/, why: 'The agenda’s + Add an item: a dashed “add” outline (§2.3, §14), not a raised ghost.' },
+  { file: 'styles/details-sheet.css', selector: /^\.link-btn$/, why: 'A text link styled as a button, with no raised shape.' },
+  { file: 'screens/review/review20.css', selector: /^\.btn\.link\.sug-accept-all$/, why: 'A text link (Accept all), with no raised shape.' },
+];
+
+const GHOST_CLASS_ALLOWED: Readonly<Record<string, string>> = {
+  'back-btn': 'The back control’s shape and rest state are §3’s (shadowless, 0 12 0 8 padding around the chevron).',
+  'tb-stamp': 'Insert timestamp lies flat in the viewer toolbar card like its icon buttons (§5.1, §12).',
+  'add-module': 'The Builder’s dashed “add” outline (§2.3, §10).',
+  'rec-mark': '§8’s stage controls beside the 72 px Stop keep 56 px: Mark highlight is a 56 px pill with a `text` label.',
+  'rec-round': '§8’s 56 px round Pause/Resume beside the 72 px Stop, with a `text` glyph.',
+  'chip-select': 'A select drawn as the 32 px filter chip of §5.2 (radius 999).',
+  'select-btn': 'A select shows its value in `text` (§5.3), not the ghost label colour; its size is the ghost size passed to SelectMenu.',
+};
+
+const GHOST_SIZE_CLASSES = new Set(['btn', 'ghost', 'ghost-row', 'ghost-main', 'ghost-stage', 'on']);
+const RECIPE_PROPERTY = /^(height|min-height|padding(-[a-z]+)?|border(-[a-z]+)*|background(-color)?|box-shadow|color|font(-size|-weight)?)$/;
+
+interface Declarations {
+  selector: string;
+  values: Map<string, string>;
+}
+
+function rules(source: string): Declarations[] {
+  const css = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out: Declarations[] = [];
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = (match[1] ?? '').trim().replace(/\s+/g, ' ');
+    if (selector.startsWith('@') || /^(from|to|\d+%)/.test(selector)) {
+      continue;
+    }
+    const values = new Map<string, string>();
+    for (const raw of (match[2] ?? '').split(';')) {
+      const colon = raw.indexOf(':');
+      if (colon >= 0) {
+        values.set(raw.slice(0, colon).trim(), raw.slice(colon + 1).trim().replace(/\s*!important$/, ''));
+      }
+    }
+    out.push({ selector, values });
+  }
+  return out;
+}
+
+/** The rules of a stylesheet that re-declare the ghost recipe on a `.btn` button's class (the first check above). */
+function lintGhostRules(file: string, source: string, buttonClasses: ReadonlySet<string>): string[] {
+  return ghostRecipeRules(source, buttonClasses)
+    .filter((selector) => !GHOST_RULE_ALLOWED.some((a) => a.file === file && a.selector.test(selector)))
+    .map((selector) => `${file} ${selector}`);
+}
+
+/** The selectors of the rules that look like a ghost recipe, allowed or not. */
+function ghostRecipeRules(source: string, buttonClasses: ReadonlySet<string>): string[] {
+  return rules(source)
+    .filter(({ selector }) => selectorList(selector).some((part) => [...buttonClasses].some((name) => hasClass(subject(part), name))))
+    .filter(({ values }) => {
+      const fill = /^(var\(--surface\)|transparent)$/.test(values.get('background') ?? '');
+      const label = values.get('color') === 'var(--text-2)';
+      const control = values.has('height') || /^(none|0)$/.test(values.get('border') ?? '') || values.has('box-shadow');
+      return fill && label && control;
+    })
+    .map(({ selector }) => selector);
+}
+
+function hasClass(compound: string, name: string): boolean {
+  return new RegExp(`\\.${name}(?![\\w-])`).test(compound);
+}
+
+/** Splits a selector list at its top-level commas (not those inside :where(…) or :not(…)). */
+function selectorList(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < selector.length; i += 1) {
+    const c = selector[i];
+    depth += c === '(' ? 1 : c === ')' ? -1 : 0;
+    if (c === ',' && depth === 0) {
+      parts.push(selector.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(selector.slice(start).trim());
+  return parts;
+}
+
+/** The compound selector a rule applies to: the last one after any combinator. */
+function subject(selector: string): string {
+  return selector.split(/\s*[\s>+~]\s*/).filter((s) => s !== '').at(-1) ?? '';
+}
+
+/** The classes written beside `btn ghost` (or, with `anyButton`, beside `btn`) in the components' string literals. */
+function ghostCoClasses(sources: readonly string[], anyButton = false): Set<string> {
+  const found = new Set<string>();
+  // `btn` as a whole class name (not icon-btn, link-btn…).
+  const pattern = anyButton ? /(["'`])([^"'`]*(?<![\w-])btn(?![\w-])[^"'`]*)\1/g : /(["'`])([^"'`]*(?<![\w-])btn ghost(?![\w-])[^"'`]*)\1/g;
+  for (const source of sources) {
+    for (const literal of source.matchAll(pattern)) {
+      for (const name of (literal[2] ?? '').split(/\s+/)) {
+        if (/^[a-z][a-z0-9-]*$/.test(name) && !GHOST_SIZE_CLASSES.has(name)) {
+          found.add(name);
+        }
+      }
+    }
+  }
+  return found;
+}
+
+/** Rules that size or paint a class written beside `btn ghost` (the second check above). */
+function lintGhostClasses(classes: ReadonlySet<string>, sheets: readonly { file: string; source: string }[]): string[] {
+  const findings: string[] = [];
+  for (const { file, source } of sheets) {
+    for (const { selector, values } of rules(source)) {
+      for (const part of selectorList(selector)) {
+        const target = subject(part);
+        for (const name of classes) {
+          if (name in GHOST_CLASS_ALLOWED || !hasClass(target, name)) {
+            continue;
+          }
+          const recipe = [...values.keys()].filter((p) => RECIPE_PROPERTY.test(p));
+          if (recipe.length > 0) {
+            findings.push(`${file} ${part} { ${recipe.join(', ')} } on \`btn ghost ${name}\``);
+          }
+        }
+      }
+    }
+  }
+  return findings;
+}
+
 describe('token lint (DESIGN.md §2, CLAUDE.md code style)', () => {
   it('keeps ui/src/styles/tokens.css a verbatim copy of design/tokens.css', () => {
     const normal = (p: string): string => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
     expect(normal(join(SRC, 'styles', 'tokens.css'))).toBe(normal(join(REPO, 'design', 'tokens.css')));
+  });
+
+  it('carries the measured contrast corrections in tokens.css and defines no token anywhere else (2.4.0, R6)', () => {
+    const tokens = readFileSync(join(REPO, 'design', 'tokens.css'), 'utf8');
+    const block = (selector: string): string => {
+      const at = tokens.indexOf(`\n${selector}{`);
+      expect(at, selector).toBeGreaterThan(-1);
+      return tokens.slice(at, tokens.indexOf('}', at));
+    };
+    // DESIGN.md §2.1: text-3 reaches 4.5:1 on every ground; labels on the accent and danger fills use on-accent.
+    expect(block('.app')).toContain('--text-3:#68645E;');
+    expect(block('.app')).toContain('--on-accent:#FFFFFF;');
+    expect(block('.app.dark')).toContain('--text-3:#96928B;');
+    expect(block('.app.dark')).toContain('--on-accent:#1F1E1B;');
+    const sheets = files(SRC, /\.css$/).filter((p) => !p.endsWith(join('styles', 'tokens.css')));
+    const definitions = sheets.filter((p) => /(^|[{;\s])--(text-3|on-accent)\s*:/.test(readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')));
+    expect(definitions.map((p) => relative(SRC, p))).toEqual([]);
   });
 
   it('uses no raw colour, hand-tuned shadow or off-scale radius outside tokens.css', () => {
@@ -147,10 +312,67 @@ describe('token lint (DESIGN.md §2, CLAUDE.md code style)', () => {
     expect(primary).toContain('color: var(--on-accent)');
   });
 
+  it('sizes the ghost by role with three modifiers: 28 px row, 32 px card main action, 48 px stage (§2.3)', () => {
+    const base = readFileSync(join(SRC, 'styles', 'base.css'), 'utf8').replace(/\r\n/g, '\n');
+    const size = (modifier: string): Map<string, string> => {
+      const rule = rules(base).find((r) => r.selector === `.btn:where(.ghost.${modifier})`);
+      expect(rule, modifier).toBeDefined();
+      return rule?.values ?? new Map<string, string>();
+    };
+    expect(size('ghost-row').get('height')).toBe('28px');
+    expect(size('ghost-row').get('border-radius')).toBe('12px');
+    expect(size('ghost-main').get('height')).toBe('32px');
+    expect(size('ghost-main').get('border-radius')).toBe('14px');
+    expect(size('ghost-stage').get('height')).toBe('48px');
+    expect(size('ghost-stage').get('border-radius')).toBe('20px');
+    // A modifier only resizes: the fill, shadow and label colour stay the recipe's.
+    for (const modifier of ['ghost-row', 'ghost-main', 'ghost-stage']) {
+      expect([...size(modifier).keys()].filter((p) => /^(background|box-shadow|color|border)$/.test(p)), modifier).toEqual([]);
+    }
+  });
+
+  it('has no per-screen ghost recipe outside base.css', () => {
+    const sheets = files(SRC, /\.css$/)
+      .filter((p) => !p.endsWith(join('styles', 'tokens.css')) && !p.endsWith(join('styles', 'base.css')))
+      .map((p) => ({ file: relative(SRC, p).replace(/\\/g, '/'), source: readFileSync(p, 'utf8') }));
+    const components = files(SRC, /\.tsx$/).filter((p) => !p.endsWith('.test.tsx')).map((p) => readFileSync(p, 'utf8'));
+    const buttonClasses = ghostCoClasses(components, true);
+    expect(buttonClasses.has('add-row')).toBe(true);
+    expect(sheets.flatMap(({ file, source }) => lintGhostRules(file, source, buttonClasses))).toEqual([]);
+    // Every exception still matches a rule; drop it from GHOST_RULE_ALLOWED when its rule goes.
+    const unused = GHOST_RULE_ALLOWED.filter((a) => !sheets.some(({ file, source }) => file === a.file && ghostRecipeRules(source, buttonClasses).some((s) => a.selector.test(s))));
+    expect(unused.map((a) => `${a.file} ${String(a.selector)}`)).toEqual([]);
+
+    const classes = ghostCoClasses(components);
+    // The scan sees the classes the components write (a sanity check that it reads them at all).
+    expect(classes.has('select-btn')).toBe(true);
+    expect(classes.has('undo-btn')).toBe(true);
+    expect(lintGhostClasses(classes, sheets)).toEqual([]);
+    // Every exception is still in use; drop it from GHOST_CLASS_ALLOWED when its class goes.
+    expect(Object.keys(GHOST_CLASS_ALLOWED).filter((name) => !classes.has(name))).toEqual([]);
+  });
+
+  it('flags a new per-screen ghost class', () => {
+    const probe = (css: string): string[] => lintGhostRules('styles/probe.css', css, new Set(['foo-btn', 'foo-card']));
+    expect(probe('.foo-btn { height: 30px; background: var(--surface); box-shadow: var(--neo-sm); color: var(--text-2); }')).toEqual(['styles/probe.css .foo-btn']);
+    expect(probe('.foo-btn { border: none; background: transparent; color: var(--text-2); }')).toEqual(['styles/probe.css .foo-btn']);
+    // A card shares the fill and colour but is not a control.
+    expect(probe('.foo-card { padding: 16px; background: var(--surface); color: var(--text-2); }')).toEqual([]);
+    expect(probe('.foo-btn { flex: none; margin-left: auto; }')).toEqual([]);
+
+    const sheet = [{ file: 'styles/probe.css', source: '.foo-btn { height: 26px; } .row .foo-btn, .x { padding: 0 8px; } .foo-wrap .bar { height: 9px; } .foo-gap { flex: none; }' }];
+    const classes = ghostCoClasses(['<button class="btn ghost foo-btn" />', "cls = 'btn ghost foo-gap ghost-row';"]);
+    expect([...classes]).toEqual(['foo-btn', 'foo-gap']);
+    expect(lintGhostClasses(classes, sheet)).toEqual([
+      'styles/probe.css .foo-btn { height } on `btn ghost foo-btn`',
+      'styles/probe.css .row .foo-btn { padding } on `btn ghost foo-btn`',
+    ]);
+  });
+
   it('marks on the accent fill take the label colour, never a fixed white', () => {
     const sheets = ['styles/record.css', 'styles/shell.css'].map((f) => readFileSync(join(SRC, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');
     for (const selector of ['.rec-dot', '.rec-start-dot']) {
-      // The rule of that selector alone (at the start of a line), not `.rec-resume .rec-start-dot`.
+      // The rule of that selector alone (at the start of a line), not `.ghost .rec-start-dot` (Resume's accent dot).
       const at = sheets.indexOf(`\n${selector} {`);
       expect(sheets.slice(at, sheets.indexOf('}', at)), selector).toContain('background: var(--on-accent)');
     }

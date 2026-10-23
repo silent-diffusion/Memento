@@ -159,7 +159,7 @@ export function LibraryScreen(): JSX.Element {
             <div class="load-error" role="alert">
               <p class="load-error-text">The library could not be shown. {loadError}</p>
               <button
-                class="btn ghost load-error-retry"
+                class="btn ghost ghost-stage"
                 type="button"
                 onClick={() => {
                   store.loadError.value = null;

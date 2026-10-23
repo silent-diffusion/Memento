@@ -91,11 +91,11 @@ export function ProgressCard({
         <span class="gen-fill" style={{ width: `${percent}%` }} />
       </span>
       <div class={onShowLiveOutput === undefined ? 'gen-actions' : 'gen-actions gen-actions--live'}>
-        <button class="btn g small-btn" type="button" onClick={onCancel} disabled={job.jobId === null || job.phase === 'confirm'}>
+        <button class="btn g" type="button" onClick={onCancel} disabled={job.jobId === null || job.phase === 'confirm'}>
           Cancel
         </button>
         {onShowLiveOutput === undefined ? null : (
-          <button class="btn g small-btn" type="button" aria-haspopup="dialog" onClick={onShowLiveOutput} disabled={job.phase === 'confirm'}>
+          <button class="btn g" type="button" aria-haspopup="dialog" onClick={onShowLiveOutput} disabled={job.phase === 'confirm'}>
             Show live output
           </button>
         )}

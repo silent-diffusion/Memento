@@ -174,8 +174,29 @@ export function createRouter(store: RouterStore, win: RouterWindow): Router {
     }
   };
 
+  const showHash = (route: Route): void => {
+    const hash = formatRoute(route);
+    if (win.location.hash !== hash) {
+      win.location.hash = hash;
+    }
+  };
+
   const onHashChange = (): void => {
-    apply(parseRoute(win.location.hash), 'history');
+    const next = parseRoute(win.location.hash);
+    const current = store.route.value;
+    // A screen with something to lose (the Builder's unsaved template) asks first; the hash shows it again meanwhile.
+    const guard = navigationOf(store).leaveGuard;
+    if (guard !== null && formatRoute(next) !== formatRoute(current)) {
+      const held = guard(() => {
+        apply(next, 'history');
+        showHash(next);
+      });
+      if (held) {
+        showHash(current);
+        return;
+      }
+    }
+    apply(next, 'history');
   };
   win.addEventListener('hashchange', onHashChange);
 

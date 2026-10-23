@@ -242,19 +242,6 @@
   color: var(--text-3);
 }
 
-.side-btn {
-  height: 36px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
 .versions-block {
   display: flex;
   flex-direction: column;
@@ -337,17 +324,6 @@
   color: var(--accent-text);
 }
 
-.doc-ver-restore {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
 .doc-footnote {
   margin: 0;
   padding: 0 2px;
@@ -397,12 +373,3 @@
   gap: 8px;
 }
 
-.docs-write {
-  height: 36px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-}

@@ -29,18 +29,10 @@
   box-shadow: var(--neo-in-xs);
 }
 
+/* A select drawn as a chip (§5.2: 32 px, radius 999) on the ghost recipe of base.css. */
 .chip-select {
   height: 32px;
-  padding: 0 12px;
   border-radius: 999px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .chip-select .select-chevron {
@@ -50,26 +42,6 @@
 .spoke-title-edit .popover {
   left: 0;
   right: auto;
-}
-
-.spoke-ghost {
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.spoke-ghost[aria-pressed='true'] {
-  box-shadow: var(--neo-in-xs);
-  color: var(--text);
 }
 
 /* Body: three cards in a wrapping row, 24 px gaps, padding 32 / 48 / 40. */
@@ -135,17 +107,6 @@
   flex: 1 1 280px;
   max-width: 320px;
   gap: 16px;
-}
-
-.rec-add {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
 }
 
 .rec-source-list {
@@ -304,16 +265,13 @@
   display: none;
 }
 
+/* §8's stage controls beside the 72 px Stop keep their 56 px: Pause/Resume round, Mark highlight a pill. The fill,
+   shadow and states are the ghost recipe of base.css; only the shape and the `text` glyph colour are §8's. */
 .rec-round {
   width: 56px;
   height: 56px;
   padding: 0;
   border-radius: 50%;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   color: var(--text);
 }
 
@@ -330,18 +288,9 @@
   justify-content: center;
 }
 
-/* §8 Resume after Stop: a large ghost on the stage (48 px, radius 20, §5.1) with the record dot in the accent colour;
-   the white dot of the primary Start button was invisible on the ground. */
-.rec-resume {
-  height: 48px;
-  padding: 0 20px;
-  border-radius: 20px;
-  font-size: 15px;
-  font-weight: 700;
-  gap: 10px;
-}
-
-.rec-resume .rec-start-dot {
+/* §8 Resume after Stop is the stage ghost (`btn ghost ghost-stage`, 48 px, radius 20) with the record dot in the
+   accent colour: the white dot of the primary Start button was invisible on the ground. */
+.ghost .rec-start-dot {
   width: 12px;
   height: 12px;
   background: var(--accent);
@@ -351,13 +300,8 @@
   height: 56px;
   padding: 0 18px;
   border-radius: 999px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
   font-size: 14px;
-  font-weight: 600;
   color: var(--text);
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
 }
 
@@ -566,21 +510,14 @@
   gap: 12px;
 }
 
+/* Add an agenda (the empty card's main action) keeps its own width in the column. */
+.rec-agenda > .btn {
+  align-self: flex-start;
+}
+
 .rec-agenda-source {
   font-size: 12px;
   color: var(--text-3);
-}
-
-.rec-agenda-add {
-  align-self: flex-start;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
 }
 
 .rec-agenda-list {

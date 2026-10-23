@@ -160,24 +160,39 @@ describe('spoke navigation', () => {
     // The unsaved name came back with the Builder (kept while it was away, as for the Style editor).
     await until(() => document.querySelector<HTMLInputElement>('#tpl-name')?.value === 'Minutes for the board');
     expect(backControl().textContent).toBe('Design review: library screen');
-    // The change is still unsaved after the trip, so Esc does not drop it by going back.
+    // The change is still unsaved after the trip, so Esc asks before Back drops it (2.4.0, R1).
     (document.activeElement as HTMLElement | null)?.blur();
     await settle(30);
     await key(document.body, { key: 'Escape' });
+    await until(() => document.querySelector('#leave-template-title') !== null);
     expect(h.store.route.value.name).toBe('builder');
+    // Esc in the question is Keep editing.
+    await key(document.activeElement ?? document.body, { key: 'Escape' });
+    await until(() => document.querySelector('#leave-template-title') === null);
+    expect(h.store.route.value.name).toBe('builder');
+    expect(document.querySelector<HTMLInputElement>('#tpl-name')?.value).toBe('Minutes for the board');
   });
 
-  it('the Builder ignores Esc while the template has unsaved changes', async () => {
+  it('the Builder asks before Esc, Alt+← or the mouse’s back button drop unsaved template changes', async () => {
     h = await mountApp({ name: 'builder', recordingId: DESIGN, templateId: null, documentId: null }, { m4: { ai: 'ready' } });
     await until(() => document.querySelector<HTMLInputElement>('#tpl-name')?.value !== '' && document.querySelector('#tpl-name') !== null);
     const name = document.querySelector<HTMLInputElement>('#tpl-name');
     await type(name, 'Minutes, shorter');
     name?.blur();
     await settle(30);
-    await key(document.body, { key: 'Escape' });
-    expect(h.store.route.value.name).toBe('builder');
-    // Alt+← is a deliberate Back and still works.
+    const asked = (): boolean => document.querySelector('#leave-template-title') !== null;
+    for (const goBack of [() => key(document.body, { key: 'Escape' }), () => key(document.body, { key: 'ArrowLeft', altKey: true }), () => key(document.body, { key: 'BrowserBack' }), mouseBack]) {
+      await goBack();
+      await until(asked);
+      expect(h.store.route.value.name).toBe('builder');
+      await click(button('Keep editing'));
+      await until(() => !asked());
+    }
+    // With the question answered "Leave without saving", Alt+← goes back.
     await key(document.body, { key: 'ArrowLeft', altKey: true });
+    await until(asked);
+    await click(button('Leave without saving'));
+    await until(() => h.store.route.value.name === 'review');
     expect(h.store.route.value).toEqual({ name: 'review', recordingId: DESIGN });
   });
 

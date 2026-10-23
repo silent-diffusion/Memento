@@ -235,15 +235,15 @@ export function UpdatesGroup(): JSX.Element | null {
       >
         <span class="settings-note">Version {status?.currentVersion ?? store.version.value?.version ?? ''}</span>
         {ready ? (
-          <button class="btn p small-btn" type="button" onClick={restart}>
+          <button class="btn p" type="button" onClick={restart}>
             Restart to update to {status.availableVersion}
           </button>
         ) : available ? (
-          <button class="btn p small-btn" type="button" onClick={updateNow}>
+          <button class="btn p" type="button" onClick={updateNow}>
             Update now
           </button>
         ) : (
-          <button class="btn ghost small-btn" type="button" disabled={unavailable || checking || downloading || status?.state === 'checking'} onClick={checkNow}>
+          <button class="btn ghost" type="button" disabled={unavailable || checking || downloading || status?.state === 'checking'} onClick={checkNow}>
             {checking || status?.state === 'checking' ? 'Checking…' : 'Check now'}
           </button>
         )}
@@ -289,7 +289,7 @@ export function AboutGroup(): JSX.Element | null {
         below={open ? <Licenses /> : null}
       >
         <button
-          class="btn ghost small-btn"
+          class="btn ghost"
           type="button"
           aria-expanded={open}
           aria-controls="about-licenses"

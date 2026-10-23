@@ -127,7 +127,7 @@ export function CloudModelSetting({ provider }: { provider: AiProvider }): JSX.E
                   }
                 }}
               />
-              <button class="btn ghost small-btn" type="button" disabled={typed.trim() === state.model && custom} onClick={useTyped}>
+              <button class="btn ghost" type="button" disabled={typed.trim() === state.model && custom} onClick={useTyped}>
                 Use this model
               </button>
             </div>

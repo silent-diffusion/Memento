@@ -76,7 +76,7 @@ export function HowMade({ summary, record, styleName, now, onRegenerate }: HowMa
         <span class="how-note">{local ? 'Everything stayed on this PC. Audio and video were not used.' : 'Audio and video were not sent.'}</span>
       </div>
       {onRegenerate === null ? null : (
-        <button class="btn ghost side-btn" type="button" onClick={onRegenerate}>
+        <button class="btn ghost" type="button" onClick={onRegenerate}>
           Change structure and regenerate
         </button>
       )}
@@ -159,7 +159,7 @@ export function Versions({ history, versions, now, onRestore, onOpen, openId = n
               <div class="doc-ver-row">
                 <VersionTitle text={`Version ${number}`} version={version} number={number} open={openId === version.id} onOpen={onOpen} />
                 <button
-                  class="btn ghost doc-ver-restore"
+                  class="btn ghost ghost-main"
                   type="button"
                   aria-label={`Restore version ${number}`}
                   onClick={() => {

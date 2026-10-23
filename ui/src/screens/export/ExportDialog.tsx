@@ -489,7 +489,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                 <span>{failure}</span>
                 <div class="export-failure-actions">
                   <button
-                    class="btn g small-btn"
+                    class="btn g"
                     type="button"
                     disabled={busy}
                     onClick={() => {
@@ -499,7 +499,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                     Try again
                   </button>
                   <button
-                    class="btn g small-btn"
+                    class="btn g"
                     type="button"
                     disabled={busy}
                     onClick={() => {
@@ -533,6 +533,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   }}
                   format={
                     <SelectMenu<AudioExportFormat>
+                      size="main"
                       label="Format for Audio (mixed)"
                       value={s.audioMixed.format}
                       options={AUDIO_OPTIONS}
@@ -556,6 +557,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   }}
                   format={
                     <SelectMenu<AudioExportFormat>
+                      size="main"
                       label="Format for Individual tracks"
                       value={s.tracks.format}
                       options={AUDIO_OPTIONS}
@@ -581,6 +583,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   }}
                   format={
                     <SelectMenu<VideoExportFormat>
+                      size="main"
                       label="Format for Video"
                       value={videoChoice.format}
                       options={VIDEO_OPTIONS}
@@ -604,6 +607,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   }}
                   format={
                     <MultiSelectMenu<TranscriptExportFormat>
+                      size="main"
                       label="Format for Transcript"
                       values={s.transcript.formats.length === 0 ? ['json'] : s.transcript.formats}
                       options={TRANSCRIPT_OPTIONS}
@@ -628,6 +632,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   }}
                   format={
                     <SelectMenu<DocumentExportFormat>
+                      size="main"
                       label="Format for Documents"
                       value={s.documents.format}
                       options={DOCUMENT_OPTIONS}
@@ -712,7 +717,7 @@ export function ExportDialog({ request, close }: { request: Extract<DialogReques
                   </span>
                 </div>
                 <button
-                  class="btn ghost small-btn"
+                  class="btn ghost ghost-main"
                   type="button"
                   aria-label="Change export folder"
                   onClick={() => {

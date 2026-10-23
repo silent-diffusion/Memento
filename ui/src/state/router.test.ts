@@ -162,3 +162,59 @@ describe('router state restore', () => {
     expect(store.route.value).toEqual({ name: 'library' });
   });
 });
+
+describe('the leave guard (a screen with unsaved changes asks before the page history leaves it, 2.4.0)', () => {
+  const builder: Route = { name: 'builder', recordingId: 'r1', templateId: null, documentId: null };
+
+  it('holds a history move the guard takes, shows the screen again, and makes the move once the person agrees', () => {
+    const store = createStore(false);
+    const win = new FakeWindow();
+    const router = createRouter(store, win);
+    router.navigate({ name: 'review', recordingId: 'r1' });
+    router.navigate(builder);
+    const nav = navigationOf(store);
+    const held: (() => void)[] = [];
+    nav.leaveGuard = (proceed) => {
+      held.push(proceed);
+      return true;
+    };
+    win.changeHash('#/review/r1');
+    expect(store.route.value).toEqual(builder);
+    expect(win.location.hash).toBe(formatRoute(builder));
+    expect(held).toHaveLength(1);
+    nav.leaveGuard = null;
+    held[0]?.();
+    expect(store.route.value).toEqual({ name: 'review', recordingId: 'r1' });
+    expect(win.location.hash).toBe('#/review/r1');
+  });
+
+  it('lets the move through when the guard has nothing to lose, or when there is no guard', () => {
+    const store = createStore(false);
+    const win = new FakeWindow();
+    const router = createRouter(store, win);
+    router.navigate(builder);
+    const nav = navigationOf(store);
+    const asked = vi.fn(() => false);
+    nav.leaveGuard = asked;
+    win.changeHash('#/review/r1');
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(store.route.value).toEqual({ name: 'review', recordingId: 'r1' });
+    nav.leaveGuard = null;
+    win.changeHash('#/library');
+    expect(store.route.value).toEqual({ name: 'library' });
+  });
+
+  it('is not asked for the app’s own moves (Back asks through the screen itself) or a hash that keeps the screen', () => {
+    const store = createStore(false);
+    const win = new FakeWindow();
+    const router = createRouter(store, win);
+    router.navigate(builder);
+    const nav = navigationOf(store);
+    const asked = vi.fn(() => true);
+    nav.leaveGuard = asked;
+    win.changeHash(formatRoute(builder));
+    router.navigate({ name: 'settings', section: 'ai-privacy' });
+    expect(asked).not.toHaveBeenCalled();
+    expect(store.route.value).toEqual({ name: 'settings', section: 'ai-privacy' });
+  });
+});

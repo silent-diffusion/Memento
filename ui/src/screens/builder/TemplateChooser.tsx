@@ -97,7 +97,7 @@ export function TemplateChooser({ currentId, currentName, dirty, disabled, onOpe
           </p>
           <span class="tpl-confirm-actions">
             <button
-              class="btn ghost small-btn"
+              class="btn ghost"
               type="button"
               ref={(el) => el?.focus()}
               onClick={() => {
@@ -107,7 +107,7 @@ export function TemplateChooser({ currentId, currentName, dirty, disabled, onOpe
               Keep editing
             </button>
             <button
-              class="btn ghost small-btn"
+              class="btn ghost"
               type="button"
               onClick={() => {
                 open(pending.id);

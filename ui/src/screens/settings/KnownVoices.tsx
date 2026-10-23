@@ -100,7 +100,7 @@ export function KnownVoices(): JSX.Element {
                 }}
               />
               <button
-                class="btn g small-btn known-forget"
+                class="btn g known-forget"
                 type="button"
                 aria-label={`Forget ${voice.name}'s voice`}
                 disabled={busy}
@@ -122,7 +122,7 @@ export function KnownVoices(): JSX.Element {
               Forget all {voices.length} voices? Their signatures are removed from this PC at once and cannot be brought back; your recordings and the names in them stay.
             </span>
             <button
-              class="btn g small-btn"
+              class="btn g"
               type="button"
               onClick={() => {
                 setConfirming(false);
@@ -131,7 +131,7 @@ export function KnownVoices(): JSX.Element {
               Cancel
             </button>
             <button
-              class="btn d small-btn"
+              class="btn d"
               type="button"
               disabled={busy}
               onClick={() => {

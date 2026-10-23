@@ -41,23 +41,12 @@
   display: inline-flex;
 }
 
+/* A select trigger is a ghost (base.css, sized by `size`) that shows its value in `text` (§5.3), not the ghost's
+   text-2 label colour; the sort variant (`sort-btn`) keeps the ghost's label and chevron colour. */
 .select-btn {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
   color: var(--text);
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
   max-width: 320px;
-}
-
-.select-btn:disabled {
-  opacity: 0.55;
 }
 
 .select-text {

@@ -141,7 +141,7 @@ export function AttachmentsSection({ recordingId, variant }: AttachmentsSectionP
                 </span>
               </span>
               <button
-                class="btn ghost attachment-open"
+                class="btn ghost ghost-main"
                 type="button"
                 aria-label={`Open ${attachment.name}`}
                 onClick={() => {

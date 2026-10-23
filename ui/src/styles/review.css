@@ -448,17 +448,6 @@
   color: var(--text-3);
 }
 
-.speed-menu .sort-btn {
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
 .speed-menu .select-chevron {
   display: none;
 }
@@ -719,16 +708,6 @@
 
 .agenda-read-n {
   color: var(--text-3);
-}
-
-.edit-details {
-  height: 36px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
 }
 
 /* Documents tab. */
@@ -1431,7 +1410,6 @@ button.segm-speaker:hover .segm-speaker-name {
 }
 
 .version-restore {
-  height: 30px;
   flex: none;
 }
 

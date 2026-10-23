@@ -1,6 +1,7 @@
 // H1 contrast check: the WCAG 2.2 contrast ratio of every text colour token on every background token in both themes,
-// from ui/src/styles/tokens.css (a verbatim copy of design/tokens.css) and as shipped, with the corrections in
-// ui/src/styles/base.css applied; plus the label on the accent and danger fills (both gradient ends and the middle,
+// from ui/src/styles/tokens.css (a verbatim copy of design/tokens.css) and as shipped, with any token override in
+// ui/src/styles/base.css applied (none since 2.4.0: the 2.3.1 corrections of text-3 and on-accent are in tokens.css,
+// so both variants agree); plus the label on the accent and danger fills (both gradient ends and the middle,
 // where the label sits). Normal text needs 4.5:1 (AA); large text and non-text parts (the focus ring, dots) 3:1.
 //
 //   node tools/e2e/h1-contrast.mjs [--json <out.json>]   (exit code 1 when a shipped pair fails)

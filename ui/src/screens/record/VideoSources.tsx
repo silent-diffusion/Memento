@@ -52,7 +52,7 @@ function Thumb({ dataUrl, kind }: { dataUrl: string | null; kind: 'win' | 'cam' 
 
 function PickChip({ text, label, disabled, onClick }: { text: string; label: string; disabled: boolean; onClick: () => void }): JSX.Element {
   return (
-    <button class="btn ghost rec-pick" type="button" aria-haspopup="dialog" aria-label={label} disabled={disabled} onClick={onClick}>
+    <button class="btn ghost ghost-row" type="button" aria-haspopup="dialog" aria-label={label} disabled={disabled} onClick={onClick}>
       <span class="rec-pick-text">{text}</span>
       <ChevronDownIcon size={12} strokeWidth={2.25} />
     </button>
@@ -252,7 +252,8 @@ export function VideoSources(props: VideoSourcesProps): JSX.Element {
                 <div class="rec-camera-select">
                   <SelectMenu
                     label="Camera"
-                    variant="chip"
+                    variant="sort"
+                    size="row"
                     value={camera?.id ?? ''}
                     buttonText={camera?.name ?? 'Choose a camera'}
                     options={list.cameras.map((c: VideoSource) => ({ value: c.id, label: cameraLabel(c) }))}

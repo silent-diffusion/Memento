@@ -324,13 +324,3 @@
   color: var(--text-2);
 }
 
-.load-error-retry {
-  height: 40px;
-  padding: 0 18px;
-  border-radius: 16px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-2);
-}

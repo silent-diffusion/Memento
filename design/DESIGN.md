@@ -64,10 +64,11 @@ Implement these as theme variables (CSS custom properties, WinUI resources, or e
 | `line-strong` | `#C9C5BC` | `#434039` | Emphasised borders (ghost button, dashed queued pill, empty-state ring) |
 | `text` | `#1D1C1A` | `#EDEAE4` | Primary text, selected-chip fill |
 | `text-2` | `#5E5B55` | `#A8A49C` | Secondary text, meta lines, icons, durations |
-| `text-3` | `#7D7971` | `#86827A` | Tertiary text: group labels, placeholders, footer, chevrons |
+| `text-3` | `#68645E` | `#96928B` | Tertiary text: group labels, placeholders, footer, chevrons. 4.5:1 or more on every ground it sits on (light 4.50:1 on `surface-2` to 5.02:1 on `bg`; dark 4.55:1 on `ok-soft` to 5.67:1 on `surface-2`). Was `#7D7971` / `#86827A` (3.3–3.7:1 and 3.7–4.4:1) before 2.4.0 |
 | `accent` | `#C2410C` | `#F08A5C` | Primary button, record dot, active progress, pulse |
 | `accent-soft` | `#FBE9E0` | `#3A2218` | Active-pill fill, selected-row fill |
 | `accent-text` | `#9A3412` | `#F4A37E` | Text on `accent-soft`, "Processing now" label |
+| `on-accent` | `#FFFFFF` | `#1F1E1B` | Labels and marks (record dot, stop square) on the `accent-grad` and `danger-grad` fills. Light: white, 5.15:1 at the middle of the accent fill and 6.64:1 on danger. Dark: the ground colour, 6.59:1 and 6.32:1 at the middle (4.7–8.3:1 across both fills); white there was 2.0–3.5:1 |
 | `ok` | `#2F6B4F` | `#7FC7A3` | Done progress bar, "ready" status dot |
 | `ok-soft` | `#E3EFE8` | `#1E2F27` | Reserved for success fills |
 | `focus` | `#2563EB` | `#60A5FA` | Keyboard focus ring |
@@ -98,8 +99,8 @@ Convex fills (used only on primary and destructive buttons and the toggle knob; 
 Notes:
 - The ground moved from `#F5F4F0` to `#EFEDE8` (light) and from `#161513` to `#1F1E1B` (dark) so that the white and black shadows both have room to show. Text, accent, ok and danger colours are unchanged, and every text/background pair still meets 4.5:1.
 - The accent is deliberately the **record colour**. There is one warm accent in the whole app and it means "recording / primary action".
-- White text sits on `accent` for the primary button in both themes (`#FFFFFF`).
-- All text/background pairs above meet 4.5:1. If you introduce a new pair, check it.
+- Text on the primary and destructive fills is `on-accent`: white in light, the ground colour in dark, where the fills are light (2.4.0; before, white in both themes).
+- All text/background pairs above meet 4.5:1, measured by `tools/e2e/h1-contrast.mjs` (2.4.0: the 2.3.1 corrections of `text-3` and `on-accent` are in `tokens.css`, no longer overrides in `ui/src/styles/base.css`). If you introduce a new pair, check it.
 
 ### 2.2 Typography
 
@@ -128,7 +129,17 @@ Duration format: `h:mm:ss` when ≥ 1 hour, otherwise `m:ss`. Totals read as `8 
 - Vertical rhythm between major blocks on a page: 28 px. Inside a group (label → list): 10 px.
 - Radii: **12** tiny (28 px icon buttons, segmented options), **14** small controls (32–36 px buttons, chips' parent wells), **16** standard controls (40 px buttons, inputs, icon tiles, tab strips), **20** module cards, **24** cards and list containers, **28** dialogs, **999** chips and pills.
 - Borders: none on cards, buttons, inputs or wells. Shape comes from the paired shadows (§2.5). `line` grooves remain only as dividers: between list rows, between the three Review panes, under the status footer. Dashed `line-strong` outlines mark "add" affordances and queued pills.
-- Hit targets: 40 px for primary controls, 36 px minimum for secondary, 32 px for chips (with 8 px gaps). Rows are ≥ 68 px tall.
+- Hit targets: 40 px for primary controls, 36 px minimum for secondary controls in toolbars and headers, 32 px for chips (with 8 px gaps). Inside a card or list row a ghost may be 28 px (secondary) or 32 px (the card's main action), as below. Rows are ≥ 68 px tall.
+- **Ghost button sizes** (2.4.0). There is one ghost recipe (§5.1: ground colour, `neo-sm`, no border, `text-2` label 600, hover `neo-sm-hi`, press `neo-in`, the 2 px `focus` ring) and four sizes chosen by role, written as a modifier on `btn ghost` (`ui/src/styles/base.css`):
+
+  | Size | Class | Height · padding · radius · label | Role | Examples |
+  |---|---|---|---|---|
+  | Toolbar (default) | `btn ghost` | 36 · 0 12 · 14 · 13/600 | Spoke headers, toolbars, Settings rows (§5.16), standalone actions, select menus | Export, Highlight, Check for updates, Edit details, sort and value selects |
+  | Card main action | `btn ghost ghost-main` | 32 · 0 12 · 14 · 13/600 | The main action of a card or list row, and a select in a row of 32 px chips | Restore (a version), Add an agenda, Open (an attachment), Change (export folder), Remove video, the export formats, Playback speed |
+  | Row | `btn ghost ghost-row` | 28 · 0 10 · 12 · 12/600 | Secondary actions and pickers inside a card or list row | Add (audio sources), the display, window and camera pickers |
+  | Stage | `btn ghost ghost-stage` | 48 · 0 20 · 20 · 15/600, 10 px gap | The Recording stage and the Library's centred states | Resume recording, Import audio or video, Try again (the library could not be shown) |
+
+  A screen's own class on a ghost only lays it out (flex, margin, width, alignment); it never sets the size, fill, shadow, border or label colour. `ui/src/styles/tokenLint.test.ts` fails on a rule that re-declares the recipe for a button class and on a class beside `btn ghost` that sets any of it. The exceptions it lists are not this ghost or are sized elsewhere: the back control (shadowless at rest, §3), the viewer toolbar's Insert timestamp (flat in the toolbar card, §12), the dashed "add" outlines, the Recording session's 56 px Pause/Resume and Mark highlight (§8), a select drawn as a chip (§5.2) and a select's `text` value colour (§5.3). The compact dialog buttons `.g`, `.p`, `.d` (§5.19) are 32 px with radius 14 and carry no size class either. A ghost that holds a state (`aria-pressed`) is sunk (`neo-in-xs`, `text` label).
 
 ### 2.4 Motion
 
@@ -203,7 +214,7 @@ Same 60 px `surface` bar, but the left side is a **back control** instead of the
 
 - Back control: ghost button, 36 px, radius 9, 16 px chevron-left + the name of the screen it returns to ("Library", or "Design review: library screen" when the Builder was opened from a recording). Always the first element and always keyboard-reachable first. A long name is cut with an ellipsis (at most 280 px); the tooltip names the target and the keys ("Back to Library (Esc or Alt+←)").
 - **Where Back goes** (2.3.1, `ui/src/state/navigation.ts`). Each spoke has a designed parent: Record, Review and Settings return to the Library, the Builder and the Document viewer to their recording's Review (the Builder of a template from Settings to Settings › Documents), the Style editor to the template it came from. A spoke opened by a **cross-screen link** from another spoke returns there first, then that screen's Back works as before: Settings returns to any spoke that opened it (Choose a model, Open Settings › Transcription, the agenda's AI link); Review returns to the document whose timestamp chip opened it; the Builder returns to the document whose Regenerate opened it. Back never walks through a screen only passed (Review after Stop goes to the Library, the viewer after Generate goes to Review). The Library is home and clears the way back; after a reload every Back is the designed one. The Library's gear opens Settings at the section shown last.
-- **Keys and the mouse for Back** (2.3.1): Alt+← and the Browser Back key press the back control on every spoke; so does the mouse's back button (the page's own history is not used; forward does nothing). Esc presses it last: a menu, popover, inline field, sheet or dialog takes Esc first and closes, then Review's filter, line selection and fullscreen video; only when none is open does Esc go back. Esc never goes back on the Recording session (§8), never from a text field, and not in the Builder while the template has unsaved changes.
+- **Keys and the mouse for Back** (2.3.1): Alt+← and the Browser Back key press the back control on every spoke; so does the mouse's back button (the page's own history is not used; forward does nothing). Esc presses it last: a menu, popover, inline field, sheet or dialog takes Esc first and closes, then Review's filter, line selection and fullscreen video; only when none is open does Esc go back. Esc never goes back on the Recording session (§8) and never from a text field. In the Builder with unsaved template changes (a changed structure, name or setting), every way back (the back control, Esc, Alt+←, the mouse's back button and the page's own history) first asks **Leave without saving the template?** (2.4.0): "Your changes to “Meeting minutes” are only in this document builder." with **Keep editing** (the default and Esc), **Save template** (saves as the header's Save template does, then leaves; if the save fails the toast says why and the Builder stays) and **Leave without saving** (primary; drops the changes, the saved template stays as it was). Without changes Back goes straight back.
 - A 1 px × 24 px `line` divider separates it from the title.
 - Title area is either static text (Review, Settings) or a borderless 36 px text input (Record, Builder) so the recording or template can be renamed in place. The input shows a border only on hover/focus.
 - Actions sit at the right: ghost buttons first, the one primary action last. Only Record and Builder have a primary action in the header (none and "Generate" respectively; Record's primary control is the Stop button on the stage).
@@ -267,7 +278,7 @@ All components follow §2.5 and §2.4: raised elements carry `neo-sm` / `neo-xs`
 - **Ghost**: ground colour, `neo-sm`, no border, `text-2` label 13–14/600, radius 14 (36 px) or 16–20 (40–48 px). Hover `neo-sm-hi`; press `neo-in`.
 - **Icon**: 36 or 40 px square, radius 14/16, ground colour with `neo-sm` when it sits in a toolbar, or shadowless when it sits inside a card header (chapter "+", rename pencil, module up/down/remove), where it gains `neo-sm-hi` on hover and sinks on press. "On" state is pressed in (`neo-in-xs`, `text` glyph). Always has an accessible name.
 - **Destructive**: as primary but `danger-grad` fill and the danger shadow (`neo-danger`). Only inside a confirmation dialog, never in a toolbar.
-- **Implementation** (2.3.1): `btn ghost` and `btn primary` alone are complete buttons (the 36 px ghost and 40 px primary above, `ui/src/styles/base.css`); a screen's own class only changes size, padding, radius or type, never the fill or the shadow. Marks on the accent fill (the record dot, the stop square) take the label colour `on-accent`, not white. The token lint (`ui/src/styles/tokenLint.test.ts`) fails on raw colours, hand-tuned shadows and radii off §2.3 outside tokens.css; its allowlist names the few exceptions (the paper, video schematics, the scrim, the knob).
+- **Implementation** (2.3.1, 2.4.0): `btn ghost` and `btn primary` alone are complete buttons (the 36 px ghost and 40 px primary above, `ui/src/styles/base.css`). A ghost's size is one of the four of §2.3 (`ghost-row` 28, `ghost-main` 32, the 36 default, `ghost-stage` 48); a screen's own class only lays it out, never sizes or paints it (2.4.0: the per-screen ghost classes of 2.3.1, spoke-ghost, small-btn, side-btn and the rest, are gone). Marks on the accent fill (the record dot, the stop square) take the label colour `on-accent`, not white. The token lint (`ui/src/styles/tokenLint.test.ts`) fails on raw colours, hand-tuned shadows and radii off §2.3 outside tokens.css; its allowlist names the few exceptions (the paper, video schematics, the scrim, the knob).
 
 ### 5.2 Chip (filter)
 32 px, radius 999, ground colour, `neo-sm`, 13/600 `text-2`. Hover `neo-sm-hi`. Selected: sunk (`neo-in-xs`, `text` colour) and stays sunk on hover. Pressing a raised chip sinks it before it becomes selected, so the click reads as a physical latch. Chips are real buttons with `aria-pressed`.
@@ -449,7 +460,7 @@ Canvas artboards: *Review and transcript · light / dark*. Opened from a Library
 
 Canvas artboards: *Document builder · light / dark*. Opened from Review's **Create document** or from a saved template. This is the README's visual composer: structure on the left and centre, inputs and output on the right, and no free-form "prompt box" as the primary control.
 
-**Header**: back to the recording it was opened from · template name input (16/700) · `done` pill "Template · n modules" (live count) · **Template** select (1.1.0: built-ins first, then your saved templates; switching with unsaved changes asks first) · right: ghost **Save template**, ghost **Save as new template**, primary **Generate {document}** with a trailing arrow. Generate is the only moment anything is sent anywhere; it opens the Document viewer (§12).
+**Header**: back to the recording it was opened from · template name input (16/700) · `done` pill "Template · n modules" (live count) · **Template** select (1.1.0: built-ins first, then your saved templates; switching with unsaved changes asks first, and so does Back, §3) · right: ghost **Save template**, ghost **Save as new template**, primary **Generate {document}** with a trailing arrow. Generate is the only moment anything is sent anywhere; it opens the Document viewer (§12).
 
 **Body**: `max-width 1360`, three columns, 24 px gaps: palette (≈236 px), structure (flexible, ≥ 440 px), preview/inputs (≈400 px).
 

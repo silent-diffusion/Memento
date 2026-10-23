@@ -452,7 +452,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
             <UndoButton />
             {project?.canResume === true ? (
               <button
-                class="btn ghost spoke-ghost"
+                class="btn ghost"
                 type="button"
                 disabled={resuming}
                 title="Record more into this recording; what is recorded so far stays as it is"
@@ -462,7 +462,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               </button>
             ) : null}
             <button
-              class="btn ghost spoke-ghost"
+              class="btn ghost"
               type="button"
               onClick={() => {
                 store.dialog.value = { kind: 'export', recordingId };

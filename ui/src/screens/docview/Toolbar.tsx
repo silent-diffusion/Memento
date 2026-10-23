@@ -149,11 +149,11 @@ export function Toolbar({ kind, bold, italic, onCommand, onTimestamp, playheadSe
                 }
               }}
             />
-            <button class="btn p small-btn" type="button" onClick={insert}>
+            <button class="btn p" type="button" onClick={insert}>
               Insert
             </button>
             <button
-              class="btn g small-btn"
+              class="btn g"
               type="button"
               onClick={() => {
                 setAsking(false);

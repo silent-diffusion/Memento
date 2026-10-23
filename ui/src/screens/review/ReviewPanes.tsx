@@ -682,7 +682,7 @@ function VersionsCard({
                   </span>
                 </span>
                 <button
-                  class="btn ghost small-btn version-restore"
+                  class="btn ghost ghost-main version-restore"
                   type="button"
                   aria-label={`Restore the version from ${when}`}
                   onClick={() => {
@@ -869,7 +869,7 @@ export function DetailsPane({
             {history?.keepVersions === true && currentVersion !== null ? (
               <VersionsCard versions={versions} current={currentVersion} keepDays={history.keepDays} now={now} onRestore={onRestore} />
             ) : null}
-            <button class="btn ghost edit-details" type="button" aria-haspopup="dialog" onClick={onEditDetails}>
+            <button class="btn ghost" type="button" aria-haspopup="dialog" onClick={onEditDetails}>
               Edit details
             </button>
             {/* 2.1: where it is filed, and Delete audio (never in a toolbar: it opens the confirmation). */}

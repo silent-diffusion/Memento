@@ -21,6 +21,7 @@ import { UndoButton } from '../../components/UndoButton';
 import { documentWord, moduleWords, paperName } from '../../format/documents';
 import { useBack } from '../../state/back';
 import { useServices } from '../../state/context';
+import { navigationOf } from '../../state/navigation';
 import { undoOf } from '../../state/undo';
 import type { Route } from '../../state/router';
 import { openStyleEditor } from '../styleeditor/styleReturn';
@@ -33,6 +34,7 @@ import { PreviewPanel, type InputRow } from './PreviewPanel';
 import { layoutOfDocument } from './regenerate';
 import { bindBuilderUndo, recordBuilderStep, structureStep, templateStep, type BuilderSnapshot } from './builderUndo';
 import { PreviewSheet } from './PreviewSheet';
+import { LeaveTemplateDialog } from './LeaveTemplateDialog';
 import { ConfirmSendDialog } from './SendDialogs';
 import { initialStructure, moduleCount, modulesInUse, rowsOf, structureReducer, type DragPayload, type Rows, type StructureAction } from './structureState';
 import { moduleName, Structure } from './Structure';
@@ -92,6 +94,8 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
   const [sheet, setSheet] = useState<{ preview: GenerationPreviewResult | null; error: string | null } | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [savingTemplate, setSavingTemplate] = useState(false);
+  /** The Leave without saving question is open; `proceed` makes the move the person asked for. */
+  const [leaving, setLeaving] = useState<{ proceed: () => void } | null>(null);
   const [reloadStyles, setReloadStyles] = useState(0);
   /** The template as opened or last saved (JSON), or null until the next render records it. */
   const clean = useRef<string | null>(restored?.clean ?? null);
@@ -392,13 +396,16 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
     setAnnouncement(`${next.name} opened, ${moduleWords(moduleCount(rowsOf(next)))}.`);
   };
 
-  /** Save template (a built-in is saved as a copy), or Save as new template (an empty id: always a new one). */
-  const saveTemplate = (asNew = false): void => {
+  /**
+   * Save template (a built-in is saved as a copy), or Save as new template (an empty id: always a new one). Resolves
+   * true once saved, false when it did not run or failed (the toast says why; the arrangement stays).
+   */
+  const saveTemplate = (asNew = false): Promise<boolean> => {
     if (current === null || savingTemplate) {
-      return;
+      return Promise.resolve(false);
     }
     setSavingTemplate(true);
-    bridge
+    return bridge
       .call('templates.save', { template: asNew ? { ...current, id: '' } : current })
       .then((saved) => {
         setSavingTemplate(false);
@@ -414,11 +421,39 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
               ? `${current.name} is built in, so it stays as it is; your arrangement is a template of its own.`
               : 'Choose it from the template list in the builder, for any recording.',
         });
+        return true;
       })
       .catch((e: unknown) => {
         setSavingTemplate(false);
         store.toasts.show({ tone: 'danger', title: 'The template was not saved', body: `${messageOf(e)} Your arrangement is still here.` });
+        return false;
       });
+  };
+
+  // Back with unsaved template changes asks first (2.4.0, R1): the back control, Esc, Alt+←, the mouse's back button
+  // and a move by the page's own history all come here. `proceed` is where the person was going.
+  const dirtyNow = useRef(dirty);
+  dirtyNow.current = dirty;
+  useEffect(() => {
+    const nav = navigationOf(store);
+    const guard = (proceed: () => void): boolean => {
+      if (!dirtyNow.current) {
+        return false;
+      }
+      setLeaving({ proceed });
+      return true;
+    };
+    nav.leaveGuard = guard;
+    return () => {
+      if (nav.leaveGuard === guard) {
+        nav.leaveGuard = null;
+      }
+    };
+  }, [store]);
+  const leaveNow = (proceed: () => void): void => {
+    keepDraft.current = false;
+    setLeaving(null);
+    proceed();
   };
 
   /**
@@ -517,12 +552,13 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
     <SpokeHeader
       backLabel={back.label}
       onBack={() => {
-        keepDraft.current = false;
-        back.go();
+        if (dirty) {
+          setLeaving({ proceed: back.go });
+        } else {
+          leaveNow(back.go);
+        }
       }}
       selfLabel={template?.name ?? 'Document builder'}
-      // Esc would drop unsaved template changes as Back does, so it only goes back while there are none.
-      escapeBack={!dirty}
       titleEditor={
         <>
           <label class="sr" for="tpl-name">
@@ -547,10 +583,10 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       actions={
         <>
           <UndoButton />
-          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(); }}>
+          <button class="btn ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { void saveTemplate(); }}>
             Save template
           </button>
-          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(true); }}>
+          <button class="btn ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { void saveTemplate(true); }}>
             Save as new template
           </button>
           {recordingId === null ? null : (
@@ -572,6 +608,31 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
     />
   );
 
+  const leaveDialog =
+    leaving === null ? null : (
+      <LeaveTemplateDialog
+        templateName={current?.name ?? ''}
+        saving={savingTemplate}
+        onKeep={() => {
+          setLeaving(null);
+        }}
+        onSave={() => {
+          const { proceed } = leaving;
+          void saveTemplate().then((saved) => {
+            if (saved) {
+              leaveNow(proceed);
+            } else {
+              // The toast names what failed; the changes stay here to try again or keep editing.
+              setLeaving(null);
+            }
+          });
+        }}
+        onLeave={() => {
+          leaveNow(leaving.proceed);
+        }}
+      />
+    );
+
   if (loadError !== null) {
     return (
       <>
@@ -583,6 +644,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
             </p>
           </div>
         </main>
+        {leaveDialog}
       </>
     );
   }
@@ -730,6 +792,7 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
           }}
         />
       ) : null}
+      {leaveDialog}
     </>
   );
 }

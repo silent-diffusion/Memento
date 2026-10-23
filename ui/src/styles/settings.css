@@ -147,24 +147,6 @@
   white-space: nowrap;
 }
 
-.small-btn {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.small-btn:disabled {
-  opacity: 0.55;
-}
-
 .seg-well {
   display: flex;
   gap: 2px;

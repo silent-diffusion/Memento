@@ -46,20 +46,6 @@
   gap: 6px;
 }
 
-.sort-btn {
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .view-toggle {
   width: 36px;
   height: 36px;
@@ -222,16 +208,6 @@
 .bar.queued,
 .bar.failed {
   background: transparent;
-}
-
-.proc-open {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
 }
 
 /* Type filter chips. */

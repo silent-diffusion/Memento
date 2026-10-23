@@ -29,7 +29,7 @@ interface SpokeHeaderProps {
   selfLabel?: string;
   /**
    * Esc presses Back once nothing else on the screen wants it (default). The Recording session turns it off (§8: Esc
-   * does nothing there), and the Builder while the template has unsaved changes. Alt+← always works.
+   * does nothing there). Alt+← always works. (The Builder with unsaved template changes asks before any Back, 2.4.0.)
    */
   escapeBack?: boolean;
 }

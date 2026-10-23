@@ -273,7 +273,7 @@ export function LiveOutputSheet({ live, onClose }: SheetProps): JSX.Element {
                         Following the newest output
                       </span>
                     ) : (
-                      <button class="btn g small-btn" type="button" onClick={resume}>
+                      <button class="btn g" type="button" onClick={resume}>
                         Follow live output
                       </button>
                     )

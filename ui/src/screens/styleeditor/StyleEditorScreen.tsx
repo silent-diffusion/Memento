@@ -220,10 +220,10 @@ export function StyleEditorScreen({ styleId }: { styleId: string }): JSX.Element
         }
         actions={
           <>
-          <button class="btn ghost spoke-ghost" type="button" disabled={style === null || busy} onClick={duplicate}>
+          <button class="btn ghost" type="button" disabled={style === null || busy} onClick={duplicate}>
             Duplicate
           </button>
-          <button class="btn ghost spoke-ghost" type="button" disabled={!dirty} onClick={reset}>
+          <button class="btn ghost" type="button" disabled={!dirty} onClick={reset}>
             Reset
           </button>
           <button class="btn primary spoke-primary" type="button" disabled={style === null || busy || (!dirty && !style.builtIn)} onClick={save}>

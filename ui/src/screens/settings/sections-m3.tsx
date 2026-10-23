@@ -259,7 +259,7 @@ export function GeneralSectionM3(): JSX.Element {
             {settings.libraryPath}
           </span>
           <button
-            class="btn ghost small-btn"
+            class="btn ghost"
             type="button"
             aria-label="Change library location"
             disabled={moving}
@@ -395,7 +395,7 @@ export function AiPrivacySection(): JSX.Element {
                 )}
                 {hasKey ? (
                   <button
-                    class="btn ghost small-btn"
+                    class="btn ghost"
                     type="button"
                     aria-label={`Remove the ${name} key`}
                     onClick={() => {
@@ -406,7 +406,7 @@ export function AiPrivacySection(): JSX.Element {
                   </button>
                 ) : null}
                 <button
-                  class="btn ghost small-btn"
+                  class="btn ghost"
                   type="button"
                   aria-haspopup="dialog"
                   aria-label={hasKey ? `Replace the ${name} key` : `Add a ${name} key`}
@@ -531,7 +531,7 @@ export function ExportSection(): JSX.Element {
             {ex.defaultFolder ?? 'Not set'}
           </span>
           <button
-            class="btn ghost small-btn"
+            class="btn ghost"
             type="button"
             aria-label="Change the default export folder"
             onClick={() => {
@@ -828,7 +828,7 @@ export function StorageSectionM3(): JSX.Element {
               void updateSettings(services, { storage: { reclaimOlderThanDays: value === 'never' ? null : Number(value) } }).then(setError);
             }}
           />
-          <button class="btn ghost small-btn" type="button" disabled={days === null || running} onClick={runReclaim}>
+          <button class="btn ghost" type="button" disabled={days === null || running} onClick={runReclaim}>
             {running ? 'Running…' : 'Run now'}
           </button>
         </SettingsRow>
@@ -861,7 +861,7 @@ export function StorageSectionM3(): JSX.Element {
           }
         >
           <button
-            class="btn ghost small-btn"
+            class="btn ghost"
             type="button"
             disabled={running || usage === null || usage.separateTracksRecordings === 0}
             onClick={() => {
@@ -876,14 +876,14 @@ export function StorageSectionM3(): JSX.Element {
         {/* 2.1: the same pattern for audio. */}
         <DeleteAudioRow reload={reload} />
         <SettingsRow label="Review large recordings" description="Opens the library with the largest recordings first.">
-          <button class="btn ghost small-btn" type="button" onClick={reviewLarge}>
+          <button class="btn ghost" type="button" onClick={reviewLarge}>
             Review
           </button>
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup label="Index">
         <SettingsRow label="Rebuild the library index" description="Reads every recording folder again if something is missing from the list.">
-          <button class="btn ghost small-btn" type="button" disabled={rebuilding} onClick={rebuild}>
+          <button class="btn ghost" type="button" disabled={rebuilding} onClick={rebuild}>
             {rebuilding ? 'Rebuilding…' : 'Rebuild'}
           </button>
         </SettingsRow>

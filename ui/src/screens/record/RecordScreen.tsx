@@ -784,7 +784,7 @@ export function RecordScreen(): JSX.Element {
         selfLabel={details.title.trim() === '' ? 'Recording' : details.title}
         actions={
           <button
-            class="btn ghost spoke-ghost"
+            class="btn ghost"
             type="button"
             aria-haspopup="dialog"
             aria-pressed={sheetOpen}

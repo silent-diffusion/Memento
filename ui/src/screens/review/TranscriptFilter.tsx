@@ -229,7 +229,7 @@ export function TranscriptFilterMenu({ view, speakers, chapters, query, onFilter
             <p class="tx-filter-note">A line shows when it matches every choice, and any of the ticked speakers.</p>
             <div class="tx-filter-foot">
               <button
-                class="btn ghost small-btn"
+                class="btn ghost"
                 type="button"
                 disabled={!view.filtering}
                 onClick={() => {
@@ -240,7 +240,7 @@ export function TranscriptFilterMenu({ view, speakers, chapters, query, onFilter
                 Show all
               </button>
               <button
-                class="btn ghost small-btn"
+                class="btn ghost"
                 type="button"
                 onClick={() => {
                   close(true);
@@ -267,10 +267,10 @@ export function FilterLine({ view, onShowAll, onCopy }: { view: TranscriptView; 
         {view.visible === 0 ? ['No lines match', ...view.labels].join(' · ') : showingText(view.visible, view.total, view.labels)}
       </p>
       <span class="tx-filter-line-actions">
-        <button class="btn ghost small-btn" type="button" disabled={view.visible === 0} onClick={onCopy} title={`Copy the ${view.visible} lines shown`}>
+        <button class="btn ghost" type="button" disabled={view.visible === 0} onClick={onCopy} title={`Copy the ${view.visible} lines shown`}>
           Copy
         </button>
-        <button class="btn ghost small-btn tx-filter-showall" type="button" onClick={onShowAll} aria-keyshortcuts="Escape" title="Show all lines (Esc)">
+        <button class="btn ghost tx-filter-showall" type="button" onClick={onShowAll} aria-keyshortcuts="Escape" title="Show all lines (Esc)">
           <CloseIcon size={12} />
           Show all
         </button>

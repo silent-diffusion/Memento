@@ -78,12 +78,6 @@
   display: flex;
   gap: 8px;
 }
-.agenda-apply-actions .small-btn {
-  height: 32px;
-}
-.btn.p.small-btn {
-  color: var(--on-accent);
-}
 .agenda-error {
   display: flex;
   flex-direction: column;
@@ -137,6 +131,10 @@
 .attachment:hover {
   box-shadow: var(--neo-in-xs);
 }
+/* Open is the attachment row's main action (`ghost-main`, 32 px) and keeps its width. */
+.attachment > .btn {
+  flex: none;
+}
 .attachment-icon {
   width: 28px;
   height: 28px;
@@ -168,17 +166,6 @@
 }
 .attachment-meta .mono {
   font-size: 11px;
-}
-.attachment-open {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-  flex: none;
 }
 .attachments-error {
   margin: 0;
@@ -317,14 +304,8 @@
   justify-content: flex-end;
 }
 .export-format .select-btn {
-  height: 32px;
   min-width: 104px;
   justify-content: space-between;
-  border-radius: 12px;
-}
-.export-format .select-btn:disabled {
-  opacity: 0.5;
-  box-shadow: none;
 }
 .export-format-fixed {
   height: 32px;
@@ -347,12 +328,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.export-row .small-btn {
-  height: 32px;
-  border-radius: 12px;
-  flex: none;
-}
-.export-row .tog {
+.export-row .tog,
+.export-row > .btn {
   flex: none;
 }
 .export-loading,
@@ -416,11 +393,6 @@
   margin-top: 6px;
   flex-wrap: wrap;
 }
-.export-failure-actions .small-btn {
-  height: 32px;
-  border-radius: 12px;
-}
-
 /* ---------------------------------------------------------------------------------------------
    Status footer: "Exporting {title} · 42%"
    --------------------------------------------------------------------------------------------- */
@@ -570,9 +542,6 @@
   gap: 6px;
   align-items: center;
   flex: none;
-}
-.import-error-actions .small-btn {
-  height: 32px;
 }
 .library-main--centred .import-error {
   margin: 0 auto;
