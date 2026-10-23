@@ -14,6 +14,7 @@ import { createMockM3, DEFAULT_M3_FLAGS, defaultM3Settings, m3FlagsFromQuery, ty
 import { createMockM4, DEFAULT_M4_FLAGS, m4FlagsFromQuery, m4Settings, type M4Flags } from './mockGeneration';
 import { createMockClipboard } from './mockClipboard';
 import { createMockCopies } from './mockPreview';
+import { checkServerPatch, SERVER_HANDLERS } from './mockServer';
 import { createMockReview } from './mockReview';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { linkHistory } from './mockHistory';
@@ -162,7 +163,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate', ocrEngine: 'windows' },
   };
   const m4Flags: M4Flags = { ...DEFAULT_M4_FLAGS, ...options.m4 };
-  settings = { ...settings, ...m4Settings(settings, m4Flags.ai, m4Flags.vram) };
+  settings = { ...settings, ...m4Settings(settings, m4Flags.ai, m4Flags.vram, m4Flags.server) };
   const isDark = (): boolean => settings.theme === 'dark' || (settings.theme === 'system' && prefersDark());
 
   const projects = new Map<string, MockProject>();
@@ -772,6 +773,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           throw settingsInvalid(`ai.providers.${provider}.model: ${problem}`, `ai.providers.${provider}.model`);
         }
       }
+      // 2.5: Your own server's address, model and context, as the host checks them.
+      checkServerPatch(params.ai?.providers?.server);
       const themeBefore = isDark();
       const modelBefore = settings.transcription.modelId;
       settings = {
@@ -1136,6 +1139,8 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     },
     ...m3.handlers,
     ...m4.handlers,
+    // 2.5: Your own server's Test connection.
+    ...SERVER_HANDLERS,
     ...clipboard.handlers,
     ...review.handlers,
     // 2.0: the preview sheet's copy and the follow-up email's copy.

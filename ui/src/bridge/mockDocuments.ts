@@ -102,6 +102,8 @@ export interface WriteRequest {
   chunks: number;
   /** Regenerate into this document. */
   documentId: string | null;
+  /** 2.5: nothing left this PC (the local model, a server on this PC); default: the local model only. */
+  stayedOnPc?: boolean;
   /** 2.2, a larger local model: where it ran (How this was made). */
   placement?: string | null;
 }
@@ -758,7 +760,7 @@ export function createMockDocuments(env: MockDocumentsEnvironment): MockDocument
         ),
         sent: ['Transcript'],
         bytes: html.length,
-        stayedOnPc: request.providerId === 'local',
+        stayedOnPc: request.stayedOnPc ?? request.providerId === 'local',
         claims: [],
         payloadText: null,
         placement: request.placement ?? null,

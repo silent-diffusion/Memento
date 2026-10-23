@@ -3,8 +3,10 @@
 // generation job that reports generation.progress through composing → generating per module →
 // verifying → rendering → done, and the documents, templates and styles handlers composed into one
 // set for mock.ts. URL flags: `?ai=off|nokey|ready|local` set the starting AI settings, keys and
-// the local model; `?gen=fail|rate` make the first generation fail (no network, rate limited).
+// the local model; `?gen=fail|rate` make the first generation fail (no network, rate limited);
+// `?server=local|network|public|unreachable` give Your own server an address (mockServer.ts).
 import { formatDuration } from '../format/duration';
+import { readServerAddress, serverModelOf } from '../format/serverAddress';
 import { tokenSize } from './cloudModels';
 import { definedFields } from './settingsMerge';
 import { isoWithOffset, type MockProject } from './mockData';
@@ -14,6 +16,7 @@ import { effectiveLocalModelId, localProviderInfo, recommendedLocalModelId, type
 import { type MockModelManager } from './mockModels';
 import { articleOpen, metaLine, moduleOpen, skeletonHtml, titleBlock } from './mockPaper';
 import { previewInputs, previewPasses, previewRedactions } from './mockPreview';
+import { mockServerAnswers, mockServerServes, mockServerSettings, serverFlagFromQuery, serverHistoryName, serverProviderInfo, type ServerFlag } from './mockServer';
 import { MockHostError } from './mockSession';
 import { createMockTemplateStore, MODULE_CATALOG, moduleInfo, sampleHtml, type MockTemplateStore } from './mockTemplates';
 import type {
@@ -42,6 +45,8 @@ export interface M4Flags {
   vram: VramFlag;
   /** `?llm=qwen|ministral|both|none|moe`: the local models installed at start (default: Qwen with `?ai=local`; `moe`: Qwen and the larger Qwen3.5 35B-A3B; `moeOnly`: only the larger one). */
   llm?: LocalModelsFlag;
+  /** 2.5, `?server=`: Your own server's address at start (default none). */
+  server?: ServerFlag;
 }
 
 /** The plan's line as the host records the load it measured: "Ran … · 12.3 tokens/s · 18 GB of RAM". */
@@ -70,6 +75,10 @@ export function m4FlagsFromQuery(query: URLSearchParams): Partial<M4Flags> {
   const llm = query.get('llm');
   if (llm === 'qwen' || llm === 'ministral' || llm === 'both' || llm === 'none' || llm === 'moe' || llm === 'moeOnly') {
     flags.llm = llm;
+  }
+  const server = serverFlagFromQuery(query.get('server'));
+  if (server !== undefined) {
+    flags.server = server;
   }
   return flags;
 }
@@ -114,13 +123,14 @@ export type M4Method = (typeof M4_METHODS)[number];
 export type M4Handlers = { [M in M4Method]: (params: MethodParams<M>) => MethodResult<M> };
 
 /** The M4 settings as the preview starts, for an `?ai=` flag (README defaults: external AI off). */
-export function m4Settings(base: SettingsSnapshot, flag: AiFlag, vram: VramFlag = 'ok'): Pick<SettingsSnapshot, 'ai' | 'documents'> {
+export function m4Settings(base: SettingsSnapshot, flag: AiFlag, vram: VramFlag = 'ok', server: ServerFlag = 'none'): Pick<SettingsSnapshot, 'ai' | 'documents'> {
   const enabled = flag === 'nokey' || flag === 'ready';
+  const providers = server === 'none' ? base.ai.providers : { ...base.ai.providers, server: mockServerSettings(server) };
   return {
     ai: {
       ...base.ai,
       enabled,
-      providers: flag === 'nokey' ? { anthropic: { ...base.ai.providers.anthropic, hasKey: false }, openai: { ...base.ai.providers.openai, hasKey: false } } : base.ai.providers,
+      providers: flag === 'nokey' ? { ...providers, anthropic: { ...providers.anthropic, hasKey: false }, openai: { ...providers.openai, hasKey: false } } : providers,
       defaultProviderId: flag === 'local' ? 'local' : null,
       localModelId: recommendedLocalModelId(vram),
       localModelChosen: false,
@@ -133,6 +143,7 @@ const PROVIDER_LABELS: Record<ProviderId, { name: string; vendor: string; model:
   anthropic: { name: 'Claude', vendor: 'Anthropic', model: 'claude-opus-5-5' },
   openai: { name: 'ChatGPT', vendor: 'OpenAI', model: 'gpt-6-astra' },
   local: { name: 'Local model', vendor: 'This PC', model: 'Qwen3.5 4B' },
+  server: { name: 'Your own server', vendor: 'Your own server', model: 'the server’s model' },
 };
 
 /** Models not in Memento's list that the preview's pretend services still serve (any other typed id is "unknown"). */
@@ -221,6 +232,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         modelLabel: model,
         code: !ai.enabled ? 'ai.disabled' : reason === null ? null : 'ai.noKey',
         detail,
+        leavesPc: true,
+        address: null,
         modelId: null,
         modelListed: !state.custom,
         gpuMemory: null,
@@ -230,7 +243,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       };
     };
     const local = localProviderInfo(env.models.list(), chosenLocalModel(ai), env.flags.vram);
-    return [cloud('anthropic'), cloud('openai'), local];
+    // 2.5: Your own server sits after the cloud services and before the local model, as in Settings.
+    return [cloud('anthropic'), cloud('openai'), serverProviderInfo(ai), local];
   };
 
   /** The template's provider, else the Settings default, else the first ready one. */
@@ -277,7 +291,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       if (!used[key]) {
         continue;
       }
-      if (provider.kind === 'cloud' && !allowed[key]) {
+      // What may be shared applies to whatever leaves this PC: the cloud services and a server elsewhere (2.5).
+      if (provider.leavesPc && !allowed[key]) {
         used[key] = false;
         warnings.push(`${INPUT_NAMES[key]} is not allowed in Settings › AI and privacy › What may be shared, so it is left out.`);
       } else if (!available[key]) {
@@ -288,7 +303,11 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     const { details } = project;
     const parts: string[] = [];
     const destination =
-      provider.kind === 'local' ? `${provider.modelLabel ?? 'the local model'} on this PC (nothing leaves it)` : `${provider.name} (${provider.vendor})`;
+      provider.kind === 'local'
+        ? `${provider.modelLabel ?? 'the local model'} on this PC (nothing leaves it)`
+        : provider.kind === 'server'
+          ? `${provider.name} (${provider.modelLabel ?? 'no model'}${provider.leavesPc ? '' : ', on this PC; nothing leaves it'})`
+          : `${provider.name} (${provider.vendor})`;
     parts.push(`Memento · what ${destination} receives`);
     parts.push(`Template: ${template.name} · ${template.rows.reduce((n, r) => n + r.modules.length, 0)} modules in ${template.rows.length} rows`);
     parts.push('', '[Instructions]');
@@ -338,10 +357,10 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     parts.push('', 'Audio and video are not sent.');
     const payloadText = parts.join('\n');
     const bytes = new TextEncoder().encode(payloadText).length;
-    // The local model reads a smaller window at a time.
-    const chunkBytes = provider.kind === 'local' ? 12_000 : 160_000;
+    // The local model reads a smaller window at a time; a server's transcript fits a quarter of its context (about 4 bytes a token).
+    const chunkBytes = provider.kind === 'local' ? 12_000 : provider.kind === 'server' ? env.settings().ai.providers.server.contextTokens : 160_000;
     const chunks = Math.max(1, Math.ceil(bytes / chunkBytes));
-    const source = { template, provider, ticked: template.inputs, used, allowed: provider.kind === 'cloud' ? allowed : template.inputs, sections, transcript: transcriptLines, chunks };
+    const source = { template, provider, ticked: template.inputs, used, allowed: provider.leavesPc ? allowed : template.inputs, sections, transcript: transcriptLines, chunks };
     const inputs = previewInputs(source);
     return {
       payloadText,
@@ -350,7 +369,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       inputsUsed: used,
       warnings,
       providerId: provider.id,
-      staysOnPc: provider.kind === 'local',
+      staysOnPc: !provider.leavesPc,
       provider: { id: provider.id, name: provider.name, kind: provider.kind, modelLabel: provider.modelLabel },
       askBeforeSend: env.settings().ai.askBeforeSend,
       inputs,
@@ -381,7 +400,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
   };
 
   const failureMessage = (job: Job, moduleName: string): string => {
-    const name = job.provider.kind === 'local' ? 'The local model' : job.provider.name;
+    const name = job.provider.kind === 'local' ? 'The local model' : job.provider.kind === 'server' ? 'Your own server' : job.provider.name;
     return env.flags.gen === 'rate'
       ? `${name} is rate limiting this key and stopped answering while writing ${moduleName}. Wait about a minute, then try again.`
       : `${name} could not be reached while writing ${moduleName}: the network connection was lost.`;
@@ -391,7 +410,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
   const run = (job: Job): void => {
     const generated = job.template.rows.flatMap((r) => r.modules).filter((m) => moduleInfo(m.module).generated);
     const steps: (() => boolean)[] = [];
-    const live = createMockLiveOutput({ emit: env.emit, jobId: job.jobId, streamed: job.provider.kind === 'local', finished: () => job.finished });
+    // The local model and Your own server stream their replies token by token; the cloud services answer whole.
+    const live = createMockLiveOutput({ emit: env.emit, jobId: job.jobId, streamed: job.provider.kind !== 'cloud', finished: () => job.finished });
     job.live = live;
     const lines = env.transcript(job.recordingId);
     const request = (task: string): string =>
@@ -421,6 +441,28 @@ export function createMockM4(env: MockM4Environment): MockM4 {
             'ai.unknownModel',
           );
           return false;
+        }
+        // 2.5: the server stopped answering since it was set up, or does not serve the model chosen for it.
+        if (i === 0 && job.provider.kind === 'server') {
+          const address = job.provider.address ?? '';
+          const hostPort = readServerAddress(address)?.hostPort ?? address;
+          const model = serverModelOf(job.provider.modelLabel) ?? '';
+          const failure = !mockServerAnswers(address)
+            ? {
+                code: 'ai.serverUnreachable',
+                message: `Nothing answered at ${hostPort} while writing ${m.customTitle ?? moduleInfo(m.module).name}. Check that the server is still running, then try again. Nothing was sent twice and no document was changed.`,
+              }
+            : !mockServerServes(address, model)
+              ? {
+                  code: 'ai.serverModelUnknown',
+                  message: `The server at ${hostPort} does not serve a model called '${model}'. Nothing was generated and no document was changed. Choose one from the list in Settings › AI and privacy, or load it on the server first.`,
+                }
+              : null;
+          if (failure !== null) {
+            finish(job);
+            emitProgress(job, 'failed', 8, m.id, failure.message, null, failure.code);
+            return false;
+          }
         }
         if (failuresLeft > 0 && i === Math.min(2, generated.length - 1)) {
           failuresLeft -= 1;
@@ -458,6 +500,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         chunks: job.chunks,
         documentId: job.documentId,
         placement: job.provider.memoryPlan?.fits === true ? ranLine(job.provider.memoryPlan.line) : null,
+        stayedOnPc: !job.provider.leavesPc,
       });
       if (env.settings().ai.keepRecord) {
         const project = env.find(job.recordingId);
@@ -468,8 +511,11 @@ export function createMockM4(env: MockM4Environment): MockM4 {
             at: nowIso(),
             stage: 'minutes',
             event: 'completed',
-            summary: `${job.template.name} generated with ${job.provider.name} (${job.provider.modelLabel ?? label.model})`,
-            detail: `${job.provider.kind === 'local' ? 'Read on this PC' : 'Sent'}: ${sent.join(', ')} · ${job.chunks} ${job.chunks === 1 ? 'chunk' : 'chunks'}. Audio and video were not sent.`,
+            summary:
+              job.provider.kind === 'server'
+                ? `${job.template.name} generated with ${serverHistoryName(job.provider)}`
+                : `${job.template.name} generated with ${job.provider.name} (${job.provider.modelLabel ?? label.model})`,
+            detail: `${job.provider.leavesPc ? 'Sent' : 'Read on this PC'}: ${sent.join(', ')} · ${job.chunks} ${job.chunks === 1 ? 'chunk' : 'chunks'}. Audio and video were not sent.`,
           },
         ];
       }
@@ -566,19 +612,23 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     'generation.start': (params) => {
       const project = env.find(params.recordingId);
       const provider = providerFor(params.template);
-      if (provider.kind === 'cloud' && !env.settings().ai.enabled) {
+      if (provider.leavesPc && !env.settings().ai.enabled) {
         throw new MockHostError(
           'ai.disabled',
-          'External AI is off, so nothing can be sent to Claude or ChatGPT. Turn it on in Settings › AI and privacy, or use the local model. Nothing was sent.',
+          provider.kind === 'server'
+            ? `External AI is off, so nothing can be sent to the server at ${readServerAddress(provider.address ?? '')?.hostPort ?? 'its address'}, which is not on this PC. Turn it on in Settings › AI and privacy, or use a server on this PC or the local model. Nothing was sent.`
+            : 'External AI is off, so nothing can be sent to Claude or ChatGPT. Turn it on in Settings › AI and privacy, or use the local model. Nothing was sent.',
           provider.id,
         );
       }
       if (!provider.ready) {
-        throw new MockHostError(
-          'ai.providerNotReady',
-          `${provider.name} is not ready: ${(provider.reason ?? 'not set up').toLowerCase()}. ${provider.kind === 'local' ? 'Install it in Settings › AI and privacy › Local model.' : 'Add a key in Settings › AI and privacy.'} Nothing was sent.`,
-          provider.reason,
-        );
+        const fix =
+          provider.kind === 'local'
+            ? 'Install it in Settings › AI and privacy › Local model.'
+            : provider.kind === 'server'
+              ? 'Set it up in Settings › AI and privacy › Your own server.'
+              : 'Add a key in Settings › AI and privacy.';
+        throw new MockHostError('ai.providerNotReady', `${provider.name} is not ready: ${(provider.reason ?? 'not set up').toLowerCase()}. ${fix} Nothing was sent.`, provider.reason);
       }
       if (!hasTranscript(project)) {
         throw new MockHostError(
@@ -613,7 +663,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
         finished: false,
       };
       jobs.set(job.jobId, job);
-      if (env.settings().ai.askBeforeSend && provider.kind === 'cloud') {
+      // Ask before every send holds whatever leaves this PC (2.5: keyed on leavesPc, so a server on this PC is not held).
+      if (env.settings().ai.askBeforeSend && provider.leavesPc) {
         job.waiting = true;
         return { jobId: job.jobId, confirmationRequired: true, summary: summaryOf(job, preview.bytes) };
       }
@@ -638,7 +689,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       const job = findJob(params.jobId);
       if (!job.finished) {
         finish(job);
-        emitProgress(job, 'cancelled', 0, null, job.provider.kind === 'local' ? 'Stopped. Nothing was written.' : 'Stopped. What was already sent is not sent again, and no document was changed.');
+        emitProgress(job, 'cancelled', 0, null, job.provider.leavesPc ? 'Stopped. What was already sent is not sent again, and no document was changed.' : 'Stopped. Nothing was written.');
       }
       return {};
     },
@@ -683,8 +734,8 @@ export function createMockM4(env: MockM4Environment): MockM4 {
       }
       const ai = settings.ai;
       const provider = ai.defaultProviderId;
-      if (provider !== null && !(['anthropic', 'openai', 'local'] as string[]).includes(provider)) {
-        throw invalid('The default provider is Claude, ChatGPT or the local model. Nothing was changed.', provider);
+      if (provider !== null && !(['anthropic', 'openai', 'local', 'server'] as string[]).includes(provider)) {
+        throw invalid('The default provider is Claude, ChatGPT, your own server or the local model. Nothing was changed.', provider);
       }
       const local = env.models.list().find((m) => m.id === ai.localModelId);
       if (local?.engine !== 'llm') {

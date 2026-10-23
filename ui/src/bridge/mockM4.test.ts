@@ -169,12 +169,14 @@ describe('M4 browser-preview host', () => {
     expect(listed.providers.map((p) => [p.id, p.ready, p.reason])).toEqual([
       ['anthropic', false, 'External AI is off'],
       ['openai', false, 'External AI is off'],
+      // 2.5: Your own server, after the cloud services, before the local model.
+      ['server', false, 'No server address'],
       ['local', false, 'Model not installed'],
     ]);
     const template = await off.call('templates.get', { templateId: 'meeting-minutes' });
     await expect(off.call('generation.start', { recordingId: DESIGN, template })).rejects.toMatchObject({ code: 'ai.disabled' });
     const nokey = await client({ m4: { ai: 'nokey' } }).call('providers.list');
-    expect(nokey.providers.map((p) => p.reason)).toEqual(['No key saved', 'No key saved', 'Model not installed']);
+    expect(nokey.providers.map((p) => p.reason)).toEqual(['No key saved', 'No key saved', 'No server address', 'Model not installed']);
     const local = await client({ m4: { ai: 'local' } }).call('providers.list');
     expect(local.providers.find((p) => p.id === 'local')).toMatchObject({ ready: true, modelLabel: 'Qwen3.5 4B · graphics card' });
   });
