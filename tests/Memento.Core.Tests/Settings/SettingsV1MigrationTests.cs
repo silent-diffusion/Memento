@@ -125,6 +125,7 @@ public sealed class SettingsV1MigrationTests : IDisposable
         Assert.False(s.Recording.CaptureVideo);
         Assert.Equal(new VideoSettings(), s.Recording.Video);
         Assert.False(s.Transcription.LiveOnGpu);
+        Assert.True(s.Transcription.DropMicrophoneBleed); // 2.6.0: on unless switched off.
         Assert.Equal(rememberVoices, s.Speakers.RememberVoices);
         Assert.True(s.Speakers.SplitAtSpeakerChanges); // 2.6.0: on unless switched off.
         Assert.Null(s.Storage.RemoveVideoOlderThanDays);

@@ -49,6 +49,13 @@ public sealed partial record TranscriptionSettings
 
     public double LowConfidenceThreshold { get; set; } = DefaultLowConfidenceThreshold;
 
+    /// <summary>
+    /// 2.6.0: Settings › Transcription › Keep speech heard twice once. A microphone line that says what a system-audio line
+    /// says at the same time (the microphone heard the speakers) is left out of a fresh transcript (<c>BleedFilter</c>).
+    /// On unless switched off.
+    /// </summary>
+    public bool DropMicrophoneBleed { get; set; } = true;
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 

@@ -306,6 +306,7 @@ transcription: {
   language: 'auto' | string;             // BCP-47 primary subtag
   keepWordTimestamps: boolean;           // true
   lowConfidenceThreshold: number;        // 0.5
+  dropMicrophoneBleed: boolean;          // 2.6.0, true: a microphone line that says what a system-audio line says at the same time is left out of a fresh transcript (BleedFilter); system audio keeps the line
 }
 speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string; rememberVoices: boolean; splitAtSpeakerChanges: boolean }   // rememberVoices: 2.0, see "Review (2.0)"; splitAtSpeakerChanges: 2.6.0, default true (a fresh transcript's line that spans two speakers' turns is cut where the voice changes before speakers are assigned; never a line that was edited, and never on Identify speakers again)
 history: { keepVersions: boolean; keepDays: number }     // true, 90

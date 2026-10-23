@@ -933,6 +933,8 @@ export interface TranscriptionSettings {
   lowConfidenceThreshold: number;
   /** 2.0: the live transcript (timing during) may use the graphics card; false = the processor. Default false. */
   liveOnGpu: boolean;
+  /** 2.6.0: a microphone line that repeats a system-audio line at the same time is left out of a fresh transcript. Default true. */
+  dropMicrophoneBleed: boolean;
 }
 
 export interface SpeakerSettings {

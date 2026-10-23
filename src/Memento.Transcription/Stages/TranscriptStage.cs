@@ -255,12 +255,18 @@ public sealed partial class TranscriptStage(
         }
 
         var repeats = RepeatFilter.Apply(state.Segments);
-        var segments = TranscriptMerger.Merge(repeats.Segments);
+
+        // 2.6.0: speech the microphone heard from the speakers is kept once (BleedFilter, Settings › Transcription › Keep
+        // speech heard twice once). The coverage check still sees the microphone's copy, so the speech it covered is not
+        // reported as missing a transcript. The partial transcript of a stopped pass keeps every line; this pass replaces it.
+        var kinds = tracks.ToDictionary(t => t.Id, t => t.SourceKind, StringComparer.Ordinal);
+        var bleed = current.DropMicrophoneBleed ? BleedFilter.Apply(repeats.Segments, kinds) : new BleedFilter.Result(repeats.Segments, []);
+        var segments = TranscriptMerger.Merge(bleed.Segments);
         var speech = state.Tracks.Values.ToDictionary(
             t => t.TrackId,
             t => (IReadOnlyList<(double Start, double End)>)t.Speech.Select(r => (r[0], r[1])).ToList(),
             StringComparer.Ordinal);
-        var gaps = CoverageCheck.Find(speech, segments);
+        var gaps = CoverageCheck.Find(speech, bleed.DroppedCount == 0 ? segments : TranscriptMerger.Merge(repeats.Segments));
         var totalMs = state.ElapsedBeforeMs + elapsedMs;
         var document = new TranscriptDocument
         {
@@ -285,15 +291,24 @@ public sealed partial class TranscriptStage(
         var audioSeconds = result.AudioSeconds;
         var detail = string.Join(
             " · ",
-            EngineSelector.WhisperEngineName + " " + result.Device.EngineVersion,
-            entry.Name,
-            result.Device.GpuName is { } gpu ? $"{result.Device.Device}, {gpu}" : result.Device.Device,
-            string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Clock((long)(audioSeconds * 1000))} of speech tracks in {totalMs / 1000.0:0.0} s"),
-            HumanFormat.Count(segments.Count, "segment", "segments"),
-            HumanFormat.Count(words, "word", "words"),
-            string.Create(CultureInfo.InvariantCulture, $"{low} below {current.LowConfidenceThreshold:0.##} confidence"),
-            result.LanguageDetected ? $"language detected: {result.Language}" : $"language: {result.Language}");
+            new[]
+            {
+                EngineSelector.WhisperEngineName + " " + result.Device.EngineVersion,
+                entry.Name,
+                result.Device.GpuName is { } gpu ? $"{result.Device.Device}, {gpu}" : result.Device.Device,
+                string.Create(CultureInfo.InvariantCulture, $"{HumanFormat.Clock((long)(audioSeconds * 1000))} of speech tracks in {totalMs / 1000.0:0.0} s"),
+                HumanFormat.Count(segments.Count, "segment", "segments"),
+                HumanFormat.Count(words, "word", "words"),
+                string.Create(CultureInfo.InvariantCulture, $"{low} below {current.LowConfidenceThreshold:0.##} confidence"),
+                bleed.DroppedCount > 0 ? $"{HumanFormat.Count(bleed.DroppedCount, "microphone line", "microphone lines")} heard twice left out" : string.Empty,
+                result.LanguageDetected ? $"language detected: {result.Language}" : $"language: {result.Language}",
+            }.Where(p => p.Length > 0));
         await _history.AppendAsync(recordingId, Name, "completed", $"Transcribed · {HumanFormat.Count(segments.Count, "line", "lines")}", detail);
+        if (bleed.DroppedCount > 0)
+        {
+            LogBleedDropped(recordingId, bleed.DroppedCount);
+        }
+
         foreach (var skipped in state.Tracks.Values.Where(t => t.Silent))
         {
             var name = tracks.FirstOrDefault(t => t.Id == skipped.TrackId)?.Name ?? skipped.TrackId;
@@ -498,6 +513,9 @@ public sealed partial class TranscriptStage(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId}: dropped {Dropped} repeated segments in {Runs} runs")]
     private partial void LogRepeatsDropped(string recordingId, int dropped, int runs);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Recording {RecordingId}: left out {Dropped} microphone segments heard on the system track too")]
+    private partial void LogBleedDropped(string recordingId, int dropped);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Recording {RecordingId}: the transcription worker exited with code {ExitCode}; {Segments} segments kept")]
     private partial void LogCrashed(string recordingId, int exitCode, int segments);

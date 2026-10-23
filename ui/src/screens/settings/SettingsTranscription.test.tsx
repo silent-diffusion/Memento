@@ -94,12 +94,16 @@ describe('Settings › Transcription, Speakers and Documents (M2)', () => {
     await choose('Mark words as uncertain below', '60% confidence');
     await choose('Language', 'German');
     await until(() => store.settings.value?.transcription.language === 'de');
+    // 2.6.0: speech the microphone heard from the speakers is kept once unless switched off.
+    expect(container.textContent).toContain("the microphone's copy of those lines is left out");
+    await click(button('Keep speech heard twice once'));
+    await until(() => store.settings.value?.transcription.dropMicrophoneBleed === false);
     const sets = call.mock.calls.filter(([method]) => method === 'settings.set').map(([, params]) => params as { transcription?: Record<string, unknown> });
-    expect(sets).toHaveLength(5);
+    expect(sets).toHaveLength(6);
     // The host merges the M2 blocks field by field, so each change sends just its field.
-    expect(sets.map((s) => s.transcription)).toEqual([{ auto: false }, { timing: 'during' }, { liveOnGpu: true }, { lowConfidenceThreshold: 0.6 }, { language: 'de' }]);
+    expect(sets.map((s) => s.transcription)).toEqual([{ auto: false }, { timing: 'during' }, { liveOnGpu: true }, { lowConfidenceThreshold: 0.6 }, { language: 'de' }, { dropMicrophoneBleed: false }]);
     expect(await bridge.call('settings.get')).toMatchObject({
-      transcription: { auto: false, timing: 'during', liveOnGpu: true, lowConfidenceThreshold: 0.6, language: 'de' },
+      transcription: { auto: false, timing: 'during', liveOnGpu: true, lowConfidenceThreshold: 0.6, language: 'de', dropMicrophoneBleed: false },
     });
   });
 

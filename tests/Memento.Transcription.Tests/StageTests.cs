@@ -742,6 +742,45 @@ public sealed class StageTests : IDisposable
         Assert.Contains(" · 1 line marked uncertain by voice", found.Detail, StringComparison.Ordinal);
     }
 
+    /// <summary>The system track says the microphone's first line at the same time: the microphone heard the speakers.</summary>
+    private void TheMicrophoneHearsTheSpeakers() => Windows["system"] =
+    [
+        [new WorkerSegment(0.25, 1.05, "We approve the marketing budget.", 0.9, [])],
+    ];
+
+    [Fact]
+    public async Task SpeechTheMicrophoneHeardFromTheSpeakersIsKeptOnceAndHistorySaysSo()
+    {
+        InstallAll();
+        TheMicrophoneHearsTheSpeakers();
+
+        var id = await RecordAndProcessAsync();
+
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal([("system", "We approve the marketing budget."), ("mic", "And the marketing budget for Berlin.")], transcript.Segments.Select(s => (s.Track!, s.Text)));
+        Assert.Equal(["s0001", "s0002"], transcript.Segments.Select(s => s.Id));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var completed = Assert.Single(history, h => h.Stage == "transcript" && h.Event == "completed");
+        Assert.Contains(" · 1 microphone line heard twice left out · ", completed.Detail, StringComparison.Ordinal);
+        // The microphone's speech was transcribed (and left out on purpose), so it is not reported as missing.
+        Assert.DoesNotContain(history, h => h.Stage == "transcript" && h.Summary.StartsWith("Speech without a transcript", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BothCopiesStayWithKeepSpeechHeardTwiceOnceOff()
+    {
+        InstallAll();
+        TheMicrophoneHearsTheSpeakers();
+        await _host.ResultAsync("settings.set", """{"transcription":{"dropMicrophoneBleed":false}}""");
+
+        var id = await RecordAndProcessAsync();
+
+        Assert.Equal(["mic", "system", "mic"], (await TranscriptAsync(id)).Segments.Select(s => s.Track));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var completed = Assert.Single(history, h => h.Stage == "transcript" && h.Event == "completed");
+        Assert.DoesNotContain("heard twice", completed.Detail, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ALineTheEngineRepeatsIsDroppedAndHistorySaysSo()
     {

@@ -25,7 +25,7 @@ public sealed class M2SettingsTests : IDisposable
         var settings = await _host.ResultAsync("settings.get");
 
         Assert.Equal(
-            """{"auto":true,"timing":"after","pauseWhenBusy":true,"modelId":"whisper-small","cpuFallbackModelId":"whisper-small","language":"auto","keepWordTimestamps":true,"lowConfidenceThreshold":0.5,"liveOnGpu":false}""",
+            """{"auto":true,"timing":"after","pauseWhenBusy":true,"modelId":"whisper-small","cpuFallbackModelId":"whisper-small","language":"auto","keepWordTimestamps":true,"lowConfidenceThreshold":0.5,"liveOnGpu":false,"dropMicrophoneBleed":true}""",
             settings.GetProperty("transcription").GetRawText());
         Assert.Equal("""{"identify":true,"expectedSpeakers":"auto","rememberRenamed":false,"embeddingModelId":"nemo-titanet-small","rememberVoices":false,"splitAtSpeakerChanges":true}""", settings.GetProperty("speakers").GetRawText());
         Assert.Equal("""{"keepVersions":true,"keepDays":90}""", settings.GetProperty("history").GetRawText());
@@ -53,6 +53,13 @@ public sealed class M2SettingsTests : IDisposable
         Assert.Equal("de", transcription.GetProperty("language").GetString());
         Assert.Equal(0.6, transcription.GetProperty("lowConfidenceThreshold").GetDouble());
         Assert.True(transcription.GetProperty("auto").GetBoolean());
+        Assert.True(transcription.GetProperty("dropMicrophoneBleed").GetBoolean());
+
+        // 2.6.0: the bleed switch merges like the other fields and stays off until set again.
+        var bleedOff = await _host.ResultAsync("settings.set", """{"transcription":{"dropMicrophoneBleed":false}}""");
+        Assert.False(bleedOff.GetProperty("transcription").GetProperty("dropMicrophoneBleed").GetBoolean());
+        Assert.Equal("de", bleedOff.GetProperty("transcription").GetProperty("language").GetString());
+        Assert.False(_host.Settings.Current.Transcription.DropMicrophoneBleed);
         Assert.Equal(3, result.GetProperty("speakers").GetProperty("expectedSpeakers").GetInt32());
         Assert.True(result.GetProperty("speakers").GetProperty("identify").GetBoolean());
         Assert.Equal(30, result.GetProperty("history").GetProperty("keepDays").GetInt32());
