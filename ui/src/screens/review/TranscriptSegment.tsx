@@ -56,6 +56,10 @@ export interface SegmentHandlers {
   renameHighlight: (highlight: Highlight, note: string) => void;
   /** Arrow keys between segments: the list moves focus. */
   moveFocus: (index: number, direction: 1 | -1) => void;
+  /** 2.6.0: a digit 1–9 on a focused line moves it to that speaker in the People order (named people first). */
+  assignKey?: (segment: TranscriptSegment, number: number) => void;
+  /** 2.6.0: U / Shift+U: focus the next or previous line whose speaker is uncertain, and play it. */
+  jumpUncertain?: (index: number, direction: 1 | -1) => void;
   /** 2.0 selection mode: Ctrl+click toggles a line, Shift+click adds the range from the last one (both start it). */
   select?: (segment: TranscriptSegment, how: 'toggle' | 'range') => void;
   /** Ctrl+A on a line: every line shown. */
@@ -612,6 +616,19 @@ function SegmentRow({
           const box = event.currentTarget.getBoundingClientRect();
           handlers.contextMenu(segment, { x: box.left + 24, y: box.top + Math.min(box.height, 40) });
           return;
+        }
+        // 2.6.0: fixing speakers from the keyboard, outside selection mode and with no modifier held.
+        if (!event.ctrlKey && !event.metaKey && !event.altKey && !selecting) {
+          if (/^[1-9]$/.test(event.key) && handlers.assignKey !== undefined) {
+            event.preventDefault();
+            handlers.assignKey(segment, Number(event.key));
+            return;
+          }
+          if (event.key.toLowerCase() === 'u' && handlers.jumpUncertain !== undefined) {
+            event.preventDefault();
+            handlers.jumpUncertain(index, event.shiftKey ? -1 : 1);
+            return;
+          }
         }
         if (event.key === 'F2') {
           event.preventDefault();

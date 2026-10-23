@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 import type { CoverageGap, Highlight, ModelInfo, Project, Speaker, StageFailure, StageStatus, TranscriptSegment } from '../../bridge/types';
 import { CheckIcon, TranscriptLinesIcon } from '../../components/icons';
 import { formatDuration } from '../../format/duration';
-import { gapNoticeText, gapPlacement, isPausedLabel, otherModelFor, segmentIndexAt, transcribingText } from '../../format/transcript';
+import { gapNoticeText, gapPlacement, isPausedLabel, isSpeakerUncertain, otherModelFor, segmentIndexAt, transcribingText } from '../../format/transcript';
 import { openSettings } from '../../state/actions';
 import { useServices } from '../../state/context';
 import { computeWindow, RowHeights } from '../../format/virtualList';
@@ -649,10 +649,38 @@ export function TranscriptPane({
   });
   const withSelection = useRef(lineActions !== undefined).current;
 
+  // The services: the coverage notices below read the bridge, and the key handlers check that no dialog is open.
+  const services = useServices();
+  const { bridge, store } = services;
+
+  // 2.6.0: what U / Shift+U say when there is no uncertain line that way, shown in the hint's place for 4 s.
+  const [keyNote, setKeyNote] = useState<string | null>(null);
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (noteTimer.current !== null) {
+        clearTimeout(noteTimer.current);
+      }
+    },
+    [],
+  );
+  const note = (text: string | null): void => {
+    if (noteTimer.current !== null) {
+      clearTimeout(noteTimer.current);
+      noteTimer.current = null;
+    }
+    setKeyNote(text);
+    if (text !== null) {
+      noteTimer.current = setTimeout(() => {
+        setKeyNote(null);
+      }, 4000);
+    }
+  };
+
   // Handlers stay one object for the life of the pane so the memoised rows do not redraw; each call
   // reads the latest state through the ref.
-  const latest = useRef({ editing, segments, allSegments, speakers, actions, lineActions, api, player, follow, onError, onSaved, selection });
-  latest.current = { editing, segments, allSegments, speakers, actions, lineActions, api, player, follow, onError, onSaved, selection };
+  const latest = useRef({ editing, segments, allSegments, speakers, actions, lineActions, api, player, follow, onError, onSaved, selection, store });
+  latest.current = { editing, segments, allSegments, speakers, actions, lineActions, api, player, follow, onError, onSaved, selection, store };
   const handlers = useMemo<SegmentHandlers>(() => {
     const focusSegment = (segmentId: string): void => {
       const index = latest.current.segments.findIndex((s) => s.id === segmentId);
@@ -749,6 +777,45 @@ export function TranscriptPane({
       moveFocus: (index, direction) => {
         focusRef.current?.(index + direction);
       },
+      // 2.6.0: a digit moves the focused line to that person in the People order; the line keeps focus, so
+      // ↓ then a digit is the rhythm. Nothing happens for a digit past the list, the line's own speaker, or a dialog.
+      assignKey: (segment, number) => {
+        const { speakers: people, store: s, actions: acts } = latest.current;
+        const speaker = people[number - 1];
+        if (s.dialog.value !== null || speaker === undefined || speaker.id === segment.speaker) {
+          return;
+        }
+        acts.assignSpeaker(segment, speaker).catch(report('The speaker was not changed'));
+      },
+      // 2.6.0: U / Shift+U: the next or previous line shown whose speaker is uncertain (or missing, once speakers
+      // were identified) takes focus and plays from its start; with none that way, the hint says so for 4 s.
+      jumpUncertain: (index, direction) => {
+        const { segments: shown, speakers: people, player: p, follow: f, store: s } = latest.current;
+        if (s.dialog.value !== null) {
+          return;
+        }
+        const doubtful = (line: TranscriptSegment): boolean => isSpeakerUncertain(line) || (people.length > 0 && line.speaker === null);
+        let at = index + direction;
+        let target: TranscriptSegment | undefined;
+        for (; at >= 0 && at < shown.length; at += direction) {
+          const line = shown[at];
+          if (line !== undefined && doubtful(line)) {
+            target = line;
+            break;
+          }
+        }
+        if (target === undefined) {
+          note(direction === 1 ? 'No uncertain lines after this one' : 'No uncertain lines before this one');
+          return;
+        }
+        note(null);
+        focusRef.current?.(at);
+        f.resume();
+        p.seek(target.start * 1000);
+        if (!p.playing) {
+          p.toggle();
+        }
+      },
       ...(withSelection
         ? {
             select: (segment: TranscriptSegment, how: 'toggle' | 'range') => {
@@ -773,8 +840,6 @@ export function TranscriptPane({
   const failure = result?.failure ?? null;
 
   // Coverage notices, and the installed model they offer to transcribe again with.
-  const services = useServices();
-  const { bridge, store } = services;
   const coverageGaps = transcript?.coverageGaps;
   // A filtered view leaves the coverage notices out: they mark missing words, not lines.
   const gaps = useMemo(() => (filtered ? new Map<number, CoverageGap[]>() : gapPlacement(segments, coverageGaps ?? [])), [filtered, segments, coverageGaps]);
@@ -952,7 +1017,15 @@ export function TranscriptPane({
       <div class="transcript-head">
         <span class="lbl">{chapterName}</span>
         <span class="transcript-head-end">
-          {showList ? <span class="transcript-hint">Click the time to play a line · click the words to correct them</span> : null}
+          {showList ? (
+            // 2.6.0: with speakers, the hint also names the keys that fix them; U's "none that way" note takes its place.
+            <span class="transcript-hint" role={keyNote === null ? undefined : 'status'}>
+              {keyNote ??
+                (speakers.length > 0
+                  ? 'Click the time to play a line · click the words to correct them · U for the next uncertain line · 1–9 move it to a speaker'
+                  : 'Click the time to play a line · click the words to correct them')}
+            </span>
+          ) : null}
           {showList && view !== undefined && onFilter !== undefined ? (
             <TranscriptFilterMenu view={view} speakers={speakers} chapters={project.chapters} query={search.query} onFilter={onFilter} />
           ) : null}
