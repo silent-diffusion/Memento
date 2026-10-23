@@ -9,10 +9,11 @@
   --line-strong:#C9C5BC;
   --text:#1D1C1A;
   --text-2:#5E5B55;
-  --text-3:#7D7971;
+  --text-3:#68645E;
   --accent:#C2410C;
   --accent-soft:#FBE9E0;
   --accent-text:#9A3412;
+  --on-accent:#FFFFFF;
   --ok:#2F6B4F;
   --ok-soft:#E3EFE8;
   --focus:#2563EB;
@@ -44,10 +45,11 @@
   --line-strong:#434039;
   --text:#EDEAE4;
   --text-2:#A8A49C;
-  --text-3:#86827A;
+  --text-3:#96928B;
   --accent:#F08A5C;
   --accent-soft:#3A2218;
   --accent-text:#F4A37E;
+  --on-accent:#1F1E1B;
   --ok:#7FC7A3;
   --ok-soft:#1E2F27;
   --focus:#60A5FA;
@@ -76,7 +78,7 @@
 .app{font-family:Manrope,'Segoe UI Variable',system-ui,sans-serif;font-size:15px;line-height:1.45;background:var(--bg);color:var(--text)}
 .app a{color:var(--text)}.app a:hover{color:var(--accent)}
 .app a.btn,.app a.btn:hover,.app a.row,.app a.row:hover,.app a.card,.app a.card:hover,.app a.icon-btn,.app a.icon-btn:hover{color:inherit;text-decoration:none}
-.app a.primary,.app a.primary:hover{color:#FFFFFF}
+.app a.primary,.app a.primary:hover{color:var(--on-accent)}
 .btn,.chip,.row,.card,.icon-btn,.nav,.seg,.tog,.modhead,.pal{cursor:pointer;font:inherit;color:inherit}
 .btn:focus-visible,.chip:focus-visible,.row:focus-visible,.card:focus-visible,.icon-btn:focus-visible,.nav:focus-visible,.seg:focus-visible,.tog:focus-visible,.modhead:focus-visible,.pal:focus-visible,.search:focus-visible,.field:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}

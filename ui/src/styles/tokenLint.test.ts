@@ -34,7 +34,6 @@ const ALLOWED: readonly Allowed[] = [
   { file: 'screens/review/reviewVideo.css', selector: /./, kinds: ['colour', 'shadow', 'radius'], why: 'The Review video well and its overlay controls sit on video, dark in both themes (§18.3, renders/ReviewVideo.dc.html).' },
   { file: 'styles/library.css', selector: /\.video-strip/, kinds: ['colour', 'radius'], why: 'The grid card’s video schematic (§18.7), as the Recording session’s.' },
   { file: 'styles/surfaces.css', selector: /\.scrim/, kinds: ['colour'], why: 'The dialog scrim colours are given in §5.19 and have no token.' },
-  { file: 'styles/base.css', selector: /^\.app(\.dark)?$/, kinds: ['colour'], why: 'Token definitions: the measured contrast corrections of text-3 and on-accent (PRODUCT-SPEC Accessibility), to be folded into tokens.css.' },
   { file: 'screens/styleeditor/styleeditor.css', selector: /\.style-ink-dot/, kinds: ['colour'], why: 'The document style’s fixed Ink colour shown for reference (§13), a document colour.' },
   { file: 'styles/review.css', selector: /\.scrubber-knob/, kinds: ['shadow'], why: 'The scrubber knob is the toggle knob of §5.7, whose shadow §5.7 specifies.' },
   { file: 'styles/review.css', selector: /\.(history-open|segm-speaker|people-who-toggle)/, kinds: ['radius'], why: 'Text-like buttons: the radius only shapes the focus ring around the words.' },
@@ -112,6 +111,23 @@ describe('token lint (DESIGN.md §2, CLAUDE.md code style)', () => {
   it('keeps ui/src/styles/tokens.css a verbatim copy of design/tokens.css', () => {
     const normal = (p: string): string => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
     expect(normal(join(SRC, 'styles', 'tokens.css'))).toBe(normal(join(REPO, 'design', 'tokens.css')));
+  });
+
+  it('carries the measured contrast corrections in tokens.css and defines no token anywhere else (2.4.0, R6)', () => {
+    const tokens = readFileSync(join(REPO, 'design', 'tokens.css'), 'utf8');
+    const block = (selector: string): string => {
+      const at = tokens.indexOf(`\n${selector}{`);
+      expect(at, selector).toBeGreaterThan(-1);
+      return tokens.slice(at, tokens.indexOf('}', at));
+    };
+    // DESIGN.md §2.1: text-3 reaches 4.5:1 on every ground; labels on the accent and danger fills use on-accent.
+    expect(block('.app')).toContain('--text-3:#68645E;');
+    expect(block('.app')).toContain('--on-accent:#FFFFFF;');
+    expect(block('.app.dark')).toContain('--text-3:#96928B;');
+    expect(block('.app.dark')).toContain('--on-accent:#1F1E1B;');
+    const sheets = files(SRC, /\.css$/).filter((p) => !p.endsWith(join('styles', 'tokens.css')));
+    const definitions = sheets.filter((p) => /(^|[{;\s])--(text-3|on-accent)\s*:/.test(readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')));
+    expect(definitions.map((p) => relative(SRC, p))).toEqual([]);
   });
 
   it('uses no raw colour, hand-tuned shadow or off-scale radius outside tokens.css', () => {

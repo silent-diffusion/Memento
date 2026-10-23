@@ -64,10 +64,11 @@ Implement these as theme variables (CSS custom properties, WinUI resources, or e
 | `line-strong` | `#C9C5BC` | `#434039` | Emphasised borders (ghost button, dashed queued pill, empty-state ring) |
 | `text` | `#1D1C1A` | `#EDEAE4` | Primary text, selected-chip fill |
 | `text-2` | `#5E5B55` | `#A8A49C` | Secondary text, meta lines, icons, durations |
-| `text-3` | `#7D7971` | `#86827A` | Tertiary text: group labels, placeholders, footer, chevrons |
+| `text-3` | `#68645E` | `#96928B` | Tertiary text: group labels, placeholders, footer, chevrons. 4.5:1 or more on every ground it sits on (light 4.50:1 on `surface-2` to 5.02:1 on `bg`; dark 4.55:1 on `ok-soft` to 5.67:1 on `surface-2`). Was `#7D7971` / `#86827A` (3.3–3.7:1 and 3.7–4.4:1) before 2.4.0 |
 | `accent` | `#C2410C` | `#F08A5C` | Primary button, record dot, active progress, pulse |
 | `accent-soft` | `#FBE9E0` | `#3A2218` | Active-pill fill, selected-row fill |
 | `accent-text` | `#9A3412` | `#F4A37E` | Text on `accent-soft`, "Processing now" label |
+| `on-accent` | `#FFFFFF` | `#1F1E1B` | Labels and marks (record dot, stop square) on the `accent-grad` and `danger-grad` fills. Light: white, 5.15:1 at the middle of the accent fill and 6.64:1 on danger. Dark: the ground colour, 6.59:1 and 6.32:1 at the middle (4.7–8.3:1 across both fills); white there was 2.0–3.5:1 |
 | `ok` | `#2F6B4F` | `#7FC7A3` | Done progress bar, "ready" status dot |
 | `ok-soft` | `#E3EFE8` | `#1E2F27` | Reserved for success fills |
 | `focus` | `#2563EB` | `#60A5FA` | Keyboard focus ring |
@@ -98,8 +99,8 @@ Convex fills (used only on primary and destructive buttons and the toggle knob; 
 Notes:
 - The ground moved from `#F5F4F0` to `#EFEDE8` (light) and from `#161513` to `#1F1E1B` (dark) so that the white and black shadows both have room to show. Text, accent, ok and danger colours are unchanged, and every text/background pair still meets 4.5:1.
 - The accent is deliberately the **record colour**. There is one warm accent in the whole app and it means "recording / primary action".
-- White text sits on `accent` for the primary button in both themes (`#FFFFFF`).
-- All text/background pairs above meet 4.5:1. If you introduce a new pair, check it.
+- Text on the primary and destructive fills is `on-accent`: white in light, the ground colour in dark, where the fills are light (2.4.0; before, white in both themes).
+- All text/background pairs above meet 4.5:1, measured by `tools/e2e/h1-contrast.mjs` (2.4.0: the 2.3.1 corrections of `text-3` and `on-accent` are in `tokens.css`, no longer overrides in `ui/src/styles/base.css`). If you introduce a new pair, check it.
 
 ### 2.2 Typography
 
