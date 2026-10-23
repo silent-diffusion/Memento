@@ -197,3 +197,9 @@ On the audit branch head, on a machine shared with other sessions' builds:
 - Lockfiles and SHA-pinned actions (SA2-63), the SharpGen pre-release decision (SA2-62), pinned catalog revisions (SA2-29), code signing (SECURITY.md §6), a protected DACL on a moved library (SA-72).
 - System.Text.Json honouring nullable annotations (`RespectNullableAnnotations`, .NET 9) or an explicit null check for every manifest and settings collection, beyond the paths SA2-08 covered.
 - Re-run both fuzz suites and `NetworkSilence20Tests` against whatever 2.x adds (calendar integration, new AI providers: the redirect, size and key rules of SA-36/SA-45 for each new client).
+
+## 10. Follow-up 2026-10-22 (2.4.0)
+
+The supply-chain and robustness half of the 2.4.0 hardening release.
+
+- **SA2-24 (Tesseract version), still open.** Checked nuget.org on 2026-10-22: the latest TesseractOCR is 5.5.2 (published 2026-03-05, Apache-2.0), the version Memento already uses, which bundles Tesseract 5.5.1; there is no newer release or pre-release. Nothing was downgraded or sideloaded. The mitigation is unchanged: only the catalog's hash-pinned language data is ever loaded. Check again at the next release.
