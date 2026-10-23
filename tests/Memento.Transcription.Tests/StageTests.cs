@@ -692,6 +692,57 @@ public sealed class StageTests : IDisposable
     }
 
     [Fact]
+    public async Task AVoiceThatFitsItsPersonPoorlyMarksItsLinesUncertainAndHistorySaysSo()
+    {
+        InstallAll();
+        // Two voices on one track at cosine 0.3 to each other: apart on Auto, joined by a count of 1.
+        _host.Workers.Script = async (job, context, cancel) =>
+        {
+            if (job.Kind != WorkerJobKinds.Diarize)
+            {
+                return await DefaultScript(job, context, cancel);
+            }
+
+            lock (_jobs)
+            {
+                _jobs.Add(job);
+            }
+
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Ready, Pid = 1 });
+            var track = new DiarizedTrack(
+                "mic",
+                [new SpeakerTurn(0, 1.1, 0, 0.7), new SpeakerTurn(1.1, 2, 1, 0.65)],
+                [new SpeakerVoice(0, [1f, 0f, 0f], 1.1), new SpeakerVoice(1, [0.3f, 0.954f, 0f], 0.9)],
+                2);
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Result, Diarization = new DiarizeResult([track], 2, 100) });
+            return 0;
+        };
+
+        var id = await RecordAndProcessAsync();
+        var first = await TranscriptAsync(id);
+        Assert.Equal(["spk1", "spk2"], first.Segments.Select(s => s.Speaker));
+        Assert.All(first.Segments, s => Assert.Equal(1.0, s.SpeakerConfidence));
+        var voices = await _host.Transcripts.LoadVoicesAsync(id, CancellationToken.None);
+        Assert.All(voices!.Clusters, c => Assert.Null(c.Fit));
+
+        // Grouped into one person, the shorter voice (0.6 s of lines against 0.8 s) fits the rest poorly: its line is doubtful.
+        await _host.ResultAsync("project.updateDetails", JsonSerializer.Serialize(new { recordingId = id, details = new { whoSpoke = new { count = 1, names = Array.Empty<string>() } } }));
+        await _host.ResultAsync("processing.retry", JsonSerializer.Serialize(new { recordingId = id, stage = "speakers" }));
+        await IdleAsync();
+
+        var transcript = await TranscriptAsync(id);
+        Assert.Equal(["spk1", "spk1"], transcript.Segments.Select(s => s.Speaker));
+        Assert.Equal(1.0, transcript.Segments[0].SpeakerConfidence);
+        Assert.Equal(0.25, transcript.Segments[1].SpeakerConfidence!.Value, 3);
+        voices = await _host.Transcripts.LoadVoicesAsync(id, CancellationToken.None);
+        Assert.Equal([0.3, 0.3], voices!.Clusters.Select(c => Math.Round(c.Fit!.Value, 2)));
+        var history = await _host.Store.ReadHistoryAsync(id, CancellationToken.None);
+        var found = history.Where(h => h.Stage == "speakers" && h.Event == "completed").Last();
+        Assert.Equal("Found 1 speaker", found.Summary);
+        Assert.Contains(" · 1 line marked uncertain by voice", found.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ALineTheEngineRepeatsIsDroppedAndHistorySaysSo()
     {
         InstallAll();

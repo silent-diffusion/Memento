@@ -241,6 +241,7 @@ public sealed partial class SpeakersStage(
         var split = 0;
         var corrected = 0;
         var pinnedVoices = 0;
+        var doubtful = 0;
         var naming = new SpeakerNamer.Result([], 0, 0);
         var saved = await writer.UpdateAsync(
             recordingId,
@@ -282,6 +283,7 @@ public sealed partial class SpeakersStage(
                     TranscriptionDefaults.OwnSpeakerSeconds,
                     pins);
                 pinnedVoices = assigned.Pinned;
+                doubtful = assigned.Doubtful;
 
                 // Speaking now marks (2.6.0) name the person whose voice was heard at each pressed moment, after the names
                 // kept from before and ahead of the known names by order.
@@ -317,6 +319,7 @@ public sealed partial class SpeakersStage(
                         : string.Empty,
                     split > 0 ? $"{HumanFormat.Count(split, "line", "lines")} split where the speaker changes" : string.Empty,
                     corrected > 0 ? $"{HumanFormat.Count(corrected, "corrected line", "corrected lines")} kept, {HumanFormat.Count(pinnedVoices, "voice", "voices")} pinned" : string.Empty,
+                    doubtful > 0 ? $"{HumanFormat.Count(doubtful, "line", "lines")} marked uncertain by voice" : string.Empty,
                     naming.Carried + naming.Marked + naming.Known > 0
                         ? string.Join(
                             " and ",

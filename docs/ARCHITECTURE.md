@@ -181,7 +181,7 @@ A single **orchestrator** in Core runs stages per project: `Stored → Transcrib
 }
 ```
 
-Low-confidence threshold for the dotted underline: word confidence < 0.6 (settable). Uncertain speaker: `speakerConfidence < 0.7`. Renaming a speaker changes `speakers[].name` only; segments reference the id.
+Low-confidence threshold for the dotted underline: word confidence < 0.6 (settable). Uncertain speaker: `speakerConfidence < 0.7`, from the diarizer's turn score and, since 2.6.0, from the voice fit (`SpeakerAssigner`: a raw voice grouped with others that sounds unlike the rest of its person caps its lines' confidence; ENGINE-NOTES.md §V). Renaming a speaker changes `speakers[].name` only; segments reference the id.
 
 ## 8. Documents, templates, styles
 

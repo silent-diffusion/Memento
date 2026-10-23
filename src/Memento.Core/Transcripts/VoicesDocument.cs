@@ -10,6 +10,8 @@ namespace Memento.Core.Transcripts;
 /// speakers sound most alike later (<c>transcript.reduceSpeakers</c>); lines edited, merged or moved since keep their place
 /// here, so a speaker's voice is the mix of the voices of the lines it has now. Written by the speakers stage beside
 /// <c>transcript.json</c>; it never leaves the PC, is not exported, and goes with the recording when it is deleted.
+/// Since 2.6.0 a cluster may carry its <see cref="VoiceCluster.Fit"/>; the schema stays 1, as the field is optional and a
+/// file without it reads as no fit.
 /// </summary>
 /// <param name="EmbeddingModelId">The catalog id of the voice model; voices of another model are not compared.</param>
 /// <param name="Signature">Models and clustering threshold of the pass (as in <c>speakers.partial.json</c>).</param>

@@ -17,6 +17,15 @@ public sealed record VoiceCluster(string Track, int Speaker, IReadOnlyList<float
     [JsonPropertyOrder(1)]
     public IReadOnlyList<float> Embedding { get; set; } = Embedding ?? [];
 
+    /// <summary>
+    /// How well the voice fits the person it was grouped into (2.6.0): the cosine of its embedding to the speech-weighted mix
+    /// of that person's other voices, kept so the uncertain marks it gives can be tuned from the file. <c>null</c> (and left
+    /// out of the JSON) for a voice alone in its person, a voice without an embedding, and every file from before.
+    /// </summary>
     [JsonPropertyOrder(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Fit { get; init; }
+
+    [JsonPropertyOrder(4)]
     public IReadOnlyList<string> SegmentIds { get; set; } = SegmentIds ?? [];
 }
