@@ -10,6 +10,7 @@ Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speak
 ### Correcting speakers
 
 - **Move a whole section at once.** Picking another speaker for a line now offers, besides **Just this line** and the merge, **This turn · 5 lines** (the run of consecutive lines of that speaker around the line) and **From here on · 23 lines** (this line and every later line of that speaker, for correcting from the top down). Each says exactly how many lines move and from when to when, and while a choice is hovered or active the lines it would move are marked in the transcript, so the count can be checked by eye first. One Undo step each. The merge now shows its line count too.
+- **Swap two speakers.** When Ana's lines are really Ben's and Ben's are Ana's, the same menu offers **Swap Ana and Ben from here on · 18 + 20 lines** and **Swap Ana and Ben everywhere · 41 + 37 lines**: the two trade their lines in one step, names and colours stay, and Undo swaps them back. With Remember speakers by voice on, both named voices are learned again from the lines they hold after the swap. History says "Speakers swapped · Ana and Ben from 12:30 · 38 lines".
 
 ### Fewer wrong speakers
 
