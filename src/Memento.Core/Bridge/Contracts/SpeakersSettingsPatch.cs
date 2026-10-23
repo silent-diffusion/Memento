@@ -16,4 +16,7 @@ public sealed record SpeakersSettingsPatch
 
     /// <summary>2.0: "Remember speakers by voice".</summary>
     public bool? RememberVoices { get; init; }
+
+    /// <summary>2.6.0: "Split lines where the speaker changes".</summary>
+    public bool? SplitAtSpeakerChanges { get; init; }
 }

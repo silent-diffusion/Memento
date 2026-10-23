@@ -299,6 +299,19 @@ export function SpeakersSection(): JSX.Element {
           />
         </SettingsRow>
         <SettingsRow
+          label="Split lines where the speaker changes"
+          description="A line that holds two people's words is cut where the voice changes, so each part gets its own speaker. Applies to new transcripts."
+        >
+          <OnOff on={sp.splitAtSpeakerChanges} />
+          <Toggle
+            label="Split lines where the speaker changes"
+            checked={sp.splitAtSpeakerChanges}
+            onChange={(splitAtSpeakerChanges) => {
+              save({ splitAtSpeakerChanges });
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow
           label="Remember speakers by voice"
           description="When you name a speaker in Review, Memento learns that voice and suggests the name when it hears the voice in later recordings; it never names anyone by itself. Voice profiles are signatures, not audio, stay on this PC and can be deleted below at any time."
           below={<InlineMessage message={error} />}

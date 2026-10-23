@@ -157,7 +157,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
       lowConfidenceThreshold: 0.5,
       liveOnGpu: false,
     },
-    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet, rememberVoices: false },
+    speakers: { identify: true, expectedSpeakers: 'auto', rememberRenamed: true, embeddingModelId: MODEL_IDS.titanet, rememberVoices: false, splitAtSpeakerChanges: true },
     history: { keepVersions: true, keepDays: 90 },
     ...defaultM3Settings(),
     documents: { defaultTemplateId: 'meeting-minutes', defaultStyleId: 'corporate', ocrEngine: 'windows' },

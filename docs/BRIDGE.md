@@ -305,7 +305,7 @@ transcription: {
   keepWordTimestamps: boolean;           // true
   lowConfidenceThreshold: number;        // 0.5
 }
-speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string; rememberVoices: boolean }   // rememberVoices: 2.0, see "Review (2.0)"
+speakers: { identify: boolean; expectedSpeakers: 'auto' | number /* 1–20 */; rememberRenamed: boolean; embeddingModelId: string; rememberVoices: boolean; splitAtSpeakerChanges: boolean }   // rememberVoices: 2.0, see "Review (2.0)"; splitAtSpeakerChanges: 2.6.0, default true (a fresh transcript's line that spans two speakers' turns is cut where the voice changes before speakers are assigned; never a line that was edited, and never on Identify speakers again)
 history: { keepVersions: boolean; keepDays: number }     // true, 90
 ```
 
