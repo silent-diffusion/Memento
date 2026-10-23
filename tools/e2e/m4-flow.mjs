@@ -301,7 +301,9 @@ async function watchLiveOutput(label) {
   const streaming = `(() => { const m = /Writing · ([\\d,]+) tokens?/.exec([...document.querySelectorAll('.live-pass-meta')].map((e) => e.innerText).join('\\n')); return m ? Number(m[1].replace(/,/g, '')) : 0; })()`;
   const first = await page.waitFor(streaming, 'tokens streaming into the Live output', 10 * 60_000);
   await sleep(1200);
-  const later = await page.eval(`${streaming} || (document.querySelectorAll('.live-dot--done').length > 1 ? Infinity : 0)`);
+  // Infinity does not survive the CDP's JSON, so a pass that finished between the two readings reports 'done'.
+  const laterRaw = await page.eval(`${streaming} || (document.querySelectorAll('.live-dot--done').length > 1 ? 'done' : 0)`);
+  const later = laterRaw === 'done' ? Infinity : laterRaw;
   const request = await page.eval(`document.querySelector('.live-request')?.innerText ?? ''`);
   const reply = await page.eval(`document.querySelector('.live-reply')?.innerText ?? ''`);
   const stats = await page.eval(`document.querySelector('.live-stats')?.innerText ?? ''`);
@@ -320,8 +322,9 @@ async function watchLiveOutput(label) {
 /** The folder the Export dialog writes into (a subfolder named after the recording when that option is on). */
 function exportsFolder() {
   if (!existsSync(exports)) return exports;
+  // The newest subfolder: an earlier run in the same data root may have left folders that sort after this one's.
   const nested = readdirSync(exports).filter((f) => statSync(join(exports, f)).isDirectory());
-  return nested.length === 0 ? exports : join(exports, nested.sort().at(-1));
+  return nested.length === 0 ? exports : join(exports, nested.sort((a, b) => statSync(join(exports, a)).mtimeMs - statSync(join(exports, b)).mtimeMs).at(-1));
 }
 
 /** Points the open Export dialog's folder at the run's exports folder and remembers it (a folder chosen once is kept only then). */
@@ -362,7 +365,8 @@ async function exportDocument(format, label) {
   summary.checks[`the ${format} export asked where to save`] = await Promise.race([asked, sleep(100).then(() => false)]);
   const extension = { docx: /\.docx$/i, pdf: /\.pdf$/i, markdown: /\.md$/i }[format];
   const file = await waitForFile(exportsFolder(), extension, since);
-  await page.key('Escape');
+  // The dialog closes itself once the export is done; Esc with nothing open goes Back (2.3.1), so only close what is open.
+  if (await page.eval(`!!document.querySelector('.export-dialog')`)) await page.key('Escape');
   return file;
 }
 
