@@ -1089,6 +1089,18 @@
   box-shadow: var(--neo-in);
 }
 
+/*
+ * The lines a hovered or active choice in a speaker menu would move (DESIGN.md §9, 2.6.0): accent-soft like the
+ * other still-safe notices, with an accent edge on the left; the edge takes its width from the padding, so nothing
+ * shifts.
+ */
+.segm.segm--will-move,
+.segm.segm--will-move:hover {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  padding-left: 13px;
+}
+
 .segm-side {
   display: flex;
   flex-direction: column;

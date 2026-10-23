@@ -4,7 +4,8 @@
 // window has beside the trigger; the arrow keys move through it, Enter picks, Esc closes. When the
 // typed name matches nobody, a last row adds it as a new speaker. People the user named are listed
 // before "Speaker n" ones. With `pickChoices` (the line's menu), a pick first asks how to apply it:
-// Just this line, or Merge {old} into {new}.
+// Just this line, This turn, From here on, or Merge {old} into {new} (2.6.0); while a choice is hovered or
+// active, `onPreview` names the lines it would move, so the transcript can mark them.
 import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Speaker } from '../bridge/types';
@@ -30,6 +31,8 @@ export interface PickChoice {
   label: string;
   /** A second, quieter line saying what happens. */
   detail?: string;
+  /** The lines the choice would move, marked in the transcript while the choice is hovered or active. */
+  segmentIds?: readonly string[];
   run: () => void;
 }
 
@@ -62,6 +65,11 @@ export interface SpeakerChooserProps {
    * Null or none: the pick applies at once (onPick).
    */
   pickChoices?: (speaker: Speaker) => readonly PickChoice[] | null;
+  /**
+   * Called with the `segmentIds` of the hovered or active choice as it changes, and with null when no
+   * choice is active (back at the speakers, or the menu closed), so the transcript can mark those lines.
+   */
+  onPreview?: ((segmentIds: readonly string[] | null) => void) | undefined;
 }
 
 type Row = { kind: 'speaker'; speaker: Speaker } | { kind: 'add'; name: string } | { kind: 'action'; action: ChooserAction };
@@ -83,9 +91,23 @@ export function SpeakerChooser({
   gap = 6,
   emptyText = 'No speaker has that name.',
   pickChoices,
+  onPreview,
 }: SpeakerChooserProps): JSX.Element {
   const [choosing, setChoosing] = useState<{ speaker: Speaker; choices: readonly PickChoice[] } | null>(null);
   const [activeChoice, setActiveChoice] = useState(0);
+  // The lines the active choice would move are marked in the transcript; nothing is marked once no choice is.
+  const previewRef = useRef(onPreview);
+  previewRef.current = onPreview;
+  useEffect(() => {
+    const choice = choosing === null ? undefined : choosing.choices[Math.min(activeChoice, choosing.choices.length)];
+    previewRef.current?.(choice?.segmentIds ?? null);
+  }, [choosing, activeChoice]);
+  useEffect(
+    () => () => {
+      previewRef.current?.(null);
+    },
+    [],
+  );
   const choiceList = useRef<HTMLUListElement | null>(null);
   const ids = useMemo(() => {
     nextId += 1;

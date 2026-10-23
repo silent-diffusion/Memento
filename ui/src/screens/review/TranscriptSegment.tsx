@@ -9,10 +9,11 @@ import type { Highlight, Speaker, TranscriptSegment } from '../../bridge/types';
 import { PopoverLayer, useFloatingPopovers } from '../../components/Floating';
 import { InlineInput } from '../../components/InlineInput';
 import { NotesIcon } from '../../components/icons';
-import { SpeakerChooser } from '../../components/SpeakerChooser';
+import { SpeakerChooser, type PickChoice } from '../../components/SpeakerChooser';
 import { undoKeyOf } from '../../state/undo';
 import { caretOffsetAt, isSelectingIn } from '../../format/caret';
 import { formatDuration } from '../../format/duration';
+import type { SectionChoice } from '../../format/speakerRuns';
 import {
   isSpeakerUncertain,
   lowConfidenceRanges,
@@ -35,6 +36,15 @@ export interface SegmentHandlers {
   addSpeaker: (segment: TranscriptSegment, name: string) => void;
   /** Every line of one speaker moves to another, which keeps its name ("Merge {old} into {new}"). */
   merge: (from: Speaker, into: Speaker) => void;
+  /**
+   * 2.6.0: how a picked speaker can apply to a line with a speaker (Just this line, This turn, From here on,
+   * Merge), each with the lines it moves and its wording (format/speakerRuns.ts).
+   */
+  sections: (segment: TranscriptSegment, chosen: Speaker) => readonly SectionChoice[];
+  /** Several lines to one speaker in one step (This turn, From here on); absent without the 2.0 line actions. */
+  assignLines?: (segments: readonly TranscriptSegment[], speaker: Speaker) => void;
+  /** The lines a hovered or active choice would move are marked in the list; null clears the mark. */
+  preview?: (segmentIds: readonly string[] | null) => void;
   rename: (speaker: Speaker, name: string) => void;
   renameHighlight: (highlight: Highlight, note: string) => void;
   /** Arrow keys between segments: the list moves focus. */
@@ -69,6 +79,8 @@ interface SegmentProps {
   handlers: SegmentHandlers;
   /** 2.0: in selection mode, whether this line is selected; null (or absent) outside it. */
   selected?: boolean | null;
+  /** 2.6.0: a choice in a speaker menu, hovered or active, would move this line. */
+  previewed?: boolean;
 }
 
 const AUTHORS: Record<Highlight['origin'], string> = { user: 'You', local: 'Suggested', ai: 'AI' };
@@ -246,23 +258,27 @@ function SegmentNote({ highlight, onRename }: { highlight: Highlight; onRename: 
 }
 
 /**
- * The speaker name's menu (SpeakerChooser): find or add a speaker, move the line to one, or Rename… the
- * current speaker everywhere.
+ * The speaker name's menu (SpeakerChooser): find or add a speaker, move the line (or its turn, the lines
+ * from here on, or every line of its speaker) to one, or Rename… the current speaker everywhere.
  */
 function SpeakerMenu({
   segment,
   speaker,
   speakers,
   onAssign,
-  onMerge,
+  pickChoices,
+  onPreview,
   onAdd,
   onRename,
 }: {
   segment: TranscriptSegment;
   speaker: Speaker | null;
   speakers: readonly Speaker[];
+  /** A line without a speaker: the pick applies at once. */
   onAssign: (speaker: Speaker) => void;
-  onMerge: (from: Speaker, into: Speaker) => void;
+  /** A line with a speaker: how the pick applies (Just this line, This turn, From here on, Merge). */
+  pickChoices: (chosen: Speaker) => readonly PickChoice[] | null;
+  onPreview: ((segmentIds: readonly string[] | null) => void) | undefined;
   onAdd: (name: string) => void;
   onRename: (name: string) => void;
 }): JSX.Element {
@@ -355,29 +371,8 @@ function SpeakerMenu({
               onAssign(chosen);
             }
           }}
-          pickChoices={(chosen) =>
-            // A line with a speaker: move just it, or every line of that speaker (Undo puts them back).
-            speaker === null
-              ? null
-              : [
-                  {
-                    id: 'line',
-                    label: 'Just this line',
-                    detail: `The line at ${formatDuration(segment.start * 1000)} moves to ${chosen.name}.`,
-                    run: () => {
-                      onAssign(chosen);
-                    },
-                  },
-                  {
-                    id: 'merge',
-                    label: `Merge ${speaker.name} into ${chosen.name}`,
-                    detail: `Every line of ${speaker.name} moves to ${chosen.name}, and ${speaker.name} goes away. Undo puts them back.`,
-                    run: () => {
-                      onMerge(speaker, chosen);
-                    },
-                  },
-                ]
-          }
+          pickChoices={pickChoices}
+          onPreview={onPreview}
           onAdd={onAdd}
           actions={
             speaker === null
@@ -484,12 +479,39 @@ function SegmentRow({
   highlights,
   handlers,
   selected = null,
+  previewed = false,
 }: SegmentProps): JSX.Element {
   const lastEnter = useRef(0);
   const selecting = selected !== null;
-  const classes = ['segm', current ? 'now' : '', editing !== null ? 'segm--editing' : '', selecting ? 'segm--selecting' : '', selected === true ? 'segm--selected' : '']
+  const classes = [
+    'segm',
+    current ? 'now' : '',
+    editing !== null ? 'segm--editing' : '',
+    selecting ? 'segm--selecting' : '',
+    selected === true ? 'segm--selected' : '',
+    previewed ? 'segm--will-move' : '',
+  ]
     .filter((c) => c !== '')
     .join(' ');
+  /** A line with a speaker: the pick first asks how it applies; each choice moves its own lines (Undo puts them back). */
+  const pickChoices = (chosen: Speaker): readonly PickChoice[] | null =>
+    speaker === null
+      ? null
+      : handlers.sections(segment, chosen).map((choice) => ({
+          id: choice.id,
+          label: choice.label,
+          detail: choice.detail,
+          segmentIds: choice.lines.map((l) => l.id),
+          run: () => {
+            if (choice.id === 'line') {
+              handlers.assign(segment, chosen);
+            } else if (choice.id === 'merge') {
+              handlers.merge(speaker, chosen);
+            } else {
+              handlers.assignLines?.(choice.lines, chosen);
+            }
+          },
+        }));
   /** Ctrl+click toggles, Shift+click takes the range; in selection mode a plain click toggles. True when it selected. */
   const selectClick = (event: MouseEvent): boolean => {
     if (handlers.select === undefined || editing !== null) {
@@ -609,9 +631,8 @@ function SegmentRow({
             onAssign={(chosen) => {
               handlers.assign(segment, chosen);
             }}
-            onMerge={(from, into) => {
-              handlers.merge(from, into);
-            }}
+            pickChoices={pickChoices}
+            onPreview={handlers.preview}
             onAdd={(name) => {
               handlers.addSpeaker(segment, name);
             }}
