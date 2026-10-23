@@ -17,8 +17,12 @@ import type {
   RecordingIdParams,
   SettingsSnapshot,
   Speaker,
+  SpeakerColour,
+  SpeakerRestore,
   TranscriptSameVoiceParams,
   TranscriptSameVoiceResult,
+  TranscriptSplitSpeakerParams,
+  TranscriptSplitSpeakerResult,
   TranscriptSegment,
   TranscriptSetSegmentsSpeakerParams,
   TranscriptSetSegmentsSpeakerResult,
@@ -60,6 +64,7 @@ export interface MockReview {
     'transcript.setSegmentsSpeaker': (params: TranscriptSetSegmentsSpeakerParams) => TranscriptSetSegmentsSpeakerResult;
     'transcript.swapSpeakers': (params: TranscriptSwapSpeakersParams) => TranscriptSetSegmentsSpeakerResult;
     'transcript.sameVoice': (params: TranscriptSameVoiceParams) => TranscriptSameVoiceResult;
+    'transcript.splitSpeaker': (params: TranscriptSplitSpeakerParams) => TranscriptSplitSpeakerResult;
   };
   /** Adds a known voice directly (tests and the preview's sample data). */
   seedVoice: (voice: { name: string; speakerId: string; recordings?: number }) => string;
@@ -137,7 +142,7 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
   // deals every speaker's lines (as they stand when first asked) into two voices by turns, so "the lines that sound the
   // same" is half of a speaker's lines, and keeps that until the transcript's lines change (a new pass).
   const voicesOf = new Map<string, { ids: string; voices: string[][] }>();
-  const sameVoice = (recordingId: string, segmentIds: string[]): string[] => {
+  const voicesFor = (recordingId: string): string[][] => {
     const transcript = transcriptOf(recordingId);
     const ids = transcript.segments.map((s) => s.id).join('\n');
     let kept = voicesOf.get(recordingId);
@@ -156,9 +161,48 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
       kept = { ids, voices: [...voices.values()] };
       voicesOf.set(recordingId, kept);
     }
+    return kept.voices;
+  };
+  const sameVoice = (recordingId: string, segmentIds: string[]): string[] => {
+    const transcript = transcriptOf(recordingId);
     const asked = new Set(segmentIds);
-    const alike = new Set(kept.voices.filter((lines) => lines.some((id) => asked.has(id))).flat());
+    const alike = new Set(voicesFor(recordingId).filter((lines) => lines.some((id) => asked.has(id))).flat());
     return transcript.segments.filter((s) => alike.has(s.id) && !asked.has(s.id)).map((s) => s.id);
+  };
+  // 2.6.0: "{name} is two people": of the mock voices holding the speaker's lines now, the one with less talk time
+  // becomes a new speaker (lines the user placed stay). One voice, or none, cannot be split.
+  const splitSpeaker = (recordingId: string, speakerId: string): TranscriptSplitSpeakerResult => {
+    const transcript = transcriptOf(recordingId);
+    const speaker = transcript.speakers.find((s) => s.id === speakerId);
+    if (speaker === undefined) {
+      throw new MockHostError('transcript.speakerNotFound', 'That speaker is not in this transcript any more; speakers may have been merged or identified again. Nothing was changed.', speakerId);
+    }
+    const own = new Map(transcript.segments.filter((s) => s.speaker === speakerId).map((s) => [s.id, s]));
+    const voices = voicesFor(recordingId)
+      .map((lines) => lines.map((id) => own.get(id)).filter((s): s is TranscriptSegment => s !== undefined))
+      .filter((lines) => lines.length > 0)
+      .map((lines) => ({ lines, seconds: lines.reduce((sum, s) => sum + (s.end - s.start), 0) }));
+    if (voices.length < 2) {
+      throw new MockHostError('transcript.cannotSplit', `${speaker.name} was heard as one voice, so there is nothing to split by sound. Move lines with their menu instead. Nothing was changed.`, speakerId);
+    }
+    voices.sort((a, b) => b.seconds - a.seconds);
+    const moving = voices.slice(1).flatMap((v) => v.lines).filter((s) => s.speakerByUser !== true);
+    if (moving.length === 0) {
+      throw new MockHostError('transcript.cannotSplit', `${speaker.name}'s other voice holds only lines you placed there yourself, so nothing can move. Nothing was changed.`, speakerId);
+    }
+    const numbers = transcript.speakers.map((s) => Number.parseInt(s.id.replace(/^\D+/, ''), 10)).filter((n) => Number.isFinite(n));
+    const prefix = transcript.speakers[0]?.id.replace(/\d+$/, '') ?? 'spk';
+    const number = Math.max(0, ...numbers) + 1;
+    const colours: SpeakerColour[] = [1, 2, 3, 4];
+    const created: SpeakerRestore = { id: `${prefix}${number}`, name: `Speaker ${number}`, color: colours[transcript.speakers.length % 4] ?? 1, renamed: false };
+    const order = new Set(moving.map((s) => s.id));
+    const segmentIds = transcript.segments.filter((s) => order.has(s.id)).map((s) => s.id);
+    const { speakers } = env.transcription.restoreSpeaker({ recordingId, speaker: created, segmentIds });
+    const made = speakers.find((s) => s.id === created.id);
+    if (made === undefined) {
+      throw new MockHostError('bridge.internal', 'The mock host lost the speaker it made.');
+    }
+    return { speakers, created: made, segmentIds };
   };
   const talkSeconds = (segments: TranscriptSegment[], speakerId: string): number =>
     segments.filter((s) => s.speaker === speakerId).reduce((sum, s) => sum + (s.end - s.start), 0);
@@ -445,6 +489,8 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
         }
         return { segmentIds: sameVoice(recordingId, segmentIds) };
       },
+      // 2.6.0: a speaker's voices grouped into two by sound; the smaller half becomes a new speaker.
+      'transcript.splitSpeaker': ({ recordingId, speakerId }) => splitSpeaker(recordingId, speakerId),
     },
   };
 }

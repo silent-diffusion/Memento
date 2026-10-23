@@ -7,6 +7,7 @@ import type {
   Speaker,
   SpeakerLines,
   TranscriptReduceSpeakersResult,
+  TranscriptSplitSpeakerResult,
   SpeakerRestore,
   StageName,
   StageStatus,
@@ -45,6 +46,8 @@ export interface TranscriptApi {
   swapSpeakers: (speakerId: string, otherSpeakerId: string, fromSegmentId: string | null) => Promise<void>;
   /** 2.6.0: the other lines the last speaker pass heard as the same voice as this one (reads only; empty without voices). */
   sameVoice: (segmentId: string) => Promise<string[]>;
+  /** 2.6.0: the speaker's raw voices grouped into two by sound; the smaller half's lines move to a new speaker (the answer). */
+  splitSpeaker: (speakerId: string) => Promise<TranscriptSplitSpeakerResult>;
   markReviewed: (reviewed: boolean) => Promise<string | null>;
   retry: (stage: StageName, remedyId?: string) => Promise<string | null>;
   transcribe: (modelId?: string, language?: string) => Promise<string | null>;
@@ -229,6 +232,13 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
       setReload((n) => n + 1);
     },
     sameVoice: async (segmentId) => (await bridge.call('transcript.sameVoice', { recordingId, segmentIds: [segmentId] })).segmentIds,
+    splitSpeaker: async (speakerId) => {
+      const answer = await bridge.call('transcript.splitSpeaker', { recordingId, speakerId });
+      const moved = new Set(answer.segmentIds);
+      apply((r) => withSpeakers(r, answer.speakers, (s) => (moved.has(s.id) ? { ...s, speaker: answer.created.id } : s)));
+      setReload((n) => n + 1);
+      return answer;
+    },
     markReviewed: (reviewed) =>
       attempt(async () => {
         const answer = await bridge.call('transcript.markReviewed', { recordingId, reviewed });

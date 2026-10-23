@@ -183,8 +183,10 @@ describe('Review and transcript (against the browser-preview host)', () => {
     const menu = document.querySelector<HTMLElement>('.speaker-menu');
     expect(menu?.closest('.popover-layer')?.parentElement).toBe(document.body);
     expect(container.querySelector('.review-outline .speaker-menu')).toBeNull();
-    // The other speakers, in a list that scrolls within the room beside the button; the search field has focus.
-    expect([...(menu?.querySelectorAll('[role="option"]') ?? [])].map((o) => o.textContent)).toEqual(['Aiko Tanaka', 'Lena Fischer', 'Speaker 4']);
+    // The other speakers, in a list that scrolls within the room beside the button, then (2.6.0) the split row; the
+    // search field has focus.
+    const owner = trigger.getAttribute('aria-label')?.replace(/^Merge | into someone else$/g, '') ?? '';
+    expect([...(menu?.querySelectorAll('[role="option"]') ?? [])].map((o) => o.textContent)).toEqual(['Aiko Tanaka', 'Lena Fischer', 'Speaker 4', `${owner} is two people…`]);
     expect(menu?.style.maxHeight).toMatch(/^\d+px$/);
     const search = menu?.querySelector<HTMLInputElement>('input[role="combobox"]');
     expect(document.activeElement).toBe(search);

@@ -291,6 +291,39 @@ describe('preview host transcripts (M2)', () => {
     expect(host.fail('transcript.sameVoice', { recordingId: LONG, segmentIds: [first.id, 'nope'] }).code).toBe('transcript.segmentNotFound');
   });
 
+  it('splits a speaker by voice (2.6.0): the smaller mock voice becomes a new speaker, placed lines stay, one voice refuses', () => {
+    const host = previewHost();
+    const before = host.call('transcript.get', { recordingId: LONG }).transcript;
+    const sp3 = before?.segments.filter((s) => s.speaker === 'sp3') ?? [];
+    const first = sp3[0];
+    if (first === undefined || sp3.length < 3) {
+      throw new Error('the sample needs three lines of sp3');
+    }
+    // The second dealt voice (odd turns) holds less talk here; a line placed by hand into it stays.
+    const placed = sp3.find((_, i) => i % 2 === 1);
+    if (placed === undefined) {
+      throw new Error('the sample needs an odd line of sp3');
+    }
+    host.call('transcript.setSegmentSpeaker', { recordingId: LONG, segmentId: placed.id, speakerId: 'sp3' });
+    const result = host.call('transcript.splitSpeaker', { recordingId: LONG, speakerId: 'sp3' });
+    const nextNumber = Math.max(...(before?.speakers.map((s) => Number.parseInt(s.id.slice(2), 10)) ?? [0])) + 1;
+    expect(result.created).toMatchObject({ id: `sp${nextNumber}`, name: `Speaker ${nextNumber}`, renamed: false });
+    expect(result.segmentIds.length).toBeGreaterThan(0);
+    expect(result.segmentIds).not.toContain(placed.id);
+    expect(result.speakers.map((s) => s.id)).toContain(result.created.id);
+    const after = host.call('transcript.get', { recordingId: LONG }).transcript;
+    expect(after?.segments.filter((s) => s.speaker === result.created.id).map((s) => s.id)).toEqual(result.segmentIds);
+    expect(after?.segments.find((s) => s.id === placed.id)?.speaker).toBe('sp3');
+    // The new speaker holds one voice: nothing left to split by sound.
+    const refused = host.fail('transcript.splitSpeaker', { recordingId: LONG, speakerId: result.created.id });
+    expect(refused.code).toBe('transcript.cannotSplit');
+    expect(refused.message).toContain('was heard as one voice');
+    expect(host.fail('transcript.splitSpeaker', { recordingId: LONG, speakerId: 'sp9' }).code).toBe('transcript.speakerNotFound');
+    // The merge back is the Undo.
+    host.call('transcript.mergeSpeakers', { recordingId: LONG, fromSpeakerId: result.created.id, intoSpeakerId: 'sp3' });
+    expect(host.call('transcript.get', { recordingId: LONG }).transcript?.segments.map((s) => s.speaker)).toEqual(after?.segments.map((s) => (s.speaker === result.created.id ? 'sp3' : s.speaker)));
+  });
+
   it('restores a merged speaker with its id and lines, removes an unused one, and un-edits a line edited back (Undo)', () => {
     const host = previewHost();
     const before = host.call('transcript.get', { recordingId: LONG }).transcript;
