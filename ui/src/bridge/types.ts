@@ -2675,6 +2675,18 @@ export interface TranscriptSetSegmentsSpeakerResult {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 2.6.0 Review: speakers you can fix fast (BRIDGE.md "Speakers you can fix fast (2.6.0)")
+// ---------------------------------------------------------------------------------------------
+
+/** Two speakers trade their lines: from `fromSegmentId` (inclusive, transcript order) to the end, or everywhere when null or missing. */
+export interface TranscriptSwapSpeakersParams {
+  recordingId: string;
+  speakerId: string;
+  otherSpeakerId: string;
+  fromSegmentId?: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------
 // 2.0 Video (BRIDGE.md "Video (2.0, proposed)" and "Additions the video screens need")
 // ---------------------------------------------------------------------------------------------
 
@@ -3051,6 +3063,8 @@ export interface BridgeMethods {
   'annotations.dismissSuggestion': { params: ChapterSuggestionParams; result: ChapterSuggestionsResult };
   'annotations.restoreSuggestion': { params: ChapterSuggestionParams; result: ChapterSuggestionsResult };
   'transcript.setSegmentsSpeaker': { params: TranscriptSetSegmentsSpeakerParams; result: TranscriptSetSegmentsSpeakerResult };
+  // 2.6.0 Review: speakers you can fix fast
+  'transcript.swapSpeakers': { params: TranscriptSwapSpeakersParams; result: TranscriptSetSegmentsSpeakerResult };
   // 2.0 Video
   'video.listSources': { params: EmptyParams; result: VideoListSourcesResult };
   'video.thumbnail': { params: VideoThumbnailParams; result: VideoThumbnailResult };
@@ -3324,6 +3338,8 @@ export const METHOD_NAMES = [
   'annotations.dismissSuggestion',
   'annotations.restoreSuggestion',
   'transcript.setSegmentsSpeaker',
+  // 2.6.0 Review: speakers you can fix fast
+  'transcript.swapSpeakers',
   // 2.0 storage
   'storage.keepOnlyMix',
   // 2.0 Video

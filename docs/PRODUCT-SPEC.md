@@ -443,7 +443,7 @@ Users should be able to:
 * Search the transcript
 * Navigate between transcript sections and corresponding media
 
-In Review, a click on a transcript line's time plays it; a click on its words edits it in place with the caret at the click (a double-click edits too). Low-confidence words are visibly marked. Highlights and notes attach to the segment they belong to; a highlight's or chapter's name is renamed by clicking it. The speaker menu on a line searches the speakers as you type and adds a new one by name; a pick then applies to just the line, the turn around it, the line and every later line of that speaker, or every line (a merge), each choice naming its line count and marking those lines in the transcript while it is hovered.
+In Review, a click on a transcript line's time plays it; a click on its words edits it in place with the caret at the click (a double-click edits too). Low-confidence words are visibly marked. Highlights and notes attach to the segment they belong to; a highlight's or chapter's name is renamed by clicking it. The speaker menu on a line searches the speakers as you type and adds a new one by name; a pick then applies to just the line, the turn around it, the line and every later line of that speaker, the two speakers' lines traded with each other (from the line on, or everywhere; names and colours stay), or every line (a merge), each choice naming its line count and marking those lines in the transcript while it is hovered.
 
 Every change made in Review, the document builder and the document viewer can be undone with an Undo button and Ctrl+Z, and redone with Ctrl+Y or Ctrl+Shift+Z, step by step, while that recording, template or document stays open.
 

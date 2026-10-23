@@ -180,6 +180,64 @@ public sealed partial class TranscriptService(
         return new SegmentsSpeakersResult(changed, saved!.Speakers);
     }
 
+    /// <summary>
+    /// <c>transcript.swapSpeakers</c> (2.6.0): every line of one speaker takes the other and the other way round, from
+    /// <paramref name="fromSegmentId"/> (inclusive, in transcript order) to the end, or everywhere when it is <c>null</c>, in
+    /// one write. Names, ids and colours stay; the lines moved are the user's (confidence 1). Calling it again with the
+    /// same parameters puts the lines back (Undo). Nothing is written when no line changes.
+    /// </summary>
+    public async Task<SegmentsSpeakersResult> SwapSpeakersAsync(string recordingId, string speakerId, string otherSpeakerId, string? fromSegmentId, CancellationToken cancellationToken)
+    {
+        if (string.Equals(speakerId, otherSpeakerId, StringComparison.Ordinal))
+        {
+            throw Invalid("Choose two different speakers.");
+        }
+
+        List<TranscriptSegment> changed = [];
+        var names = string.Empty;
+        TranscriptSegment? fromLine = null;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                var a = FindSpeaker(t, speakerId);
+                var b = FindSpeaker(t, otherSpeakerId);
+                var from = fromSegmentId is null ? null : FindSegment(t, fromSegmentId);
+                names = $"{a.Name} and {b.Name}";
+                fromLine = from;
+                var started = from is null;
+                var segments = new List<TranscriptSegment>(t.Segments.Count);
+                changed = [];
+                foreach (var segment in t.Segments)
+                {
+                    started |= from is not null && segment.Id == from.Id;
+                    var other = !started ? null : segment.Speaker == a.Id ? b.Id : segment.Speaker == b.Id ? a.Id : null;
+                    if (other is null)
+                    {
+                        segments.Add(segment);
+                        continue;
+                    }
+
+                    var swapped = segment with { Speaker = other, SpeakerConfidence = 1.0 };
+                    segments.Add(swapped);
+                    changed.Add(swapped);
+                }
+
+                return changed.Count == 0 ? null : t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(t.Speakers, segments) };
+            },
+            cancellationToken);
+        if (saved is null)
+        {
+            var current = await LoadAsync(recordingId, cancellationToken);
+            return new SegmentsSpeakersResult([], current?.Speakers ?? []);
+        }
+
+        var where = fromLine is null ? string.Empty : $" from {HumanFormat.Clock((long)(fromLine.Start * 1000))}";
+        await HistoryAsync(recordingId, "Speakers swapped", $"{names}{where} · {HumanFormat.Count(changed.Count, "line", "lines")}", cancellationToken);
+        return new SegmentsSpeakersResult(changed, saved.Speakers);
+    }
+
     public async Task<IReadOnlyList<Speaker>> RenameSpeakerAsync(string recordingId, string speakerId, string name, CancellationToken cancellationToken)
     {
         var value = ValidateSpeakerName(name);

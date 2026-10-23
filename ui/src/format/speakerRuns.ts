@@ -1,17 +1,22 @@
 // What a line's speaker menu can move besides the one line (DESIGN.md §9, 2.6.0): the turn the line is in
 // (the run of consecutive lines of its speaker around it), every later line of that speaker ("From here
-// on", for people who correct from the top down), or every line (the merge). Each choice carries its exact
-// lines, so the menu can say how many and show them while the choice is hovered or active.
+// on", for people who correct from the top down), the two speakers' lines traded with each other (a swap,
+// from here on or everywhere, when the names are simply the wrong way round), or every line (the merge).
+// Each choice carries its exact lines, so the menu can say how many and show them while the choice is
+// hovered or active.
 import type { Speaker, TranscriptSegment } from '../bridge/types';
 import { formatDuration } from './duration';
 
 /** One way to apply a picked speaker to a line with a speaker, with the lines it moves. */
 export interface SectionChoice {
-  id: 'line' | 'turn' | 'onward' | 'merge';
+  id: 'line' | 'turn' | 'onward' | 'swapOnward' | 'swapAll' | 'merge';
   label: string;
   /** What happens, in one sentence (DESIGN.md §17). */
   detail: string;
-  /** The lines the choice moves, in transcript order (every line of the speaker for the merge). */
+  /**
+   * The lines the choice moves, in transcript order (every line of the speaker for the merge; both speakers'
+   * lines for a swap).
+   */
   lines: readonly TranscriptSegment[];
 }
 
@@ -56,10 +61,51 @@ function sameLines(a: readonly TranscriptSegment[], b: readonly TranscriptSegmen
   return a.length === b.length && a.every((s, i) => s.id === b[i]?.id);
 }
 
+/** "Ana's 18 lines become Ben's and Ben's 20 become Ana's." */
+function swapSentence(from: Speaker, to: Speaker, fromCount: number, toCount: number): string {
+  return `${from.name}'s ${count(fromCount)} ${fromCount === 1 ? 'becomes' : 'become'} ${to.name}'s and ${to.name}'s ${toCount} ${toCount === 1 ? 'becomes' : 'become'} ${from.name}'s.`;
+}
+
+/**
+ * The swaps between `from` (the speaker of the line at `index`) and `to`, when `to` has lines of its own:
+ * from here on (the lines of either speaker from this line to the end), and everywhere. From here on is left
+ * out when no line of either speaker comes before this one (it would be everywhere) and when `to` has no
+ * later line (nothing to trade: it would be From here on or Just this line).
+ */
+function swapChoices(segments: readonly TranscriptSegment[], index: number, from: Speaker, to: Speaker): SectionChoice[] {
+  const line = segments[index];
+  const both = segments.filter((s) => s.speaker === from.id || s.speaker === to.id);
+  const toAll = both.filter((s) => s.speaker === to.id).length;
+  if (line === undefined || toAll === 0) {
+    return [];
+  }
+  const fromAll = both.length - toAll;
+  const later = segments.slice(index).filter((s) => s.speaker === from.id || s.speaker === to.id);
+  const choices: SectionChoice[] = [];
+  const fromLater = later.filter((s) => s.speaker === from.id).length;
+  const toLater = later.length - fromLater;
+  if (later.length < both.length && toLater > 0) {
+    choices.push({
+      id: 'swapOnward',
+      label: `Swap ${from.name} and ${to.name} from here on · ${fromLater} + ${toLater} lines`,
+      detail: `From ${at(line)} on, ${swapSentence(from, to, fromLater, toLater)} Both names stay.`,
+      lines: later,
+    });
+  }
+  choices.push({
+    id: 'swapAll',
+    label: `Swap ${from.name} and ${to.name} everywhere · ${fromAll} + ${toAll} lines`,
+    detail: `Every line of ${from.name} becomes ${to.name}'s and every line of ${to.name} becomes ${from.name}'s. Both names stay.`,
+    lines: both,
+  });
+  return choices;
+}
+
 /**
  * The choices for moving the line at `index` (a line of `from`) to `to`: Just this line, This turn, From here
- * on, Merge. A choice that would move the same lines as one before it is left out: a turn of one line is just
- * the line, and From here on that is the turn (or one line) says nothing new. The merge is always last.
+ * on, the swaps (when `to` has lines), Merge. A choice that would move the same lines as one before it is left
+ * out: a turn of one line is just the line, and From here on that is the turn (or one line) says nothing new.
+ * The merge is always last.
  */
 export function sectionChoices(segments: readonly TranscriptSegment[], index: number, from: Speaker, to: Speaker): SectionChoice[] {
   const line = segments[index];
@@ -95,6 +141,7 @@ export function sectionChoices(segments: readonly TranscriptSegment[], index: nu
       lines: onward,
     });
   }
+  choices.push(...swapChoices(segments, index, from, to));
   choices.push({
     id: 'merge',
     label: `Merge ${from.name} into ${to.name} · ${count(all.length)}`,

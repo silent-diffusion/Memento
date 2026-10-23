@@ -20,6 +20,7 @@ import type {
   TranscriptSegment,
   TranscriptSetSegmentsSpeakerParams,
   TranscriptSetSegmentsSpeakerResult,
+  TranscriptSwapSpeakersParams,
   VoiceAcceptParams,
   VoiceAcceptResult,
   VoiceChangeParams,
@@ -55,6 +56,7 @@ export interface MockReview {
     'annotations.dismissSuggestion': (params: ChapterSuggestionParams) => ChapterSuggestionsResult;
     'annotations.restoreSuggestion': (params: ChapterSuggestionParams) => ChapterSuggestionsResult;
     'transcript.setSegmentsSpeaker': (params: TranscriptSetSegmentsSpeakerParams) => TranscriptSetSegmentsSpeakerResult;
+    'transcript.swapSpeakers': (params: TranscriptSwapSpeakersParams) => TranscriptSetSegmentsSpeakerResult;
   };
   /** Adds a known voice directly (tests and the preview's sample data). */
   seedVoice: (voice: { name: string; speakerId: string; recordings?: number }) => string;
@@ -366,6 +368,37 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
           speakers = env.transcription.setSegmentSpeaker({ recordingId, segmentId: id, speakerId: target }).speakers;
         }
         const wanted = new Set(segmentIds);
+        const after = env.transcription.get(recordingId).transcript;
+        return { segments: (after?.segments ?? []).filter((s) => wanted.has(s.id)), speakers };
+      },
+      // 2.6.0: two speakers trade their lines, everywhere or from a line on; the same call again puts them back.
+      'transcript.swapSpeakers': ({ recordingId, speakerId, otherSpeakerId, fromSegmentId }) => {
+        if (speakerId === otherSpeakerId) {
+          throw new MockHostError('bridge.invalidParams', 'Choose two different speakers.');
+        }
+        const transcript = transcriptOf(recordingId);
+        for (const id of [speakerId, otherSpeakerId]) {
+          if (!transcript.speakers.some((s) => s.id === id)) {
+            throw new MockHostError('transcript.speakerNotFound', 'That speaker is not in this transcript any more; speakers may have been merged or identified again. Nothing was changed.', id);
+          }
+        }
+        const from = fromSegmentId ?? null;
+        if (from !== null && !transcript.segments.some((s) => s.id === from)) {
+          throw new MockHostError('transcript.segmentNotFound', 'That line is not in the transcript any more; it may have been transcribed again. Nothing was changed.', from);
+        }
+        let started = from === null;
+        const moves: { id: string; to: string }[] = [];
+        for (const s of transcript.segments) {
+          started ||= s.id === from;
+          if (started && (s.speaker === speakerId || s.speaker === otherSpeakerId)) {
+            moves.push({ id: s.id, to: s.speaker === speakerId ? otherSpeakerId : speakerId });
+          }
+        }
+        let speakers: Speaker[] = transcript.speakers;
+        for (const move of moves) {
+          speakers = env.transcription.setSegmentSpeaker({ recordingId, segmentId: move.id, speakerId: move.to }).speakers;
+        }
+        const wanted = new Set(moves.map((m) => m.id));
         const after = env.transcription.get(recordingId).transcript;
         return { segments: (after?.segments ?? []).filter((s) => wanted.has(s.id)), speakers };
       },

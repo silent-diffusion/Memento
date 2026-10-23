@@ -41,6 +41,8 @@ export interface TranscriptApi {
   reduceSpeakers: (count: number) => Promise<TranscriptReduceSpeakersResult>;
   /** Undo of a reduce: the speakers back with their lines, in the order given. */
   restoreSpeakers: (entries: SpeakerLines[]) => Promise<void>;
+  /** 2.6.0: two speakers trade their lines, from a line on (transcript order) or everywhere (null); its own inverse. */
+  swapSpeakers: (speakerId: string, otherSpeakerId: string, fromSegmentId: string | null) => Promise<void>;
   markReviewed: (reviewed: boolean) => Promise<string | null>;
   retry: (stage: StageName, remedyId?: string) => Promise<string | null>;
   transcribe: (modelId?: string, language?: string) => Promise<string | null>;
@@ -216,6 +218,12 @@ export function useTranscript(bridge: BridgeClient, recordingId: string, initial
         }
       }
       apply((r) => withSpeakers(r, speakers, (s) => (owner.has(s.id) ? { ...s, speaker: owner.get(s.id) ?? s.speaker, speakerConfidence: 1 } : s)));
+      setReload((n) => n + 1);
+    },
+    swapSpeakers: async (speakerId, otherSpeakerId, fromSegmentId) => {
+      const { segments, speakers } = await bridge.call('transcript.swapSpeakers', { recordingId, speakerId, otherSpeakerId, fromSegmentId });
+      const changed = new Map(segments.map((s) => [s.id, s]));
+      apply((r) => withSpeakers(r, speakers, (s) => changed.get(s.id) ?? s));
       setReload((n) => n + 1);
     },
     markReviewed: (reviewed) =>
