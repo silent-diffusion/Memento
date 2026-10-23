@@ -5,7 +5,7 @@ public sealed record QuoteBlock : Block
 {
     public override string Type => BlockTypes.Quote;
 
-    public IReadOnlyList<Run> Runs { get; init; } = [];
+    public IReadOnlyList<Run> Runs { get; set; } = [];
 
     public string? Attribution { get; init; }
 

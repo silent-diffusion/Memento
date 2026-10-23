@@ -13,9 +13,9 @@ public sealed record DocumentStyle
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     // Type
     public Typeface HeadingTypeface { get; init; } = Typeface.Sans;
@@ -29,7 +29,7 @@ public sealed record DocumentStyle
     public bool NumberedHeadings { get; init; }
 
     // Colour (body text is fixed Ink)
-    public HeadingColor HeadingColor { get; init; } = HeadingColor.Ink;
+    public HeadingColor HeadingColor { get; set; } = HeadingColor.Ink;
 
     public bool TableHeaderFill { get; init; }
 
@@ -43,7 +43,7 @@ public sealed record DocumentStyle
     // Page
     public PaperSize Paper { get; init; } = PaperSize.Letter;
 
-    public bool PageNumbers { get; init; } = true;
+    public bool PageNumbers { get; set; } = true;
 
     /// <summary>The recording title and date on every page.</summary>
     public bool RunningHeader { get; init; }

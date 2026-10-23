@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Memento.Core.Serialization;
 
 namespace Memento.Core.Models;
 
@@ -78,6 +79,11 @@ public sealed partial class ModelCatalog
             throw new InvalidDataException($"The model catalog has schema {document.SchemaVersion}; this build reads schema {ModelCatalogDocument.CurrentSchemaVersion}.");
         }
 
+        if (NullMembers.FindFirst(document) is { } missing)
+        {
+            throw new InvalidDataException($"The model catalog is not valid: '{missing}' is null; it must be a list or an object.");
+        }
+
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
         // Windows file names are case-insensitive: two entries must never share a file.
@@ -149,6 +155,10 @@ public sealed partial class ModelCatalog
         {
             problem = $"url must be on {string.Join(" or ", ModelDownloadHosts.CatalogHosts)}, not {uri.Host}";
         }
+        else if (MovingRevision(uri) is { } revision)
+        {
+            problem = $"url names the moving revision '{revision}'; name the 40-character commit instead (…/resolve/<commit>/<file> or …/raw/<commit>/<file>), so an upstream change cannot alter what it downloads";
+        }
         else if (!IsPlainFileName(entry.FileName))
         {
             problem = "fileName must be a plain Windows file name (no folders, device names such as NUL, trailing dots or spaces, or the names Memento keeps beside a model)";
@@ -180,6 +190,47 @@ public sealed partial class ModelCatalog
         }
     }
 
+    /// <summary>
+    /// The revision a Hugging Face or GitHub file address names when it is not a full commit SHA (a branch such as
+    /// <c>main</c>, or a tag), or <see langword="null"/> when the address is pinned to a commit or names no revision.
+    /// A GitHub release asset (<c>releases/download/&lt;tag&gt;/…</c>) is not a revision of the repository and is left to
+    /// the size and SHA-256 check like every download (security audit 2, SA2-29).
+    /// </summary>
+    public static string? MovingRevision(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri || uri.IsLoopback)
+        {
+            return null;
+        }
+
+        var huggingFace = string.Equals(uri.IdnHost, "huggingface.co", StringComparison.OrdinalIgnoreCase);
+        var gitHub = string.Equals(uri.IdnHost, "github.com", StringComparison.OrdinalIgnoreCase);
+        if (!huggingFace && !gitHub)
+        {
+            return null;
+        }
+
+        // huggingface.co/[datasets/|spaces/]<owner>/<repo>/{resolve|raw|blob}/<revision>/<file>
+        // github.com/<owner>/<repo>/{raw|blob}/<revision>/<file>
+        var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var start = huggingFace && segments.Length > 0 && segments[0] is "datasets" or "spaces" ? 1 : 0;
+        if (segments.Length < start + 5)
+        {
+            return null;
+        }
+
+        var kind = segments[start + 2];
+        var namesRevision = huggingFace ? kind is "resolve" or "raw" or "blob" : kind is "raw" or "blob";
+        if (!namesRevision)
+        {
+            return null;
+        }
+
+        var revision = Uri.UnescapeDataString(segments[start + 3]);
+        return CommitPattern().IsMatch(revision) ? null : revision;
+    }
+
     private static ModelCatalog LoadBuiltIn()
     {
         using var stream = typeof(ModelCatalog).Assembly.GetManifestResourceStream(ResourceName)
@@ -193,4 +244,7 @@ public sealed partial class ModelCatalog
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+
+    [GeneratedRegex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)]
+    private static partial Regex CommitPattern();
 }

@@ -13,9 +13,9 @@ public sealed record Document
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
-    public string Title { get; init; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
     /// <summary>
     /// The name in the recording's Documents list ("Meeting minutes", "My notes"); <c>null</c> uses <see cref="Title"/>.
@@ -23,12 +23,12 @@ public sealed record Document
     /// </summary>
     public string? Name { get; init; }
 
-    public DocumentMeta Meta { get; init; } = new();
+    public DocumentMeta Meta { get; set; } = new();
 
     /// <summary>The style the document is shown and exported in.</summary>
     public string? StyleId { get; init; }
 
-    public IReadOnlyList<DocumentRow> Rows { get; init; } = [];
+    public IReadOnlyList<DocumentRow> Rows { get; set; } = [];
 
     /// <summary><c>null</c> for a hand-written document.</summary>
     public GenerationReference? Generation { get; init; }
@@ -40,7 +40,7 @@ public sealed record Document
     public DocumentChange? LastChange { get; init; }
 
     /// <summary>Increments on every save.</summary>
-    public int Version { get; init; } = 1;
+    public int Version { get; set; } = 1;
 
     public DateTimeOffset CreatedAt { get; init; }
 

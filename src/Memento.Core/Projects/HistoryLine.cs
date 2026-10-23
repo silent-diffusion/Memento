@@ -13,11 +13,11 @@ public sealed record HistoryLine
 
     public DateTimeOffset At { get; init; }
 
-    public string Stage { get; init; } = string.Empty;
+    public string Stage { get; set; } = string.Empty;
 
-    public string Event { get; init; } = string.Empty;
+    public string Event { get; set; } = string.Empty;
 
-    public string Summary { get; init; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
 
     public string? Detail { get; init; }
 

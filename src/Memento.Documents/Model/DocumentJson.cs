@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Memento.Core.Serialization;
 using Memento.Documents.Model.Storage;
 
 namespace Memento.Documents.Model;
@@ -94,6 +95,12 @@ public static class DocumentJson
         if (document is null)
         {
             throw new DocumentFormatException(DocumentFormatErrorCodes.Invalid, $"{name} is empty. Nothing was changed.");
+        }
+
+        // A list or object written as null takes its default and null entries are dropped (security audit 2, section 9).
+        if (NullMembers.Repair(document) is { Unrepaired.Count: > 0 } repair)
+        {
+            throw new DocumentFormatException(DocumentFormatErrorCodes.Invalid, $"{repair.Describe(name)} Nothing was changed.");
         }
 
         if (document.SchemaVersion > Document.CurrentSchemaVersion)

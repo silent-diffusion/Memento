@@ -11,4 +11,10 @@ public sealed record ExportJournalEntry(
     string? OutputFolder,
     string? Work,
     IReadOnlyList<string> Written,
-    IReadOnlyList<string> CreatedFolders);
+    IReadOnlyList<string> CreatedFolders)
+{
+    // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
+    public IReadOnlyList<string> Written { get; set; } = Written ?? [];
+
+    public IReadOnlyList<string> CreatedFolders { get; set; } = CreatedFolders ?? [];
+}

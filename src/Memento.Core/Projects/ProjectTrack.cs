@@ -30,10 +30,10 @@ public sealed record ProjectTrack
     public int BitsPerSample { get; init; }
 
     /// <summary><c>pcm</c> or <c>float</c> (capture encoding).</summary>
-    public string SampleEncoding { get; init; } = "pcm";
+    public string SampleEncoding { get; set; } = "pcm";
 
     /// <summary>Codec of <see cref="File"/>: <c>wav</c> until finalize, then the storage codec.</summary>
-    public string Codec { get; init; } = "wav";
+    public string Codec { get; set; } = "wav";
 
     /// <summary>Where the track starts on the session timeline (a source turned on mid-recording starts later).</summary>
     public long StartOffsetMs { get; init; }

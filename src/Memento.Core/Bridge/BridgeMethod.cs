@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Memento.Core.Serialization;
 
 namespace Memento.Core.Bridge;
 
@@ -30,6 +31,16 @@ public abstract class BridgeMethod<TParams, TResult> : IBridgeMethod<TParams, TR
         if (typed is null)
         {
             throw new BridgeException(BridgeErrorCodes.InvalidParams, $"The parameters for '{Name}' must be an object.");
+        }
+
+        // System.Text.Json leaves a list or object null when the page sends null (or [null]) for it, whatever the
+        // contract's annotations say (security audit 2, §9); no method is handed one.
+        if (NullMembers.FindFirst(typed) is { } missing)
+        {
+            throw new BridgeException(
+                BridgeErrorCodes.InvalidParams,
+                $"The parameters for '{Name}' are not valid: '{missing}' is null. Nothing was changed; send a value for it or leave it out.",
+                $"'{missing}' cannot be null.");
         }
 
         var result = await InvokeAsync(typed, cancellationToken);

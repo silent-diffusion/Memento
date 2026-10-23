@@ -8,7 +8,7 @@ public sealed record DocumentRow
 {
     public const int MaxModules = 3;
 
-    public IReadOnlyList<ModuleBlock> Modules { get; init; } = [];
+    public IReadOnlyList<ModuleBlock> Modules { get; set; } = [];
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

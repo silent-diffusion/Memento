@@ -10,14 +10,14 @@ namespace Memento.Documents.Model.Records;
 public sealed record RecordClaim
 {
     /// <summary><c>m07-c3</c>: the module id and a number.</summary>
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
-    public string ModuleId { get; init; } = string.Empty;
+    public string ModuleId { get; set; } = string.Empty;
 
     /// <summary><c>decision</c>, <c>action</c>, <c>point</c>, <c>quote</c>, <c>agenda</c>, <c>purpose</c>, <c>when</c>, <c>question</c>.</summary>
-    public string Kind { get; init; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
 
-    public string Text { get; init; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
 
     public string? SegmentId { get; init; }
 
@@ -31,7 +31,7 @@ public sealed record RecordClaim
     public string? Due { get; init; }
 
     /// <summary><c>supported</c>, <c>unsupported</c> or <c>notChecked</c>.</summary>
-    public string Verdict { get; init; } = "notChecked";
+    public string Verdict { get; set; } = "notChecked";
 
     /// <summary>The verifier's one-sentence reason.</summary>
     public string? Reason { get; init; }

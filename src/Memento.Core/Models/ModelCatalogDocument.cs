@@ -7,5 +7,5 @@ public sealed record ModelCatalogDocument
 
     public int SchemaVersion { get; init; }
 
-    public IReadOnlyList<ModelCatalogEntry> Models { get; init; } = [];
+    public IReadOnlyList<ModelCatalogEntry> Models { get; set; } = [];
 }

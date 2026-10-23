@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Memento.Core.Bridge.Contracts;
+using Memento.Core.Serialization;
 using Memento.Core.Settings;
 
 namespace Memento.Core.Tests.Settings;
@@ -76,5 +78,60 @@ public sealed class MissingFieldsKeepDefaultsTests
         Assert.Equal(new ExportSettings().AskWhereEachTime, settings.Export.AskWhereEachTime);
         Assert.Equal(new ExportSettings().CreateSubfolder, settings.Export.CreateSubfolder);
         Assert.Equal(new DocumentsSettings().OcrEngine, settings.Documents.OcrEngine);
+    }
+
+    [Fact]
+    public async Task BlocksWrittenAsNullReadAsTheirDefaultsAndTheNextSaveWorks()
+    {
+        // System.Text.Json reads "export": null as null whatever the annotations say; before 2.4.0 the export, storage,
+        // documents, video and share blocks then threw on first use (security audit 2, section 9).
+        using var directory = new Fakes.TempDirectory();
+        var path = Path.Combine(directory.Path, "settings.json");
+        await File.WriteAllTextAsync(path, """
+            { "schemaVersion": 2, "theme": "dark", "general": null, "transcription": null, "speakers": null, "history": null,
+              "recording": { "defaultType": "lecture", "video": null, "storage": null, "defaultSourceIds": null },
+              "export": { "createSubfolder": false, "defaults": null }, "ai": { "keepRecord": false, "share": null, "providers": null },
+              "storage": null, "documents": null }
+            """);
+        var store = new JsonSettingsStore(path, Microsoft.Extensions.Logging.Abstractions.NullLogger<JsonSettingsStore>.Instance);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+
+        Assert.Equal("dark", settings.Theme);
+        Assert.Equal("lecture", settings.Recording.DefaultType);
+        Assert.Equal(new GeneralSettings(), settings.General);
+        Assert.Equal(new VideoSettings(), settings.Recording.Video);
+        Assert.Equal(new StorageSettings(), settings.Recording.Storage);
+        Assert.Empty(settings.Recording.DefaultSourceIds);
+        Assert.False(settings.Export.CreateSubfolder);
+        Assert.Equal(ExportSelection.Default.Transcript.Formats, settings.Export.Defaults.Transcript.Formats);
+        Assert.False(settings.Ai.KeepRecord);
+        Assert.Equal(new AiShareSettings(), settings.Ai.Share);
+        Assert.Equal(new LibraryStorageSettings(), settings.Storage);
+        Assert.Equal(new DocumentsSettings(), settings.Documents);
+        Assert.Null(NullMembers.FindFirst(settings));
+
+        var saved = await store.UpdateAsync(s => s with { Theme = "light" }, CancellationToken.None);
+        Assert.Equal("light", saved.Theme);
+    }
+
+    [Fact]
+    public async Task NullsDeeperThanTheBlocksAreRepairedByTheBackstop()
+    {
+        // No Normalize step names export.defaults.transcript.formats or audioMixed; the generic repair covers them.
+        using var directory = new Fakes.TempDirectory();
+        var path = Path.Combine(directory.Path, "settings.json");
+        await File.WriteAllTextAsync(path, """
+            { "schemaVersion": 2, "export": { "defaults": { "audioMixed": null, "transcript": { "on": true, "formats": [null, "markdown"] }, "details": null } } }
+            """);
+        var store = new JsonSettingsStore(path, Microsoft.Extensions.Logging.Abstractions.NullLogger<JsonSettingsStore>.Instance);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+
+        Assert.NotNull(settings.Export.Defaults.AudioMixed);
+        Assert.NotNull(settings.Export.Defaults.Details);
+        Assert.True(settings.Export.Defaults.Transcript.On);
+        Assert.Equal(["markdown"], settings.Export.Defaults.Transcript.Formats);
+        Assert.Null(NullMembers.FindFirst(settings));
     }
 }

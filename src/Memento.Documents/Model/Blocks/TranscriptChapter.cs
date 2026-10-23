@@ -8,7 +8,7 @@ public sealed record TranscriptChapter
 {
     public double T { get; init; }
 
-    public string Title { get; init; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

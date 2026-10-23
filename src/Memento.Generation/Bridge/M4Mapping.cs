@@ -134,12 +134,12 @@ public static class M4Mapping
             throw M4Errors.Invalid("A template needs a name.", "name");
         }
 
-        var inputs = template.Inputs ?? new InputSelection(true, true, true, true, true, false, false);
+        var inputs = template.Inputs ?? InputSelection.Default;
         var rows = (template.Rows ?? []).Select((row, r) => new TemplateRow
         {
             Modules = (row.Modules ?? []).Select((m, i) => FromBridge(m, existing?.Modules().FirstOrDefault(x => x.Id == m.Id), r, i)).ToList(),
         }).ToList();
-        var output = template.Output ?? new TemplateOutputSettings(false, false);
+        var output = template.Output ?? TemplateOutputSettings.None;
         var result = (existing ?? new DocumentTemplate()) with
         {
             Name = template.Name.Trim(),

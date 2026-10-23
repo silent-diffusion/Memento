@@ -9,5 +9,5 @@ public sealed record AgendaImportDroppedParams
     /// <summary><c>null</c> before the recording exists (M3 clarification 2); the token is then accepted by any <c>agenda.apply</c>.</summary>
     public string? RecordingId { get; init; }
 
-    public IReadOnlyList<string> Paths { get; init; } = [];
+    public IReadOnlyList<string> Paths { get; set; } = [];
 }

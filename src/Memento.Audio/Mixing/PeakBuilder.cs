@@ -100,8 +100,13 @@ public static class PeakBuilder
     public static async Task<PeaksFile> ReadAsync(string path, CancellationToken cancellationToken)
     {
         await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, FileOptions.Asynchronous);
-        return await JsonSerializer.DeserializeAsync(file, AudioJsonContext.Default.PeaksFile, cancellationToken).ConfigureAwait(false)
+        var peaks = await JsonSerializer.DeserializeAsync(file, AudioJsonContext.Default.PeaksFile, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidDataException($"{Path.GetFileName(path)} is empty.");
+
+        // A null window is dropped (security audit 2, section 9).
+        return Core.Serialization.NullMembers.Repair(peaks) is { Unrepaired.Count: > 0 } repair
+            ? throw new InvalidDataException(repair.Describe(Path.GetFileName(path)))
+            : peaks;
     }
 
     private static double[] Pair(double sumSquares, float peak, int count) =>

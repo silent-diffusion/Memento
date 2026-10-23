@@ -18,7 +18,7 @@ public sealed class LocalCatalogAndPlannerTests
 
         Assert.Equal(2_740_937_888, qwen.SizeBytes);
         Assert.Equal("00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", qwen.Sha256);
-        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf", qwen.Url);
+        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf", qwen.Url);
         Assert.Equal(LocalChatTemplates.Qwen35, qwen.Llm.TemplateId);
         Assert.Equal(16_384, qwen.Llm.ContextTokens);
         Assert.Equal(3.3, qwen.MinVramBytes!.Value / (1024.0 * 1024 * 1024), 2);
@@ -57,10 +57,10 @@ public sealed class LocalCatalogAndPlannerTests
 
         Assert.Equal(16_740_812_704, dense.SizeBytes);
         Assert.Equal("84b5f7f112156d63836a01a69dc3f11a6ba63b10a23b8ca7a7efaf52d5a2d806", dense.Sha256);
-        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/main/Qwen3.5-27B-Q4_K_M.gguf", dense.Url);
+        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/resolve/3221f178a6b842d04f1fb42f1c413534adcc0a6a/Qwen3.5-27B-Q4_K_M.gguf", dense.Url);
         Assert.Equal(22_016_023_168, moe.SizeBytes);
         Assert.Equal("3b46d1066bc91cc2d613e3bc22ce691dd77e6f0d33c9060690d24ce6de494375", moe.Sha256);
-        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/main/Qwen3.5-35B-A3B-Q4_K_M.gguf", moe.Url);
+        Assert.Equal("https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/resolve/bc014a17be43adabd7066b7a86075ff935c6a4e2/Qwen3.5-35B-A3B-Q4_K_M.gguf", moe.Url);
         Assert.All([dense, moe], m =>
         {
             Assert.Equal(ModelGroups.Larger, m.Group);

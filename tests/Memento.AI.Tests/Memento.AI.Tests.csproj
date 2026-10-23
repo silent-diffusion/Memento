@@ -20,6 +20,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Memento.AI\Memento.AI.csproj" />
     <ProjectReference Include="..\..\src\Memento.AI.Local\Memento.AI.Local.csproj" />
+    <!-- Built first, not referenced: NativeImportsTests scans the worker's x64\ Tesseract and Leptonica DLLs (audit 2, SA2-23). -->
+    <ProjectReference Include="..\..\src\Memento.Worker\Memento.Worker.csproj" ReferenceOutputAssembly="false" Private="false" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>

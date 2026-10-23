@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memento.Core.Serialization;
 
 namespace Memento.Core.Export;
 
@@ -62,7 +63,10 @@ public sealed class ExportJournal(ExportJournalOptions options)
                 return new ExportJournalDocument();
             }
 
-            return JsonSerializer.Deserialize(File.ReadAllBytes(options.Path), ExportJsonContext.Default.ExportJournalDocument) ?? new ExportJournalDocument();
+            var document = JsonSerializer.Deserialize(File.ReadAllBytes(options.Path), ExportJsonContext.Default.ExportJournalDocument);
+
+            // Null lists take their defaults and null entries are dropped; a journal that still has a null is started afresh.
+            return document is null || NullMembers.Repair(document).Unrepaired.Count > 0 ? new ExportJournalDocument() : document;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {

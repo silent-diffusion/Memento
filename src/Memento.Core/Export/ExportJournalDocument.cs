@@ -7,5 +7,5 @@ public sealed record ExportJournalDocument
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
-    public IReadOnlyList<ExportJournalEntry> Entries { get; init; } = [];
+    public IReadOnlyList<ExportJournalEntry> Entries { get; set; } = [];
 }

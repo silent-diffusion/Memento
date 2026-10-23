@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Library;
+using Memento.Core.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Memento.Core.Projects;
@@ -147,6 +148,13 @@ public sealed partial class ProjectStore : IProjectStore
                 throw new ProjectNotFoundException(
                     $"The details file of recording {recordingId} names a file outside its folder ({field}). Memento will not open it; nothing was changed.",
                     new InvalidDataException($"project.json {field} is not a file inside the project folder."));
+            }
+
+            // Any other list or object written as null takes its default and null entries are dropped (audit 2, §9);
+            // one without a default makes the manifest unreadable like damaged JSON.
+            if (NullMembers.Repair(manifest) is { Unrepaired.Count: > 0 } repair)
+            {
+                throw new JsonException(repair.Describe(ProjectLayout.ManifestFile));
             }
 
             return manifest;

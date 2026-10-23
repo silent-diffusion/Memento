@@ -5,10 +5,10 @@ namespace Memento.Core.Tests.Models;
 public sealed class ModelDownloadHostsTests
 {
     [Theory]
-    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin", "https://cdn-lfs.huggingface.co/repos/x/y")]
-    [InlineData("https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/q.gguf", "https://cas-bridge.xethub.hf.co/xet-bridge/z")]
+    [InlineData("https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin", "https://cdn-lfs.huggingface.co/repos/x/y")]
+    [InlineData("https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/q.gguf", "https://cas-bridge.xethub.hf.co/xet-bridge/z")]
     [InlineData("https://github.com/k2-fsa/sherpa-onnx/releases/download/a/b.onnx", "https://objects.githubusercontent.com/github-production-release-asset/b")]
-    [InlineData("https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata", "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/eng.traineddata")]
+    [InlineData("https://github.com/tesseract-ocr/tessdata_fast/raw/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata", "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata")]
     [InlineData("https://huggingface.co/a", "https://huggingface.co/b")]
     [InlineData("http://127.0.0.1:5000/a", "http://127.0.0.1:5000/b")]
     public void TheModelHostsAndTheirFileServersAreAllowed(string requested, string answered)

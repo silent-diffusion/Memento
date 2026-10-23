@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Memento.Core.Workers;
 
 namespace Memento.Core.Transcripts;
@@ -9,7 +10,11 @@ namespace Memento.Core.Transcripts;
 /// </summary>
 /// <param name="Signature">Models, expected count and threshold; a pass with another signature starts over.</param>
 /// <param name="ElapsedMs">Processing time spent so far across attempts.</param>
-public sealed record SpeakersPartial(int SchemaVersion, string Signature, IReadOnlyList<DiarizedTrack> Tracks, long ElapsedMs)
+public sealed record SpeakersPartial(int SchemaVersion, string Signature, IReadOnlyList<DiarizedTrack> Tracks, [property: JsonPropertyOrder(2)] long ElapsedMs)
 {
+    // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
+    [JsonPropertyOrder(1)]
+    public IReadOnlyList<DiarizedTrack> Tracks { get; set; } = Tracks ?? [];
+
     public const int CurrentSchemaVersion = 1;
 }

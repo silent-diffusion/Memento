@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 using Memento.Core.Ai;
+using Memento.Core.Bridge.Contracts;
+using Memento.Core.Serialization;
 using Memento.Core.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -123,8 +125,64 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
             History = NormalizeHistory(settings.History),
             General = NormalizeGeneral(settings.General),
             Ai = NormalizeAi(settings.Ai),
+            Export = NormalizeExport(settings.Export),
+            Storage = Defaulted("storage", settings.Storage),
+            Documents = Defaulted("documents", settings.Documents),
         };
+        normalized = RepairNulls(normalized);
         return settings.SchemaVersion < 2 ? UpgradeToVersion2(normalized) : normalized;
+    }
+
+    /// <summary>
+    /// A block written as <c>null</c> (System.Text.Json reads it as null whatever the annotations say) reads as its
+    /// defaults, like a missing one (security audit 2, section 9).
+    /// </summary>
+    private T Defaulted<T>(string field, T? block)
+        where T : class, new()
+    {
+        if (block is not null)
+        {
+            return block;
+        }
+
+        LogInvalidValue(field, "null", "defaults");
+        return new T();
+    }
+
+    /// <summary>Settings › Export: a null block or a null default selection reads as the defaults.</summary>
+    private ExportSettings NormalizeExport(ExportSettings? export)
+    {
+        var result = Defaulted("export", export);
+        if (result.Defaults is null)
+        {
+            LogInvalidValue("export.defaults", "null", "defaults");
+            result = result with { Defaults = ExportSelection.Default };
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The backstop for every other list or object a hand-edited file sets to null: it takes the value a new block
+    /// starts with, null entries are dropped, and each repair is logged by its path, so a block added later is covered too.
+    /// </summary>
+    private AppSettings RepairNulls(AppSettings settings)
+    {
+        var repair = NullMembers.Repair(settings);
+        foreach (var path in repair.Repaired)
+        {
+            LogInvalidValue(path, "null", "its default");
+        }
+
+        if (repair.Unrepaired.Count > 0)
+        {
+            // Every block has a parameterless constructor, so only a block added without one gets here; the defaults
+            // are safer than a null that would make every later save fail.
+            LogInvalidValue(string.Join(", ", repair.Unrepaired), "null", "defaults");
+            return new AppSettings();
+        }
+
+        return settings;
     }
 
     /// <summary>
@@ -141,6 +199,7 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
         var providers = ai.Providers ?? new AiProviderModels();
         return ai with
         {
+            Share = Defaulted("ai.share", ai.Share),
             Providers = providers with
             {
                 Anthropic = NormalizeModel("ai.providers.anthropic.model", providers.Anthropic, AiModelDefaults.AnthropicModel),
@@ -317,6 +376,7 @@ public sealed partial class JsonSettingsStore : ISettingsStore, IDisposable
         {
             DefaultSourceIds = recording.DefaultSourceIds ?? [],
             Storage = recording.Storage ?? new StorageSettings(),
+            Video = Defaulted("recording.video", recording.Video),
             KeepSeparateTracks = true,
         };
 

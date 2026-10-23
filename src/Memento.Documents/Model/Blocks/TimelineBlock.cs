@@ -5,5 +5,5 @@ public sealed record TimelineBlock : Block
 {
     public override string Type => BlockTypes.Timeline;
 
-    public IReadOnlyList<TimelineEntry> Entries { get; init; } = [];
+    public IReadOnlyList<TimelineEntry> Entries { get; set; } = [];
 }

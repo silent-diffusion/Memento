@@ -8,9 +8,9 @@ public sealed record TranscriptBlock : Block
 {
     public override string Type => BlockTypes.Transcript;
 
-    public IReadOnlyList<TranscriptLine> Segments { get; init; } = [];
+    public IReadOnlyList<TranscriptLine> Segments { get; set; } = [];
 
-    public IReadOnlyList<TranscriptChapter> Chapters { get; init; } = [];
+    public IReadOnlyList<TranscriptChapter> Chapters { get; set; } = [];
 
     /// <summary>Segments and chapter headings in reading order: each chapter comes before the first segment at or after its time.</summary>
     public IEnumerable<object> Interleaved()

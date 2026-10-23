@@ -11,42 +11,42 @@ namespace Memento.Documents.Model.Records;
 /// </summary>
 public sealed record DocumentGenerationRecord
 {
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 
-    public string TemplateId { get; init; } = string.Empty;
+    public string TemplateId { get; set; } = string.Empty;
 
-    public string TemplateName { get; init; } = string.Empty;
+    public string TemplateName { get; set; } = string.Empty;
 
-    public string StyleId { get; init; } = string.Empty;
+    public string StyleId { get; set; } = string.Empty;
 
-    public string ProviderId { get; init; } = string.Empty;
+    public string ProviderId { get; set; } = string.Empty;
 
     /// <summary>"Claude", "ChatGPT", "Local model".</summary>
-    public string ProviderName { get; init; } = string.Empty;
+    public string ProviderName { get; set; } = string.Empty;
 
     /// <summary>The model id the requests went to (cloud id or local catalog id).</summary>
-    public string Model { get; init; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
 
     /// <summary>"claude-opus-5-5", "Qwen3.5 4B · graphics card".</summary>
-    public string ModelLabel { get; init; } = string.Empty;
+    public string ModelLabel { get; set; } = string.Empty;
 
     public DateTimeOffset StartedAt { get; init; }
 
     public long DurationMs { get; init; }
 
-    public RecordInputs Inputs { get; init; } = new();
+    public RecordInputs Inputs { get; set; } = new();
 
     /// <summary>The included sections as the preview names them ("Transcript (312 segments, 4 speakers)").</summary>
-    public IReadOnlyList<string> Sent { get; init; } = [];
+    public IReadOnlyList<string> Sent { get; set; } = [];
 
     /// <summary>What was left out and why ("Attachments: not ticked").</summary>
-    public IReadOnlyList<string> NotSent { get; init; } = [];
+    public IReadOnlyList<string> NotSent { get; set; } = [];
 
     /// <summary>UTF-8 bytes of the payload text.</summary>
     public long Bytes { get; init; }
 
     /// <summary>Lower-case hex SHA-256 of the payload text.</summary>
-    public string PayloadHash { get; init; } = string.Empty;
+    public string PayloadHash { get; set; } = string.Empty;
 
     /// <summary>The payload text, when "keep a record of what was sent" was on.</summary>
     public string? PayloadText { get; init; }
@@ -56,13 +56,13 @@ public sealed record DocumentGenerationRecord
 
     public int Chunks { get; init; }
 
-    public IReadOnlyList<RecordRequest> Requests { get; init; } = [];
+    public IReadOnlyList<RecordRequest> Requests { get; set; } = [];
 
-    public RecordTimings Timings { get; init; } = new();
+    public RecordTimings Timings { get; set; } = new();
 
-    public IReadOnlyList<RecordModule> Modules { get; init; } = [];
+    public IReadOnlyList<RecordModule> Modules { get; set; } = [];
 
-    public IReadOnlyList<RecordClaim> Claims { get; init; } = [];
+    public IReadOnlyList<RecordClaim> Claims { get; set; } = [];
 
     /// <summary>
     /// After 2.2, a larger local model: where it actually ran and how fast ("Ran 28 of 64 layers on the graphics card,

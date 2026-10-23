@@ -10,7 +10,7 @@ namespace Memento.Documents.Model;
 /// </summary>
 public sealed record DocumentChange
 {
-    public string Reason { get; init; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
 
     public DateTimeOffset At { get; init; }
 

@@ -21,7 +21,7 @@ public sealed record VideoTrack
     public required string Id { get; init; }
 
     /// <summary>Always <c>video</c>, so a reader that walks every track of every list can tell them apart.</summary>
-    public string Kind { get; init; } = KindVideo;
+    public string Kind { get; set; } = KindVideo;
 
     /// <summary><c>screen</c> (a display or a window) or <c>camera</c>: what the picture-in-picture inset composes.</summary>
     public required string Role { get; init; }
@@ -42,7 +42,7 @@ public sealed record VideoTrack
     public required string File { get; init; }
 
     /// <summary>The files written while recording, in order; more than one when the encoder changed mid-recording.</summary>
-    public IReadOnlyList<VideoTrackPart> Parts { get; init; } = [];
+    public IReadOnlyList<VideoTrackPart> Parts { get; set; } = [];
 
     public int Width { get; init; }
 
@@ -50,18 +50,18 @@ public sealed record VideoTrack
 
     public int FrameRate { get; init; }
 
-    public string Codec { get; init; } = "h264";
+    public string Codec { get; set; } = "h264";
 
     /// <summary><c>fmp4</c> (fragmented, as recorded) or <c>mp4</c> (after a remux).</summary>
-    public string Container { get; init; } = "fmp4";
+    public string Container { get; set; } = "fmp4";
 
     /// <summary><c>smaller</c>, <c>balanced</c> or <c>best</c>.</summary>
-    public string Quality { get; init; } = "balanced";
+    public string Quality { get; set; } = "balanced";
 
     public int BitrateBitsPerSecond { get; init; }
 
     /// <summary>The first part's encoder ("NVIDIA H.264 Encoder MFT").</summary>
-    public string Encoder { get; init; } = string.Empty;
+    public string Encoder { get; set; } = string.Empty;
 
     public bool HardwareEncoder { get; init; }
 

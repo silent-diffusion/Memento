@@ -5,5 +5,5 @@ public sealed record ChipsBlock : Block
 {
     public override string Type => BlockTypes.Chips;
 
-    public IReadOnlyList<string> Items { get; init; } = [];
+    public IReadOnlyList<string> Items { get; set; } = [];
 }
