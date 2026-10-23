@@ -68,4 +68,19 @@ public sealed class ReviewContractSerializationTests
         Assert.Equal("Ana", parameters.NewSpeakerName);
         Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r"}""", ReviewBridgeJsonContext.Default.TranscriptSetSegmentsSpeakerParams));
     }
+
+    [Fact]
+    public void SwapSpeakersParamsReadTheOptionalStartLine()
+    {
+        var everywhere = JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1","otherSpeakerId":"spk2"}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams)!;
+        var fromLine = JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1","otherSpeakerId":"spk2","fromSegmentId":"s0002"}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams)!;
+        var nullLine = JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1","otherSpeakerId":"spk2","fromSegmentId":null}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams)!;
+
+        Assert.Null(everywhere.FromSegmentId);
+        Assert.Equal("s0002", fromLine.FromSegmentId);
+        Assert.Null(nullLine.FromSegmentId);
+        Assert.Equal(("spk1", "spk2"), (fromLine.SpeakerId, fromLine.OtherSpeakerId));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1"}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize("""{"recordingId":"r","speakerId":"spk1","otherSpeakerId":"spk2","extra":1}""", ReviewBridgeJsonContext.Default.TranscriptSwapSpeakersParams));
+    }
 }

@@ -164,6 +164,9 @@ public static class BridgeMethodNames
     public const string AnnotationsRestoreSuggestion = "annotations.restoreSuggestion";
     public const string TranscriptSetSegmentsSpeaker = "transcript.setSegmentsSpeaker";
 
+    // 2.6.0 Review: speakers you can fix fast.
+    public const string TranscriptSwapSpeakers = "transcript.swapSpeakers";
+
     // 2.0 video.
     public const string VideoListSources = "video.listSources";
     public const string VideoThumbnail = "video.thumbnail";
