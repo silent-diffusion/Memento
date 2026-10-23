@@ -675,7 +675,7 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
                   >
                     Show live output
                   </button>
-                  <p class="doc-live-note">The exchange with {finishedLive.provider.kind === 'local' ? 'the local model' : finishedLive.provider.name} that wrote this version. It is not saved and goes when you leave this document.</p>
+                  <p class="doc-live-note">The exchange with {finishedLive.provider.kind === 'local' ? 'the local model' : finishedLive.provider.kind === 'server' ? 'your own server' : finishedLive.provider.name} that wrote this version. It is not saved and goes when you leave this document.</p>
                 </div>
               )}
               <Versions

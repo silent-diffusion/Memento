@@ -12,12 +12,29 @@ import { CloseIcon, LockIcon, SearchIcon } from '../../components/icons';
 import { moveFocus } from '../../components/keyboard';
 import { useModal } from '../../components/Overlay';
 import { payloadSize, PROVIDER_FULL } from '../../format/documents';
+import { providerPlace, serverLine, staysOnPc } from '../../format/serverAddress';
 import { formatSize } from '../../format/storage';
 import './liveoutput.css';
 import './previewsheet.css';
 
 /** The overview's id in the list (passes are p1, p2…). */
 export const OVERVIEW = 'overview';
+
+/** 2.5: "Your own server · qwen3:8b at localhost:11434 (this PC)", or null for the other providers. */
+function serverWords(provider: ProviderInfo): string | null {
+  return provider.kind === 'server' ? serverLine(provider.name, provider.modelLabel, providerPlace(provider)) : null;
+}
+
+/** "Request · read by the local model", "Request · sent to Claude", 2.5 "Request · read by your own server on this PC". */
+function requestLabel(provider: ProviderInfo, onPc: boolean): string {
+  if (provider.kind === 'local') {
+    return 'Request · read by the local model';
+  }
+  if (provider.kind === 'server') {
+    return onPc ? 'Request · read by your own server on this PC' : 'Request · sent to your own server';
+  }
+  return `Request · sent to ${provider.name}`;
+}
 
 const count = (n: number): string => n.toLocaleString('en-US');
 
@@ -97,6 +114,9 @@ export function PreviewSheet({ provider: chosen, preview, error, onCopy, onClose
   const [status, setStatus] = useState('');
   const [copying, setCopying] = useState(false);
   const local = provider.kind === 'local';
+  // 2.5: whether anything leaves this PC is the host's answer when it has come, else the provider's flag.
+  const onPc = preview?.staysOnPc ?? staysOnPc(provider);
+  const server = serverWords(provider);
   const passes = preview?.passes ?? [];
   const shown = matchingPasses(passes, query);
   const selected = selectedId === OVERVIEW ? null : (passes.find((p) => p.id === selectedId) ?? null);
@@ -120,9 +140,12 @@ export function PreviewSheet({ provider: chosen, preview, error, onCopy, onClose
       });
   };
 
+  const ask = `Ask before every send ${preview?.askBeforeSend === false ? 'off' : 'on'}`;
   const sub = local
     ? `${provider.modelLabel ?? 'The local model'} on this PC · nothing leaves it`
-    : `${provider.name}${provider.modelLabel === null ? '' : ` · ${provider.modelLabel}`} · Ask before every send ${preview?.askBeforeSend === false ? 'off' : 'on'}`;
+    : server !== null
+      ? `${server} · ${onPc ? 'nothing leaves it' : ask}`
+      : `${provider.name}${provider.modelLabel === null ? '' : ` · ${provider.modelLabel}`} · ${ask}`;
 
   return createPortal(
     <div class="scrim scrim--sheet">
@@ -139,7 +162,7 @@ export function PreviewSheet({ provider: chosen, preview, error, onCopy, onClose
         <div class="sheet-header live-header">
           <div class="live-heading">
             <h2 id="preview-title" class="sheet-title">
-              {local ? 'What the local model reads' : 'What will be sent'}
+              {local ? 'What the local model reads' : server !== null && onPc ? 'What your own server reads' : 'What will be sent'}
             </h2>
             <span id="preview-sub" class="live-sub">
               {sub}
@@ -260,12 +283,12 @@ export function PreviewSheet({ provider: chosen, preview, error, onCopy, onClose
                 {searching && shown.length === 0 ? <p class="live-empty">No request holds these words.</p> : null}
               </nav>
             </div>
-            {selected === null ? <Overview preview={preview} provider={provider} /> : <PassPane pass={selected} provider={provider} query={query} />}
+            {selected === null ? <Overview preview={preview} provider={provider} /> : <PassPane pass={selected} provider={provider} query={query} onPc={onPc} />}
           </div>
         )}
         <div class="sheet-footer preview-footer">
           <span class="sheet-footer-note">
-            {local ? 'Read on this PC; nothing leaves it. Read only: change the inputs in the builder.' : `Nothing is sent until you press Generate. Audio and video are never sent.`}
+            {onPc ? 'Read on this PC; nothing leaves it. Read only: change the inputs in the builder.' : `Nothing is sent until you press Generate. Audio and video are never sent.`}
           </span>
           <span class="sr" role="status" aria-live="polite">
             {status}
@@ -309,6 +332,8 @@ export function PreviewSheet({ provider: chosen, preview, error, onCopy, onClose
 
 function Overview({ preview, provider }: { preview: GenerationPreviewResult; provider: ProviderInfo }): JSX.Element {
   const local = provider.kind === 'local';
+  const onPc = preview.staysOnPc ?? staysOnPc(provider);
+  const server = serverWords(provider);
   const inputs = preview.inputs ?? [];
   const redactions = preview.redactions ?? [];
   const map = (preview.passes ?? []).filter((p) => p.step === 'map').length;
@@ -316,13 +341,13 @@ function Overview({ preview, provider }: { preview: GenerationPreviewResult; pro
     <section class="live-pane preview-overview" aria-label="Inputs and what is held back">
       <div class="preview-scroll" tabIndex={0} aria-label="Overview">
         <dl class="payload-facts preview-facts">
-          <dt>{local ? 'Read by' : 'Sent to'}</dt>
+          <dt>{onPc ? 'Read by' : 'Sent to'}</dt>
           <dd>
-            {local ? `${provider.modelLabel ?? 'The local model'} on this PC` : PROVIDER_FULL[provider.id]}
-            {!local && preview.provider?.modelLabel != null ? ` · ${preview.provider.modelLabel}` : ''}
+            {local ? `${provider.modelLabel ?? 'The local model'} on this PC` : (server ?? PROVIDER_FULL[provider.id])}
+            {!local && server === null && preview.provider?.modelLabel != null ? ` · ${preview.provider.modelLabel}` : ''}
           </dd>
           <dt>Ask before every send</dt>
-          <dd>{local ? 'Not needed: nothing leaves this PC' : preview.askBeforeSend === false ? 'Off: Generate sends at once' : 'On: you confirm before anything is sent'}</dd>
+          <dd>{onPc ? 'Not needed: nothing leaves this PC' : preview.askBeforeSend === false ? 'Off: Generate sends at once' : 'On: you confirm before anything is sent'}</dd>
           <dt>Requests</dt>
           <dd>
             {map === 0 ? 'None: nothing in this template is written by AI' : `${count(map)} to read the transcript, then the checks built from their answers`}
@@ -384,8 +409,7 @@ function Overview({ preview, provider }: { preview: GenerationPreviewResult; pro
   );
 }
 
-function PassPane({ pass, provider, query }: { pass: PreviewPass; provider: ProviderInfo; query: string }): JSX.Element {
-  const local = provider.kind === 'local';
+function PassPane({ pass, provider, query, onPc }: { pass: PreviewPass; provider: ProviderInfo; query: string; onPc: boolean }): JSX.Element {
   return (
     <section class="live-pane preview-pass" aria-label={pass.title}>
       <div class="live-pane-head">
@@ -407,7 +431,7 @@ function PassPane({ pass, provider, query }: { pass: PreviewPass; provider: Prov
       </pre>
       <div class="live-label-row">
         <span class="lbl" id="preview-user-label">
-          {local ? 'Request · read by the local model' : `Request · sent to ${provider.name}`}
+          {requestLabel(provider, onPc)}
         </span>
       </div>
       <pre class="live-well mono" tabIndex={0} aria-labelledby="preview-user-label">

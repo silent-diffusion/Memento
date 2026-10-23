@@ -35,7 +35,8 @@ export type LiveOutcome = 'running' | 'done' | 'failed' | 'cancelled';
 export interface LiveOutput {
   jobId: string;
   recordingId: string;
-  provider: Pick<ProviderInfo, 'id' | 'name' | 'kind' | 'modelLabel'>;
+  /** 2.5: with where Your own server is (left out: as the kind says, the local model on this PC, a cloud service not). */
+  provider: Pick<ProviderInfo, 'id' | 'name' | 'kind' | 'modelLabel'> & Partial<Pick<ProviderInfo, 'leavesPc' | 'address'>>;
   /** The document regenerated into, or written (once done). */
   documentId: string | null;
   passes: LivePass[];
@@ -92,7 +93,7 @@ function fresh(jobId: string, job: NonNullable<ReturnType<typeof generationOf>['
   return {
     jobId,
     recordingId: job.recordingId,
-    provider: { id: job.provider.id, name: job.provider.name, kind: job.provider.kind, modelLabel: job.provider.modelLabel },
+    provider: { id: job.provider.id, name: job.provider.name, kind: job.provider.kind, modelLabel: job.provider.modelLabel, leavesPc: job.provider.leavesPc, address: job.provider.address },
     documentId: job.documentId,
     passes: [],
     ended: false,
