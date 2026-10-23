@@ -99,7 +99,7 @@ describe('Keep only the mix (Settings › Recording and Storage and history, 2.0
     await until(() => document.querySelector('.review-panes') !== null);
     await settle(50);
 
-    await click([...document.querySelectorAll<HTMLButtonElement>('.spoke-ghost')].find((b) => b.textContent.trim() === 'Export'));
+    await click([...document.querySelectorAll<HTMLButtonElement>('.btn.ghost')].find((b) => b.textContent.trim() === 'Export'));
     await until(() => document.querySelector('.export-dialog') !== null);
     await until(() => h.callsOf('project.get').length > 1 && !(document.querySelector('.export-summary')?.textContent ?? 'Estimating').includes('Estimating'));
     await settle(50);

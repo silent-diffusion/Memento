@@ -504,12 +504,12 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
         actions={
           <>
           <UndoButton />
-          <button class="btn ghost spoke-ghost doc-action" type="button" disabled={regenerate === null} title={regenerate === null ? 'Written by hand: there is nothing to regenerate' : undefined} onClick={() => regenerate?.()}>
+          <button class="btn ghost doc-action" type="button" disabled={regenerate === null} title={regenerate === null ? 'Written by hand: there is nothing to regenerate' : undefined} onClick={() => regenerate?.()}>
             <RegenerateIcon size={16} />
             Regenerate
           </button>
           <button
-            class="btn ghost spoke-ghost"
+            class="btn ghost"
             type="button"
             aria-haspopup="dialog"
             onClick={() => {
@@ -666,7 +666,7 @@ export function DocumentScreen({ recordingId, documentId, versionId }: { recordi
               {finishedLive === null || regenerating !== null ? null : (
                 <div class="doc-live">
                   <button
-                    class="btn ghost side-btn"
+                    class="btn ghost"
                     type="button"
                     aria-haspopup="dialog"
                     onClick={() => {

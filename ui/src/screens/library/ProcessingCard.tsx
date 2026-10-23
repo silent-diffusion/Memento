@@ -136,7 +136,7 @@ export function ProcessingCard({ processing, now, onOpen, onRemedy, pendingRemed
         ))}
       </div>
       <button
-        class="btn ghost proc-open"
+        class="btn ghost"
         type="button"
         onClick={() => {
           onOpen(current.recordingId);

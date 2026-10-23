@@ -285,7 +285,7 @@ function DropZone({ controller }: { controller: AgendaImportController }): JSX.E
       <span class="drop-sub">Word, PDF, Excel, CSV, Markdown, plain text, or a photo of a printed agenda</span>
       <div class="drop-actions">
         <button
-          class="btn ghost drop-btn"
+          class="btn ghost"
           type="button"
           disabled={reading !== null}
           onClick={() => {
@@ -295,7 +295,7 @@ function DropZone({ controller }: { controller: AgendaImportController }): JSX.E
           Choose a file
         </button>
         <button
-          class="btn ghost drop-btn drop-btn--quiet"
+          class="btn ghost"
           type="button"
           disabled={reading !== null}
           onClick={() => {
@@ -388,7 +388,7 @@ function AiFallbackCard(): JSX.Element {
           </span>
         )}
       </div>
-      <button class="btn ghost ai-card-btn" type="button" disabled aria-describedby="ai-off-note">
+      <button class="btn ghost ghost-main" type="button" disabled aria-describedby="ai-off-note">
         Extract
       </button>
     </div>
@@ -407,7 +407,7 @@ function ErrorCard({ controller }: { controller: AgendaImportController }): JSX.
       <div class="agenda-error-actions">
         {error.settingsUrl === null ? null : (
           <button
-            class="btn g small-btn"
+            class="btn g"
             type="button"
             onClick={() => {
               openExternal(services, error.settingsUrl ?? '', 'Windows language settings');
@@ -528,11 +528,11 @@ export function AgendaSection({ controller, details, update }: AgendaSectionProp
           <div class="agenda-apply">
             <span class="agenda-apply-note">Not saved yet. Done applies it too.</span>
             <div class="agenda-apply-actions">
-              <button class="btn g small-btn" type="button" onClick={controller.discard}>
+              <button class="btn g" type="button" onClick={controller.discard}>
                 Discard
               </button>
               <button
-                class="btn p small-btn"
+                class="btn p"
                 type="button"
                 disabled={!controller.limitsOk}
                 onClick={() => {

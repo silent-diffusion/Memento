@@ -203,19 +203,6 @@
   color: var(--text-2);
 }
 
-.vid-line .vid-line-show {
-  flex: none;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 12px;
-  border: none;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
 /* With video the waveform is 44 px tall (the render), so the transcript keeps its room. */
 .player--video .wave {
   height: 44px;
@@ -267,6 +254,16 @@
   gap: 8px;
 }
 
+/* Remove video, keep audio… (the block's main action, `ghost-main`) spans the block under the facts. */
+.outline-video > .btn {
+  margin: 4px 10px 0;
+}
+
+/* Show video (the line's one action, `ghost-main`) keeps its width beside the text. */
+.vid-line > .btn {
+  flex: none;
+}
+
 .vid-facts {
   margin: 0;
   padding: 0 10px;
@@ -289,18 +286,6 @@
   margin: 0;
   color: var(--text);
   text-align: right;
-}
-
-.vid-remove {
-  margin: 4px 10px 0;
-  height: 32px;
-  border-radius: 12px;
-  border: none;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
 }
 
 /* Details › the never-sent note under the facts. */

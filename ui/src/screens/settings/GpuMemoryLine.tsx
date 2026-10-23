@@ -63,7 +63,7 @@ export function GpuMemoryLine({ memory, note, checking, onCheck }: GpuMemoryLine
       <p class="gpu-memory-text" role="status" aria-live="polite">
         {note ?? memory.summary}
       </p>
-      <button class="btn ghost small-btn gpu-memory-check" type="button" disabled={checking} aria-busy={checking} onClick={onCheck}>
+      <button class="btn ghost gpu-memory-check" type="button" disabled={checking} aria-busy={checking} onClick={onCheck}>
         {checking ? 'Checking…' : 'Check again'}
       </button>
     </div>

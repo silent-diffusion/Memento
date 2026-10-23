@@ -5,6 +5,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PopoverLayer, useFloatingPopovers } from './Floating';
+import { type GhostSize, withGhostSize } from './ghostSize';
 import { CheckIcon, ChevronDownIcon } from './icons';
 import { moveFocus } from './keyboard';
 
@@ -103,8 +104,10 @@ interface SelectMenuProps<T extends string> {
   onChange: (value: T) => void;
   /** Visible button text; defaults to the chosen option's label. */
   buttonText?: string;
-  /** `sort` (36 px, text-2) or `field` (34 px settings value, text). */
+  /** `sort` (the ghost's text-2 label and chevron), `field` (a settings value, in text) or `chip` (a 32 px pill, §5.2). */
   variant?: 'sort' | 'field' | 'chip';
+  /** The ghost size of DESIGN.md §2.3 (not for `chip`): the 36 px toolbar default, 28 px in a row, 32 px main. */
+  size?: GhostSize;
   disabled?: boolean;
 }
 
@@ -115,6 +118,7 @@ export function SelectMenu<T extends string>({
   onChange,
   buttonText,
   variant = 'field',
+  size = 'toolbar',
   disabled = false,
 }: SelectMenuProps<T>): JSX.Element {
   const pop = usePopover();
@@ -132,7 +136,7 @@ export function SelectMenu<T extends string>({
     <div class="menu-root" ref={pop.rootRef}>
       <button
         ref={pop.buttonRef}
-        class={variant === 'sort' ? 'btn ghost sort-btn' : variant === 'chip' ? 'btn ghost chip-select' : 'btn ghost select-btn'}
+        class={variant === 'chip' ? 'btn ghost chip-select' : withGhostSize(variant === 'sort' ? 'btn ghost sort-btn' : 'btn ghost select-btn', size)}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={pop.open}
@@ -216,6 +220,8 @@ interface MultiSelectMenuProps<T extends string> {
   options: readonly SelectOption<T>[];
   /** The new choice, in option order; never empty (the last ticked option cannot be unticked). */
   onChange: (values: T[]) => void;
+  /** The ghost size of DESIGN.md §2.3, as SelectMenu's. */
+  size?: GhostSize;
   disabled?: boolean;
 }
 
@@ -224,7 +230,7 @@ interface MultiSelectMenuProps<T extends string> {
  * Export dialog: "JSON + SRT"). Enter or Space ticks or unticks an option and keeps the list open;
  * Esc closes it. At least one option stays ticked.
  */
-export function MultiSelectMenu<T extends string>({ label, values, options, onChange, disabled = false }: MultiSelectMenuProps<T>): JSX.Element {
+export function MultiSelectMenu<T extends string>({ label, values, options, onChange, size = 'toolbar', disabled = false }: MultiSelectMenuProps<T>): JSX.Element {
   const pop = usePopover();
   const chosen = options.filter((o) => values.includes(o.value));
   const text = chosen.length === 0 ? 'None' : chosen.map((o) => o.label).join(' + ');
@@ -243,7 +249,7 @@ export function MultiSelectMenu<T extends string>({ label, values, options, onCh
     <div class="menu-root" ref={pop.rootRef}>
       <button
         ref={pop.buttonRef}
-        class="btn ghost select-btn"
+        class={withGhostSize('btn ghost select-btn', size)}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={pop.open}

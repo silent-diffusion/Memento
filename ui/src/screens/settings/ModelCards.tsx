@@ -213,7 +213,7 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
         <div class="model-actions">
           {model.installed ? (
             <button
-              class="btn ghost small-btn"
+              class="btn ghost"
               type="button"
               aria-label={`Remove ${model.name}`}
               disabled={isDefault || keepReason !== null || phase.kind === 'removing'}
@@ -224,12 +224,12 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
               {phase.kind === 'removing' ? 'Removing…' : 'Remove'}
             </button>
           ) : downloading ? (
-            <button class="btn ghost small-btn" type="button" aria-label={`Cancel the download of ${model.name}`} disabled={phase.kind === 'cancelling'} onClick={onCancel}>
+            <button class="btn ghost" type="button" aria-label={`Cancel the download of ${model.name}`} disabled={phase.kind === 'cancelling'} onClick={onCancel}>
               Cancel
             </button>
           ) : (
             <button
-              class="btn ghost small-btn"
+              class="btn ghost"
               type="button"
               aria-label={`Install ${model.name}, ${formatSize(model.sizeBytes)}`}
               disabled={busy}
@@ -272,11 +272,11 @@ function ModelCard({ model, phase, isDefault, keepReason, busy, group, selectabl
           </span>
           <span class="model-error-actions">
             {phase.code === 'models.inUse' ? null : (
-              <button class="btn ghost small-btn" type="button" disabled={busy} onClick={onInstall}>
+              <button class="btn ghost" type="button" disabled={busy} onClick={onInstall}>
                 Try again
               </button>
             )}
-            <button class="btn ghost small-btn" type="button" onClick={onDismiss}>
+            <button class="btn ghost" type="button" onClick={onDismiss}>
               Dismiss
             </button>
           </span>

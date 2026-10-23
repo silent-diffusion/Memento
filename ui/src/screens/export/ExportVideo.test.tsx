@@ -49,7 +49,7 @@ describe('Export copies with video (DESIGN.md §18.4)', () => {
   const open = async (recordingId = DESIGN): Promise<void> => {
     h = await mountApp({ name: 'review', recordingId });
     await until(() => document.querySelector('.review-panes') !== null);
-    await click([...document.querySelectorAll<HTMLButtonElement>('.spoke-ghost')].find((b) => b.textContent.trim() === 'Export'));
+    await click([...document.querySelectorAll<HTMLButtonElement>('.btn.ghost')].find((b) => b.textContent.trim() === 'Export'));
     await until(() => document.querySelector('.export-dialog') !== null && !summary().includes('Estimating'));
   };
 

@@ -251,7 +251,7 @@ function VideoLine({ text, onShow, focusNext }: { text: string; onShow: (() => v
     <div class="vid-line">
       <span>{text}</span>
       {onShow === null ? null : (
-        <button ref={showRef} class="btn ghost vid-line-show" type="button" onClick={onShow}>
+        <button ref={showRef} class="btn ghost ghost-main" type="button" onClick={onShow}>
           Show video
         </button>
       )}
@@ -307,7 +307,7 @@ export function VideoOutlineBlock({ video, onRemove }: { video: ProjectVideo; on
           </div>
         ))}
       </dl>
-      <button class="btn ghost vid-remove" type="button" aria-haspopup="dialog" onClick={onRemove}>
+      <button class="btn ghost ghost-main" type="button" aria-haspopup="dialog" onClick={onRemove}>
         Remove video, keep audio…
       </button>
     </div>

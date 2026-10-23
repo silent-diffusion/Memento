@@ -38,7 +38,7 @@ export function ImportErrorCard(): JSX.Element | null {
       </div>
       <div class="import-error-actions">
         <button
-          class="btn g small-btn"
+          class="btn g"
           type="button"
           onClick={() => {
             void importMedia(services);

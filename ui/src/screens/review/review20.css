@@ -39,14 +39,6 @@
   gap: 8px;
 }
 
-.btn.sug-btn {
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
 /* Suggested chapters: under the Chapters list, dotted titles until accepted. */
 .sug-chapters {
   display: flex;

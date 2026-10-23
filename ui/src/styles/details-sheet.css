@@ -43,7 +43,6 @@
 .sheet-field .select-btn {
   width: 100%;
   max-width: none;
-  height: 36px;
   justify-content: space-between;
 }
 
@@ -181,27 +180,6 @@
   display: flex;
   gap: 8px;
   margin-top: 4px;
-}
-
-.drop-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.drop-btn--quiet {
-  color: var(--text-2);
-}
-
-.drop-btn:disabled {
-  opacity: 0.55;
-  box-shadow: none;
-  cursor: default;
 }
 
 .drop-note {
@@ -412,6 +390,10 @@ button.btn.add-pill {
   box-shadow: var(--neo-in);
 }
 
+.ai-card > .btn {
+  flex: none;
+}
+
 .ai-card-text {
   display: flex;
   flex-direction: column;
@@ -427,23 +409,6 @@ button.btn.add-pill {
 .ai-card-sub {
   font-size: 12px;
   color: var(--text-2);
-}
-
-.ai-card-btn {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 13px;
-  font-weight: 600;
-  flex: none;
-}
-
-.ai-card-btn:disabled {
-  opacity: 0.55;
-  box-shadow: none;
-  cursor: default;
 }
 
 .sheet-save {
@@ -484,7 +449,6 @@ button.btn.add-pill {
 
 .who-spoke-row .select-btn {
   width: auto;
-  height: 32px;
   max-width: 200px;
 }
 

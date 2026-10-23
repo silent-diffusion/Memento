@@ -113,17 +113,17 @@ export function TemplatesManager({ onClose }: { onClose: () => void }): JSX.Elem
                       {deleting ? (
                         <>
                           <span class="manager-confirm">Delete {t.name}?</span>
-                          <button class="btn g small-btn" type="button" ref={(el) => el?.focus()} onClick={() => { setConfirmDelete(null); }}>
+                          <button class="btn g" type="button" ref={(el) => el?.focus()} onClick={() => { setConfirmDelete(null); }}>
                             Keep
                           </button>
-                          <button class="btn d small-btn" type="button" onClick={() => { run(bridge.call('templates.delete', { templateId: t.id }), `${t.name} deleted`); }}>
+                          <button class="btn d" type="button" onClick={() => { run(bridge.call('templates.delete', { templateId: t.id }), `${t.name} deleted`); }}>
                             Delete
                           </button>
                         </>
                       ) : (
                         <>
                           <button
-                            class="btn g small-btn"
+                            class="btn g"
                             type="button"
                             aria-label={`Open ${t.name} in the builder`}
                             onClick={() => {
@@ -133,15 +133,15 @@ export function TemplatesManager({ onClose }: { onClose: () => void }): JSX.Elem
                           >
                             Open
                           </button>
-                          <button class="btn g small-btn" type="button" aria-label={`Duplicate ${t.name}`} onClick={() => { run(bridge.call('templates.duplicate', { templateId: t.id }), `${t.name} duplicated`); }}>
+                          <button class="btn g" type="button" aria-label={`Duplicate ${t.name}`} onClick={() => { run(bridge.call('templates.duplicate', { templateId: t.id }), `${t.name} duplicated`); }}>
                             Duplicate
                           </button>
                           {t.builtIn ? (
-                            <button class="btn g small-btn" type="button" disabled={t.customized !== true && t.modifiedAt === null} aria-label={`Reset ${t.name}`} onClick={() => { run(bridge.call('templates.resetBuiltIn', { templateId: t.id }), `${t.name} is as it shipped`); }}>
+                            <button class="btn g" type="button" disabled={t.customized !== true && t.modifiedAt === null} aria-label={`Reset ${t.name}`} onClick={() => { run(bridge.call('templates.resetBuiltIn', { templateId: t.id }), `${t.name} is as it shipped`); }}>
                               Reset
                             </button>
                           ) : (
-                            <button class="btn g small-btn" type="button" aria-label={`Delete ${t.name}`} onClick={() => { setConfirmDelete({ kind: 'template', id: t.id }); }}>
+                            <button class="btn g" type="button" aria-label={`Delete ${t.name}`} onClick={() => { setConfirmDelete({ kind: 'template', id: t.id }); }}>
                               Delete
                             </button>
                           )}
@@ -176,17 +176,17 @@ export function TemplatesManager({ onClose }: { onClose: () => void }): JSX.Elem
                       {deleting ? (
                         <>
                           <span class="manager-confirm">Delete {s.name}?</span>
-                          <button class="btn g small-btn" type="button" ref={(el) => el?.focus()} onClick={() => { setConfirmDelete(null); }}>
+                          <button class="btn g" type="button" ref={(el) => el?.focus()} onClick={() => { setConfirmDelete(null); }}>
                             Keep
                           </button>
-                          <button class="btn d small-btn" type="button" onClick={() => { run(bridge.call('styles.delete', { styleId: s.id }), `${s.name} deleted`); }}>
+                          <button class="btn d" type="button" onClick={() => { run(bridge.call('styles.delete', { styleId: s.id }), `${s.name} deleted`); }}>
                             Delete
                           </button>
                         </>
                       ) : (
                         <>
                           <button
-                            class="btn g small-btn"
+                            class="btn g"
                             type="button"
                             aria-label={`Open ${s.name} in the style editor`}
                             onClick={() => {
@@ -203,15 +203,15 @@ export function TemplatesManager({ onClose }: { onClose: () => void }): JSX.Elem
                           >
                             Open
                           </button>
-                          <button class="btn g small-btn" type="button" aria-label={`Duplicate ${s.name}`} onClick={() => { run(bridge.call('styles.duplicate', { styleId: s.id }), `${s.name} duplicated`); }}>
+                          <button class="btn g" type="button" aria-label={`Duplicate ${s.name}`} onClick={() => { run(bridge.call('styles.duplicate', { styleId: s.id }), `${s.name} duplicated`); }}>
                             Duplicate
                           </button>
                           {s.builtIn ? (
-                            <button class="btn g small-btn" type="button" disabled={s.customized !== true && s.modifiedAt === null} aria-label={`Reset ${s.name}`} onClick={() => { run(bridge.call('styles.resetBuiltIn', { styleId: s.id }), `${s.name} is as it shipped`); }}>
+                            <button class="btn g" type="button" disabled={s.customized !== true && s.modifiedAt === null} aria-label={`Reset ${s.name}`} onClick={() => { run(bridge.call('styles.resetBuiltIn', { styleId: s.id }), `${s.name} is as it shipped`); }}>
                               Reset
                             </button>
                           ) : (
-                            <button class="btn g small-btn" type="button" aria-label={`Delete ${s.name}`} onClick={() => { setConfirmDelete({ kind: 'style', id: s.id }); }}>
+                            <button class="btn g" type="button" aria-label={`Delete ${s.name}`} onClick={() => { setConfirmDelete({ kind: 'style', id: s.id }); }}>
                               Delete
                             </button>
                           )}

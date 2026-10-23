@@ -93,7 +93,7 @@ export function DocumentDefaultsRows(): JSX.Element {
         below={<InlineMessage message={error} />}
       >
         <button
-          class="btn ghost small-btn"
+          class="btn ghost"
           type="button"
           aria-haspopup="dialog"
           onClick={() => {

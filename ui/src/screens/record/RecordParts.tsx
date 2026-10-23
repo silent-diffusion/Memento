@@ -92,7 +92,7 @@ export function SourcesCard({ rows, error, onToggle, onRescan, video }: SourcesC
         <span class="lbl" id="rec-audio-label">
           Audio sources
         </span>
-        <button class="btn ghost rec-add" type="button" aria-label="Add a source: look again for microphones and apps" onClick={onRescan}>
+        <button class="btn ghost ghost-row" type="button" aria-label="Add a source: look again for microphones and apps" onClick={onRescan}>
           Add
         </button>
       </div>
@@ -246,7 +246,7 @@ export function StageCard(props: StageCardProps): JSX.Element {
             Open recording
           </button>
         ) : props.onResume !== undefined ? (
-          <button class="btn ghost rec-resume" type="button" disabled={props.resumeQueued === true} onClick={props.onResume}>
+          <button class="btn ghost ghost-stage" type="button" disabled={props.resumeQueued === true} onClick={props.onResume}>
             <span class="rec-start-dot" aria-hidden="true" />
             {props.resumeQueued === true ? 'Resumes once saved…' : 'Resume recording'}
           </button>
@@ -438,7 +438,7 @@ export function AgendaCard({ details, onToggle, onOpenDetails }: AgendaCardProps
           <p class="rec-side-text">
             Add an agenda in Details and agenda to tick items off here as you cover them. Nothing about it needs AI.
           </p>
-          <button class="btn ghost rec-agenda-add" type="button" onClick={onOpenDetails}>
+          <button class="btn ghost ghost-main" type="button" onClick={onOpenDetails}>
             Add an agenda
           </button>
         </>

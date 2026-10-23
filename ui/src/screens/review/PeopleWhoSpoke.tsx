@@ -92,7 +92,7 @@ export function PeopleWhoSpoke({ whoSpoke, participants, speakers, settingsDefau
           {reduceTo !== null ? (
             <>
               <button
-                class="btn ghost small-btn people-reduce"
+                class="btn ghost people-reduce"
                 type="button"
                 onClick={() => {
                   onReduce(reduceTo);

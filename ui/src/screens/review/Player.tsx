@@ -505,6 +505,7 @@ export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJu
           <SelectMenu
             label="Playback speed"
             variant="sort"
+            size="main"
             value={String(player.rate)}
             buttonText={rateLabel(player.rate)}
             options={PLAYBACK_RATES.map((r) => ({ value: String(r), label: rateLabel(r) }))}
@@ -527,7 +528,7 @@ export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJu
         </button>
         <span class="player-spacer" />
         <TranscriptSearchField search={search} onJump={onJump} />
-        <button class="btn ghost spoke-ghost" type="button" onClick={onHighlight}>
+        <button class="btn ghost" type="button" onClick={onHighlight}>
           <FlagIcon size={16} />
           Highlight
         </button>

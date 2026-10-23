@@ -34,10 +34,15 @@ button:disabled {
 /*
  * The full ghost and primary recipes of DESIGN.md §5.1, so `btn ghost` and `btn primary` alone are complete buttons
  * (36 px ghost, 40 px primary). tokens.css adds the hover, press and focus states by role. `.btn:where(…)` weighs one
- * class: enough to follow tokens.css's `.btn { font: inherit; color: inherit }`, and no more, so a size class in a later
- * stylesheet (spoke-ghost, small-btn, rec-mark…) changes height, padding, radius or type without having to repeat the
- * fill and shadow. Before 2.3.1 every use needed such a class, and a bare `btn ghost` rendered as an unstyled grey
- * browser button (Review › Details › Move to folder…, the Recording session's Resume recording).
+ * class: enough to follow tokens.css's `.btn { font: inherit; color: inherit }`, and no more, so a screen's layout
+ * class (flex, margin, width) still applies. Before 2.3.1 every use needed a per-screen class, and a bare `btn ghost`
+ * rendered as an unstyled grey browser button (Review › Details › Move to folder…, the Recording session's Resume).
+ *
+ * One ghost recipe, sizes by role (DESIGN.md §2.3, 2.4.0): the 36 px default is the toolbar size (spoke headers,
+ * toolbars, Settings rows, standalone actions); `ghost-row` is 28 px for secondary actions inside a card or a list row;
+ * `ghost-main` is 32 px for the main action of a card or row (Restore a version, Add an agenda, Open an attachment);
+ * `ghost-stage` is 48 px on the Recording stage and the Library's centred states. No screen re-declares the fill,
+ * shadow, label colour or size of a ghost (tokenLint.test.ts fails on a per-screen ghost class).
  */
 .btn:where(.ghost) {
   height: 36px;
@@ -53,6 +58,35 @@ button:disabled {
   justify-content: center;
   gap: 6px;
   white-space: nowrap;
+}
+
+.btn:where(.ghost.ghost-row) {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.btn:where(.ghost.ghost-main) {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+.btn:where(.ghost.ghost-stage) {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 20px;
+  font-size: 15px;
+  gap: 10px;
+}
+
+/* A ghost that holds a state (aria-pressed: the Recording session's Details while its sheet is open) sinks, §2.5. One
+   class and an attribute, after tokens.css, so it also wins over `.ghost:hover`. */
+.ghost[aria-pressed='true'] {
+  box-shadow: var(--neo-in-xs);
+  color: var(--text);
 }
 
 .btn:where(.primary) {

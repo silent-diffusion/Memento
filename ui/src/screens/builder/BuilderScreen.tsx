@@ -547,10 +547,10 @@ export function BuilderScreen({ recordingId, templateId, documentId }: BuilderPr
       actions={
         <>
           <UndoButton />
-          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(); }}>
+          <button class="btn ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(); }}>
             Save template
           </button>
-          <button class="btn ghost spoke-ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(true); }}>
+          <button class="btn ghost" type="button" disabled={template === null || savingTemplate} onClick={() => { saveTemplate(true); }}>
             Save as new template
           </button>
           {recordingId === null ? null : (

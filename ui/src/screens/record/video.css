@@ -45,20 +45,9 @@
   min-width: 0;
 }
 
-.rec-pick,
-.rec-camera-select .chip-select {
-  height: 28px;
+/* The display, window and camera pickers are 28 px row ghosts (`ghost-row`) that shrink and cut their label. */
+.rec-pick-row .btn {
   max-width: 100%;
-  padding: 0 10px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   min-width: 0;
 }
 
@@ -67,10 +56,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.rec-pick:disabled {
-  cursor: default;
 }
 
 .rec-camera-select {

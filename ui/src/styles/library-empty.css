@@ -77,17 +77,6 @@
   height: 12px;
 }
 
-.import-media {
-  height: 48px;
-  padding: 0 20px;
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: var(--neo-sm);
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--text-2);
-}
-
 .feature-grid {
   margin: 0;
   padding: 0;

@@ -216,7 +216,7 @@ function GapNotice({ gap, action }: { gap: CoverageGap; action: GapAction | null
         {action === null ? ' Install another model in Settings › Transcription to transcribe it again.' : null}
       </span>
       {action === null ? null : (
-        <button class="btn ghost small-btn tx-gap-action" type="button" onClick={action.run}>
+        <button class="btn ghost tx-gap-action" type="button" onClick={action.run}>
           {action.label}
         </button>
       )}
@@ -752,7 +752,7 @@ export function TranscriptPane({
         </span>
         <h2 class="tx-empty-title">This recording is still in progress</h2>
         <p class="tx-empty-text">It opens here once it has stopped and its tracks are stored on this PC.</p>
-        <button class="btn ghost spoke-ghost" type="button" onClick={onBackToRecording}>
+        <button class="btn ghost" type="button" onClick={onBackToRecording}>
           Back to the recording
         </button>
       </div>
@@ -763,7 +763,7 @@ export function TranscriptPane({
         <p class="tx-empty-text" role="alert">
           {api.error}
         </p>
-        <button class="btn ghost spoke-ghost" type="button" onClick={api.reload}>
+        <button class="btn ghost" type="button" onClick={api.reload}>
           Try again
         </button>
       </div>
@@ -798,7 +798,7 @@ export function TranscriptPane({
           text="Transcription waits while the PC is busy and carries on by itself. Recording is never paused for it."
         >
           <button
-            class="btn ghost spoke-ghost"
+            class="btn ghost"
             type="button"
             onClick={() => {
               void api.resume().then((message) => {

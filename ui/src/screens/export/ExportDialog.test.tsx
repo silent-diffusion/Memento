@@ -37,7 +37,7 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
   const open = async (recordingId = DESIGN, mock = {}): Promise<void> => {
     h = await mountApp({ name: 'review', recordingId }, mock);
     await until(() => document.querySelector('.review-panes') !== null);
-    await click([...document.querySelectorAll<HTMLButtonElement>('.spoke-ghost')].find((b) => b.textContent.trim() === 'Export'));
+    await click([...document.querySelectorAll<HTMLButtonElement>('.btn.ghost')].find((b) => b.textContent.trim() === 'Export'));
     await until(() => document.querySelector('.export-dialog') !== null && !summary().includes('Estimating'));
   };
 
@@ -243,7 +243,7 @@ describe('Export copies (DESIGN.md §15, against the browser-preview host)', () 
 
       // Remembered for this user: the next dialog starts with them.
       await until(() => document.querySelector('.export-dialog') === null);
-      await click([...document.querySelectorAll<HTMLButtonElement>('.spoke-ghost')].find((b) => b.textContent.trim() === 'Export'));
+      await click([...document.querySelectorAll<HTMLButtonElement>('.btn.ghost')].find((b) => b.textContent.trim() === 'Export'));
       await until(() => document.querySelector('.export-dialog') !== null);
       expect(toggle('Timestamps')?.getAttribute('aria-checked')).toBe('false');
       expect(toggle('Speakers')?.getAttribute('aria-checked')).toBe('false');

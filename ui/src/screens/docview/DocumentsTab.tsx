@@ -139,7 +139,7 @@ export function DocumentsTab({ recordingId, onCreate }: { recordingId: string; o
         >
           Create document
         </button>
-        <button class="btn ghost docs-write" type="button" disabled={writing} onClick={write}>
+        <button class="btn ghost" type="button" disabled={writing} onClick={write}>
           Write a document
         </button>
       </div>

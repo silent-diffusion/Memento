@@ -58,6 +58,7 @@ export function WhoSpokeEditor({ value, onChange, participants, settingsDefault,
         </span>
         <SelectMenu
           label="How many people spoke"
+          size="main"
           value={value.count === null ? AUTO : String(value.count)}
           options={countOptions(settingsDefault)}
           onChange={(next) => {
