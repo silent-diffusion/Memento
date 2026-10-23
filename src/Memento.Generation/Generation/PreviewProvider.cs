@@ -13,6 +13,7 @@ internal sealed class PreviewProvider(ProviderStatus status) : IAiProvider
     {
         ProviderIds.Anthropic => EstimatingTokenCounter.Claude,
         ProviderIds.OpenAi => EstimatingTokenCounter.OpenAi,
+        ProviderIds.Server => EstimatingTokenCounter.Server,
         _ => EstimatingTokenCounter.Generic,
     };
 
@@ -20,11 +21,23 @@ internal sealed class PreviewProvider(ProviderStatus status) : IAiProvider
 
     public string DisplayName => status.Name;
 
-    public AiProviderKind Kind => status.IsCloud ? AiProviderKind.Cloud : AiProviderKind.Local;
+    public AiProviderKind Kind => status.Id switch
+    {
+        ProviderIds.Local => AiProviderKind.Local,
+        ProviderIds.Server => AiProviderKind.Server,
+        _ => AiProviderKind.Cloud,
+    };
 
-    public string Model => status.Model ?? string.Empty;
+    /// <summary>The model; for "Your own server" with its address ("qwen3:8b at localhost:11434"), as the preview names it.</summary>
+    public string Model => status.IsServer ? status.ModelLabel ?? string.Empty : status.Model ?? string.Empty;
 
-    public AiCapabilities Capabilities { get; } = new(status.Plan?.ContextTokens ?? status.Cloud?.ContextTokens ?? 1_000_000, 8000, true, !status.IsCloud, true, false);
+    public AiCapabilities Capabilities { get; } = new(
+        status.Plan?.ContextTokens ?? (status.IsServer ? status.ServerContextTokens : status.Cloud?.ContextTokens) ?? 1_000_000,
+        8000,
+        true,
+        status.Id == ProviderIds.Local,
+        true,
+        false);
 
     public int CountTokens(string text) => _counter.Count(text);
 

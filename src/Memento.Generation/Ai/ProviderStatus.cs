@@ -1,6 +1,7 @@
 using Memento.AI.Local;
 using Memento.Core.Ai;
 using Memento.Core.Bridge.Contracts;
+using Memento.Core.Settings;
 
 namespace Memento.Generation.Ai;
 
@@ -8,11 +9,11 @@ namespace Memento.Generation.Ai;
 /// Whether a provider could run a generation now, worked out from Settings, the key store, the model manager and the free
 /// video memory only (no provider is constructed and nothing is sent), and the budgets the pipeline uses with it.
 /// </summary>
-/// <param name="Code">Why not: <c>ai.disabled</c>, <c>ai.noKey</c>, <c>ai.modelNotInstalled</c>, <c>ai.notEnoughVram</c>.</param>
+/// <param name="Code">Why not: <c>ai.disabled</c>, <c>ai.noKey</c>, <c>ai.modelNotInstalled</c>, <c>ai.notEnoughVram</c>; for "Your own server" <c>ai.noServer</c>, <c>ai.serverInsecure</c>, <c>ai.noModel</c>.</param>
 /// <param name="Reason">The short card text ("External AI is off", "No key saved", "Model not installed").</param>
 /// <param name="Detail">The full sentence (DESIGN.md §17), or a note when ready.</param>
 /// <param name="Model">The cloud model id, or the local catalog id.</param>
-/// <param name="ModelLabel">"claude-opus-5-5", "Qwen3.5 4B · graphics card".</param>
+/// <param name="ModelLabel">"claude-opus-5-5", "Qwen3.5 4B · graphics card", "qwen3:8b at localhost:11434".</param>
 /// <param name="Plan">Local only: how the model would be loaded now.</param>
 public sealed record ProviderStatus(
     string Id,
@@ -28,7 +29,33 @@ public sealed record ProviderStatus(
 {
     public string Name => ProviderIds.DisplayName(Id);
 
+    /// <summary>Claude or ChatGPT (a model from Memento's list, a cloud HTTP client). Consent is keyed on <see cref="LeavesPc"/>, not on this.</summary>
     public bool IsCloud => ProviderIds.IsCloud(Id);
+
+    /// <summary>"Your own server" (2.5.0).</summary>
+    public bool IsServer => Id == ProviderIds.Server;
+
+    /// <summary>The bridge's <c>kind</c>: <c>cloud</c>, <c>server</c> or <c>local</c>.</summary>
+    public string Kind => ProviderIds.Kind(Id);
+
+    /// <summary>
+    /// A generation with this provider takes the inputs off this PC: Claude and ChatGPT always, the local model never,
+    /// "Your own server" unless its address is this PC (2.5.0). Every consent and "nothing leaves the PC" decision keys on
+    /// this: "Allow external AI services", "Ask before every send", the share switches, the preview's "stays on this PC"
+    /// and the record's <c>stayedOnPc</c>.
+    /// </summary>
+    public bool LeavesPc => Id switch
+    {
+        ProviderIds.Local => false,
+        ProviderIds.Server => ServerAddress?.LeavesPc ?? false,
+        _ => true,
+    };
+
+    /// <summary>"Your own server" only: the address from Settings, parsed; <c>null</c> when none is set.</summary>
+    public ServerAddress? ServerAddress { get; init; }
+
+    /// <summary>"Your own server" only: the context the server runs the model with (Settings).</summary>
+    public int ServerContextTokens { get; init; } = AiServerSettings.DefaultContextTokens;
 
     /// <summary>Local only: the discrete card's memory and who holds it, when there is a card.</summary>
     public GpuMemoryInfo? GpuMemory { get; init; }
@@ -57,8 +84,13 @@ public sealed record ProviderStatus(
     /// </summary>
     public int ChunkTokens => LocalModel is { } entry && Plan is { } plan
         ? Math.Max(256, entry.Llm.ChunkTokens * plan.ContextTokens / Math.Max(1, entry.Llm.ContextTokens))
-        : Math.Max(256, Math.Min(CloudChunkTokens, (Cloud?.ContextTokens ?? int.MaxValue) / 4));
+        : Math.Max(256, Math.Min(CloudChunkTokens, (IsServer ? ServerContextTokens : Cloud?.ContextTokens ?? int.MaxValue) / 4));
 
-    /// <summary>The answer limit of a map request: about a quarter of a local context, at most 1,400 tokens (the spike's).</summary>
-    public int MapOutputTokens => Plan is { } plan ? Math.Min(1400, plan.ContextTokens / 4) : 8000;
+    /// <summary>
+    /// The answer limit of a map request: about a quarter of a local context, at most 1,400 tokens (the spike's); for "Your
+    /// own server" a quarter of its context (at most 8,000), so a chunk, the instructions and the answer fit together.
+    /// </summary>
+    public int MapOutputTokens => Plan is { } plan ? Math.Min(1400, plan.ContextTokens / 4)
+        : IsServer ? Math.Min(8000, Math.Max(512, ServerContextTokens / 4))
+        : 8000;
 }

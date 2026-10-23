@@ -29,7 +29,8 @@ public static class M4ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<ISecretReader>(sp => new SecretStoreReader(sp.GetRequiredService<ISecretStore>()));
 
-        // The HTTP client is created on the first cloud generation only; the local model never touches it.
+        // The HTTP client is created on the first generation that sends (or the first server test) only; the local model
+        // never touches it.
         services.TryAddSingleton<AiHttpClient>();
         services.TryAddSingleton(sp => new Lazy<AiHttpClient>(sp.GetRequiredService<AiHttpClient>));
         services.TryAddSingleton<IAiProviderFactory, AiProviderFactory>();
@@ -64,6 +65,7 @@ public static class M4ServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, StylesResetBuiltInMethod>();
         services.AddSingleton<IBridgeHandler, StylesSampleHtmlMethod>();
         services.AddSingleton<IBridgeHandler, ProvidersListMethod>();
+        services.AddSingleton<IBridgeHandler, AiServerProbeMethod>();
         services.AddSingleton<IBridgeHandler, GenerationPreviewMethod>();
         services.AddSingleton<IBridgeHandler, GenerationCopyPreviewMethod>();
         services.AddSingleton<IBridgeHandler, GenerationPreviewHtmlMethod>();

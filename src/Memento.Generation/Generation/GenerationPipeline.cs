@@ -42,7 +42,9 @@ public sealed class GenerationPipeline(ModuleCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(input);
         var warnings = new List<string>();
-        await using var runner = new RequestRunner(input.Provider, observer: input.OnResponse, output: input.Output);
+        // "Your own server" gets one request at a time: many such servers run one slot (llama.cpp's default, Ollama on a
+        // small card), and requests queued behind others would run into the wait for an answer.
+        await using var runner = new RequestRunner(input.Provider, cloudParallelism: input.Provider.Kind == AiProviderKind.Server ? 1 : 3, observer: input.OnResponse, output: input.Output);
         var transcript = new TranscriptIndex(input.Payload.TranscriptLines);
         var clock = Stopwatch.StartNew();
         Report(progress, "composing", null, 2, "Preparing the inputs");

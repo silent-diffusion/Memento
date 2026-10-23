@@ -1,6 +1,11 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text.Json;
 using Memento.AI;
+using Memento.AI.Http;
+using Memento.AI.Server;
+using Memento.AI.Tests.Fakes;
+using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Export;
 using Memento.Core.Host;
@@ -19,6 +24,7 @@ using Memento.Generation.Tests.Support;
 using Memento.Transcription.Live;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging.Abstractions;
 using static Memento.Core.Tests.Fakes.TestRecordings;
 using static Memento.Core.Tests.Fakes.TranscriptFixtures;
 
@@ -169,11 +175,85 @@ public sealed class NetworkSilence20Tests : IDisposable
         Assert.False((await host.Settings.LoadAsync(CancellationToken.None)).Ai.Enabled);
         Assert.Equal(0, _providers.CloudCreated);
 
+        // 2.5.0: "Your own server" without an address is listed, not ready, and never built or contacted.
+        var server = (await ResultAsync("providers.list", new { })).GetProperty("providers").EnumerateArray().Single(p => p.GetProperty("id").GetString() == "server");
+        Assert.Equal(DomainErrorCodes.AiNoServer, server.GetProperty("code").GetString());
+        Assert.Equal(0, _providers.ServerCreated);
+        Assert.Empty(_spy.Events);
+
         // Audio and video never leave: nothing of the video is in a request, the preview or a copied preview.
         var provider = Assert.IsType<MeetingProvider>(_providers.Last);
         var sent = string.Join("\n", provider.Requests.Select(AiRequestText.Render)) + preview.GetRawText() + string.Join("\n", _clipboard.Copies.Select(c => c.Text + c.Html));
         Assert.NotEmpty(provider.Requests);
         Assert.All(VideoMarks, mark => Assert.DoesNotContain(mark, sent, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 2.5.0: with "Your own server" configured at a loopback address (external AI off), a generation sends exactly one
+    /// request per pass to that address (the Live output's requests, one for one) and contacts nothing else: no other
+    /// request, no other connect, no name lookup. The server is a fake Ollama on 127.0.0.1 answering for the synthetic
+    /// meeting; the provider is the real one over the shared client.
+    /// </summary>
+    [Fact]
+    public async Task AServerOnThisPcGetsExactlyOneRequestPerPassAndNothingElseIsContacted()
+    {
+        using var server = new FakeOpenAiCompatibleServer(ServerPersonality.Ollama) { Answer = MeetingAnswer };
+        using var http = new AiHttpClient();
+        _providers.MakeServer = options => new ServerProvider(http.Client, _host.Get<ISecretReader>(), options, NullLogger<ServerProvider>.Instance);
+        var id = await MeetingAsync();
+        await ResultAsync("settings.set", new { ai = new { providers = new { server = new { address = server.Address, model = "qwen3:8b", contextTokens = 32768 } } } });
+        var template = System.Text.Json.Nodes.JsonNode.Parse((await ResultAsync("templates.get", new { templateId = "meeting-minutes" })).GetRawText())!;
+        template["providerId"] = "server";
+        Assert.Empty(_spy.Events);
+
+        var start = await ResultAsync("generation.start", new { recordingId = id, template });
+        Assert.False(start.GetProperty("confirmationRequired").GetBoolean());
+        await FinishedAsync(start.GetProperty("jobId").GetString()!);
+
+        var passes = _host.Sink.Payloads(Memento.Core.Bridge.BridgeEventNames.GenerationOutput).Count(e => e.GetProperty("kind").GetString() == "request");
+        Assert.True(passes > 1);
+        Assert.Equal(passes, server.Requests.Count);
+        Assert.All(server.Requests, r => Assert.Equal(("POST", "/v1/chat/completions"), (r.Method, r.Path)));
+        var events = _spy.Events;
+        Assert.Equal(passes, events.Count(e => e.StartsWith("http ", StringComparison.Ordinal)));
+        Assert.All(events.Where(e => e.StartsWith("http ", StringComparison.Ordinal)), e => Assert.Equal($"http POST {server.Address}/v1/chat/completions", e));
+        Assert.All(events.Where(e => !e.StartsWith("http ", StringComparison.Ordinal)), e => Assert.Equal(string.Create(CultureInfo.InvariantCulture, $"connect 127.0.0.1:{server.Port}"), e));
+        Assert.DoesNotContain(events, e => e.StartsWith("resolve ", StringComparison.Ordinal));
+        Assert.Equal(1, _providers.ServerCreated);
+        Assert.Equal(0, _providers.CloudCreated);
+        Assert.False((await _host.Settings.LoadAsync(CancellationToken.None)).Ai.Enabled);
+    }
+
+    /// <summary>The synthetic meeting's stand-in, answering the request the fake server was sent (its schema name says which pass it is).</summary>
+    private static string MeetingAnswer(JsonElement body)
+    {
+        var messages = body.GetProperty("messages").EnumerateArray().ToList();
+        var schema = body.TryGetProperty("response_format", out var format) && format.TryGetProperty("json_schema", out var named) ? named.GetProperty("name").GetString() : null;
+        var purpose = schema switch
+        {
+            "verdicts" => "verify.batch",
+            "verdict" => "verify.claim",
+            null => "verify.claim",
+            _ => "map." + schema,
+        };
+        var request = new AiRequest
+        {
+            Purpose = purpose,
+            System = messages[0].GetProperty("content").GetString()!,
+            Messages = [AiMessage.User(messages[^1].GetProperty("content").GetString()!)],
+        };
+        return new MeetingProvider(AiProviderKind.Server).GenerateAsync(request, null, CancellationToken.None).GetAwaiter().GetResult().Text;
+    }
+
+    /// <summary>The synthetic meeting stored as a recording with its transcript (as M4Host does).</summary>
+    private async Task<string> MeetingAsync()
+    {
+        var source = SyntheticMeeting.Manifest();
+        var created = await _host.Store.CreateAsync(new Memento.Core.Projects.ProjectCreateRequest(source.Details.Title, "meeting", source.CreatedAt, Memento.Core.Projects.ProjectStates.Ready), CancellationToken.None);
+        var manifest = await _host.Store.UpdateAsync(created.Id, m => m with { State = Memento.Core.Projects.ProjectStates.Ready, DurationMs = source.DurationMs, Details = source.Details }, CancellationToken.None);
+        await _host.Index.UpsertAsync(manifest, CancellationToken.None);
+        await _host.Transcripts.UpdateAsync(created.Id, TranscriptChangeReasons.Transcribed, new HistorySettings(), _ => SyntheticMeeting.Transcript(), CancellationToken.None);
+        return created.Id;
     }
 
     private Task<JsonElement> ResultAsync(string method, object parameters) => _host.ResultAsync(method, JsonSerializer.Serialize(parameters, Web));

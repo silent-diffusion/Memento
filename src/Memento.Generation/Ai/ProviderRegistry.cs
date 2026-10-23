@@ -1,7 +1,9 @@
 using System.Globalization;
 using Memento.AI;
 using Memento.AI.Local;
+using Memento.AI.Server;
 using Memento.Core.Ai;
+using Memento.Core.Bridge;
 using Memento.Core.Bridge.Contracts;
 using Memento.Core.Engines;
 using Memento.Core.Formatting;
@@ -11,8 +13,9 @@ using Memento.Core.Settings;
 namespace Memento.Generation.Ai;
 
 /// <summary>
-/// The three providers (ARCHITECTURE.md §8): Claude and ChatGPT with keys from the DPAPI store and the model from
-/// Settings, and the local model from the catalog run in Memento.Worker. Readiness (<c>providers.list</c>) is worked out
+/// The four providers (ARCHITECTURE.md §8): Claude and ChatGPT with keys from the DPAPI store and the model from
+/// Settings, "Your own server" at the address, model and context from Settings (2.5.0), and the local model from the
+/// catalog run in Memento.Worker. Readiness (<c>providers.list</c>) is worked out
 /// without constructing a provider: external AI allowed and a key saved for the cloud ones; for the local one, an
 /// installed model (<see cref="LocalModelChoice.EffectiveId"/>), so Local is ready whenever any local model is installed.
 /// A graphics-card model without room on the card gives way to an installed processor model, or else runs on the
@@ -51,7 +54,19 @@ public sealed class ProviderRegistry(
     public ProviderStatus Status(string id) => id switch
     {
         ProviderIds.Local => LocalStatus(),
+        ProviderIds.Server => ServerStatus(),
         _ => CloudStatus(id),
+    };
+
+    /// <summary>
+    /// Whether a generation with <paramref name="id"/> would take the inputs off this PC, from Settings alone (no provider,
+    /// no file read, no lookup): the privacy check that comes before anything else in <c>generation.start</c>.
+    /// </summary>
+    public bool LeavesPc(string id) => id switch
+    {
+        ProviderIds.Local => false,
+        ProviderIds.Server => settings.Current.Ai.Server.ParsedAddress()?.LeavesPc ?? false,
+        _ => true,
     };
 
     /// <summary>Constructs the provider for a generation. Only call it with a ready status.</summary>
@@ -66,6 +81,11 @@ public sealed class ProviderRegistry(
         if (status.IsCloud)
         {
             return factory.CreateCloud(status.Id, status.Model!);
+        }
+
+        if (status.IsServer)
+        {
+            return factory.CreateServer(new ServerOptions(status.ServerAddress!, status.Model!, status.ServerContextTokens));
         }
 
         var plan = status.Plan!;
@@ -108,6 +128,68 @@ public sealed class ProviderRegistry(
 
         var status = new ProviderStatus(id, true, null, null, null, model, model) { Cloud = cloud };
         return status with { Detail = CloudDetail(name, cloud, status.ChunkTokens) };
+    }
+
+    /// <summary>
+    /// "Your own server" (2.5.0), from Settings only (no request, no lookup): no address is <c>ai.noServer</c>; an address
+    /// that leaves the PC while external AI is off is <c>ai.disabled</c>; plain http outside this PC and the local network is
+    /// <c>ai.serverInsecure</c>; no model is <c>ai.noModel</c>. A ready server names the model, the address and where the
+    /// inputs go. Whether the server answers is "Test connection"'s to say, or the generation's.
+    /// </summary>
+    private ProviderStatus ServerStatus()
+    {
+        const string Id = ProviderIds.Server;
+        var name = ProviderIds.DisplayName(Id);
+        var server = settings.Current.Ai.Server;
+        var address = server.ParsedAddress();
+        var model = server.Model;
+        var context = AiServerSettings.ClampContext(server.ContextTokens);
+        if (address is null)
+        {
+            return new ProviderStatus(Id, false, DomainErrorCodes.AiNoServer, "No server address",
+                "No server address is set, so nothing is sent to Your own server. Enter the address of Ollama, LM Studio or another OpenAI-compatible server in Settings › AI and privacy.", model, null)
+            {
+                ServerContextTokens = context,
+            };
+        }
+
+        var label = model is null ? address.HostAndPort : $"{model} at {address.HostAndPort}";
+        ProviderStatus Status(bool ready, string? code, string? reason, string? detail) =>
+            new(Id, ready, code, reason, detail, model, label) { ServerAddress = address, ServerContextTokens = context };
+
+        if (address.LeavesPc && !settings.Current.Ai.Enabled)
+        {
+            return Status(false, Core.Bridge.DomainErrorCodes.AiDisabled, "External AI is off",
+                $"The server at {address.Text} is not on this PC, so with external AI off nothing is sent to it. Turn on \"Allow external AI services\" in Settings › AI and privacy, or use a server on this PC.");
+        }
+
+        if (address.IsInsecure)
+        {
+            return Status(false, DomainErrorCodes.AiServerInsecure, "Needs https", AiErrors.ServerInsecure(name, address.Text).Message);
+        }
+
+        if (model is null)
+        {
+            return Status(false, DomainErrorCodes.AiNoModel, "No model chosen",
+                $"No model is chosen for the server at {address.Text}, so nothing is sent to it. Choose one in Settings › AI and privacy (Test connection lists the server's models).");
+        }
+
+        var status = Status(true, null, null, null);
+        return status with { Detail = ServerDetail(address, model, context, status.ChunkTokens) };
+    }
+
+    /// <summary>The ready card's note for "Your own server": where the inputs go, the context Memento assumes, and the split.</summary>
+    internal static string ServerDetail(ServerAddress address, string model, int contextTokens, int chunkTokens)
+    {
+        var where = address.Zone switch
+        {
+            ServerZone.ThisPc => "The server runs on this PC, so nothing leaves it.",
+            ServerZone.Network => "The server is on your network, so the inputs leave this PC.",
+            _ => "The server is outside your network, so the inputs leave this PC.",
+        };
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Sends the ticked inputs to {model} at {address.Text} when you press Generate. {where} Memento assumes the server gives the model {contextTokens:N0} tokens of context, as set in Settings (Ollama gives 4,096 unless num_ctx was raised); a long transcript is split into segments of up to {chunkTokens:N0} tokens.");
     }
 
     /// <summary>
