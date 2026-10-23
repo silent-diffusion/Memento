@@ -166,6 +166,7 @@ public static class BridgeMethodNames
 
     // 2.6.0 Review: speakers you can fix fast.
     public const string TranscriptSwapSpeakers = "transcript.swapSpeakers";
+    public const string TranscriptSameVoice = "transcript.sameVoice";
 
     // 2.0 video.
     public const string VideoListSources = "video.listSources";

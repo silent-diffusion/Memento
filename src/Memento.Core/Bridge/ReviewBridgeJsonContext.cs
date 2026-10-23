@@ -28,6 +28,8 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(TranscriptSetSegmentsSpeakerParams))]
 [JsonSerializable(typeof(SegmentsSpeakersResult))]
 [JsonSerializable(typeof(TranscriptSwapSpeakersParams))]
+[JsonSerializable(typeof(TranscriptSameVoiceParams))]
+[JsonSerializable(typeof(TranscriptSameVoiceResult))]
 public sealed partial class ReviewBridgeJsonContext : JsonSerializerContext
 {
 }
