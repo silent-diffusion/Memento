@@ -15,6 +15,7 @@ Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speak
 ### Fewer wrong speakers
 
 - **Lines are cut where the speaker changes.** A transcript line that held two people's words ("Yeah. — So what I think is…") used to go whole to whoever talked longest in it. A fresh transcript's lines are now cut at the word where the diarizer hears the voice change, so each part gets its own speaker; a part is never shorter than two words and half a second, the first part keeps the line's id, and a line you edited, or a transcript whose speakers were identified before, is never cut (highlights, chapters and documents point at lines by id). History says "12 lines split where the speaker changes". Settings › Speakers › **Split lines where the speaker changes** turns it off for new transcripts.
+- **Your corrections guide the next pass.** A line you place on a speaker (from its menu, a selection, or a swap) is remembered as yours. **Identify speakers again** keeps those lines where you put them, and the voices under them are pinned to those people: voices you pinned to one person are joined first, no grouping ever puts two of your people together (even when the count asks for fewer), and a person you named keeps the name. So one corrected line per voice fixes every other line of that voice. History says "9 corrected lines kept, 3 voices pinned".
 
 ## 2.5.0
 
