@@ -1296,3 +1296,12 @@ interface AiServerProbeResult {
 ```
 
 Serialized examples (pinned by `ServerSettingsBridgeTests` and `ServerProviderBridgeTests`): `settings.get` with nothing set gives `"server":{"hasKey":false,"address":null,"model":null,"contextTokens":8192,"loopback":false,"leavesPc":false,"insecure":false}`; a probe of a fake Ollama gives `{"reachable":true,"serverName":"Ollama 0.12.3","code":null,"detail":"Connected to Ollama 0.12.3 at http://127.0.0.1:50123: 2 models. It runs on this PC, so nothing leaves it.","loopback":true,"leavesPc":false,"insecure":false,"models":["llama3.2:3b","qwen3:8b"]}`.
+
+## Speakers you can fix fast (2.6.0)
+
+Review's speaker menu gained ways to correct a whole section at once (ROADMAP.md 2.6.0). This turn and From here on use `transcript.setSegmentsSpeaker`; the swap is one new method. `METHOD_NAMES` gains `'transcript.swapSpeakers'`.
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `transcript.swapSpeakers` | `{ recordingId, speakerId, otherSpeakerId, fromSegmentId?: string \| null }` | `{ segments: TranscriptSegment[], speakers: Speaker[] }` | Two speakers trade their lines in one write: every line of `speakerId` takes `otherSpeakerId` and the other way round, from `fromSegmentId` (inclusive, in transcript order) to the end, or everywhere when it is missing or `null`. The lines moved get `speakerConfidence` 1 (the user placed them); names, ids and colours do not change; talk times are recomputed. `segments` are the lines changed, in transcript order; when no line changes nothing is written and `segments` is empty. The same call again puts the lines back, so Review's Undo and Redo both call it (with Remember speakers by voice on, Review then calls `voices.remember` for each named speaker and `voices.revert` on Undo). Both speakers must exist (`transcript.speakerNotFound`, `detail` the id) and differ (`bridge.invalidParams`: "Choose two different speakers."); a `fromSegmentId` the transcript does not have is `transcript.segmentNotFound` (`detail` the id); nothing changes on any refusal. History: "Speakers swapped" with "Ana and Ben · 41 lines" or "Ana and Ben from 12:30 · 38 lines". |
+
