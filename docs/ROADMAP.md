@@ -161,6 +161,14 @@ Built 2026-10-10 from six branches merged into `main` (the video spike and captu
 
 **Not in 2.0** (moved to 2.x): in the Library, selecting recordings for bulk export, change type, Remove video or delete, and the row and card context menu (DESIGN.md §19 designs both; Review has selection and a line menu); layouts below 1024 px beyond Review's stacked panes; additional AI providers behind the same interface.
 
+## 2.1.0 → 2.3.1 — Done
+
+Volume normalization and the quiet microphone (2.1.0, 2.1.1 and 2.1.2 for the settings defaults), the model behind Claude or ChatGPT (2.2.0), the larger local models with the memory planner (2.3.0), and the theme and navigation review with its fixes (2.3.1, [`audits/USABILITY-REVIEW-2026-10-22.md`](audits/USABILITY-REVIEW-2026-10-22.md)). Each is described in `build/RELEASE-NOTES.md`.
+
+## 2.4.0 — Hardening — Done
+
+The review's remaining recommendations (R1 ask before Back drops template changes, R5 one ghost recipe in three sizes, R6 the contrast tokens) and the quick items from audit 2's §9: NuGet lockfiles with locked restores, GitHub Actions and the SDK pinned, catalog downloads pinned to commits, a default and a load-time repair for every file and bridge schema collection, and the worker's native import scan. What was closed and what remains is in the two audit documents' follow-up sections. Still for audit 3: the library host narrowing (SA-02, SA2-11, SA2-10), Media Foundation in the worker (SA-59, SA2-53), the netwatch re-run and the `ocr` child-process restriction (SA2-23, SA2-22), Tesseract ≥ 5.5.3 when a build exists (SA2-24).
+
 ## 2.x — candidates
 
 - The Library's selection mode and context menu (DESIGN.md §19), and small-window layouts below 1024 px (§20).

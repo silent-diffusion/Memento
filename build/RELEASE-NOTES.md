@@ -3,6 +3,25 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.4.0
+
+A hardening release: the rest of the 2026-10-22 usability review's recommendations, and the quick items from security audit 2's follow-up list. No new screens.
+
+### Buttons and the Builder
+
+- **One ghost button recipe, three sizes.** Twenty per-screen button classes that each re-drew the ghost recipe at their own height are gone. Every ghost button now takes the base recipe at 36 px, or one of three documented sizes by role: 28 px inside a list row, 32 px for the main action of a card, 48 px on the Recording stage and the Library's centred states. The buttons that sat below the design's minimum are lifted: Restore a version (26 and 30 → 32 px), Accept and Dismiss a suggestion (28 → 32), Open an attachment (28 → 32), Show video (30 → 32), and the 34 px buttons and value selects in Settings, the model cards, About and the template chooser (→ 36). A test now fails if a screen declares its own ghost recipe again.
+- **The contrast corrections are design tokens.** The `text-3` and `on-accent` colours the review corrected lived as an override in the app's stylesheet; they are now in `design/tokens.css` with their measured ratios, so the design tokens and the shipped app agree.
+- **The Builder asks before Back drops template changes.** With unsaved changes to a template's structure or name, every way back (the back control, Esc, Alt+←, Browser Back, the mouse's back button) asks "Leave without saving the template?" with Keep editing, Save template and Leave without saving, as the Style editor already did. Without changes Back goes straight back. Esc works in the Builder again now that it asks.
+
+### Supply chain and file safety
+
+- **Locked dependencies.** Every project commits a NuGet lockfile and CI restores in locked mode, so a build uses exactly the packages that were reviewed. Every GitHub Action in the workflows is pinned to a commit, with the release tag beside it, and CI builds with one named .NET SDK (8.0.426) instead of "the latest 8.0".
+- **Pinned model downloads.** The ten catalog entries that pointed at a repository's `main` branch now point at a commit, so an upstream re-upload cannot make an install fail its hash check; sizes and SHA-256 are unchanged, and a catalog entry with a moving revision is refused from now on. The two speaker models are GitHub release assets and keep relying on their size and hash.
+- **Every file Memento reads keeps its defaults.** A probe over every settings, project, transcript, document, template, style, catalog, export and video file schema found 100 list or object fields in 75 types that read as empty-nothing when the field was missing, and 77 defaults that were lost the same way (the fault behind the 2.1.1 and 2.1.2 settings fixes). Every field now has its default, a null in a file is repaired to it on load, a null the page sends to the host is refused by name, and a reflection test fails the build if a future field forgets its default. A transcript version without its transcript and a voices file without its clusters are still refused by name rather than guessed at.
+- **The worker's native libraries are scanned too.** The import scan that covers the engines' DLLs now also covers Tesseract and Leptonica in the worker, with the one accepted exception (Tesseract's debug viewer socket client) stated in the test.
+- **Tesseract 5.5.3 is not yet available** as a NuGet build; the check date is recorded and the hash-pinned language data remains the mitigation. See `docs/audits/SECURITY-AUDIT-2026-10-11.md` §10 and `docs/audits/USABILITY-REVIEW-2026-10-22.md` for what was closed and what remains.
+
+
 ## 2.3.1
 
 A review of how the screens look and how you move between them (docs/audits/USABILITY-REVIEW-2026-10-22.md), with every clear-cut finding fixed. Nothing moved; things now behave as the design always said.
