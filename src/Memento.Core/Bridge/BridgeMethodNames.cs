@@ -168,6 +168,8 @@ public static class BridgeMethodNames
     public const string TranscriptSwapSpeakers = "transcript.swapSpeakers";
     public const string TranscriptSameVoice = "transcript.sameVoice";
     public const string TranscriptSplitSpeaker = "transcript.splitSpeaker";
+    public const string TranscriptSplitSegment = "transcript.splitSegment";
+    public const string TranscriptJoinSegments = "transcript.joinSegments";
 
     // 2.0 video.
     public const string VideoListSources = "video.listSources";

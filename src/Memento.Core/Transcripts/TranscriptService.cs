@@ -472,6 +472,140 @@ public sealed partial class TranscriptService(
         return new SplitSpeakerResult(saved!.Speakers, saved.Speakers.First(s => s.Id == created.Id), split.SegmentIds);
     }
 
+    /// <summary>
+    /// <c>transcript.splitSegment</c> (2.6.0): one line cut in two at the word nearest <paramref name="at"/>
+    /// (<see cref="SegmentSplitter"/>), in one write; the first part keeps the id. A voice in <c>voices.json</c> that holds
+    /// the line holds both parts afterwards, so "the lines that sound the same" still covers them. Highlights and chapters
+    /// keep pointing at the first part. <c>bridge.invalidParams</c> when the cut is outside the words or a part would be
+    /// left without one.
+    /// </summary>
+    public async Task<SplitSegmentResult> SplitSegmentAsync(string recordingId, string segmentId, int at, CancellationToken cancellationToken)
+    {
+        TranscriptSegment? first = null;
+        TranscriptSegment? second = null;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                var segment = FindSegment(t, segmentId);
+                var taken = t.Segments.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+                var cut = SegmentSplitter.Cut(segment, at, taken);
+                if (cut.Refusal is { } why)
+                {
+                    throw Invalid(why);
+                }
+
+                first = cut.First!;
+                second = cut.Second!;
+                var segments = new List<TranscriptSegment>(t.Segments.Count + 1);
+                foreach (var line in t.Segments)
+                {
+                    if (line.Id == segment.Id)
+                    {
+                        segments.Add(first);
+                        segments.Add(second);
+                    }
+                    else
+                    {
+                        segments.Add(line);
+                    }
+                }
+
+                return t with { Segments = segments, Speakers = TranscriptSpeakers.WithTalkTime(t.Speakers, segments) };
+            },
+            cancellationToken);
+        await ShareVoiceAsync(recordingId, first!.Id, second!.Id, cancellationToken);
+        await HistoryAsync(
+            recordingId,
+            "Line split",
+            string.Create(CultureInfo.InvariantCulture, $"at {HumanFormat.Clock((long)(first.Start * 1000))} · \"{Tail(first.Text)}\" | \"{Head(second.Text)}\""),
+            cancellationToken);
+        return new SplitSegmentResult([first, second], saved!.Speakers);
+    }
+
+    /// <summary>
+    /// <c>transcript.joinSegments</c> (2.6.0): the line joined with the next line of its track (<see cref="SegmentJoiner"/>),
+    /// in one write; the Undo of a split. A highlight on the line that is gone moves to the joined line, and the voices in
+    /// <c>voices.json</c> forget the gone id. <c>transcript.cannotJoin</c> (the line's id as <c>detail</c>) when there is no
+    /// next line or it is on another track.
+    /// </summary>
+    public async Task<JoinSegmentsResult> JoinSegmentsAsync(string recordingId, string segmentId, CancellationToken cancellationToken)
+    {
+        SegmentJoiner.Result? join = null;
+        var saved = await WriteAsync(
+            recordingId,
+            TranscriptChangeReasons.Edited,
+            t =>
+            {
+                var segment = FindSegment(t, segmentId);
+                join = SegmentJoiner.Join(t.Segments, segment.Id, time.GetLocalNow());
+                if (join.Refusal is { } why)
+                {
+                    throw new BridgeException(DomainErrorCodes.TranscriptCannotJoin, why + " Nothing was changed.", segment.Id);
+                }
+
+                return t with { Segments = join.Segments!, Speakers = TranscriptSpeakers.WithTalkTime(t.Speakers, join.Segments!) };
+            },
+            cancellationToken);
+        var joined = join!.Joined!;
+        var removed = join.RemovedId!;
+        var annotations = await store.LoadAnnotationsAsync(recordingId, cancellationToken);
+        if (annotations.Highlights.Any(h => h.SegmentId == removed))
+        {
+            annotations = await store.UpdateAnnotationsAsync(
+                recordingId,
+                d => d with { Highlights = d.Highlights.Select(h => h.SegmentId == removed ? h with { SegmentId = joined.Id } : h).ToList() },
+                cancellationToken);
+        }
+
+        await ForgetVoiceLineAsync(recordingId, removed, cancellationToken);
+        await HistoryAsync(recordingId, "Lines joined", string.Create(CultureInfo.InvariantCulture, $"at {HumanFormat.Clock((long)(joined.Start * 1000))}"), cancellationToken);
+        return new JoinSegmentsResult(joined, saved!.Speakers, removed, annotations.Highlights);
+    }
+
+    /// <summary>A voice that holds <paramref name="segmentId"/> holds <paramref name="newId"/> too, right after it.</summary>
+    private async Task ShareVoiceAsync(string recordingId, string segmentId, string newId, CancellationToken cancellationToken)
+    {
+        var voices = await Transcripts.LoadVoicesAsync(recordingId, cancellationToken);
+        if (voices is null || !voices.Clusters.Any(c => c.SegmentIds.Contains(segmentId)))
+        {
+            return;
+        }
+
+        var clusters = voices.Clusters
+            .Select(c => c.SegmentIds.Contains(segmentId) ? c with { SegmentIds = c.SegmentIds.SelectMany(id => id == segmentId ? new[] { id, newId } : new[] { id }).ToList() } : c)
+            .ToList();
+        await Transcripts.SaveVoicesAsync(recordingId, voices with { Clusters = clusters }, cancellationToken);
+    }
+
+    /// <summary>The voices forget a line that is gone.</summary>
+    private async Task ForgetVoiceLineAsync(string recordingId, string segmentId, CancellationToken cancellationToken)
+    {
+        var voices = await Transcripts.LoadVoicesAsync(recordingId, cancellationToken);
+        if (voices is null || !voices.Clusters.Any(c => c.SegmentIds.Contains(segmentId)))
+        {
+            return;
+        }
+
+        var clusters = voices.Clusters.Select(c => c.SegmentIds.Contains(segmentId) ? c with { SegmentIds = c.SegmentIds.Where(id => id != segmentId).ToList() } : c).ToList();
+        await Transcripts.SaveVoicesAsync(recordingId, voices with { Clusters = clusters }, cancellationToken);
+    }
+
+    /// <summary>The last three words of a text, with an ellipsis before them when there are more.</summary>
+    private static string Tail(string text)
+    {
+        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return words.Length <= 3 ? string.Join(' ', words) : "…" + string.Join(' ', words[^3..]);
+    }
+
+    /// <summary>The first three words of a text, with an ellipsis after them when there are more.</summary>
+    private static string Head(string text)
+    {
+        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return words.Length <= 3 ? string.Join(' ', words) : string.Join(' ', words[..3]) + "…";
+    }
+
     /// <summary><c>transcript.removeSpeaker</c> (Undo of adding one): removes a speaker no line is assigned to.</summary>
     public async Task<IReadOnlyList<Speaker>> RemoveSpeakerAsync(string recordingId, string speakerId, CancellationToken cancellationToken)
     {

@@ -1,5 +1,5 @@
-using System.Globalization;
 using Memento.Core.Bridge.Contracts;
+using Memento.Core.Transcripts;
 using Memento.Core.Workers;
 
 namespace Memento.Transcription.Speakers;
@@ -78,7 +78,7 @@ public static class LineSplitter
             var end = last ? segment.End : Math.Clamp(words[^1].E, start, segment.End);
             parts.Add(segment with
             {
-                Id = first ? segment.Id : ChildId(segment.Id, i + 1, ids),
+                Id = first ? segment.Id : TranscriptSegmentIds.Child(segment.Id, i + 1, ids),
                 Start = start,
                 End = end,
                 Speaker = null,
@@ -91,19 +91,6 @@ public static class LineSplitter
         }
 
         return parts;
-    }
-
-    /// <summary><c>{id}-{n}</c>, counting on past any id the transcript already has, and claimed so no later part takes it.</summary>
-    private static string ChildId(string id, int number, HashSet<string> ids)
-    {
-        var candidate = string.Create(CultureInfo.InvariantCulture, $"{id}-{number}");
-        while (!ids.Add(candidate))
-        {
-            number++;
-            candidate = string.Create(CultureInfo.InvariantCulture, $"{id}-{number}");
-        }
-
-        return candidate;
     }
 
     /// <summary>

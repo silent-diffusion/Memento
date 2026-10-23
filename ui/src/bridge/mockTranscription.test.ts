@@ -324,6 +324,37 @@ describe('preview host transcripts (M2)', () => {
     expect(host.call('transcript.get', { recordingId: LONG }).transcript?.segments.map((s) => s.speaker)).toEqual(after?.segments.map((s) => (s.speaker === result.created.id ? 'sp3' : s.speaker)));
   });
 
+  it('cuts a line at the nearest word and joins it back (2.6.0); the last line and a cut outside the words are refused', () => {
+    const host = previewHost();
+    const before = host.call('transcript.get', { recordingId: LONG }).transcript;
+    const line = before?.segments.find((s) => s.text.split(' ').length >= 4);
+    if (line === undefined) {
+      throw new Error('the sample needs a line of four words');
+    }
+    const firstWord = line.text.slice(0, line.text.indexOf(' '));
+    // A cut inside the second word snaps to its start.
+    const split = host.call('transcript.splitSegment', { recordingId: LONG, segmentId: line.id, at: firstWord.length + 2 });
+    expect(split.segments.map((s) => s.id)).toEqual([line.id, `${line.id}-2`]);
+    expect(split.segments.map((s) => s.text)).toEqual([firstWord, line.text.slice(firstWord.length + 1)]);
+    expect(split.segments.map((s) => s.speaker)).toEqual([line.speaker, line.speaker]);
+    expect(split.segments[0]?.end).toBeLessThanOrEqual(split.segments[1]?.start ?? 0);
+    expect(host.call('transcript.get', { recordingId: LONG }).transcript?.segments.map((s) => s.id)).toContain(`${line.id}-2`);
+    expect(host.fail('transcript.splitSegment', { recordingId: LONG, segmentId: line.id, at: 0 }).code).toBe('bridge.invalidParams');
+
+    // A highlight on the second part moves to the joined line; the join gives the line back.
+    const { highlights } = host.call('annotations.addHighlight', { recordingId: LONG, highlight: { atMs: Math.round(line.end * 1000) - 1, note: '', segmentId: `${line.id}-2` } });
+    const added = highlights.find((h) => h.segmentId === `${line.id}-2`);
+    const joined = host.call('transcript.joinSegments', { recordingId: LONG, segmentId: line.id });
+    expect([joined.removedId, joined.segment.id, joined.segment.text, joined.segment.start, joined.segment.end]).toEqual([`${line.id}-2`, line.id, line.text, line.start, line.end]);
+    expect(joined.segment.words).toEqual(line.words);
+    expect(joined.highlights.find((h) => h.id === added?.id)?.segmentId).toBe(line.id);
+    expect(host.call('transcript.get', { recordingId: LONG }).transcript?.segments.some((s) => s.id === `${line.id}-2`)).toBe(false);
+
+    const last = before?.segments[before.segments.length - 1];
+    const refused = host.fail('transcript.joinSegments', { recordingId: LONG, segmentId: last?.id ?? '' });
+    expect([refused.code, refused.message]).toEqual(['transcript.cannotJoin', 'There is no line after this one. Nothing was changed.']);
+  });
+
   it('restores a merged speaker with its id and lines, removes an unused one, and un-edits a line edited back (Undo)', () => {
     const host = previewHost();
     const before = host.call('transcript.get', { recordingId: LONG }).transcript;

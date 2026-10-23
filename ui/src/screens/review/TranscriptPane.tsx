@@ -15,6 +15,7 @@ import { sectionChoices } from '../../format/speakerRuns';
 import { createFollowPlayhead, followScrollDelta, type FollowPlayhead } from '../../state/followPlayhead';
 import type { PlayerApi } from './Player';
 import { TranscriptSegmentRow, type SegmentHandlers } from './TranscriptSegment';
+import { TurnBoundary } from './TurnBoundary';
 import type { ReviewActions } from './reviewActions';
 import type { SearchApi, TranscriptApi } from './useTranscript';
 import { NO_FILTER, type TranscriptFilter } from '../../format/transcriptFilter';
@@ -280,6 +281,8 @@ interface ListProps {
   previewIds?: ReadonlySet<string> | null;
   /** 2.6.0: the line whose speaker menu asked which lines sound the same, with the host's answer; only its row redraws. */
   sameVoice?: { segmentId: string; ids: readonly string[] } | null;
+  /** 2.6.0: the line whose speaker menu opens by itself (the second part of a line just cut); `key` grows each time. */
+  openMenu?: { segmentId: string; key: number } | null;
 }
 
 /** The segments, windowed: only the rows near the viewport are in the DOM, spacers stand for the rest. */
@@ -302,6 +305,7 @@ function TranscriptList({
   selectedIds = null,
   previewIds = null,
   sameVoice = null,
+  openMenu = null,
 }: ListProps): JSX.Element {
   const listRef = useRef<HTMLDivElement | null>(null);
   const heightsRef = useRef<RowHeights | null>(null);
@@ -481,6 +485,35 @@ function TranscriptList({
     }
   }, [currentIndex]);
 
+  // 2.6.0: the turn boundary under row `i` when the next line shown has another speaker (never while selecting
+  // or editing); it lives beside the memoised row, so the rows' props do not change with it.
+  const boundaryAfter = (i: number): JSX.Element | null => {
+    const above = segments[i];
+    const below = segments[i + 1];
+    if (above === undefined || below === undefined || selectedIds !== null || editing !== null || above.speaker === null || below.speaker === null || above.speaker === below.speaker) {
+      return null;
+    }
+    const aboveSpeaker = speakerById.get(above.speaker);
+    const belowSpeaker = speakerById.get(below.speaker);
+    if (aboveSpeaker === undefined || belowSpeaker === undefined) {
+      return null;
+    }
+    return (
+      <TurnBoundary
+        above={above}
+        below={below}
+        aboveSpeaker={aboveSpeaker}
+        belowSpeaker={belowSpeaker}
+        onGiveAbove={() => {
+          handlers.assign(above, belowSpeaker);
+        }}
+        onGiveBelow={() => {
+          handlers.assign(below, aboveSpeaker);
+        }}
+      />
+    );
+  };
+
   const rows: JSX.Element[] = [];
   for (let i = range.start; i < range.end; i++) {
     const segment = segments[i];
@@ -513,7 +546,9 @@ function TranscriptList({
           selected={selectedIds === null ? null : selectedIds.has(segment.id)}
           previewed={previewIds?.has(segment.id) ?? false}
           sameVoice={sameVoice?.segmentId === segment.id ? sameVoice.ids : null}
+          openMenu={openMenu?.segmentId === segment.id ? openMenu.key : 0}
         />
+        {boundaryAfter(i)}
         {after.map((gap) => (
           <GapNotice key={`gap-${gap.start}`} gap={gap} action={gapAction} />
         ))}
@@ -569,6 +604,9 @@ export function TranscriptPane({
     }
   }, [follow, followRef]);
   const [editing, setEditing] = useState<EditingLine | null>(null);
+  // 2.6.0: the second part of a line just cut asks who said it: its speaker menu opens by itself (the key grows so a
+  // second cut of the same line opens it again).
+  const [autoMenu, setAutoMenu] = useState<{ segmentId: string; key: number } | null>(null);
   const focusRef = useRef<((index: number) => void) | null>(null);
   // After 1.2.0: a filter hides lines; everything below (playhead, keys, editing, Undo) works on the lines shown.
   // The line being edited stays shown until it is saved, even when the edit takes it out of the filter.
@@ -741,6 +779,35 @@ export function TranscriptPane({
         if (current !== null) {
           focusSegment(current.segmentId);
         }
+      },
+      // 2.6.0: Ctrl+Enter while editing: the draft is saved when it changed (its own Undo step), then the line is cut
+      // at the caret (another), and the second part's speaker menu opens so the next keystroke says who said it.
+      splitAt: (caret) => {
+        const current = latest.current.editing;
+        if (current === null || current.saving) {
+          return;
+        }
+        const segment = latest.current.segments.find((s) => s.id === current.segmentId);
+        const text = current.draft.replace(/\s+/g, ' ').trim();
+        if (segment === undefined || text === '') {
+          return;
+        }
+        // The caret's place in the draft, carried into the saved text (whitespace collapses on save).
+        const at = current.draft.slice(0, caret).replace(/\s+/g, ' ').trimStart().length;
+        setEditing({ ...current, saving: true });
+        const run = async (): Promise<void> => {
+          if (text !== segment.text) {
+            await latest.current.actions.editLine(segment, text);
+          }
+          const second = await latest.current.actions.splitLine({ ...segment, text }, at);
+          setEditing(null);
+          latest.current.onSaved();
+          setAutoMenu((m) => ({ segmentId: second.id, key: (m?.key ?? 0) + 1 }));
+        };
+        run().catch((e: unknown) => {
+          setEditing((e2) => (e2 === null ? e2 : { ...e2, saving: false }));
+          report('The line was not split')(e);
+        });
       },
       assign: (segment, speaker) => {
         latest.current.actions.assignSpeaker(segment, speaker).catch(report('The speaker was not changed'));
@@ -1111,6 +1178,7 @@ export function TranscriptPane({
             selectedIds={selection.selectedIds}
             previewIds={previewIds}
             sameVoice={answered}
+            openMenu={autoMenu}
           />
           </div>
           {selection.menu}

@@ -340,6 +340,7 @@ describe('Review 2.0: known voices, suggested chapters, selection mode', () => {
       expect.stringMatching(/^Play from /),
       'Select',
       'Assign speaker…',
+      'Join with the next line',
       'Highlight',
       'Mark as chapter start',
       'Copy as text',

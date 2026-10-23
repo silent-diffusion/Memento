@@ -34,6 +34,8 @@ public static class ReviewServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, TranscriptSwapSpeakersMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptSameVoiceMethod>();
         services.AddSingleton<IBridgeHandler, TranscriptSplitSpeakerMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptSplitSegmentMethod>();
+        services.AddSingleton<IBridgeHandler, TranscriptJoinSegmentsMethod>();
         return services;
     }
 }

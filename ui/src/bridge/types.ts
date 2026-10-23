@@ -67,6 +67,8 @@ export const ERROR_CODES = [
   'transcript.speakerInUse',
   // 2.6.0: transcript.splitSpeaker on a speaker heard as one voice, or whose voices sound alike
   'transcript.cannotSplit',
+  // 2.6.0: transcript.joinSegments on the last line, or one whose next line is on another track
+  'transcript.cannotJoin',
   'models.notFound',
   'models.inUse',
   'models.downloadFailed',
@@ -2728,6 +2730,33 @@ export interface TranscriptSplitSpeakerResult {
   segmentIds: string[];
 }
 
+/** One line cut in two at the word nearest `at` (a character offset into its text); both parts keep at least one word. */
+export interface TranscriptSplitSegmentParams {
+  recordingId: string;
+  segmentId: string;
+  at: number;
+}
+
+/** The two parts in order (the first keeps the line's id), and every speaker as it is now. */
+export interface TranscriptSplitSegmentResult {
+  segments: TranscriptSegment[];
+  speakers: Speaker[];
+}
+
+/** The line joined with the next line of its track (the Undo of a split). Refused with transcript.cannotJoin. */
+export interface TranscriptJoinSegmentsParams {
+  recordingId: string;
+  segmentId: string;
+}
+
+/** The joined line (the first line's id), every speaker, the id of the line that is gone, and the recording's highlights (one on the gone line now points at the joined one). */
+export interface TranscriptJoinSegmentsResult {
+  segment: TranscriptSegment;
+  speakers: Speaker[];
+  removedId: string;
+  highlights: Highlight[];
+}
+
 // ---------------------------------------------------------------------------------------------
 // 2.0 Video (BRIDGE.md "Video (2.0, proposed)" and "Additions the video screens need")
 // ---------------------------------------------------------------------------------------------
@@ -3109,6 +3138,8 @@ export interface BridgeMethods {
   'transcript.swapSpeakers': { params: TranscriptSwapSpeakersParams; result: TranscriptSetSegmentsSpeakerResult };
   'transcript.sameVoice': { params: TranscriptSameVoiceParams; result: TranscriptSameVoiceResult };
   'transcript.splitSpeaker': { params: TranscriptSplitSpeakerParams; result: TranscriptSplitSpeakerResult };
+  'transcript.splitSegment': { params: TranscriptSplitSegmentParams; result: TranscriptSplitSegmentResult };
+  'transcript.joinSegments': { params: TranscriptJoinSegmentsParams; result: TranscriptJoinSegmentsResult };
   // 2.0 Video
   'video.listSources': { params: EmptyParams; result: VideoListSourcesResult };
   'video.thumbnail': { params: VideoThumbnailParams; result: VideoThumbnailResult };
@@ -3386,6 +3417,8 @@ export const METHOD_NAMES = [
   'transcript.swapSpeakers',
   'transcript.sameVoice',
   'transcript.splitSpeaker',
+  'transcript.splitSegment',
+  'transcript.joinSegments',
   // 2.0 storage
   'storage.keepOnlyMix',
   // 2.0 Video
