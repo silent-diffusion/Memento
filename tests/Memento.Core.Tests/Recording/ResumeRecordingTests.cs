@@ -317,7 +317,7 @@ public sealed class ResumeRecordingTests : IDisposable
         };
         var migrated = ProjectManifestMigrator.Default.Migrate(v4);
         Assert.True(migrated.Migrated);
-        Assert.Equal(6, migrated.Manifest["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, migrated.Manifest["schemaVersion"]!.GetValue<int>());
         var manifest = migrated.Manifest.Deserialize(ProjectJsonContext.Default.ProjectManifest)!;
         var segment = Assert.Single(manifest.Segments);
         Assert.Equal((1, 0L, 61_000L, 0L), (segment.Index, segment.OffsetMs, segment.DurationMs, segment.GapMs));
