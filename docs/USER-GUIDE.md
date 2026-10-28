@@ -17,6 +17,7 @@ This guide covers version 2.0.0. Features new in 2.0 are video ([Recording video
 9. [Importing audio or video](#importing-audio-or-video)
 10. [The Library: folders, dates and deleting audio](#the-library-folders-dates-and-deleting-audio)
 11. [Documents](#documents)
+    - [Ask about a recording](#ask-about-a-recording)
 12. [Export](#export)
 13. [Settings](#settings)
 14. [Updates](#updates)
@@ -186,6 +187,16 @@ In the builder, **Undo** (or Ctrl+Z) takes back the last change: a section added
 The **document viewer** then shows the result on paper. Click a timestamp to hear that moment, edit a paragraph in place ("Saved" appears when it is stored; **Undo** takes back a run of typing or a toolbar change, and a rename), regenerate with changed instructions, or go back to an earlier version: click a version's name under **Versions** to read it on the paper, read-only, then **Restore this version** (Undo takes it back) or **Back to current**. **How this was made** lists exactly what was used, what was sent and where, and what was checked and dropped; History keeps the same record. Read a generated document before you rely on it: the checks catch statements nobody made, but a summary can still put the weight in the wrong place.
 
 **Styles** decide how documents look, never what they say: Corporate, Minimal, Academic, or your own copy with its typefaces, sizes, heading colour, spacing, Letter or A4 paper, page numbers and a running header. Manage templates and styles in **Settings › Documents**. Export a document as Word, PDF or Markdown from the viewer, or with the recording from the Export dialog.
+
+### Ask about a recording
+
+In Review, choose **Ask** to talk with an AI about that recording. Type a question (what was decided, who agreed to what, what is still open) and press **Ask** or Enter (Shift+Enter starts a new line). The answer appears as it is written; **Stop** ends it early and keeps what had arrived. Ask follow-up questions in the same conversation: the earlier questions and answers go along so the model knows what "that" refers to.
+
+- **Citations.** Answers name the transcript lines they come from as small time chips. Click one to open Review at that line; **Back** returns to the conversation. A chip shown as "line 12?" is a line the model cited without having been given it: check it yourself.
+- **Which sections were used.** A short recording is sent whole. A long one may not fit the model (the local model and small servers read far less than Claude or ChatGPT), so Memento searches the transcript on your PC for the words of your question and sends the best matching sections with the lines around them. Under each answer, **Answered from …** opens to show exactly which lines and times were sent. If nothing matched, the opening was used: ask again naming a person, a topic or a word that was said.
+- **Who answers.** Choose under **Answer with**: the local model, your own server, Claude or ChatGPT, whichever are set up. The note under the question says whether anything leaves your PC. External services follow the same rules as documents: **Allow external AI services**, **What may be shared** and **Ask before every send**. Only the transcript, the details, participants, agenda, chapters and topics, and highlights and notes are used; attachments, earlier documents, audio and video never are.
+- **No AI set up?** The page says so and opens **Settings › AI and privacy**, where you can download the local model, connect your own server or add a key.
+- **Kept with the recording.** The conversation is saved in the recording's folder (`ask\conversation.json`) and deleted with the recording. **Clear conversation** deletes it after asking; the recording and transcript are not touched. History notes each answer and where the question went, never what was asked.
 
 ## Export
 

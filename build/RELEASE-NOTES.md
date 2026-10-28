@@ -3,6 +3,17 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.9.0
+
+### Ask about a recording
+
+- **Ask.** Review has a new **Ask** button: a page where you talk back and forth with an AI about that recording. Ask what was decided, who said what or what is still open; the answer streams in as it is written, and **Stop** keeps what had arrived.
+- **Answers cite the transcript.** Each statement names the lines it comes from as small time chips; click one to open Review at that line (Back returns to the conversation). A line the model cites that it was not given is shown as unverified.
+- **Long recordings.** When the recording fits the model it is sent whole. When it does not, Memento searches the transcript on this PC for the question's words and sends the best matching sections with the lines around them. **Answered from 3 of 40 sections** under each answer opens to show exactly which lines and times were used, and says when nothing matched.
+- **Any provider.** The local model, your own server, Claude or ChatGPT, chosen under the question. The privacy rules are the ones documents follow: external services need **Allow external AI services**, receive only what **What may be shared** allows, and **Ask before every send** asks first, naming the provider and the size. Nothing is sent until you press Ask. Without any AI set up, the page explains how to set one up.
+- **Kept per recording.** The conversation is saved with the recording (`ask/conversation.json`, deleted with it); **Clear conversation** deletes it after asking. History notes each answer and where the question went, never its content.
+- Bridge: `ask.get`, `ask.send`, `ask.confirm`, `ask.cancel`, `ask.clear`, the `ask.progress` event and the error codes `ask.busy`, `ask.notFound`, `ask.noTranscript`, `ask.newerVersion` (BRIDGE.md "2.9.0 — Ask").
+
 ## 2.8.0
 
 ### Add or remove a screen while recording
