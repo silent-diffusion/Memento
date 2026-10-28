@@ -521,3 +521,11 @@ button.btn.add-pill {
 .sheet-from-speakers {
   flex: none;
 }
+
+/* 2.7.0: Speaking now in the add flow, while recording. */
+.who-spoke-add-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}

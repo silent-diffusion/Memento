@@ -35,8 +35,8 @@ public sealed class ReviewContractSerializationTests
     public void SuggestedChaptersAndSeveralLines()
     {
         Assert.Equal(
-            """{"suggestions":[{"id":"sc760000","atMs":760000,"title":"Status pill density","basis":"The subject changes \u00B7 4 s pause"}]}""",
-            Json(new ChapterSuggestionsResult([new ChapterSuggestion("sc760000", 760_000, "Status pill density", "The subject changes · 4 s pause")]), ReviewBridgeJsonContext.Default.ChapterSuggestionsResult));
+            """{"suggestions":[{"id":"sc760000","atMs":760000,"title":"Status pill density","basis":"The subject changes \u00B7 4 s pause","fromAgenda":true}]}""",
+            Json(new ChapterSuggestionsResult([new ChapterSuggestion("sc760000", 760_000, "Status pill density", "The subject changes · 4 s pause", FromAgenda: true)]), ReviewBridgeJsonContext.Default.ChapterSuggestionsResult));
         var line = new TranscriptSegment("s1", 1, 2, "mic", "spk1", 1, "Hi.", 0.9, [], null);
         Assert.Equal(
             """{"segments":[{"id":"s1","start":1,"end":2,"track":"mic","speaker":"spk1","speakerConfidence":1,"text":"Hi.","confidence":0.9,"words":[],"edited":null}],"speakers":[]}""",

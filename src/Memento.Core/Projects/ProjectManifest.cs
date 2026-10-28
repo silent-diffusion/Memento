@@ -15,7 +15,7 @@ namespace Memento.Core.Projects;
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 

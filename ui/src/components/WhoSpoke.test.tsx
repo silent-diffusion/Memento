@@ -79,7 +79,7 @@ describe('Who spoke: Speaking now', () => {
       await Promise.resolve();
     });
 
-    expect(onChange).toHaveBeenCalledWith({ count: null, names: ['Ana'], marks: [{ name: 'Ana', atMs: 5 }] });
+    expect(onChange).toHaveBeenCalledWith({ count: null, names: ['Ana'], marks: [{ name: 'Ana', atMs: 5 }], added: [] });
   });
 
   it('before any name is listed, the hint says to add names first', async () => {
@@ -87,5 +87,60 @@ describe('Who spoke: Speaking now', () => {
 
     expect(container.querySelector('.who-spoke-marks')).toBeNull();
     expect(container.querySelector('.who-spoke-hint')?.textContent).toBe(speakingNowHint(0));
+  });
+
+  const typeName = async (text: string): Promise<void> => {
+    const input = container.querySelector<HTMLInputElement>('#t-name');
+    if (input === null) {
+      throw new Error('no name input');
+    }
+    await act(async () => {
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await Promise.resolve();
+    });
+  };
+
+  it('a name added while recording keeps when it was added (2.7.0)', async () => {
+    const onChange = vi.fn<(next: WhoSpoke) => void>();
+    await mount({ count: null, names: ['Ana'], marks: [], added: [] }, onChange, () => 61_000.4);
+
+    await typeName('Cy,');
+
+    const next = onChange.mock.calls[0]?.[0];
+    expect(next?.names).toEqual(['Ana', 'Cy']);
+    expect(next?.marks).toEqual([]);
+    expect(next?.added).toHaveLength(1);
+    expect(next?.added?.[0]).toMatchObject({ name: 'Cy', atMs: 61_000 });
+    expect(Number.isNaN(Date.parse(next?.added?.[0]?.at ?? ''))).toBe(false);
+  });
+
+  it('with Speaking now switched on, the added name gets its mark at the same moment, and the switch goes off', async () => {
+    const onChange = vi.fn<(next: WhoSpoke) => void>();
+    await mount({ count: null, names: [], marks: [] }, onChange, () => 5_000);
+    const toggle = button('Speaking now, for the next name added');
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+
+    await act(async () => {
+      toggle?.click();
+      await Promise.resolve();
+    });
+    expect(button('Speaking now, for the next name added')?.getAttribute('aria-pressed')).toBe('true');
+    await typeName('Dee,');
+
+    const next = onChange.mock.calls[0]?.[0];
+    expect(next?.marks).toEqual([{ name: 'Dee', atMs: 5_000 }]);
+    expect(next?.added?.[0]).toMatchObject({ name: 'Dee', atMs: 5_000 });
+    expect(button('Speaking now, for the next name added')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('outside a recording a new name gets no added time and there is no Speaking now switch', async () => {
+    const onChange = vi.fn<(next: WhoSpoke) => void>();
+    await mount({ count: null, names: [], marks: [] }, onChange);
+
+    expect(button('Speaking now, for the next name added')).toBeNull();
+    await typeName('Eve,');
+
+    expect(onChange).toHaveBeenCalledWith({ count: null, names: ['Eve'], marks: [], added: [] });
   });
 });

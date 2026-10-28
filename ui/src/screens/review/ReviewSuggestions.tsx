@@ -109,6 +109,7 @@ export function SuggestedChapters({
               </button>
               <span class="sug-chapter-title" title={`Suggested: ${s.basis}`}>
                 {s.title}
+                {s.fromAgenda ? <span class="sug-chapter-from">Agenda</span> : null}
                 <span class="sr"> (suggested, not accepted yet)</span>
               </span>
               <button

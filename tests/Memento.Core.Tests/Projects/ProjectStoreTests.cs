@@ -145,15 +145,15 @@ public sealed class ProjectStoreTests : IDisposable
         var created = await CreateAsync();
         var path = Path.Combine(Store.GetProjectFolder(created.Id), "project.json");
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
-        node["schemaVersion"] = 7;
+        node["schemaVersion"] = ProjectManifest.CurrentSchemaVersion + 1;
         await File.WriteAllTextAsync(path, node.ToJsonString());
 
         var loaded = await Store.LoadAsync(created.Id, CancellationToken.None);
 
-        Assert.Equal(7, loaded.SchemaVersion);
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion + 1, loaded.SchemaVersion);
         var ex = await Assert.ThrowsAsync<ProjectSchemaException>(() => Store.SaveAsync(loaded, CancellationToken.None));
         Assert.Contains("newer version of Memento", ex.Message, StringComparison.Ordinal);
-        Assert.Equal(7, JsonNode.Parse(await File.ReadAllTextAsync(path))!["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion + 1, JsonNode.Parse(await File.ReadAllTextAsync(path))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Fact]
@@ -258,7 +258,7 @@ public sealed class ProjectStoreTests : IDisposable
         Assert.Empty(loaded.Details.WhoSpoke.Names);
         var written = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         Assert.Equal(ProjectManifest.CurrentSchemaVersion, written["schemaVersion"]!.GetValue<int>());
-        Assert.Equal("""{"count":null,"names":[],"marks":[]}""", written["details"]!["whoSpoke"]!.ToJsonString());
+        Assert.Equal("""{"count":null,"names":[],"marks":[],"added":[]}""", written["details"]!["whoSpoke"]!.ToJsonString());
     }
 
     /// <summary>2.6.0 adds Speaking now marks without a schema step: a current-version file from before reads as having none.</summary>
@@ -280,11 +280,11 @@ public sealed class ProjectStoreTests : IDisposable
     }
 
     [Theory]
-    [InlineData("""{"count":3,"names":["Ana"," Ben ","ana",""]}""", """{"count":3,"names":["Ana","Ben"]}""")]
-    [InlineData("""{"count":0,"names":"Ana"}""", """{"count":null,"names":[]}""")]
-    [InlineData("""{"count":21,"names":[1,true,"Chris"]}""", """{"count":null,"names":["Chris"]}""")]
-    [InlineData("""{"count":"two"}""", """{"count":null,"names":[]}""")]
-    [InlineData("\"4 people\"", """{"count":null,"names":[]}""")]
+    [InlineData("""{"count":3,"names":["Ana"," Ben ","ana",""]}""", """{"count":3,"names":["Ana","Ben"],"added":[]}""")]
+    [InlineData("""{"count":0,"names":"Ana"}""", """{"count":null,"names":[],"added":[]}""")]
+    [InlineData("""{"count":21,"names":[1,true,"Chris"]}""", """{"count":null,"names":["Chris"],"added":[]}""")]
+    [InlineData("""{"count":"two"}""", """{"count":null,"names":[],"added":[]}""")]
+    [InlineData("\"4 people\"", """{"count":null,"names":[],"added":[]}""")]
     public void AWhoSpokeTheV3StepCannotReadKeepsWhatIsReadable(string value, string expected)
     {
         var manifest = new JsonObject { ["schemaVersion"] = 2, ["details"] = new JsonObject { ["title"] = "Sync", ["whoSpoke"] = JsonNode.Parse(value) } };

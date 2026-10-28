@@ -134,4 +134,85 @@ public sealed class ChapterSuggesterTests : IDisposable
         var unknown = await _host.CallAsync("annotations.suggestChapters", JsonSerializer.Serialize(new { recordingId = "20260101-000000-aaaaaa" }));
         Assert.Equal("project.notFound", unknown.GetProperty("error").GetProperty("code").GetString());
     }
+
+    private static readonly string[] MatchingAgenda = ["Budget and forecast", "Hiring candidates", "Website design"];
+
+    [Fact]
+    public void AgendaItemsNameAndPlaceTheChaptersWhereTheyAreTalkedAbout()
+    {
+        var suggestions = ChapterSuggester.Suggest(ThreeSubjects(), [], MatchingAgenda);
+
+        Assert.Equal([0L, 364_000L, 728_000L], suggestions.Select(s => s.AtMs));
+        Assert.Equal(MatchingAgenda, suggestions.Select(s => s.Title));
+        Assert.All(suggestions, s => Assert.True(s.FromAgenda));
+        Assert.StartsWith("Agenda item 2 · said ", suggestions[1].Basis, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnItemNotTalkedAboutIsSkippedAndTheOtherChaptersKeepTheirOwnTitles()
+    {
+        var plain = ChapterSuggester.Suggest(ThreeSubjects(), []);
+
+        var suggestions = ChapterSuggester.Suggest(ThreeSubjects(), [], ["Holiday party", "Hiring candidates", "  "]);
+
+        Assert.Equal([0L, 364_000L, 728_000L], suggestions.Select(s => s.AtMs));
+        Assert.Equal([false, true, false], suggestions.Select(s => s.FromAgenda));
+        Assert.Equal("Hiring candidates", suggestions[1].Title);
+        Assert.Equal(plain[2].Title, suggestions[2].Title);
+        Assert.Equal("Start of the recording", suggestions[0].Basis);
+    }
+
+    [Fact]
+    public void TheAgendaOrderIsKept()
+    {
+        // Website is talked about last, so an agenda listing it first cannot also place the two items after it.
+        var anchors = AgendaChapterAligner.Align(ThreeSubjects(), ["Website design", "Budget and forecast", "Hiring candidates"]);
+
+        Assert.True(anchors.Zip(anchors.Skip(1)).All(p => p.First.Index < p.Second.Index && p.First.Line.Start < p.Second.Line.Start));
+        Assert.True(anchors.Count < 3);
+    }
+
+    [Fact]
+    public void AnAgendaThatIsNeverTalkedAboutChangesNothing()
+    {
+        var plain = ChapterSuggester.Suggest(ThreeSubjects(), []);
+
+        var suggestions = ChapterSuggester.Suggest(ThreeSubjects(), [], ["Holiday party", "Parking permits"]);
+
+        Assert.Equal(plain, suggestions);
+        Assert.Empty(ChapterSuggester.Suggest(ThreeSubjects().Take(30).ToList(), [], MatchingAgenda));
+    }
+
+    [Fact]
+    public void AnAgendaFindsChaptersEvenWhereTheWordsChangeTooLittle()
+    {
+        // One long block of budget talk with a short mention-dense stretch of hiring: the agenda still places it.
+        var lines = Enumerable.Range(0, 60)
+            .Select(i => Segment(
+                string.Create(CultureInfo.InvariantCulture, $"u{i:000}"),
+                i * 10,
+                (i * 10) + 8,
+                i is >= 30 and < 36 ? "The hiring of candidates and the budget." : "The budget and the invoices and the forecast again.",
+                "spk1"))
+            .ToList();
+
+        var suggestions = ChapterSuggester.Suggest(lines, [], ["Budget", "Hiring candidates"]);
+
+        Assert.Equal([0L, 300_000L], suggestions.Select(s => s.AtMs));
+        Assert.Equal(["Budget", "Hiring candidates"], suggestions.Select(s => s.Title));
+    }
+
+    [Fact]
+    public async Task TheRecordingsAgendaMarksTheSuggestionsItGives()
+    {
+        var id = await RecordingAsync();
+        var items = MatchingAgenda.Select(text => new { id = string.Empty, text, covered = false, uncertain = false, uncertainReason = (string?)null }).ToArray();
+        await ResultAsync("project.updateDetails", new { recordingId = id, details = new { agenda = new { source = (string?)null, parsedLocally = false, items } } });
+
+        var result = await ResultAsync("annotations.suggestChapters", new { recordingId = id });
+
+        var suggestions = result.GetProperty("suggestions").EnumerateArray().ToList();
+        Assert.Equal(MatchingAgenda, suggestions.Select(s => s.GetProperty("title").GetString()));
+        Assert.All(suggestions, s => Assert.True(s.GetProperty("fromAgenda").GetBoolean()));
+    }
 }

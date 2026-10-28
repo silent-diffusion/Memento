@@ -8,7 +8,8 @@ namespace Memento.Core.Transcripts;
 /// <summary>
 /// <c>annotations.suggestChapters</c>, <c>annotations.dismissSuggestion</c> and <c>annotations.restoreSuggestion</c>
 /// (2.0): <see cref="ChapterSuggester"/> on the current transcript and topics, less the suggestions near a chapter the
-/// recording has (an accepted suggestion becomes one) or one the user dismissed. Reads only, except the dismissed times
+/// recording has (an accepted suggestion becomes one) or one the user dismissed. With an agenda (2.7.0), its items name
+/// and place the chapters where they are talked about. Reads only, except the dismissed times
 /// kept in <c>annotations.json</c>.
 /// </summary>
 public sealed class ChapterSuggestionService(IProjectStore store, TranscriptStore transcripts)
@@ -62,11 +63,26 @@ public sealed class ChapterSuggestionService(IProjectStore store, TranscriptStor
             return [];
         }
 
+        // The agenda's items (2.7.0) name and place chapters where they are talked about.
+        var agenda = await AgendaAsync(recordingId, cancellationToken);
         var taken = annotations.Chapters.Select(c => c.AtMs).Concat(annotations.DismissedSuggestions).ToList();
-        return ChapterSuggester.Suggest(transcript.Segments, annotations.Topics.Select(t => t.Label).ToList())
+        return ChapterSuggester.Suggest(transcript.Segments, annotations.Topics.Select(t => t.Label).ToList(), agenda)
             .Where(s => taken.All(t => Math.Abs(t - s.AtMs) >= NearMs))
-            .Select(s => new ChapterSuggestion(string.Create(CultureInfo.InvariantCulture, $"sc{s.AtMs}"), s.AtMs, s.Title, s.Basis))
+            .Select(s => new ChapterSuggestion(string.Create(CultureInfo.InvariantCulture, $"sc{s.AtMs}"), s.AtMs, s.Title, s.Basis, s.FromAgenda))
             .ToList();
+    }
+
+    private async Task<IReadOnlyList<string>> AgendaAsync(string recordingId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var manifest = await store.LoadAsync(recordingId, cancellationToken);
+            return AgendaChapterAligner.Titles(manifest.Details.Agenda);
+        }
+        catch (ProjectNotFoundException)
+        {
+            throw ProjectService.NotFound(recordingId);
+        }
     }
 
     private static void Validate(long atMs)

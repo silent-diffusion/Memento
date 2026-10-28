@@ -5,13 +5,25 @@ packed into the installer package, and the release workflow uses it as the GitHu
 
 ## 2.7.0
 
-Review that stays out of your way.
+Review that stays out of your way, chapters from the agenda, and speakers that remember when they were added.
+
+### Review
 
 - **Settings from every screen.** Review, Record, the document builder, documents and the style editor now have the Settings gear at the top right. Back in Settings returns to the screen you came from; the builder still asks first when a template has unsaved changes.
 - **The transcript stops following while you work in it.** Clicking, typing, renaming a speaker, opening a menu or selecting text in the transcript or under People holds the transcript where it is. It follows the playback again after 5 seconds without any of that, and never while a text box there has the cursor. **Jump to playing**, next to Skip silences, scrolls to the line being played and follows again at once.
 - **People has room again.** The talk-time share no longer squeezes or wraps, names keep their space, and the Hear and Rename buttons appear when you point at a row or reach it with Tab.
 - **Resize the Review panes.** Drag the thin line between the outline and the transcript, or between the transcript and the details, to make a pane wider or narrower (or focus it with Tab and use the arrow keys; Shift moves further, Home and End go to the narrowest and widest, Enter resets). Double-click resets it. Memento remembers the widths.
 - **Minimize the video.** The video's **Minimize** button shrinks it to a small player in the corner of the window so the transcript gets the space back; **Restore** brings it back. Memento remembers which you chose.
+
+### Suggested chapters from the agenda
+
+- **The agenda names the chapters.** When a recording has an agenda, **Suggested chapters** now looks for each agenda item in the transcript, in the agenda's order, and starts a chapter where it is talked about, titled with the item. These suggestions are marked **Agenda**. Items that are never talked about are skipped, and where the agenda finds nothing the suggestions are as before.
+
+### Speakers added during a recording
+
+- **When a name was added is kept.** A name added under **Who spoke** while recording now keeps when it was added (on the recording timer and the clock). When the recording is processed, that time breaks a tie between two voices in favour of the one heard after the name was added, and History lists any name Memento is not confident about: a **Speaking now** mark that heard a different voice, or a name that went to someone heard only before it was added.
+- **Speaking now as you add a name.** While recording, switch on **Speaking now** below the names before adding one: the new name gets its Speaking now mark at the same moment.
+- Project files move to schema 7; older recordings open as before.
 
 ## 2.6.0
 

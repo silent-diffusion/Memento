@@ -14,6 +14,10 @@ namespace Memento.Core.Transcripts;
 /// The first line opens the first chapter. Each chapter is titled with the phrase or word said most in it and least
 /// elsewhere (a topic's own label when that topic is what it is about), never a title an earlier chapter has. The same transcript
 /// and topics always give the same suggestions. Measurements: ENGINE-NOTES.md §N.
+/// With an agenda (2.7.0), the items <see cref="AgendaChapterAligner"/> finds in the transcript start chapters titled
+/// with the item, in the agenda's order; subject changes closer than the spacing to one are left out, and the others
+/// keep their own titles. An item found near the start opens the first chapter. Without an agenda, or where no item is
+/// found, the suggestions are as before.
 /// </summary>
 public static class ChapterSuggester
 {
@@ -46,9 +50,11 @@ public static class ChapterSuggester
         ["blah", "bye", "bye-bye", "goodbye", "yep", "nope", "huh", "wow", "cool", "nice", "question", "questions", "point", "stuff", "guys", "everybody", "somebody"],
         StringComparer.Ordinal);
 
-    public sealed record Suggestion(long AtMs, string Title, string Basis);
+    /// <param name="FromAgenda">The title and start come from an agenda item (2.7.0).</param>
+    public sealed record Suggestion(long AtMs, string Title, string Basis, bool FromAgenda = false);
 
-    public static IReadOnlyList<Suggestion> Suggest(IReadOnlyList<TranscriptSegment> segments, IReadOnlyList<string> topics)
+    /// <param name="agenda">The agenda items' titles in order, or <c>null</c> (or empty) when the recording has none.</param>
+    public static IReadOnlyList<Suggestion> Suggest(IReadOnlyList<TranscriptSegment> segments, IReadOnlyList<string> topics, IReadOnlyList<string>? agenda = null)
     {
         ArgumentNullException.ThrowIfNull(segments);
         ArgumentNullException.ThrowIfNull(topics);
@@ -96,12 +102,13 @@ public static class ChapterSuggester
             dips.Add((g, Peak(similarity, g, -1) - here + (Peak(similarity, g, 1) - here)));
         }
 
-        if (dips.Count == 0)
+        var anchors = agenda is { Count: > 0 } ? AgendaChapterAligner.Align(lines, agenda) : [];
+        if (dips.Count == 0 && anchors.Count == 0)
         {
             return [];
         }
 
-        var mean = dips.Average(d => d.Depth);
+        var mean = dips.Count == 0 ? 0 : dips.Average(d => d.Depth);
         var cutoff = Math.Max(MinDepth, mean);
         var spacing = Math.Max(MinSpacingSeconds, span / 20);
         var most = Math.Min(MaxChapters - 1, Math.Max(1, (int)Math.Round(span / SecondsPerChapter)));
@@ -120,15 +127,36 @@ public static class ChapterSuggester
             }
         }
 
-        if (starts.Count == 0)
+        if (starts.Count == 0 && anchors.Count == 0)
         {
             return [];
         }
 
-        starts.Add((lines[0], "Start of the recording"));
-        starts.Sort((a, b) => a.Line.Start.CompareTo(b.Line.Start));
-        var titles = Titles(lines, starts.Select(s => s.Line.Start).ToList(), topics, topicWords);
-        return starts.Select((s, i) => new Suggestion((long)Math.Round(s.Line.Start * 1000), titles[i], s.Basis)).ToList();
+        // Agenda items found in the transcript (2.7.0) take the place of subject changes near them.
+        var all = starts
+            .Where(s => anchors.All(a => Math.Abs(a.Line.Start - s.Line.Start) >= spacing))
+            .Select(s => (s.Line, s.Basis, Agenda: (string?)null))
+            .ToList();
+        var opened = false;
+        foreach (var anchor in anchors)
+        {
+            var basis = string.Create(CultureInfo.InvariantCulture, $"Agenda item {anchor.Index + 1} · said {anchor.Mentions} times in two minutes");
+            var line = !opened && anchor.Line.Start - t0 < spacing / 2 ? lines[0] : anchor.Line;
+            opened |= ReferenceEquals(line, lines[0]);
+            if (all.All(s => !ReferenceEquals(s.Line, line)))
+            {
+                all.Add((line, basis, Cut(anchor.Title)));
+            }
+        }
+
+        if (!opened)
+        {
+            all.Add((lines[0], "Start of the recording", null));
+        }
+
+        all.Sort((a, b) => a.Line.Start.CompareTo(b.Line.Start));
+        var titles = Titles(lines, all.Select(s => s.Line.Start).ToList(), topics, topicWords);
+        return all.Select((s, i) => new Suggestion((long)Math.Round(s.Line.Start * 1000), s.Agenda ?? titles[i], s.Basis, s.Agenda is not null)).ToList();
     }
 
     private static Dictionary<string, double> Sum(List<Dictionary<string, double>> blocks, int from, int to)

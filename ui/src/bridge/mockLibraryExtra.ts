@@ -409,7 +409,7 @@ export function createMockM3(env: MockM3Environment): MockM3 {
         notes: '',
         tags: [],
         agenda: { source: null, parsedLocally: true, items: [] },
-        whoSpoke: { count: null, names: [], marks: [] },
+        whoSpoke: { count: null, names: [], marks: [], added: [] },
       },
       trackSources: ['microphone'],
       tracks: [track],

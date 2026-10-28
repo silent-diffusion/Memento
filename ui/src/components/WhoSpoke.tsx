@@ -5,9 +5,12 @@
 // appearance; Settings › Speakers › Expected speakers stays the default for recordings without one.
 // While recording (2.6.0), each name has a Speaking now button: pressed while that person talks, it
 // stamps the recording timer's time, and the speakers stage names the voice heard then after them.
+// 2.7.0: a name added while recording keeps when it was added, and "Speaking now" can be switched on
+// in the add flow so the new name gets its mark at the same moment.
 import type { JSX } from 'preact';
+import { useState } from 'preact/hooks';
 import type { SpokeMark, WhoSpoke } from '../bridge/types';
-import { effectiveCount, marksFor, WHO_SPOKE_MAX, whoSpokeFromParticipants } from '../format/speakerOrder';
+import { effectiveCount, WHO_SPOKE_MAX, whoSpokeFromParticipants, withNames } from '../format/speakerOrder';
 import { CloseIcon } from './icons';
 import { NameWell } from './NameWell';
 import { SelectMenu, type SelectOption } from './Menus';
@@ -81,6 +84,7 @@ export function WhoSpokeEditor({ value, onChange, participants, settingsDefault,
   // While recording every name has a row (the button); otherwise only the names with marks, read-only.
   const rows = speakingNow === undefined ? value.names.filter((name) => marksOf(name) > 0) : value.names;
   const full = value.marks.length >= SPOKE_MARKS_MAX;
+  const [markOnAdd, setMarkOnAdd] = useState(false);
   const mark = (name: string): void => {
     if (speakingNow === undefined || full) {
       return;
@@ -130,10 +134,38 @@ export function WhoSpokeEditor({ value, onChange, participants, settingsDefault,
           maxLength={100}
           placeholder={value.names.length === 0 ? 'In the order they first speak' : 'Add a name'}
           onChange={(names) => {
-            // A name taken off the list takes its Speaking now marks with it.
-            onChange({ ...value, names, marks: marksFor(value.marks, names) });
+            // A name taken off the list takes its Speaking now marks with it; while recording a new name keeps
+            // when it was added, and gets a mark too when "Speaking now" is on (2.7.0).
+            const moment =
+              speakingNow === undefined
+                ? undefined
+                : { atMs: Math.max(0, Math.round(speakingNow())), at: new Date().toISOString(), speakingNow: markOnAdd && !full };
+            const next = withNames(value, names, moment);
+            if (moment !== undefined && next.added !== undefined && next.added.length > (value.added ?? []).length) {
+              setMarkOnAdd(false);
+            }
+            onChange(next);
           }}
         />
+        {speakingNow === undefined ? null : (
+          <div class="who-spoke-row who-spoke-add-now">
+            <button
+              class="btn ghost ghost-row who-spoke-mark-btn"
+              type="button"
+              aria-pressed={markOnAdd}
+              aria-label="Speaking now, for the next name added"
+              disabled={full}
+              onClick={() => {
+                setMarkOnAdd(!markOnAdd);
+              }}
+            >
+              Speaking now
+            </button>
+            <span class="who-spoke-add-hint">
+              {markOnAdd ? 'The next name you add is marked as speaking now.' : 'Switch on to mark the next name you add as speaking.'}
+            </span>
+          </div>
+        )}
         {rows.length > 0 ? (
           <ul class="who-spoke-marks" aria-label="Speaking now marks">
             {rows.map((name) => {

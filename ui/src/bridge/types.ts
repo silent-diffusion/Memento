@@ -323,6 +323,21 @@ export interface WhoSpoke {
   names: string[];
   /** Speaking now marks (at most 200), each naming one of `names`. */
   marks: SpokeMark[];
+  /**
+   * 2.7.0: when names were added during the recording, at most one per name. The host always sends it
+   * (empty for older recordings); absent in a patch, the host keeps none.
+   */
+  added?: SpeakerAdded[];
+}
+
+/**
+ * A name was added under Who spoke while recording (2.7.0): at `atMs` of recorded time and at the
+ * wall-clock time `at` (ISO 8601). The speakers stage uses it to break ties and flag doubtful names.
+ */
+export interface SpeakerAdded {
+  name: string;
+  atMs: number;
+  at: string;
 }
 
 /** The Speaking now button was pressed beside `name` at `atMs` of recorded time (2.6.0). */
@@ -2668,8 +2683,10 @@ export interface ChapterSuggestion {
   id: string;
   atMs: number;
   title: string;
-  /** "The subject changes · 4 s pause · new speaker". */
+  /** "The subject changes · 4 s pause · new speaker", or "Agenda item 2 · said 6 times in two minutes". */
   basis: string;
+  /** 2.7.0: the title and place come from one of the recording's agenda items. */
+  fromAgenda: boolean;
 }
 
 export interface ChapterSuggestionsResult {

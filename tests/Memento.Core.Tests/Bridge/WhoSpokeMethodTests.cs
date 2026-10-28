@@ -26,7 +26,7 @@ public sealed class WhoSpokeMethodTests : IDisposable
 
         var project = await _host.ResultAsync("project.get", Json(new { recordingId }));
 
-        Assert.Equal("""{"count":null,"names":[],"marks":[]}""", project.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":null,"names":[],"marks":[],"added":[]}""", project.GetProperty("details").GetProperty("whoSpoke").GetRawText());
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public sealed class WhoSpokeMethodTests : IDisposable
         var kept = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { purpose = "Plan Q4" } }));
         var replaced = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = OneName } } }));
 
-        Assert.Equal("""{"count":3,"names":["Avery Stone","Rowan Hale"],"marks":[]}""", kept.GetProperty("details").GetProperty("whoSpoke").GetRawText());
-        Assert.Equal("""{"count":null,"names":["Sam"],"marks":[]}""", replaced.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":3,"names":["Avery Stone","Rowan Hale"],"marks":[],"added":[]}""", kept.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":null,"names":["Sam"],"marks":[],"added":[]}""", replaced.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
         Assert.Equal(1, manifest.Details.WhoSpoke.EffectiveCount);
         Assert.Equal("Plan Q4", manifest.Details.Purpose);
@@ -84,7 +84,7 @@ public sealed class WhoSpokeMethodTests : IDisposable
         var saved = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = RepeatedNames, marks } } }));
         var kept = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { purpose = "Plan Q4" } }));
 
-        Assert.Equal("""{"count":null,"names":["Avery Stone","Rowan Hale"],"marks":[{"name":"Rowan Hale","atMs":12500},{"name":"Avery Stone","atMs":0}]}""", saved.GetProperty("details").GetProperty("whoSpoke").GetRawText());
+        Assert.Equal("""{"count":null,"names":["Avery Stone","Rowan Hale"],"marks":[{"name":"Rowan Hale","atMs":12500},{"name":"Avery Stone","atMs":0}],"added":[]}""", saved.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         Assert.Equal(saved.GetProperty("details").GetProperty("whoSpoke").GetRawText(), kept.GetProperty("details").GetProperty("whoSpoke").GetRawText());
         var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
         Assert.Equal([("Rowan Hale", 12_500L), ("Avery Stone", 0L)], manifest.Details.WhoSpoke.Marks.Select(m => (m.Name, m.AtMs)));
@@ -109,5 +109,27 @@ public sealed class WhoSpokeMethodTests : IDisposable
         Assert.Empty(manifest.Details.WhoSpoke.Names);
         Assert.Empty(manifest.Details.WhoSpoke.Marks);
         Assert.Equal(string.Empty, manifest.Details.Purpose);
+    }
+
+    [Fact]
+    public async Task AddedTimesAreKeptOncePerListedNameAndDroppedWithTheName()
+    {
+        var recordingId = await _host.RecordAsync("Kickoff", 0.5);
+        var added = new[]
+        {
+            new { name = "rowan hale", atMs = 61_000L, at = "2026-01-05T10:01:01+00:00" },
+            new { name = "Rowan Hale", atMs = 90_000L, at = "2026-01-05T10:01:30+00:00" },
+            new { name = "Gone", atMs = 5L, at = "2026-01-05T10:00:05+00:00" },
+        };
+
+        var saved = await _host.ResultAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = RepeatedNames, added } } }));
+        var negative = await _host.CallAsync("project.updateDetails", Json(new { recordingId, details = new { whoSpoke = new { count = (int?)null, names = OneName, added = new[] { new { name = "Sam", atMs = -1L, at = "2026-01-05T10:00:00+00:00" } } } } }));
+
+        var kept = Assert.Single(saved.GetProperty("details").GetProperty("whoSpoke").GetProperty("added").EnumerateArray());
+        Assert.Equal("Rowan Hale", kept.GetProperty("name").GetString());
+        Assert.Equal(61_000, kept.GetProperty("atMs").GetInt64());
+        Assert.Equal(BridgeErrorCodes.InvalidParams, ErrorCode(negative));
+        var manifest = await _host.Store.LoadAsync(recordingId, CancellationToken.None);
+        Assert.Equal(new DateTimeOffset(2026, 1, 5, 10, 1, 1, TimeSpan.Zero), Assert.Single(manifest.Details.WhoSpoke.Added).At);
     }
 }
