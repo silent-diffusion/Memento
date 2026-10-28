@@ -30,9 +30,13 @@ import type {
   VideoRole,
   VideoSettings,
   VideoSource,
+  VideoTrackId,
   VideoTrackState,
   VideoTrackStatus,
 } from './types';
+
+/** 2.8.0: the most screens recorded at once (BRIDGE.md "Add and remove screens while recording"). */
+export const MAX_SCREENS = 4;
 
 // ---------------------------------------------------------------------------------------------
 // Flags
@@ -308,6 +312,8 @@ export const VIDEO_METHODS = [
   'video.openPrivacySettings',
   'video.remove',
   'video.removeEstimate',
+  'video.addSource',
+  'video.removeSource',
 ] as const;
 
 type VideoMethod = (typeof VIDEO_METHODS)[number];
@@ -335,6 +341,10 @@ export interface MockVideo {
 }
 
 interface LiveTrack {
+  /** The id the page uses: the role, or screen-2… for a screen added while recording. */
+  trackId: VideoTrackId;
+  /** The id project.json gives the track (unique in the recording). */
+  storeId: string;
   role: VideoRole;
   source: VideoSource;
   state: VideoTrackState;
@@ -359,12 +369,16 @@ interface LiveTrack {
   parts: number;
   /** A waiting camera starts here (inuse); a minimised window resumes here. */
   resumeAtMs: number | null;
+  /** Where it stopped on the timeline once turned off or removed. */
+  stoppedAtMs: number | null;
 }
 
 interface LiveSession {
   sessionId: string;
   recordingId: string;
   tracks: LiveTrack[];
+  /** Track ids project.json already has for this session. */
+  usedIds: Set<string>;
   pip: PipState;
   lastElapsed: number;
   fired: Set<string>;
@@ -429,9 +443,21 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
     track.targetBps = targetBitsPerSecond(track.height, track.frameRate, track.quality);
   };
 
-  const newTrack = (role: VideoRole, source: VideoSource): LiveTrack => {
+  const nextStoreId = (session: LiveSession, role: VideoRole): string => {
+    let id: string = role;
+    for (let n = 2; session.usedIds.has(id); n++) {
+      id = `${role}-${n}`;
+    }
+    session.usedIds.add(id);
+    return id;
+  };
+
+  const newTrack = (session: LiveSession, role: VideoRole, source: VideoSource, extra = false): LiveTrack => {
     const settings = env.settings().recording.video;
+    const storeId = nextStoreId(session, role);
     const track: LiveTrack = {
+      trackId: extra ? (storeId as VideoTrackId) : role,
+      storeId,
       role,
       source,
       state: 'recording',
@@ -452,13 +478,15 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
       endReason: null,
       parts: 1,
       resumeAtMs: null,
+      stoppedAtMs: null,
     };
     configure(track);
     return track;
   };
 
   const statusOf = (track: LiveTrack): VideoTrackStatus => ({
-    trackId: track.role,
+    trackId: track.trackId,
+    role: track.role,
     state: track.state,
     sourceId: track.source.id,
     sourceName: track.source.name,
@@ -476,10 +504,12 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
     durationMs: track.durationMs,
   });
 
+  const order = (t: LiveTrack): number => (t.trackId === 'screen' ? 0 : t.role === 'camera' ? 2 : 1);
+
   const shown = (session: LiveSession): VideoTrackStatus[] =>
     session.tracks
       .filter((t) => !t.off)
-      .sort((a, b) => (a.role === b.role ? 0 : a.role === 'screen' ? -1 : 1))
+      .sort((a, b) => order(a) - order(b) || a.storeId.localeCompare(b.storeId))
       .map(statusOf);
 
   const emitStatus = (): void => {
@@ -500,7 +530,7 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
     }
     const payload: RecordingVideoProblemPayload = {
       sessionId: live.sessionId,
-      trackId: track.role,
+      trackId: track.trackId,
       state,
       code,
       sourceId: track.source.id,
@@ -537,7 +567,7 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
         run();
       }
     };
-    const screen = session.tracks.find((t) => t.role === 'screen' && !t.off);
+    const screen = session.tracks.find((t) => t.trackId === 'screen' && !t.off);
     if (screen?.state === 'recording') {
       if (screen.source.kind === 'display' && has('disconnect')) {
         once('disconnect', 10_000, () => {
@@ -673,11 +703,11 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
 
   // --- sample recordings ----------------------------------------------------------------------
 
-  const fileKey = (recordingId: string, role: VideoRole, part: number): string => `${recordingId}/${role}/${part}`;
+  const fileKey = (recordingId: string, trackId: string, part: number): string => `${recordingId}/${trackId}/${part}`;
 
   /** A preview file for each part: a fake URL in jsdom, a generated WebM in a browser (null until it is built). */
   const partUrl = (recordingId: string, track: ProjectVideoTrack, part: number, durationMs: number): string | null => {
-    const key = fileKey(recordingId, track.id, part);
+    const key = fileKey(recordingId, track.trackId, part);
     const known = urls.get(key);
     if (known !== undefined) {
       return known;
@@ -736,6 +766,8 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
     durationMs,
     endReason: null,
     parts: [{ url: null, startOffsetMs: 0, durationMs }],
+    trackId: role,
+    stoppedAtMs: durationMs,
   });
 
   const sampleVideo = (project: MockProject, spec: SampleVideo): ProjectVideo => {
@@ -755,7 +787,7 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
   const summaryOf = (video: ProjectVideo, removedAt: string | null = null): RecordingVideoSummary => {
     const screen = video.tracks.find((t) => t.id === 'screen');
     const first = screen ?? video.tracks[0];
-    return { roles: video.tracks.map((t) => t.id), height: first?.height ?? 0, removedAt };
+    return { roles: [...new Set(video.tracks.map((t) => t.id))], height: first?.height ?? 0, removedAt };
   };
 
   const addHistory = (project: MockProject, summary: string, detail: string): void => {
@@ -828,10 +860,11 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
     },
     'recording.setVideoSource': (params) => {
       const session = requireLive(params.sessionId);
-      const current = session.tracks.find((t) => t.role === params.role && !t.off);
+      const current = session.tracks.find((t) => t.trackId === params.role && !t.off);
       if (params.sourceId === null) {
         if (current !== undefined) {
           current.off = true;
+          current.stoppedAtMs = Math.round(elapsed());
           current.endReason ??= `Turned off at ${when()}.`;
           if (current.state === 'recording' || current.state === 'waiting' || current.state === 'paused') {
             current.state = 'ended';
@@ -859,9 +892,57 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
         if (current !== undefined) {
           current.off = true;
         }
-        const track = newTrack(params.role, source);
+        const track = newTrack(session, params.role, source);
         session.tracks.push(track);
         startProblems(track);
+      }
+      emitStatus();
+      return { videoTracks: shown(session) };
+    },
+    'video.addSource': (params) => {
+      const session = requireLive(params.sessionId);
+      const source = sourceById(params.sourceId);
+      if (source === undefined) {
+        throw new MockHostError('video.sourceNotFound', 'That display or window is not there any more. Nothing changed; choose another one.', params.sourceId);
+      }
+      if (roleOf(source.id) !== 'screen') {
+        throw new MockHostError('bridge.invalidParams', 'Add screen records a display or a window. A camera is set with recording.setVideoSource.', params.sourceId);
+      }
+      refuseSource(source);
+      const running = session.tracks.filter((t) => t.role === 'screen' && !t.off && t.state !== 'ended' && t.state !== 'stopped');
+      if (running.some((t) => t.source.id === source.id)) {
+        throw new MockHostError('video.sourceAlreadyRecorded', `${source.name} is already being recorded. Nothing changed; choose another display or window.`, source.id);
+      }
+      if (running.length >= MAX_SCREENS) {
+        throw new MockHostError('video.tooManySources', `Memento records up to ${MAX_SCREENS} screens at once and ${running.length} are recording. Nothing changed; remove one to add ${source.name}.`, source.id);
+      }
+      const primary = running.find((t) => t.trackId === 'screen');
+      if (primary === undefined) {
+        // No screen running: the added one is the screen track (an ended one stays in the project).
+        for (const old of session.tracks.filter((t) => t.trackId === 'screen' && !t.off)) {
+          old.off = true;
+          old.stoppedAtMs ??= Math.round(elapsed());
+        }
+      }
+      const track = newTrack(session, 'screen', source, primary !== undefined);
+      if (env.session()?.state === 'paused') {
+        track.state = 'paused';
+      }
+      session.tracks.push(track);
+      startProblems(track);
+      emitStatus();
+      return { videoTracks: shown(session) };
+    },
+    'video.removeSource': (params) => {
+      const session = requireLive(params.sessionId);
+      const track = session.tracks.find((t) => t.trackId === params.trackId && !t.off);
+      if (track === undefined) {
+        throw new MockHostError('video.sourceNotFound', `There is no video track '${params.trackId}' in this recording any more. Nothing changed; audio and the other tracks keep recording.`, params.trackId);
+      }
+      track.off = true;
+      track.stoppedAtMs = Math.round(elapsed());
+      if (track.state === 'recording' || track.state === 'waiting' || track.state === 'paused') {
+        track.state = 'ended';
       }
       emitStatus();
       return { videoTracks: shown(session) };
@@ -921,7 +1002,7 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
       return { audio: sourceIds.filter((id) => roleOf(id) === null), video: sourceIds.filter((id) => roleOf(id) !== null) };
     },
     started(sessionId, recordingId, videoIds) {
-      live = { sessionId, recordingId, tracks: [], pip: { enabled: env.settings().recording.video.defaultSource === 'screenAndCamera', corner: env.settings().recording.video.pipCorner }, lastElapsed: 0, fired: new Set() };
+      live = { sessionId, recordingId, tracks: [], usedIds: new Set(), pip: { enabled: env.settings().recording.video.defaultSource === 'screenAndCamera', corner: env.settings().recording.video.pipCorner }, lastElapsed: 0, fired: new Set() };
       for (const id of videoIds) {
         const source = sourceById(id);
         const role = roleOf(id);
@@ -929,7 +1010,7 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
           // Never keeps the audio from starting (BRIDGE.md): an unknown source is reported, not thrown.
           continue;
         }
-        const track = newTrack(role, source);
+        const track = newTrack(live, role, source);
         live.tracks.push(track);
       }
       emitStatus();
@@ -955,16 +1036,15 @@ export function createMockVideo(env: MockVideoEnvironment): MockVideo {
       if (recorded.length === 0) {
         return null;
       }
-      const byRole = (role: VideoRole): LiveTrack | undefined => recorded.filter((t) => t.role === role).at(-1);
+      // Every track with its own range (2.8.0): screens first, in the order they started, then the camera.
+      const ordered = [...recorded].sort((a, b) => (a.role === b.role ? a.startOffsetMs - b.startOffsetMs : a.role === 'screen' ? -1 : 1));
       const tracks: ProjectVideoTrack[] = [];
-      for (const role of ['screen', 'camera'] as const) {
-        const track = byRole(role);
-        if (track === undefined) {
-          continue;
-        }
+      for (const track of ordered) {
         const length = Math.min(track.durationMs, Math.max(0, durationMs - track.startOffsetMs));
         tracks.push({
-          id: role,
+          id: track.role,
+          trackId: track.storeId,
+          stoppedAtMs: Math.min(track.stoppedAtMs ?? durationMs, durationMs),
           sourceKind: track.source.kind,
           sourceName: track.source.name,
           width: track.width,

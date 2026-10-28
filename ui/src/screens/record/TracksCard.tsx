@@ -154,7 +154,7 @@ export function TracksCard({ sessionId, tracks, levels, clock, running, video }:
   const now = clock.read(performance.now());
   const lanes = lanesOf(tracks);
   const status = video?.value?.sessionId === sessionId ? video.value : null;
-  const liveRoles: VideoRole[] = (status?.videoTracks ?? []).filter((t) => t.state === 'recording' || t.state === 'paused' || t.state === 'waiting').map((t) => t.trackId);
+  const liveRoles: VideoRole[] = (status?.videoTracks ?? []).filter((t) => t.state === 'recording' || t.state === 'paused' || t.state === 'waiting').map((t) => t.role);
   const frameBlocks = hadVideo ? frames.current.blocks(now) : [];
   return (
     <section class="rec-card rec-tracks" aria-label="Tracks">

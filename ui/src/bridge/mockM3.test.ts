@@ -88,6 +88,9 @@ describe('M3 contract names', () => {
       'video.cameraInUse',
       'video.encoderUnavailable',
       'video.diskFull',
+      // 2.8.0: add or remove a screen while recording.
+      'video.sourceAlreadyRecorded',
+      'video.tooManySources',
     ]);
     // 2.1.0: Check now and Update now separated.
     expect(ERROR_CODES.slice(server - 4, server)).toEqual(['folder.notFound', 'folder.nameTaken', 'folder.invalid', 'updates.nothingToDownload']);

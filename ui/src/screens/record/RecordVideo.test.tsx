@@ -52,6 +52,7 @@ function track(over: Partial<VideoTrackStatus>): VideoTrackStatus {
     bytesWritten: 1_700_000_000,
     durationMs: 30_000,
     ...over,
+    role: over.role ?? (over.trackId === 'camera' ? 'camera' : 'screen'),
   };
 }
 

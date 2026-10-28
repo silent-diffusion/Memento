@@ -8,7 +8,7 @@ import { formatShortDate, parseIso } from '../../format/when';
 import { videoLayers } from './videoSync';
 
 function rolesOf(video: Pick<ProjectVideo, 'tracks'>): VideoRole[] {
-  return video.tracks.map((t) => t.id);
+  return [...new Set(video.tracks.map((t) => t.id))];
 }
 
 /** The header meta's last part: "screen + camera · 1.9 GB video", "video removed"; null when there is nothing to say. */

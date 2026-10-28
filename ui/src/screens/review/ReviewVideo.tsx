@@ -14,7 +14,7 @@ import type { AppStore } from '../../state/store';
 import { useUiFlag } from '../../state/uiPrefs';
 import { HIDDEN_LINE, outlineFacts, removedLine, removeVideoCopy } from './videoCopy';
 import { useVideoSync } from './useVideoSync';
-import { activeVideoStage, stillMessage, trackPosition, videoLayers, type MixState } from './videoSync';
+import { activeVideoStage, screenGapMessage, stillMessage, trackPosition, videoLayers, type MixState } from './videoSync';
 import './reviewVideo.css';
 
 // ---------------------------------------------------------------------------------------------
@@ -164,7 +164,8 @@ function Still({ track, timeMs, recordingMs, stage }: { track: ProjectVideoTrack
 }
 
 function VideoWell({ video, view, positionMs, recordingMs, mix, chapter, stages }: VideoAreaProps): JSX.Element {
-  const { main, inset } = videoLayers(video);
+  const { main, inset } = videoLayers(video, positionMs);
+  const gap = screenGapMessage(video, positionMs);
   const stage = activeVideoStage(stages);
   const audioOnlyRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
@@ -209,8 +210,15 @@ function VideoWell({ video, view, positionMs, recordingMs, mix, chapter, stages 
       <div class="vid" role="group" aria-label="Video">
         {main === null ? null : (
           <>
-            <SyncedVideo track={main} timeMs={positionMs} recordingMs={recordingMs} mix={mix} class="vid-main" />
-            <Still track={main} timeMs={positionMs} recordingMs={recordingMs} stage={stage} />
+            <SyncedVideo key={main.trackId} track={main} timeMs={positionMs} recordingMs={recordingMs} mix={mix} class="vid-main" />
+            {gap === null ? (
+              <Still track={main} timeMs={positionMs} recordingMs={recordingMs} stage={stage} />
+            ) : (
+              <div class="vid-still" role="status">
+                <span class="vid-still-lead">{gap.lead}</span>
+                <span class="vid-still-detail">{gap.detail}</span>
+              </div>
+            )}
           </>
         )}
         {showInset ? (

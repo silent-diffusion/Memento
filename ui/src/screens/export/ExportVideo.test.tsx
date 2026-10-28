@@ -197,6 +197,8 @@ describe('Export copies with video (DESIGN.md §18.4)', () => {
       durationMs: 0,
       endReason: null,
       parts: [],
+      trackId: id,
+      stoppedAtMs: 0,
     });
     const video = (tracks: ProjectVideo['tracks']): ProjectVideo => ({ tracks, pip: { enabled: true, corner: 'bottomRight' }, sizeBytes: 0, removed: null });
     expect(videoRowDescription(video([track('camera', 1920, 1080)]))).toBe('Camera, 1920 × 1080 · 30 fps, with the mixed audio');

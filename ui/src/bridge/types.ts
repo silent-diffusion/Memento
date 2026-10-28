@@ -143,6 +143,9 @@ export const ERROR_CODES = [
   'video.cameraInUse',
   'video.encoderUnavailable',
   'video.diskFull',
+  // 2.8.0 add or remove a screen while recording
+  'video.sourceAlreadyRecorded',
+  'video.tooManySources',
   // 2.1 Library folders (BRIDGE.md "2.1 — Folders, dates and Delete audio")
   'folder.notFound',
   'folder.nameTaken',
@@ -2783,6 +2786,12 @@ export type VideoSourceKind = 'display' | 'window' | 'camera';
 /** The two video tracks a session can have; a display or a window is the screen track. */
 export type VideoRole = 'screen' | 'camera';
 
+/**
+ * 2.8.0: a video track's id while recording: the role for the first screen and the camera, and the track's own id
+ * (`screen-2`, `screen-3`) for a screen added with video.addSource.
+ */
+export type VideoTrackId = VideoRole | `screen-${number}`;
+
 export interface VideoSource {
   /** 'display:\\.\DISPLAY1', 'window:1A2B3C', 'camera:<symbolic link>', 'camera:dshow:<device>'. */
   id: string;
@@ -2812,7 +2821,9 @@ export type VideoTrackState = 'recording' | 'paused' | 'waiting' | 'ended' | 'st
 
 /** One video track of the session: the Encoder card and the footer (DESIGN.md §18.1). */
 export interface VideoTrackStatus {
-  trackId: VideoRole;
+  trackId: VideoTrackId;
+  /** 2.8.0: 'screen' also for an added screen. */
+  role: VideoRole;
   state: VideoTrackState;
   /** The source the track captures now. */
   sourceId: string;
@@ -2884,6 +2895,19 @@ export interface VideoTracksResult {
   videoTracks: VideoTrackStatus[];
 }
 
+/** 2.8.0 video.addSource: one more display or window recorded from now. */
+export interface VideoAddSourceParams {
+  sessionId: string;
+  /** A display or window id from video.listSources. */
+  sourceId: string;
+}
+
+/** 2.8.0 video.removeSource: stop one track from now; what it recorded is kept. */
+export interface VideoRemoveSourceParams {
+  sessionId: string;
+  trackId: VideoTrackId;
+}
+
 export interface RecordingSetPipParams {
   sessionId: string;
   enabled: boolean;
@@ -2938,7 +2962,7 @@ export type VideoProblemCode =
 
 export interface RecordingVideoProblemPayload {
   sessionId: string;
-  trackId: VideoRole;
+  trackId: VideoTrackId;
   state: VideoTrackState;
   code: VideoProblemCode;
   sourceId: string;
@@ -2987,6 +3011,10 @@ export interface ProjectVideoTrack {
   /** The §18.6 sentence when it ended before the recording did. */
   endReason: string | null;
   parts: VideoPart[];
+  /** 2.8.0: the track's own id in project.json ('screen', 'screen-2'); unique in the recording. */
+  trackId: string;
+  /** 2.8.0: where the track stopped on the recording timeline; with startOffsetMs its time range. */
+  stoppedAtMs: number;
 }
 
 export interface ProjectVideo {
@@ -3166,6 +3194,8 @@ export interface BridgeMethods {
   'video.openPrivacySettings': { params: VideoOpenPrivacySettingsParams; result: EmptyResult };
   'video.remove': { params: RecordingIdParams; result: VideoRemoveResult };
   'video.removeEstimate': { params: VideoRemoveEstimateParams; result: VideoRemoveEstimate };
+  'video.addSource': { params: VideoAddSourceParams; result: VideoTracksResult };
+  'video.removeSource': { params: VideoRemoveSourceParams; result: VideoTracksResult };
   // 2.1 Library folders and Delete audio
   'folders.list': { params: EmptyParams; result: FoldersListResult };
   'folders.create': { params: FolderCreateParams; result: FolderPathResult };
@@ -3447,6 +3477,9 @@ export const METHOD_NAMES = [
   'video.openPrivacySettings',
   'video.remove',
   'video.removeEstimate',
+  // 2.8.0 add or remove a screen while recording
+  'video.addSource',
+  'video.removeSource',
   // 2.1 Library folders and Delete audio
   'folders.list',
   'folders.create',
