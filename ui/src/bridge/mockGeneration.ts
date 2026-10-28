@@ -576,7 +576,7 @@ export function createMockM4(env: MockM4Environment): MockM4 {
     },
     'styles.resetBuiltIn': (params) => store.resetStyle(params.styleId),
     'styles.sampleHtml': (params) => ({ html: sampleHtml(params.settings) }),
-    'providers.list': () => ({ providers: providers(), externalAiEnabled: env.settings().ai.enabled }),
+    'providers.list': () => ({ providers: providers(), externalAiEnabled: env.settings().ai.enabled, defaultProviderId: env.settings().ai.defaultProviderId }),
     'generation.preview': (params) => compose(params.recordingId, params.template, providerFor(params.template)),
     'generation.previewHtml': (params) => {
       const style = store.style(params.styleId);

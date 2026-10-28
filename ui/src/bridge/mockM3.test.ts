@@ -102,6 +102,11 @@ describe('M3 contract names', () => {
       'ai.serverNeedsKey',
       'ai.serverModelUnknown',
       'ai.serverInsecure',
+      // 2.9.0 Ask closes the list.
+      'ask.busy',
+      'ask.notFound',
+      'ask.noTranscript',
+      'ask.newerVersion',
     ]);
   });
 });

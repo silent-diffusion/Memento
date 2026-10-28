@@ -1,0 +1,216 @@
+/* Ask (2.9.0): one reading column, questions on the right in the accent's soft tint, answers as cards with
+   citation chips, the composer at the end. Colours and shadows are tokens (DESIGN.md §2.1, §2.5). */
+.ask-main {
+  padding-top: 24px;
+}
+
+.ask-column {
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ask-quiet {
+  color: var(--text-3);
+  font-size: 13px;
+  margin: 0;
+}
+
+.ask-empty {
+  padding: 8px 4px;
+}
+
+.ask-turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ask-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.ask-question {
+  align-self: flex-end;
+  max-width: 80%;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.ask-answer {
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+}
+
+.ask-answer--live {
+  box-shadow: var(--neo-sm);
+}
+
+.ask-text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+.ask-cite {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 2px;
+  padding: 0 8px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.ask-cite:hover {
+  background: var(--accent-soft);
+}
+
+.ask-cite:focus-visible,
+.ask-section-open:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus);
+}
+
+.ask-cite--none {
+  color: var(--text-3);
+  cursor: help;
+}
+
+.ask-answer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ask-sections summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.ask-sections[open] summary {
+  margin-bottom: 6px;
+}
+
+.ask-section-list {
+  margin: 8px 0 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.ask-section-open {
+  border: none;
+  background: none;
+  padding: 0;
+  border-radius: 12px;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.ask-matched {
+  margin-left: 8px;
+}
+
+.ask-error {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--danger-soft);
+  color: var(--text);
+}
+
+.ask-confirm,
+.ask-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--neo-card);
+}
+
+.ask-confirm p,
+.ask-setup p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ask-confirm-title,
+.ask-setup-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.ask-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ask-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ask-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--neo-in);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+
+.ask-input:focus-visible {
+  outline: none;
+  box-shadow: var(--neo-in), 0 0 0 2px var(--focus);
+}
+
+.ask-composer-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ask-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ask-banner {
+  flex-wrap: wrap;
+}

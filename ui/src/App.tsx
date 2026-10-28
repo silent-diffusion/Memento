@@ -13,6 +13,7 @@ import { connectLiveOutput } from './screens/builder/liveOutput';
 import { LiveOutputLayer } from './screens/builder/LiveOutputSheet';
 import { DocumentScreen } from './screens/docview/DocumentScreen';
 import { StyleEditorScreen } from './screens/styleeditor/StyleEditorScreen';
+import { AskScreen } from './screens/ask/AskScreen';
 import { AppContext, createMemoryRouter, type AppServices } from './state/context';
 import { connectJobEvents } from './state/jobs';
 import { screenKey, type Route, type Router } from './state/router';
@@ -48,6 +49,9 @@ function Screen({ route }: { route: Route }): JSX.Element {
       return <DocumentScreen recordingId={route.recordingId} documentId={route.documentId} {...(route.versionId === undefined ? {} : { versionId: route.versionId })} />;
     case 'style':
       return <StyleEditorScreen styleId={route.styleId} />;
+    // 2.9.0
+    case 'ask':
+      return <AskScreen recordingId={route.recordingId} />;
   }
 }
 

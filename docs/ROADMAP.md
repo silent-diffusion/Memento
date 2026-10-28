@@ -196,6 +196,12 @@ The product owner reports that the automatic speaker assignments are often wrong
 
 **Not verified:** no real recording was measured for any accuracy change (ENGINE-NOTES.md §U, §V and §W say how, with `tools/TranscriptionCheck` and fixtures from `tools/e2e/speech.ps1`); the owner's corrected meetings are not treated as ground truth yet. The `tools/e2e` scripts (m5-review) were not run against the built app; `m5-review.mjs` expects the merge row last, which still holds. The thresholds (`LineSplitter.MinWords`/`MinSeconds`, the fit cut at cosine 0.48, `SpeakerSplitter.AlikeSimilarity` 0.8, `BleedFilter`'s 0.6/4 words/1.5 s) are documented constants to tune on real recordings.
 
+## 2.9.0 — Ask — Delivered (unreleased)
+
+An optional **Ask** page per recording (from Review's header): a conversation with any configured provider about the recording's transcript, through `IAiProvider`. The whole payload goes when it fits the model's budget; otherwise a BM25 search on this PC (`AskSearch`, no new dependency) picks the best transcript sections and their neighbours, and the answer says which sections were used. Answers cite lines that open Review there; the conversation is kept per project (`ask/conversation.json`, schema 1, atomic writes) and can be cleared; consent, share switches and "Ask before every send" are generation's; answers stream and can be stopped; provider errors keep their `ai.*` code and §17 copy.
+
+**Verified:** host build with warnings as errors and the suites without hardware and soak tests (`AskBridgeTests`, `AskRetrievalTests` against scripted providers), the UI lint, type check, vitest suites and build. `tools/e2e/m15-ask.mjs` (a published build, Your own server at the loopback fake `fake-openai-server.mjs`, a private data root) passed 25 of 25 checks: streaming, citation chips to Review and Back, Stop, sections for a 2,048-token context, the conversation kept across a restart, Clear. **Not built:** the optional two-step "find, then answer" pass for the local model; no real model (local or remote) was asked anything.
+
 ## 2.x — candidates
 
 - The Library's selection mode and context menu (DESIGN.md §19), and small-window layouts below 1024 px (§20).

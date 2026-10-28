@@ -14,6 +14,10 @@ public sealed class M4EventPublisher(IBridgeEventSink sink)
     public void PublishGenerationOutput(GenerationOutput payload) =>
         sink.Post(BridgeEventPublisher.Serialize(BridgeEventNames.GenerationOutput, payload, M4BridgeJsonContext.Default.BridgeEventEnvelopeGenerationOutput));
 
+    /// <summary>2.9.0: <c>ask.progress</c>.</summary>
+    public void PublishAskProgress(AskProgress payload) =>
+        sink.Post(BridgeEventPublisher.Serialize(BridgeEventNames.AskProgress, payload, M4BridgeJsonContext.Default.BridgeEventEnvelopeAskProgress));
+
     public void PublishDocumentsChanged(DocumentsChangedPayload payload) =>
         sink.Post(BridgeEventPublisher.Serialize(BridgeEventNames.DocumentsChanged, payload, M4BridgeJsonContext.Default.BridgeEventEnvelopeDocumentsChangedPayload));
 

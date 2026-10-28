@@ -86,6 +86,16 @@ export function answerFor(body) {
   const schema = format?.type === 'json_schema' ? format.json_schema?.schema : null;
   const lines = transcriptLines(user);
   const pick = (i) => lines[i % Math.max(1, lines.length)];
+  // 2.9.0 Ask: a plain-text answer citing the first two lines it was given (and one line it was not, which the host
+  // must not keep as a citation), long enough to be seen streaming.
+  if (!schema && system.includes('You answer questions about one recording')) {
+    const [a, b] = [lines[0], lines[1] ?? lines[0]];
+    if (!a) return 'The material has no transcript lines, so I cannot answer.';
+    return (
+      `Here is what the recording says. ${a.speaker} opened with: "${firstWords(a.words, 10)}" [${a.line}]. Then ${b.speaker} added: "${firstWords(b.words, 10)}" [${b.line}]. ` +
+      'Nothing else in these lines changes that, and the recording does not say more about it [999999]. That is the whole answer, written slowly so it can be watched as it arrives.'
+    );
+  }
   switch (answerKind(schema, system)) {
     case 'points':
       return { points: lines.slice(0, 2).map((l) => ({ text: `${l.speaker} said: ${firstWords(l.words, 12)}`, line: l.line, quote: firstWords(l.words, 8) })) };
@@ -183,7 +193,8 @@ export function startFakeOpenAiServer({ port = 0, record = null, rejectJsonSchem
         answer(400, { error: { message: 'response_format json_schema is not supported by this server', type: 'invalid_request_error', param: 'response_format', code: null } });
         return;
       }
-      const content = JSON.stringify(answerFor(body));
+      const answered = answerFor(body);
+      const content = typeof answered === 'string' ? answered : JSON.stringify(answered);
       entry.answer = content;
       const id = `chatcmpl-fake-${requests.length}`;
       const created = Math.floor(Date.now() / 1000);

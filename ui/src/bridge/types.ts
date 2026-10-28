@@ -161,6 +161,11 @@ export const ERROR_CODES = [
   'ai.serverNeedsKey',
   'ai.serverModelUnknown',
   'ai.serverInsecure',
+  // 2.9.0 Ask (BRIDGE.md "2.9.0 — Ask")
+  'ask.busy',
+  'ask.notFound',
+  'ask.noTranscript',
+  'ask.newerVersion',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -2394,6 +2399,8 @@ export interface HtmlResult {
 export interface ProvidersListResult {
   providers: ProviderInfo[];
   externalAiEnabled: boolean;
+  /** The provider chosen as the default in Settings, or null (the host sends it; 2.9.0 Ask starts with it). */
+  defaultProviderId?: ProviderId | null;
 }
 
 export interface GenerationPreviewParams {
@@ -3031,6 +3038,108 @@ export interface ProjectVideo {
 // ---------------------------------------------------------------------------------------------
 
 /** Every host method: name -> params and result. Mirrors BridgeMethodNames.cs. */
+// 2.9.0 Ask: a conversation about one recording (BRIDGE.md "2.9.0 — Ask").
+
+/** A transcript line an answer cites: Review opens at it. */
+export interface AskCitation {
+  /** The line number as the answer wrote it ([12]). */
+  line: number;
+  segmentId: string;
+  /** Seconds. */
+  start: number;
+}
+
+/** A transcript section an answer was given when the recording did not fit whole. */
+export interface AskSection {
+  /** 1-based among all sections. */
+  number: number;
+  firstLine: number;
+  lastLine: number;
+  start: number;
+  end: number;
+  /** The chapter it falls in. */
+  title: string | null;
+  /** It matched the question's words (otherwise a neighbour of one that did, or the opening). */
+  matched: boolean;
+}
+
+/** What an answer was given: the whole recording, or the sections the local search picked. */
+export interface AskContextInfo {
+  mode: 'whole' | 'sections';
+  sections: AskSection[];
+  sectionCount: number;
+  totalLines: number;
+  /** What went along besides the transcript ("Recording details", "Agenda"…). */
+  inputs: string[];
+  /** With 'sections': some section shared words with the question (otherwise the opening was used). */
+  anyMatched: boolean;
+  tokens: number;
+}
+
+/** One turn of a recording's Ask conversation. */
+export interface AskTurn {
+  /** t1, t2… */
+  id: string;
+  role: 'user' | 'assistant';
+  /** The question, or the answer with its citations as [12]. */
+  text: string;
+  at: string;
+  providerId?: ProviderId | null;
+  providerName?: string | null;
+  modelLabel?: string | null;
+  stayedOnPc?: boolean | null;
+  citations?: AskCitation[] | null;
+  context?: AskContextInfo | null;
+  /** Stopped before it finished: the text is what had arrived. */
+  stopped?: boolean | null;
+}
+
+export interface AskConversationResult {
+  recordingId: string;
+  turns: AskTurn[];
+  /** The question being answered (or waiting for confirmation) for this recording. */
+  jobId: string | null;
+}
+
+export interface AskSendParams {
+  recordingId: string;
+  question: string;
+  /** null: the Settings default, else the local model. */
+  providerId?: ProviderId | null;
+}
+
+/** What "ask before every send" shows for a question. */
+export interface AskSendSummary {
+  providerId: ProviderId;
+  providerName: string;
+  modelLabel: string | null;
+  context: AskContextInfo;
+  /** UTF-8 size of the whole request. */
+  bytes: number;
+}
+
+export interface AskSendResult {
+  jobId: string;
+  /** The question as it will be saved. */
+  question: AskTurn;
+  confirmationRequired?: boolean;
+  summary?: AskSendSummary | null;
+}
+
+/** ask.progress: one step of an answer; nothing follows done, cancelled or failed. */
+export interface AskProgress {
+  jobId: string;
+  recordingId: string;
+  kind: 'context' | 'token' | 'done' | 'cancelled' | 'failed';
+  /** token: the new text; failed and cancelled: what happened. */
+  text: string;
+  context?: AskContextInfo | null;
+  /** done (and cancelled when text had arrived): the saved answer. */
+  turn?: AskTurn | null;
+  /** failed: ai.network, ai.serverUnreachable… */
+  code?: string | null;
+}
+
 export interface BridgeMethods {
   'app.version': { params: EmptyParams; result: AppVersionResult };
   'app.openExternal': { params: OpenExternalParams; result: OpenExternalResult };
@@ -3196,6 +3305,12 @@ export interface BridgeMethods {
   'video.removeEstimate': { params: VideoRemoveEstimateParams; result: VideoRemoveEstimate };
   'video.addSource': { params: VideoAddSourceParams; result: VideoTracksResult };
   'video.removeSource': { params: VideoRemoveSourceParams; result: VideoTracksResult };
+  // 2.9.0 Ask
+  'ask.get': { params: RecordingIdParams; result: AskConversationResult };
+  'ask.send': { params: AskSendParams; result: AskSendResult };
+  'ask.confirm': { params: GenerationConfirmParams; result: EmptyResult };
+  'ask.cancel': { params: JobIdParams; result: EmptyResult };
+  'ask.clear': { params: RecordingIdParams; result: AskConversationResult };
   // 2.1 Library folders and Delete audio
   'folders.list': { params: EmptyParams; result: FoldersListResult };
   'folders.create': { params: FolderCreateParams; result: FolderPathResult };
@@ -3315,6 +3430,8 @@ export interface BridgeEvents {
   'recording.videoStatus': RecordingVideoStatusPayload;
   'recording.videoProblem': RecordingVideoProblemPayload;
   'video.sourcesChanged': EmptyResult;
+  // 2.9.0 Ask
+  'ask.progress': AskProgress;
 }
 
 export type MethodName = keyof BridgeMethods;
@@ -3496,6 +3613,12 @@ export const METHOD_NAMES = [
   'updates.download',
   // 2.5 Your own server
   'ai.serverProbe',
+  // 2.9.0 Ask
+  'ask.get',
+  'ask.send',
+  'ask.confirm',
+  'ask.cancel',
+  'ask.clear',
 ] as const satisfies readonly MethodName[];
 
 export const EVENT_NAMES = [
@@ -3524,4 +3647,5 @@ export const EVENT_NAMES = [
   'recording.videoStatus',
   'recording.videoProblem',
   'video.sourcesChanged',
+  'ask.progress',
 ] as const satisfies readonly EventName[];
