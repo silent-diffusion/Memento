@@ -84,6 +84,10 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const createDocument = (): void => {
     services.router.navigate({ name: 'builder', recordingId, templateId: null, documentId: null });
   };
+  // 2.9.0: Ask about this recording.
+  const openAsk = (): void => {
+    services.router.navigate({ name: 'ask', recordingId });
+  };
   const known = store.library.value?.recordings.find((r) => r.id === recordingId) ?? null;
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -493,6 +497,9 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                 {resuming ? 'Resuming…' : 'Resume recording'}
               </button>
             ) : null}
+            <button class="btn ghost" type="button" title="Ask an AI about this recording" onClick={openAsk}>
+              Ask
+            </button>
             <button
               class="btn ghost"
               type="button"

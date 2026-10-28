@@ -16,6 +16,7 @@ import { createMockClipboard } from './mockClipboard';
 import { createMockCopies } from './mockPreview';
 import { checkServerPatch, SERVER_HANDLERS } from './mockServer';
 import { createMockReview } from './mockReview';
+import { createMockAsk } from './mockAsk';
 import { mockGpuMemory, mockGpuNote } from './mockGpu';
 import { linkHistory } from './mockHistory';
 import { localModelsInstalled } from './mockLocalModel';
@@ -698,6 +699,16 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
 
   // 2.0 Review: known voices, suggested chapters, several lines to one speaker.
   const review = createMockReview({ find, transcription, settings: () => settings, now });
+  // 2.9.0: Ask, a conversation about one recording.
+  const ask = createMockAsk({
+    emit,
+    now,
+    find: (recordingId) => ({ title: find(recordingId).summary.title }),
+    segments: (recordingId) => transcription.get(recordingId).transcript?.segments.map((seg) => ({ id: seg.id, start: seg.start, end: seg.end, text: seg.text })) ?? [],
+    providers: () => m4.handlers['providers.list']({}).providers,
+    settings: () => settings,
+    stepMs: options.stepMs ?? 400,
+  });
 
   const settingsInvalid = (message: string, detail: string): MockHostError => new MockHostError('settings.invalidValue', message, detail);
 
@@ -1185,6 +1196,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
     }).handlers,
     ...video.handlers,
     ...folders.handlers,
+    ...ask.handlers,
   };
 
   const answer = (request: BridgeRequest): BridgeResponse => {

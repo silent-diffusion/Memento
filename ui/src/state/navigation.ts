@@ -76,6 +76,8 @@ export function screenIdentity(route: Route): string {
       return `document:${route.recordingId}:${route.documentId}`;
     case 'style':
       return `style:${route.styleId}`;
+    case 'ask':
+      return `ask:${route.recordingId}`;
   }
 }
 
@@ -96,6 +98,8 @@ export function genericLabel(route: Route): string {
       return 'Document';
     case 'style':
       return 'Style';
+    case 'ask':
+      return 'Ask';
   }
 }
 
@@ -105,7 +109,8 @@ export function acceptsOrigin(current: Route, origin: Route): boolean {
     case 'settings':
       return origin.name !== 'settings' && origin.name !== 'library';
     case 'review':
-      return origin.name === 'document' && origin.recordingId === current.recordingId;
+      // 2.9.0: a citation in Ask opens Review at its line; Back returns to the conversation.
+      return (origin.name === 'document' || origin.name === 'ask') && origin.recordingId === current.recordingId;
     case 'builder':
       return origin.name === 'document' && current.recordingId !== null && origin.recordingId === current.recordingId;
     default:

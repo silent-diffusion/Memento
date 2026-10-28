@@ -30,7 +30,9 @@ export type Route =
   | { name: 'builder'; recordingId: string | null; templateId: string | null; documentId: string | null }
   /** `versionId` (after 1.2.0): open that kept version read-only (Review's History opens it). */
   | { name: 'document'; recordingId: string; documentId: string; versionId?: string }
-  | { name: 'style'; styleId: string };
+  | { name: 'style'; styleId: string }
+  /** 2.9.0: Ask, a conversation with an AI about one recording. */
+  | { name: 'ask'; recordingId: string };
 
 export const LIBRARY_ROUTE: Route = { name: 'library' };
 
@@ -78,6 +80,10 @@ export function parseRoute(hash: string): Route {
       const versionId = query.get('version');
       return versionId === null || versionId === '' ? { name: 'document', recordingId, documentId } : { name: 'document', recordingId, documentId, versionId };
     }
+    case 'ask': {
+      const recordingId = decode(arg);
+      return recordingId === null ? LIBRARY_ROUTE : { name: 'ask', recordingId };
+    }
     case 'style': {
       const styleId = decode(arg);
       return styleId === null ? LIBRARY_ROUTE : { name: 'style', styleId };
@@ -117,6 +123,8 @@ export function formatRoute(route: Route): string {
       return `#/document/${encodeURIComponent(route.recordingId)}/${encodeURIComponent(route.documentId)}${route.versionId === undefined ? '' : `?version=${encodeURIComponent(route.versionId)}`}`;
     case 'style':
       return `#/style/${encodeURIComponent(route.styleId)}`;
+    case 'ask':
+      return `#/ask/${encodeURIComponent(route.recordingId)}`;
   }
 }
 
