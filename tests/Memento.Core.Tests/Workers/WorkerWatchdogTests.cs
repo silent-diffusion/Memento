@@ -87,21 +87,21 @@ public sealed class WorkerWatchdogTests
     [Fact]
     public async Task TheGraphicsCardIsFreeAgainAfterAHungWorker()
     {
-        var first = true;
-        _launcher.Script = async (_, context, cancel) =>
+        // Each worker takes the script set when it is launched. A "first run" flag flipped inside the script raced: the
+        // first script's body may not have run yet when its quiet limit passes, so the second worker hung too.
+        _launcher.Script = async (_, _, cancel) =>
         {
-            if (first)
-            {
-                first = false;
-                await Task.Delay(Timeout.Infinite, cancel);
-            }
-
-            context.Send(new WorkerReply { Type = WorkerMessageTypes.Result });
+            await Task.Delay(Timeout.Infinite, cancel);
             return 0;
         };
         using var client = new WorkerClient(_launcher, NullLogger<WorkerClient>.Instance, _short);
 
         await HungAsync(client);
+        _launcher.Script = (_, context, _) =>
+        {
+            context.Send(new WorkerReply { Type = WorkerMessageTypes.Result });
+            return Task.FromResult(0);
+        };
         var reply = await client.RunAsync(GpuJob, null, CancellationToken.None).WaitAsync(Patience.Ceiling);
 
         Assert.Equal(WorkerMessageTypes.Result, reply.Type);
