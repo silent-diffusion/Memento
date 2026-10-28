@@ -42,6 +42,8 @@ import { restoreTranscriptVersion, useHistoryLinks } from './historyVersions';
 import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptVersionView';
 import { useReview20Wiring } from './Review20';
 import { useHearSpeaker } from './useHearSpeaker';
+import { useFollowHold } from './useFollowHold';
+import { segmentIndexAt } from '../../format/transcript';
 import type { FollowPlayhead } from '../../state/followPlayhead';
 import { RemoveVideoDialog, useVideoView, VideoArea, VideoOutlineBlock } from './ReviewVideo';
 import { metaVideoTail, removeFailedBody } from './videoCopy';
@@ -184,6 +186,16 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
   const hear = useHearSpeaker(player, transcript?.segments ?? [], recordingId, () => {
     followRef.current?.resume();
   });
+  useFollowHold(followRef);
+  // 2.7.0: Jump to playing scrolls to the line being played and resumes following at once.
+  const jumpToPlaying = (): void => {
+    const segments = transcript?.segments ?? [];
+    const segment = segments[segmentIndexAt(segments, player.positionMs / 1000)];
+    followRef.current?.resume();
+    if (segment !== undefined) {
+      revealRef.current?.(segment.id);
+    }
+  };
   // 2.0 video (DESIGN.md §18.3): the inset, Audio only and Fullscreen, and Remove video.
   const videoView = useVideoView(project?.video ?? null, store);
   const [removingVideo, setRemovingVideo] = useState(false);
@@ -696,6 +708,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   search={transcript !== null && transcript.segments.length > 0 ? search : null}
                   onJump={jump}
                   skip={{ available: canSkip, on: skipSilences, onToggle: setSkipSilences, gaps: silences }}
+                  {...(canSkip && openVersion === null ? { onJumpToPlaying: jumpToPlaying } : {})}
                   {...(project.segments === undefined ? {} : { segments: project.segments })}
                   video={
                     project.video !== null && (project.video.removed !== null || project.video.tracks.length > 0) ? (
@@ -713,7 +726,7 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                   }
                 />
               </FloatingPopovers.Provider>
-              <div class={TRANSCRIPT_SCROLLER}>
+              <div class={TRANSCRIPT_SCROLLER} data-follow-hold>
                 {openVersion !== null ? (
                   <TranscriptVersionView
                     open={openVersion.link.versionId === 'current' ? { ...openVersion, transcript } : openVersion}

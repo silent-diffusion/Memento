@@ -1,9 +1,11 @@
 // The transcript follows the playhead (DESIGN.md §9): the current segment is scrolled into view as
-// playback moves on, unless the person is scrolling the transcript themselves. Scrolling by hand
-// pauses following for a few seconds; the page's own scrolls do not count as theirs.
+// playback moves on, unless the person is working in the transcript themselves. Scrolling by hand,
+// and (2.7.0) any interaction with the transcript or People (clicks, typing, menus, selection), holds
+// following; it resumes after FOLLOW_PAUSE_MS without any, and never while a field in the transcript
+// has focus. The page's own scrolls do not count as theirs. "Jump to playing" resumes at once.
 
-/** How long following stays off after the last scroll by hand. */
-export const FOLLOW_PAUSE_MS = 4000;
+/** How long following stays off after the last scroll or interaction by hand. */
+export const FOLLOW_PAUSE_MS = 5000;
 
 /** Scroll events this soon after the page scrolled itself are the page's own. */
 export const PROGRAMMATIC_GRACE_MS = 600;
@@ -15,28 +17,40 @@ export interface FollowPlayhead {
   noteProgrammaticScroll(): void;
   /** A `scroll` event: counts as the person's unless the page just scrolled itself. */
   noteScrollEvent(): void;
+  /** 2.7.0: a click, key, menu, edit or selection in the transcript or People holds following. */
+  noteInteraction(): void;
+  /** 2.7.0: a field in the transcript (a line being edited, a rename) took or lost focus; following waits for it. */
+  setFieldFocused(focused: boolean): void;
   /** Whether a change of current segment should scroll it into view now. */
   shouldFollow(): boolean;
-  /** Following resumes at once (a click on a segment or chapter, a search jump). */
+  /** Following resumes at once (Jump to playing, a search jump, Hear {name}). */
   resume(): void;
 }
 
 export function createFollowPlayhead(now: () => number = () => Date.now()): FollowPlayhead {
   let userUntil = Number.NEGATIVE_INFINITY;
   let programmaticUntil = Number.NEGATIVE_INFINITY;
+  let fieldFocused = false;
+  const hold = (): void => {
+    userUntil = now() + FOLLOW_PAUSE_MS;
+  };
   return {
-    noteUserScroll: () => {
-      userUntil = now() + FOLLOW_PAUSE_MS;
+    noteUserScroll: hold,
+    noteInteraction: hold,
+    setFieldFocused: (focused) => {
+      fieldFocused = focused;
+      // The quiet time counts from leaving the field.
+      hold();
     },
     noteProgrammaticScroll: () => {
       programmaticUntil = now() + PROGRAMMATIC_GRACE_MS;
     },
     noteScrollEvent: () => {
       if (now() > programmaticUntil) {
-        userUntil = now() + FOLLOW_PAUSE_MS;
+        hold();
       }
     },
-    shouldFollow: () => now() >= userUntil,
+    shouldFollow: () => !fieldFocused && now() >= userUntil,
     resume: () => {
       userUntil = Number.NEGATIVE_INFINITY;
     },

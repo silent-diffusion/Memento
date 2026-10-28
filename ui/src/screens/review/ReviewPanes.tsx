@@ -524,7 +524,7 @@ export function OutlinePane({
         />
       </div>
 
-      <div class="outline-group">
+      <div class="outline-group outline-people" data-follow-hold>
         <div class="outline-head">
           <span class="lbl">People</span>
         </div>
