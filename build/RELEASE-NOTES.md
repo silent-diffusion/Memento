@@ -3,6 +3,16 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.8.0
+
+### Add or remove a screen while recording
+
+- **Add screen.** While recording, the Record screen's **Screens recording** list has **Add screen**: choose a display or window in the picker and it is recorded from that moment, beside the screens already recording (up to four at once), each in its own capture pipeline and file. A source already recording, or a fifth screen, is refused with the reason and nothing changes.
+- **Remove a screen.** **Remove** beside each screen asks first, then stops that screen from that moment; what it recorded is kept. Removing the last screen is allowed: the audio keeps recording, and Add screen starts one again. Audio capture is never touched by either.
+- **Each screen keeps its own time range.** `project.json` schema 8 stores where each video track stopped (`stoppedAtMs`) beside where it started; recordings from before are upgraded on open. Pause, resume, checkpoints, low disk space, stop and Resume recording act on every screen alike.
+- **Review shows the screen recorded at the playhead**, the most recently added when several were recording, and a calm "No screen was recorded here" placeholder (with when the screen resumes) where none was. A recording resumed with a different screen now plays each part's screen too.
+- Bridge: `video.addSource`, `video.removeSource`, the error codes `video.sourceAlreadyRecorded` and `video.tooManySources`; `VideoTrackStatus.role`, `ProjectVideoTrack.trackId` and `stoppedAtMs` (BRIDGE.md "Add and remove screens while recording (2.8.0)").
+
 ## 2.7.0
 
 Review that stays out of your way, chapters from the agenda, and speakers that remember when they were added.

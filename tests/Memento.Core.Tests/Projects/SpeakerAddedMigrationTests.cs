@@ -23,7 +23,7 @@ public sealed class SpeakerAddedMigrationTests
         var migrated = ProjectManifestMigrator.Default.Migrate(V6());
 
         Assert.True(migrated.Migrated);
-        Assert.Equal(7, migrated.Manifest["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(ProjectManifest.CurrentSchemaVersion, migrated.Manifest["schemaVersion"]!.GetValue<int>());
         var whoSpoke = migrated.Manifest["details"]!["whoSpoke"]!;
         Assert.Empty(whoSpoke["added"]!.AsArray());
         Assert.Equal("Ana", whoSpoke["names"]![0]!.GetValue<string>());
