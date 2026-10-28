@@ -43,6 +43,8 @@ import { TranscriptVersionView, type OpenTranscriptVersion } from './TranscriptV
 import { useReview20Wiring } from './Review20';
 import { useHearSpeaker } from './useHearSpeaker';
 import { useFollowHold } from './useFollowHold';
+import { PaneSplitter } from '../../components/PaneSplitter';
+import { readPaneWidths, writePaneWidths, type PaneWidths, type ReviewPane } from '../../state/paneWidths';
 import { segmentIndexAt } from '../../format/transcript';
 import type { FollowPlayhead } from '../../state/followPlayhead';
 import { RemoveVideoDialog, useVideoView, VideoArea, VideoOutlineBlock } from './ReviewVideo';
@@ -187,6 +189,17 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
     followRef.current?.resume();
   });
   useFollowHold(followRef);
+  // 2.7.0: the side panes' widths, set with the splitters and remembered on this PC.
+  const [paneWidths, setPaneWidths] = useState<PaneWidths>(readPaneWidths);
+  const resizePane = (pane: ReviewPane) => (width: number, done: boolean): void => {
+    setPaneWidths((current) => {
+      const next = { ...current, [pane]: width };
+      if (done) {
+        writePaneWidths(next);
+      }
+      return next;
+    });
+  };
   // 2.7.0: Jump to playing scrolls to the line being played and resumes following at once.
   const jumpToPlaying = (): void => {
     const segments = transcript?.segments ?? [];
@@ -587,7 +600,10 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
       ) : (
         // Each pane scrolls on its own (DESIGN.md §9), so their menus float above them instead of being clipped.
         <FloatingPopovers.Provider value>
-          <div class={videoView.full ? 'review-panes review-panes--video-full' : 'review-panes'}>
+          <div
+            class={videoView.full ? 'review-panes review-panes--video-full' : 'review-panes'}
+            style={{ '--review-outline-w': `${paneWidths.outline}px`, '--review-details-w': `${paneWidths.details}px` }}
+          >
             <OutlinePane
               project={project}
               positionMs={player.positionMs}
@@ -692,6 +708,8 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
               }
             />
 
+            <PaneSplitter pane="outline" side="left" label="Resize the outline" width={paneWidths.outline} onWidth={resizePane('outline')} />
+
             <section class="review-centre" aria-label="Player and transcript">
               {/* The player strip does not scroll: its speed menu opens in place. */}
               {project.audioRemoved === null ? null : (
@@ -771,6 +789,8 @@ export function ReviewScreen({ recordingId, startAtMs }: { recordingId: string; 
                 )}
               </div>
             </section>
+
+            <PaneSplitter pane="details" side="right" label="Resize the details" width={paneWidths.details} onWidth={resizePane('details')} />
 
             <DetailsPane
               project={project}

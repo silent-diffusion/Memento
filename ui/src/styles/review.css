@@ -104,9 +104,9 @@
   }
 }
 
-/* Left pane: Outline (260 px, 24 x 16 padding, right groove). */
+/* Left pane: Outline (260 px by default, 2.7.0: resizable; 24 x 16 padding, right groove). */
 .review-outline {
-  flex: 0 0 260px;
+  flex: 0 0 var(--review-outline-w, 260px);
   min-width: 220px;
   border-right: 1px solid var(--line);
   padding: 24px 16px;
@@ -224,7 +224,7 @@
 .person {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   padding: 6px 10px;
   border-radius: 12px;
   min-height: 24px;
@@ -241,15 +241,28 @@
   font-size: 13px;
   font-weight: 600;
   flex: 1;
-  min-width: 0;
+  min-width: 64px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 2.7.0: the share keeps its width (tabular digits, never squeezed), so the name is what gives way. */
 .person-share {
+  flex: none;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--text-3);
+}
+
+/* 2.7.0: Hear and Rename show on hover or keyboard focus (and Hear while it plays), so a narrow pane
+   leaves the name room. They keep their place in the tab order. */
+.person:not(:hover):not(:focus-within) .person-tool:not(.person-hear--on) {
+  width: 0;
+  margin-left: -6px;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .person-rename {
@@ -604,7 +617,7 @@
 
 /* Right pane: Details | Documents | History (320 px, left groove). */
 .review-details {
-  flex: 0 0 320px;
+  flex: 0 0 var(--review-details-w, 320px);
   min-width: 260px;
   border-left: 1px solid var(--line);
   padding: 20px 20px 32px;
@@ -1510,9 +1523,51 @@ button.segm-speaker:hover .segm-speaker-name {
 }
 
 /* Small windows (DESIGN.md §9, §18): the panes stack. */
+/* 2.7.0: the splitters between the panes: a 1 px groove with an 8 px grip, side by side only. */
+.pane-splitter {
+  flex: none;
+  width: 8px;
+  margin: 0 -4px;
+  position: relative;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.pane-splitter::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.pane-splitter:hover::after,
+.pane-splitter:focus-visible::after {
+  background: var(--line-strong);
+}
+
+.pane-splitter:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.review-panes--video-full .pane-splitter {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   .review-panes {
     flex-direction: column;
+  }
+
+  .pane-splitter {
+    display: none;
   }
 
   .review-outline,

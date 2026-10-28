@@ -50,7 +50,7 @@ export function SpokeHeader({ backLabel, onBack, title, titleEditor, meta, metaE
       openSettings(services);
     };
     const guard = navigationOf(store).leaveGuard;
-    if (guard !== null && guard(go)) {
+    if (guard?.(go) === true) {
       return;
     }
     go();
