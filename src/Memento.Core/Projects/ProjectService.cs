@@ -323,7 +323,8 @@ public sealed partial class ProjectService(
 
     /// <summary>
     /// A count from 1 to 20 or none; at most 20 names of 1–100 characters (trimmed, repeats ignoring case dropped); at most
-    /// 200 Speaking now marks, each naming one of the names (spelled as the name is) at 0 ms or later.
+    /// 200 Speaking now marks, each naming one of the names (spelled as the name is) at 0 ms or later; at most one added
+    /// time per listed name (others dropped), at 0 ms or later.
     /// </summary>
     public static WhoSpoke ValidateWhoSpoke(WhoSpoke whoSpoke)
     {
@@ -376,7 +377,30 @@ public sealed partial class ProjectService(
             throw Invalid($"At most {WhoSpoke.MaxMarks} Speaking now marks can be kept; this list has {marks.Count}.");
         }
 
-        return new WhoSpoke(whoSpoke.Count, names, marks);
+        // When names were added while recording (2.7.0): the first entry per listed name; entries for names taken off go with them.
+        var added = new List<SpeakerAdded>();
+        foreach (var entry in whoSpoke.Added ?? [])
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            var name = names.FirstOrDefault(n => string.Equals(n, (entry.Name ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
+            if (name is null || added.Any(a => string.Equals(a.Name, name, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            if (entry.AtMs < 0)
+            {
+                throw Invalid($"The time \"{name}\" was added needs to be within the recording (0 or more milliseconds).");
+            }
+
+            added.Add(new SpeakerAdded(name, entry.AtMs, entry.At));
+        }
+
+        return new WhoSpoke(whoSpoke.Count, names, marks, added);
     }
 
     private static Agenda ValidateAgenda(Agenda agenda)

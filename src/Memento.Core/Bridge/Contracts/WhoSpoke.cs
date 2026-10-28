@@ -12,13 +12,17 @@ namespace Memento.Core.Bridge.Contracts;
 /// <param name="Count">1–20, or <c>null</c> to follow <see cref="Names"/> or Settings.</param>
 /// <param name="Names">The known speakers, at most 20, each 1–100 characters, no repeats (ignoring case).</param>
 /// <param name="Marks">Speaking now marks, at most 200, each naming one of <see cref="Names"/>; empty before 2.6.0.</param>
-public sealed record WhoSpoke(int? Count, IReadOnlyList<string> Names, IReadOnlyList<SpokeMark>? Marks = null)
+/// <param name="Added">When names were added during the recording, at most one per name (2.7.0, schema v7); empty for names given outside one.</param>
+public sealed record WhoSpoke(int? Count, IReadOnlyList<string> Names, IReadOnlyList<SpokeMark>? Marks = null, IReadOnlyList<SpeakerAdded>? Added = null)
 {
     // Never null, whatever the JSON says: a missing or null list reads as empty (security audit 2, section 9).
     public IReadOnlyList<string> Names { get; set; } = Names ?? [];
 
     [JsonPropertyOrder(1)]
     public IReadOnlyList<SpokeMark> Marks { get; set; } = Marks ?? [];
+
+    [JsonPropertyOrder(2)]
+    public IReadOnlyList<SpeakerAdded> Added { get; set; } = Added ?? [];
 
     public const int MaxCount = 20;
 

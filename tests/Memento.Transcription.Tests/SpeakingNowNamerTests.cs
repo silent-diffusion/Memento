@@ -90,4 +90,79 @@ public sealed class SpeakingNowNamerTests
 
         Assert.Equal(new Dictionary<string, string> { ["spk1"] = "Ana" }, names);
     }
+
+    /// <summary>spk1 talks 0–10 (cluster 0), spk2 talks 10–30 (cluster 1).</summary>
+    private static (DiarizedTrack[] Tracks, VoiceCluster[] Voices, TranscriptSegment[] Segments) LateComer() =>
+        ([new DiarizedTrack("mic", [new SpeakerTurn(0, 10, 0, 0.7), new SpeakerTurn(10, 20, 1, 0.7), new SpeakerTurn(20, 30, 1, 0.7)])],
+        [new VoiceCluster("mic", 0, [1f, 0f], 10, ["s1"]), new VoiceCluster("mic", 1, [0f, 1f], 20, ["s2", "s3"])],
+        [Line("s1", 0, 10, "spk1"), Line("s2", 10, 20, "spk2"), Line("s3", 20, 30, "spk2")]);
+
+    private static readonly DateTimeOffset Wall = new(2026, 1, 5, 10, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void WithoutAnAddedTimeATieStillGoesToWhoSpeaksFirst()
+    {
+        var (tracks, voices, segments) = LateComer();
+
+        var names = SpeakingNowNamer.Names([new SpokeMark("Ana", 5_000), new SpokeMark("Ana", 15_000)], Known, tracks, voices, segments);
+
+        Assert.Equal(new Dictionary<string, string> { ["spk1"] = "Ana" }, names);
+    }
+
+    [Fact]
+    public void TheAddedTimeBreaksATieTowardsTheVoiceHeardAfterIt()
+    {
+        var (tracks, voices, segments) = LateComer();
+
+        // Ana was added at 0:12; spk1 is not heard after 0:10, so the tie goes to spk2.
+        var names = SpeakingNowNamer.Names(
+            [new SpokeMark("Ana", 5_000), new SpokeMark("Ana", 15_000)], Known, tracks, voices, segments, [new SpeakerAdded("ana", 12_000, Wall)]);
+
+        Assert.Equal(new Dictionary<string, string> { ["spk2"] = "Ana" }, names);
+    }
+
+    [Fact]
+    public void TheAddedTimeDoesNotOutweighMoreMarks()
+    {
+        var (tracks, voices, segments) = LateComer();
+
+        var names = SpeakingNowNamer.Names(
+            [new SpokeMark("Ana", 5_000), new SpokeMark("Ana", 6_000), new SpokeMark("Ana", 15_000)], Known, tracks, voices, segments, [new SpeakerAdded("Ana", 12_000, Wall)]);
+
+        Assert.Equal(new Dictionary<string, string> { ["spk1"] = "Ana" }, names);
+    }
+
+    [Fact]
+    public void AMarkThatHeardAnotherVoiceIsALowConfidenceName()
+    {
+        var (tracks, voices, segments) = LateComer();
+
+        var doubts = SpeakingNowNamer.Doubts(
+            [new SpokeMark("Ana", 5_000), new SpokeMark("Ana", 15_000)], [], tracks, voices, segments, new Dictionary<string, string> { ["spk2"] = "Ana" });
+
+        var doubt = Assert.Single(doubts);
+        Assert.Equal(new SpeakingNowNamer.Doubt("Ana", 5_000, "Speaking now heard a different voice"), doubt);
+    }
+
+    [Fact]
+    public void ANameThatWentToSomeoneHeardOnlyBeforeItWasAddedIsALowConfidenceName()
+    {
+        var (tracks, voices, segments) = LateComer();
+        var added = new[] { new SpeakerAdded("Ana", 12_000, Wall), new SpeakerAdded("Ben", 12_000, Wall) };
+
+        var doubts = SpeakingNowNamer.Doubts([], added, tracks, voices, segments, new Dictionary<string, string> { ["spk1"] = "Ana", ["spk2"] = "Ben" });
+
+        Assert.Equal([new SpeakingNowNamer.Doubt("Ana", 12_000, "heard only before the name was added")], doubts);
+    }
+
+    [Fact]
+    public void AgreeingEvidenceGivesNoDoubts()
+    {
+        var (tracks, voices, segments) = LateComer();
+
+        var doubts = SpeakingNowNamer.Doubts(
+            [new SpokeMark("Ana", 15_000)], [new SpeakerAdded("Ana", 12_000, Wall)], tracks, voices, segments, new Dictionary<string, string> { ["spk2"] = "Ana" });
+
+        Assert.Empty(doubts);
+    }
 }

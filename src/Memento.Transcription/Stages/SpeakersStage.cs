@@ -243,6 +243,7 @@ public sealed partial class SpeakersStage(
         var pinnedVoices = 0;
         var doubtful = 0;
         var naming = new SpeakerNamer.Result([], 0, 0);
+        IReadOnlyList<SpeakingNowNamer.Doubt> nameDoubts = [];
         var saved = await writer.UpdateAsync(
             recordingId,
             TranscriptChangeReasons.Speakers,
@@ -287,8 +288,16 @@ public sealed partial class SpeakersStage(
 
                 // Speaking now marks (2.6.0) name the person whose voice was heard at each pressed moment, after the names
                 // kept from before and ahead of the known names by order.
-                var marked = SpeakingNowNamer.Names(whoSpoke.Marks, knownNames, all, assigned.Voices ?? [], assigned.Segments);
+                // Names added during the recording (2.7.0) break ties towards a voice heard after they were added.
+                var marked = SpeakingNowNamer.Names(whoSpoke.Marks, knownNames, all, assigned.Voices ?? [], assigned.Segments, whoSpoke.Added);
                 naming = SpeakerNamer.Name(assigned.Speakers, assigned.Segments, latest.Speakers, latest.Segments, knownNames, assigned.Names, marked);
+                nameDoubts = SpeakingNowNamer.Doubts(
+                    whoSpoke.Marks,
+                    whoSpoke.Added,
+                    all,
+                    assigned.Voices ?? [],
+                    assigned.Segments,
+                    naming.Speakers.GroupBy(s => s.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Name, StringComparer.Ordinal));
                 speakers = naming.Speakers;
                 voices = assigned.Voices ?? [];
                 merged = assigned.Merged;
@@ -329,6 +338,10 @@ public sealed partial class SpeakersStage(
                                 naming.Marked > 0 ? $"{HumanFormat.Count(naming.Marked, "name", "names")} from Speaking now" : string.Empty,
                                 naming.Known > 0 ? $"{HumanFormat.Count(naming.Known, "name", "names")} from Who spoke" : string.Empty,
                             }.Where(p => p.Length > 0))
+                        : string.Empty,
+                    nameDoubts.Count > 0
+                        ? $"{HumanFormat.Count(nameDoubts.Select(d => d.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count(), "name", "names")} low confidence: "
+                            + string.Join("; ", nameDoubts.Take(5).Select(d => $"{d.Name} at {HumanFormat.Clock(d.AtMs)}, {d.Reason}"))
                         : string.Empty,
                     "talk time: " + (speakers.Count == 0 ? "none" : shares),
                 }.Where(p => p.Length > 0)));

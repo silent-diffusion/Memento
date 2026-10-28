@@ -6,8 +6,9 @@ namespace Memento.Core.Projects;
 /// <summary>
 /// Brings an older <c>project.json</c> up to the current schema before it is deserialized. Each step upgrades
 /// one version (<c>steps[v]</c> turns v into v + 1) and works on the raw JSON, so unknown fields survive.
-/// <see cref="Default"/> has five steps: v1 → v2 (<see cref="AttachmentsMigration"/>), v2 → v3 (<see cref="WhoSpokeMigration"/>),
-/// v3 → v4 (<see cref="VideoTracksMigration"/>), v4 → v5 (<see cref="FolderMigration"/>) and v5 → v6 (<see cref="SegmentsMigration"/>).
+/// <see cref="Default"/> has six steps: v1 → v2 (<see cref="AttachmentsMigration"/>), v2 → v3 (<see cref="WhoSpokeMigration"/>),
+/// v3 → v4 (<see cref="VideoTracksMigration"/>), v4 → v5 (<see cref="FolderMigration"/>) v5 → v6 (<see cref="SegmentsMigration"/>)
+/// and v6 → v7 (<see cref="SpeakerAddedMigration"/>).
 /// A manifest from a newer Memento is read as it is and must not be written back (see <see cref="ProjectStore"/>).
 /// </summary>
 public sealed class ProjectManifestMigrator
@@ -30,6 +31,7 @@ public sealed class ProjectManifestMigrator
             [3] = VideoTracksMigration.Upgrade,
             [4] = FolderMigration.Upgrade,
             [5] = SegmentsMigration.Upgrade,
+            [6] = SpeakerAddedMigration.Upgrade,
         });
 
     public int CurrentVersion { get; }
