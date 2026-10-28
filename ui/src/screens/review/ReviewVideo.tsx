@@ -7,10 +7,11 @@ import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { PipCorner, ProjectVideo, ProjectVideoTrack, StageStatus } from '../../bridge/types';
 import { Dialog } from '../../components/Overlay';
-import { CameraIcon, ExitFullscreenIcon, FullscreenIcon } from '../../components/icons';
+import { CameraIcon, ExitFullscreenIcon, FullscreenIcon, MinimizeIcon, RestoreIcon } from '../../components/icons';
 import { formatDuration } from '../../format/duration';
 import { PIP_CORNERS } from '../../format/video';
 import type { AppStore } from '../../state/store';
+import { useUiFlag } from '../../state/uiPrefs';
 import { HIDDEN_LINE, outlineFacts, removedLine, removeVideoCopy } from './videoCopy';
 import { useVideoSync } from './useVideoSync';
 import { activeVideoStage, stillMessage, trackPosition, videoLayers, type MixState } from './videoSync';
@@ -25,6 +26,9 @@ export interface VideoView {
   corner: PipCorner;
   audioOnly: boolean;
   full: boolean;
+  /** 2.7.0: the video collapsed to a small corner player, so the transcript gets the space back (remembered on this PC). */
+  mini: boolean;
+  setMini: (on: boolean) => void;
   setInset: (on: boolean) => void;
   setCorner: (corner: PipCorner) => void;
   setAudioOnly: (on: boolean) => void;
@@ -52,6 +56,7 @@ export function useVideoView(video: ProjectVideo | null, store: AppStore): Video
   const [corner, setCorner] = useState<PipCorner>(video?.pip.corner ?? 'bottomRight');
   const [audioOnly, setAudioOnlyState] = useState(false);
   const [full, setFull] = useState(false);
+  const [mini, setMiniFlag] = useUiFlag('review.videoMini', false);
   const focusNext = useRef<'show' | 'audioOnly' | null>(null);
   const known = useRef(video !== null);
   // The project arrives after the first render: start from its inset once.
@@ -95,6 +100,14 @@ export function useVideoView(video: ProjectVideo | null, store: AppStore): Video
     corner,
     audioOnly,
     full: isFull,
+    // Fullscreen wins over the mini-player; leaving Fullscreen goes back to it.
+    mini: mini && !isFull,
+    setMini: (on) => {
+      setMiniFlag(on);
+      if (on) {
+        setFull(false);
+      }
+    },
     setInset,
     setCorner,
     setAudioOnly: (on) => {
@@ -163,6 +176,34 @@ function VideoWell({ video, view, positionMs, recordingMs, mix, chapter, stages 
   const showInset = inset !== null && view.inset;
   const caption = chapter === null ? formatDuration(positionMs) : `${chapter} · ${formatDuration(positionMs)}`;
   const insetPlays = inset !== null && trackPosition(inset, positionMs, recordingMs).kind === 'play';
+  if (view.mini) {
+    return (
+      <div class="vid-wrap vid-wrap--mini">
+        <div class="vid" role="group" aria-label="Video (minimized)">
+          {main === null ? null : (
+            <>
+              <SyncedVideo track={main} timeMs={positionMs} recordingMs={recordingMs} mix={mix} class="vid-main" />
+              <Still track={main} timeMs={positionMs} recordingMs={recordingMs} stage={stage} />
+            </>
+          )}
+          <div class="vid-ovl">
+            <span class="vid-spacer" />
+            <button
+              class="btn vb"
+              type="button"
+              aria-label="Restore video"
+              title="Restore video"
+              onClick={() => {
+                view.setMini(false);
+              }}
+            >
+              <RestoreIcon size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div class="vid-wrap">
       <div class="vid" role="group" aria-label="Video">
@@ -211,6 +252,17 @@ function VideoWell({ video, view, positionMs, recordingMs, mix, chapter, stages 
             </>
           ) : null}
           <span class="vid-spacer" />
+          <button
+            class="btn vb"
+            type="button"
+            aria-label="Minimize video"
+            title="Minimize to a small corner player"
+            onClick={() => {
+              view.setMini(true);
+            }}
+          >
+            <MinimizeIcon size={14} />
+          </button>
           <button
             ref={audioOnlyRef}
             class="btn vb"

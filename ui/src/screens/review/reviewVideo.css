@@ -315,3 +315,38 @@
     transform: none;
   }
 }
+
+/* 2.7.0: Minimize collapses the well to a small player fixed in the window's bottom-right corner; it
+   leaves the player strip, so the transcript below takes the space back. */
+.vid-wrap--mini {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: 240px;
+  border-radius: 16px;
+  box-shadow: var(--neo-card);
+}
+
+.vid-wrap--mini .vid {
+  max-width: none;
+}
+
+.vid-wrap--mini .vid-ovl {
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+}
+
+.vid-wrap--mini .vid-ovl .vb {
+  height: 28px;
+  padding: 0 8px;
+}
+
+@media (max-width: 1023px) {
+  .vid-wrap--mini {
+    right: 16px;
+    bottom: 16px;
+    width: 180px;
+  }
+}

@@ -418,6 +418,24 @@ export function ExitFullscreenIcon(props: IconProps): JSX.Element {
   );
 }
 
+/** 2.7.0: Review's Minimize video: the frame shrinking into its bottom-right corner. */
+export function MinimizeIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke strokeWidth={2} {...props}>
+      <path d="M4 6h16v12H4z M13 13h5v3h-5z" />
+    </Stroke>
+  );
+}
+
+/** 2.7.0: Review's Restore video: out of the corner, back to full size. */
+export function RestoreIcon(props: IconProps): JSX.Element {
+  return (
+    <Stroke strokeWidth={2} {...props}>
+      <path d="M14 4h6v6 M20 4l-7 7 M10 20H4v-6 M4 20l7-7" />
+    </Stroke>
+  );
+}
+
 /** 2.1: a Library folder (the folder tree, Move to folder…). */
 export function FolderIcon(props: IconProps): JSX.Element {
   return (
