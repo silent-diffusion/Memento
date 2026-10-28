@@ -2,7 +2,7 @@
 // the merge menu, participant pickers): people the user named come first, then the unnamed
 // "Speaker n" ones; within each group, in order of first appearance in the transcript (speakers
 // with no line keep their place at the end of their group).
-import type { Speaker, SpokeMark, TranscriptSegment, WhoSpoke } from '../bridge/types';
+import type { Speaker, SpeakerAdded, SpokeMark, TranscriptSegment, WhoSpoke } from '../bridge/types';
 
 /** At most this many people in Who spoke (count and names), as the host allows. */
 export const WHO_SPOKE_MAX = 20;
@@ -55,7 +55,41 @@ export function participantsFromSpeakers(participants: readonly string[], names:
 /** Who spoke with the participants as its names ("Use participants"): replaces the names, deduplicated, at most 20. */
 export function whoSpokeFromParticipants(whoSpoke: WhoSpoke, participants: readonly string[]): WhoSpoke {
   const names = participantsFromSpeakers([], participants).slice(0, WHO_SPOKE_MAX);
-  return { count: whoSpoke.count, names, marks: marksFor(whoSpoke.marks, names) };
+  return { count: whoSpoke.count, names, marks: marksFor(whoSpoke.marks, names), added: addedFor(whoSpoke.added, names) };
+}
+
+/** The added times that still name one of `names` (2.7.0). */
+export function addedFor(added: readonly SpeakerAdded[] | undefined, names: readonly string[]): SpeakerAdded[] {
+  const kept = new Set(names.map((n) => n.trim().toLocaleLowerCase()));
+  return (added ?? []).filter((a) => kept.has(a.name.trim().toLocaleLowerCase()));
+}
+
+/** The moment a name is added while recording: the timer's time, the wall clock, and whether they are speaking now. */
+export interface AddMoment {
+  atMs: number;
+  at: string;
+  speakingNow: boolean;
+}
+
+/**
+ * Who spoke with `names` as its names: marks and added times of names taken off go with them, and
+ * while recording (`moment`) each new name gets its added time, and a Speaking now mark when the
+ * person is speaking as they are added (2.7.0).
+ */
+export function withNames(whoSpoke: WhoSpoke, names: readonly string[], moment?: AddMoment): WhoSpoke {
+  const had = new Set(whoSpoke.names.map((n) => n.trim().toLocaleLowerCase()));
+  const fresh = moment === undefined ? [] : names.filter((n) => !had.has(n.trim().toLocaleLowerCase()));
+  const added = addedFor(whoSpoke.added, names);
+  const marks = marksFor(whoSpoke.marks, names);
+  for (const name of fresh) {
+    if (moment !== undefined && !added.some((a) => a.name.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase())) {
+      added.push({ name, atMs: moment.atMs, at: moment.at });
+    }
+    if (moment?.speakingNow === true) {
+      marks.push({ name, atMs: moment.atMs });
+    }
+  }
+  return { ...whoSpoke, names: [...names], marks, added };
 }
 
 /** The Speaking now marks that still name one of `names` (a name taken off the list takes its marks with it). */

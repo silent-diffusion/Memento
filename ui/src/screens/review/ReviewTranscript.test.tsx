@@ -905,7 +905,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
     await click(button('How many people spoke: Auto'));
     await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent.trim() === '2 speakers') ?? document.body);
     await until(() => container.querySelector('.people-who-offer') !== null);
-    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 2, names: [], marks: [] });
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 2, names: [], marks: [], added: [] });
     expect(container.querySelector('.people-who-value')?.textContent).toBe('2 speakers');
     expect(container.querySelector('.people-who-offer .people-who-note')?.textContent).toBe('4 speakers found, 2 expected.');
     expect(container.querySelector('.who-spoke-hint')?.textContent).toBe('Speakers are identified as 2 speakers.');
@@ -938,7 +938,7 @@ describe('Review transcript (M2, against the browser-preview host)', () => {
 
     await click(button('Yes, 4', check() ?? container));
     await until(() => check() === null);
-    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 4, names: [], marks: [] });
+    expect((await bridge.call('project.get', { recordingId: DESIGN_REVIEW })).details.whoSpoke).toEqual({ count: 4, names: [], marks: [], added: [] });
     expect(container.querySelector('.people-who-value')?.textContent).toBe('4 speakers');
     expect(container.querySelector('.undo-btn')?.getAttribute('aria-label')).toBe('Undo change who spoke');
 

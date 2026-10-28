@@ -38,6 +38,7 @@ import type {
   RecordingSummary,
   RecoveredRecording,
   SettingsSnapshot,
+  SpeakerAdded,
   SpokeMark,
   StageStatus,
   ThemePreference,
@@ -469,7 +470,7 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
           notes: '',
           tags: [],
           agenda: { source: null, parsedLocally: true, items: [] },
-          whoSpoke: { count: null, names: [], marks: [] },
+          whoSpoke: { count: null, names: [], marks: [], added: [] },
         },
         trackSources: result.tracks.map((t) => t.sourceKind),
         tracks: result.tracks,
@@ -836,7 +837,19 @@ export function createMockTransport(logger: BridgeLogger, options: MockOptions =
         if (marks.length > 200) {
           throw invalid(`At most 200 Speaking now marks can be kept; this list has ${marks.length}.`);
         }
-        details = { ...details, whoSpoke: { count: whoSpoke.count, names, marks } };
+        // 2.7.0: when names were added while recording, one per listed name; others are dropped.
+        const added: SpeakerAdded[] = [];
+        for (const entry of whoSpoke.added ?? []) {
+          const name = names.find((n) => n.toLocaleLowerCase() === entry.name.trim().toLocaleLowerCase());
+          if (name === undefined || added.some((a) => a.name === name)) {
+            continue;
+          }
+          if (!Number.isFinite(entry.atMs) || entry.atMs < 0) {
+            throw invalid(`The time "${name}" was added needs to be within the recording (0 or more milliseconds).`);
+          }
+          added.push({ name, atMs: entry.atMs, at: entry.at });
+        }
+        details = { ...details, whoSpoke: { count: whoSpoke.count, names, marks, added } };
       }
       project.details = { ...project.details, ...details };
       project.summary = {

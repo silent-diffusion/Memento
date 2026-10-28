@@ -334,7 +334,12 @@ export function createMockReview(env: MockReviewEnvironment): MockReview {
         const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([w]) => w).find((w) => !titles.includes(w)) ?? `part ${i + 1}`;
         titles.push(best);
         const atMs = Math.round(line.start * 1000);
-        return { id: `sc${atMs}`, atMs, title: best.charAt(0).toUpperCase() + best.slice(1), basis: i === 0 ? 'Start of the recording' : 'The subject changes' };
+        // 2.7.0: the agenda's items, in order, name the chapters (the real host places them by what is said).
+        const item = project.details.agenda.items[i]?.text.trim();
+        if (item !== undefined && item !== '') {
+          return { id: `sc${atMs}`, atMs, title: item, basis: `Agenda item ${i + 1}`, fromAgenda: true };
+        }
+        return { id: `sc${atMs}`, atMs, title: best.charAt(0).toUpperCase() + best.slice(1), basis: i === 0 ? 'Start of the recording' : 'The subject changes', fromAgenda: false };
       })
       .filter((s) => taken.every((t) => Math.abs(t - s.atMs) >= NEAR_MS));
   };

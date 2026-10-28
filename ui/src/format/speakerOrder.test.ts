@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Speaker, TranscriptSegment } from '../bridge/types';
-import { effectiveCount, isDefaultSpeakerName, orderSpeakers, participantsFromSpeakers, whoSpokeFromParticipants } from './speakerOrder';
+import { effectiveCount, isDefaultSpeakerName, orderSpeakers, participantsFromSpeakers, whoSpokeFromParticipants, withNames } from './speakerOrder';
 import { filterByName } from './speakerSearch';
 
 const speaker = (id: string, name: string, renamed: boolean): Speaker => ({ id, name, renamed, color: 1, talkTimeMs: 0 });
@@ -43,7 +43,7 @@ describe('participants from speakers', () => {
 
 describe('who spoke', () => {
   it('uses the participants as the names, keeping the count', () => {
-    expect(whoSpokeFromParticipants({ count: 3, names: ['Old'], marks: [{ name: 'Old', atMs: 5 }] }, ['Ana', 'ana', 'Speaker 2', 'Ben'])).toEqual({ count: 3, names: ['Ana', 'Ben'], marks: [] });
+    expect(whoSpokeFromParticipants({ count: 3, names: ['Old'], marks: [{ name: 'Old', atMs: 5 }] }, ['Ana', 'ana', 'Speaker 2', 'Ben'])).toEqual({ count: 3, names: ['Ana', 'Ben'], marks: [], added: [] });
   });
 
   it('takes at most twenty names', () => {
@@ -55,5 +55,29 @@ describe('who spoke', () => {
     expect(effectiveCount({ count: 2, names: ['A', 'B', 'C'], marks: [] })).toBe(2);
     expect(effectiveCount({ count: null, names: ['A', 'B', 'C'], marks: [] })).toBe(3);
     expect(effectiveCount({ count: null, names: [], marks: [] })).toBeNull();
+  });
+});
+
+describe('withNames (2.7.0)', () => {
+  const moment = { atMs: 9_000, at: '2026-01-05T10:00:09.000Z', speakingNow: false };
+
+  it('keeps the added time of names still listed and drops the others with their marks', () => {
+    const next = withNames(
+      { count: null, names: ['Ana', 'Ben'], marks: [{ name: 'Ben', atMs: 3 }], added: [{ name: 'Ben', atMs: 2, at: moment.at }] },
+      ['Ana'],
+      moment,
+    );
+    expect(next).toEqual({ count: null, names: ['Ana'], marks: [], added: [] });
+  });
+
+  it('stamps only the new names, once, and marks them when they are speaking now', () => {
+    const next = withNames({ count: 2, names: ['Ana'], marks: [] }, ['Ana', 'Ben'], { ...moment, speakingNow: true });
+    expect(next.added).toEqual([{ name: 'Ben', atMs: 9_000, at: moment.at }]);
+    expect(next.marks).toEqual([{ name: 'Ben', atMs: 9_000 }]);
+    expect(next.count).toBe(2);
+  });
+
+  it('without a moment (not recording) adds names with no time', () => {
+    expect(withNames({ count: null, names: [], marks: [] }, ['Ana'])).toEqual({ count: null, names: ['Ana'], marks: [], added: [] });
   });
 });

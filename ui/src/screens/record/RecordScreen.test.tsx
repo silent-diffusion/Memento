@@ -446,7 +446,7 @@ describe('Recording session (against the browser-preview host)', () => {
     const recordingId = store.recording.value?.recordingId ?? '';
     await settle(100);
     const details = (await bridge.call('project.get', { recordingId })).details;
-    expect(details.whoSpoke).toEqual({ count: 2, names: ['Avery Stone', 'Rowan Hale'], marks: [] });
+    expect(details.whoSpoke).toEqual({ count: 2, names: ['Avery Stone', 'Rowan Hale'], marks: [], added: [] });
     expect(details.participants).toEqual(['Avery Stone', 'Rowan Hale']);
   });
 
