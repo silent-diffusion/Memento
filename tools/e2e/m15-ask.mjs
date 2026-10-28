@@ -36,7 +36,7 @@ import { startFakeOpenAiServer } from './fake-openai-server.mjs';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
-const exe = resolve(option('--exe', join(repoRoot, 'artifacts', 'publish-ask', 'win-x64', 'Memento.exe')));
+const exe = resolve(option('--exe', join(repoRoot, 'artifacts', 'publish', 'win-x64', 'Memento.exe')));
 const dataRoot = resolve(option('--data', join(repoRoot, 'artifacts', 'e2e-data-m15')));
 const out = resolve(option('--out', join(repoRoot, 'artifacts', 'e2e', 'm15')));
 const delayMs = Number(option('--delay-ms', '60'));
