@@ -32,11 +32,19 @@ public static class AtomicReplace
     /// <exception cref="IOException">Another program kept the file locked for the whole retry budget, or the move failed.</exception>
     /// <exception cref="OperationCanceledException">Cancelled while waiting to retry; the destination is unchanged.</exception>
     public static Task ReplaceAsync(string source, string destination, CancellationToken cancellationToken) =>
-        ReplaceAsync(source, destination, OperatingSystem.IsWindows() ? PosixRename.Replace : null, DefaultBudget, cancellationToken);
+        OperatingSystem.IsWindows()
+            ? ReplaceAsync(source, destination, PosixRename.Replace, DefaultBudget, cancellationToken, swap: SwapWithReplaceFile)
+            : ReplaceAsync(source, destination, null, DefaultBudget, cancellationToken);
 
     /// <param name="posixRename">Returns 0 or a Win32 error code; <c>null</c> to use <see cref="File.Move(string, string, bool)"/> only.</param>
     /// <param name="budget">How long to keep retrying a locked file, counted in the waits between tries (see below).</param>
     /// <param name="delay">Waits between tries (tests replace it to stand for a starved machine).</param>
+    /// <param name="swap">
+    /// Tried when a rename is refused with access denied over an existing target: <c>ReplaceFile</c>, returning 0 or a
+    /// Win32 error code. Under load a scanner can leave the target in a state where every rename over it is refused
+    /// (access denied, not a sharing violation) for minutes while nothing has it open; renames and <c>MoveFileEx</c> keep
+    /// failing, but <c>ReplaceFile</c> swaps the files. Without it each write in that time was lost after the whole budget.
+    /// </param>
     /// <remarks>
     /// The budget is the sum of the waits this method asks for, not the time on the clock. On a machine saturated by
     /// other work a 5 ms wait can come back after a second or more (the thread pool is starved), so a clock-based budget
@@ -50,7 +58,8 @@ public static class AtomicReplace
         Func<string, string, int>? posixRename,
         TimeSpan budget,
         CancellationToken cancellationToken,
-        Func<int, CancellationToken, Task>? delay = null)
+        Func<int, CancellationToken, Task>? delay = null,
+        Func<string, string, int>? swap = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(source);
         ArgumentException.ThrowIfNullOrEmpty(destination);
@@ -79,6 +88,10 @@ public static class AtomicReplace
                 }
 
                 failure = new Win32Exception(error);
+                if (error == ErrorAccessDenied && TrySwap(swap, source, destination))
+                {
+                    return;
+                }
             }
             else
             {
@@ -90,6 +103,10 @@ public static class AtomicReplace
                 catch (Exception ex) when (IsTransient(ex))
                 {
                     failure = ex;
+                    if (ex is UnauthorizedAccessException && TrySwap(swap, source, destination))
+                    {
+                        return;
+                    }
                 }
             }
 
@@ -101,6 +118,27 @@ public static class AtomicReplace
             var wait = Math.Max(1, Math.Min(Delay(attempt), (int)Math.Ceiling((budget - waited).TotalMilliseconds)));
             waited += TimeSpan.FromMilliseconds(wait);
             await delay(wait, cancellationToken);
+        }
+    }
+
+    private static bool TrySwap(Func<string, string, int>? swap, string source, string destination) =>
+        swap is not null && File.Exists(source) && File.Exists(destination) && swap(source, destination) == PosixRename.ErrorSuccess;
+
+    /// <summary><see cref="File.Replace(string, string, string?, bool)"/> without a backup, as a Win32 error code.</summary>
+    /// <remarks>
+    /// When it fails the target is either untouched or, for the rare <c>ERROR_UNABLE_TO_MOVE_REPLACEMENT</c> codes,
+    /// still holds the old document under its own name (no backup name is asked for), so retrying is safe.
+    /// </remarks>
+    internal static int SwapWithReplaceFile(string source, string destination)
+    {
+        try
+        {
+            File.Replace(source, destination, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            return PosixRename.ErrorSuccess;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return ex.HResult & 0xFFFF;
         }
     }
 

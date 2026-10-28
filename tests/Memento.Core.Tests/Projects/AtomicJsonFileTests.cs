@@ -74,40 +74,47 @@ public sealed class AtomicJsonFileTests : IDisposable
         await WriteAsync(path, -1);
 
         using var stop = new CancellationTokenSource();
-        var poller = Task.Run(async () =>
-        {
-            var reads = 0;
-            var last = -1;
-            while (!stop.IsCancellationRequested)
+
+        // A dedicated thread with blocking reads: a reader on the thread pool kept the file open across awaits for as
+        // long as a saturated pool took to resume it, which measured the pool, not the replace.
+        var poller = Task.Factory.StartNew(
+            () =>
             {
-                FileStream stream;
-                try
+                var reads = 0;
+                var last = -1;
+                while (!stop.IsCancellationRequested)
                 {
-                    stream = new FileStream(path, FileMode.Open, FileAccess.Read, share);
-                }
-                catch (IOException)
-                {
-                    // A reader that does not share delete cannot open the file during the instant of a rename, as with
-                    // any other program; it tries again. Only what it reads once open is under test.
-                    Thread.Sleep(1);
-                    continue;
+                    FileStream stream;
+                    try
+                    {
+                        stream = new FileStream(path, FileMode.Open, FileAccess.Read, share);
+                    }
+                    catch (IOException)
+                    {
+                        // A reader that does not share delete cannot open the file during the instant of a rename, as
+                        // with any other program; it tries again. Only what it reads once open is under test.
+                        Thread.Sleep(1);
+                        continue;
+                    }
+
+                    using (stream)
+                    {
+                        // Parses or throws: a torn or empty document fails the test.
+                        var sequence = SequenceOf(ReadWhole(stream));
+                        Assert.True(sequence >= last, $"Read sequence {sequence} after {last}.");
+                        last = sequence;
+                        reads++;
+                        Thread.Sleep(holdMs);
+                    }
+
+                    Thread.Sleep(gapMs); // 0 only yields: the file is closed for a moment between reads.
                 }
 
-                using (stream)
-                {
-                    // Parses or throws: a torn or empty document fails the test.
-                    var sequence = SequenceOf(await ReadWholeAsync(stream));
-                    Assert.True(sequence >= last, $"Read sequence {sequence} after {last}.");
-                    last = sequence;
-                    reads++;
-                    Thread.Sleep(holdMs);
-                }
-
-                Thread.Sleep(gapMs); // 0 only yields: the file is closed for a moment between reads.
-            }
-
-            return reads;
-        });
+                return reads;
+            },
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
 
         int dropped;
         try
@@ -119,7 +126,7 @@ public sealed class AtomicJsonFileTests : IDisposable
             await stop.CancelAsync();
         }
 
-        var completeReads = await poller;
+        var completeReads = await poller.WaitAsync(Patience.Ceiling);
         return (dropped, completeReads, SequenceOf(await File.ReadAllTextAsync(path)));
     }
 
@@ -134,7 +141,9 @@ public sealed class AtomicJsonFileTests : IDisposable
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                dropped++;
+                // Stop at the first: each dropped write has already waited out the whole retry budget, and carrying
+                // on through the rest once kept a failing run going for over half an hour.
+                Assert.Fail($"Write {sequence} of {Writes} was dropped: {ex.Message} ({ex.InnerException?.Message})");
             }
         }
 
@@ -163,6 +172,13 @@ public sealed class AtomicJsonFileTests : IDisposable
         Assert.Equal(2, document.Topics.Count);
         Assert.Equal(PaddingLength, document.Topics[1].Label.Length);
         return int.Parse(document.Topics[0].Label, CultureInfo.InvariantCulture);
+    }
+
+    private static string ReadWhole(FileStream stream)
+    {
+        stream.Position = 0;
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: true);
+        return reader.ReadToEnd();
     }
 
     private static async Task<string> ReadWholeAsync(FileStream stream)
