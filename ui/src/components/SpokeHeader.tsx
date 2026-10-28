@@ -2,7 +2,8 @@ import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { useServices } from '../state/context';
 import { navigationOf } from '../state/navigation';
-import { ChevronLeftIcon } from './icons';
+import { openSettings } from '../state/actions';
+import { ChevronLeftIcon, SettingsIcon } from './icons';
 
 interface SpokeHeaderProps {
   /** The screen the back control returns to ("Library"). */
@@ -40,7 +41,20 @@ interface SpokeHeaderProps {
  * button press it (state/back.ts).
  */
 export function SpokeHeader({ backLabel, onBack, title, titleEditor, meta, metaExtra, actions, focusBack = true, selfLabel, escapeBack = true }: SpokeHeaderProps): JSX.Element {
-  const { store } = useServices();
+  const services = useServices();
+  const { store } = services;
+  const onSettings = store.route.value.name !== 'settings';
+  // Settings opens from every spoke (2.7.0); Back there returns here. A screen with something to lose asks first.
+  const pressSettings = (): void => {
+    const go = (): void => {
+      openSettings(services);
+    };
+    const guard = navigationOf(store).leaveGuard;
+    if (guard?.(go) === true) {
+      return;
+    }
+    go();
+  };
   const back = useRef<HTMLButtonElement | null>(null);
   const pressBack = useRef(onBack);
   pressBack.current = onBack;
@@ -98,7 +112,16 @@ export function SpokeHeader({ backLabel, onBack, title, titleEditor, meta, metaE
       ) : (
         <div class="spoke-title-edit">{titleEditor}</div>
       )}
-      {actions === undefined ? null : <div class="spoke-actions">{actions}</div>}
+      {actions === undefined && !onSettings ? null : (
+        <div class="spoke-actions">
+          {actions ?? null}
+          {onSettings ? (
+            <button class="icon-btn header-icon-btn spoke-settings" type="button" aria-label="Settings" title="Settings" onClick={pressSettings}>
+              <SettingsIcon size={20} />
+            </button>
+          ) : null}
+        </div>
+      )}
     </header>
   );
 }

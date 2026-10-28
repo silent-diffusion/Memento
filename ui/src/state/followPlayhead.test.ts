@@ -51,4 +51,42 @@ describe('the transcript follows the playhead', () => {
     // A row tucked under the sticky player strip counts as out of view.
     expect(followScrollDelta(195, 260, 200, 800)).not.toBeNull();
   });
+
+  it('holds following after any interaction and resumes after 5 s without one (2.7.0)', () => {
+    const time = clock();
+    const follow = createFollowPlayhead(time.now);
+    expect(FOLLOW_PAUSE_MS).toBe(5000);
+    follow.noteInteraction();
+    expect(follow.shouldFollow()).toBe(false);
+    time.advance(3000);
+    // Another click restarts the quiet time.
+    follow.noteInteraction();
+    time.advance(4999);
+    expect(follow.shouldFollow()).toBe(false);
+    time.advance(1);
+    expect(follow.shouldFollow()).toBe(true);
+  });
+
+  it('never follows while a field in the transcript has focus, then waits 5 s after it loses focus', () => {
+    const time = clock();
+    const follow = createFollowPlayhead(time.now);
+    follow.setFieldFocused(true);
+    time.advance(60_000);
+    expect(follow.shouldFollow()).toBe(false);
+    follow.setFieldFocused(false);
+    expect(follow.shouldFollow()).toBe(false);
+    time.advance(FOLLOW_PAUSE_MS);
+    expect(follow.shouldFollow()).toBe(true);
+  });
+
+  it('resumes at once for Jump to playing, but not over a focused field', () => {
+    const time = clock();
+    const follow = createFollowPlayhead(time.now);
+    follow.noteInteraction();
+    follow.resume();
+    expect(follow.shouldFollow()).toBe(true);
+    follow.setFieldFocused(true);
+    follow.resume();
+    expect(follow.shouldFollow()).toBe(false);
+  });
 });

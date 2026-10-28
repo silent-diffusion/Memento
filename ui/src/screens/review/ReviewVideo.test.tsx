@@ -87,6 +87,7 @@ describe('Review with video (against the browser-preview host)', () => {
       'Top right',
       'Bottom left',
       'Bottom right',
+      'Minimize video',
       'Audio only',
       'Fullscreen',
     ]);
@@ -230,6 +231,25 @@ describe('Review with video (against the browser-preview host)', () => {
     expect(q('.vid')).not.toBeNull();
     expect(q('.vid-line')).toBeNull();
     expect(document.activeElement?.textContent).toBe('Audio only');
+  });
+
+  it('minimizes the video to a corner player, remembers it, and restores it (2.7.0)', async () => {
+    await open(DESIGN_REVIEW);
+    await click(button('Minimize video'));
+    expect(q('.vid-wrap--mini')).not.toBeNull();
+    expect(q('.vid')?.getAttribute('aria-label')).toBe('Video (minimized)');
+    // The well's overlay row is gone; the player keeps playing the same tracks.
+    expect(q('.vid-caption')).toBeNull();
+    expect(videoOf('screen')).not.toBeNull();
+    expect(localStorage.getItem('memento.ui.review.videoMini')).toBe('1');
+    h.unmount();
+    await open(DESIGN_REVIEW);
+    expect(q('.vid-wrap--mini')).not.toBeNull();
+    await click(button('Restore video'));
+    expect(q('.vid-wrap--mini')).toBeNull();
+    expect(q('.vid')?.getAttribute('aria-label')).toBe('Video');
+    expect(localStorage.getItem('memento.ui.review.videoMini')).toBe('0');
+    localStorage.removeItem('memento.ui.review.videoMini');
   });
 
   it('fills the centre pane in Fullscreen, hiding both side panes and the transcript; Esc only exits', async () => {

@@ -312,7 +312,7 @@ function SpeakerList({
               {/* 2.6.0: a few seconds of the speaker's clearest line, so "Speaker 3" can be named by ear. */}
               {hear === undefined ? null : hear.hearable.has(speaker.id) ? (
                 <button
-                  class={hear.playingId === speaker.id ? 'icon-btn person-rename person-hear person-hear--on' : 'icon-btn person-rename person-hear'}
+                  class={hear.playingId === speaker.id ? 'icon-btn person-rename person-tool person-hear person-hear--on' : 'icon-btn person-rename person-tool person-hear'}
                   type="button"
                   aria-label={hear.playingId === speaker.id ? `Stop hearing ${speaker.name}` : `Hear ${speaker.name}`}
                   aria-pressed={hear.playingId === speaker.id}
@@ -324,12 +324,12 @@ function SpeakerList({
                   {hear.playingId === speaker.id ? <StopIcon size={12} /> : <PlayIcon size={13} />}
                 </button>
               ) : (
-                <button class="icon-btn person-rename person-hear" type="button" aria-label={`Hear ${speaker.name}`} title="No lines to hear" disabled>
+                <button class="icon-btn person-rename person-tool person-hear" type="button" aria-label={`Hear ${speaker.name}`} title="No lines to hear" disabled>
                   <PlayIcon size={13} />
                 </button>
               )}
               <button
-                class="icon-btn person-rename"
+                class="icon-btn person-rename person-tool"
                 type="button"
                 aria-label={`Rename ${speaker.name}`}
                 onClick={() => {
@@ -524,7 +524,7 @@ export function OutlinePane({
         />
       </div>
 
-      <div class="outline-group">
+      <div class="outline-group outline-people" data-follow-hold>
         <div class="outline-head">
           <span class="lbl">People</span>
         </div>

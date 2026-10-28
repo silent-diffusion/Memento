@@ -221,6 +221,8 @@ export function usePlayer(
 
 interface PlayerStripProps {
   player: PlayerApi;
+  /** 2.7.0: scrolls the transcript to the line playing and resumes following; absent without a transcript shown. */
+  onJumpToPlaying?: () => void;
   peaks: PeaksState;
   hasMedia: boolean;
   onHighlight: () => void;
@@ -437,7 +439,7 @@ function TranscriptSearchField({ search, onJump }: { search: SearchApi | null; o
   );
 }
 
-export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJump, skip, video = null, segments }: PlayerStripProps): JSX.Element {
+export function PlayerStrip({ player, onJumpToPlaying, peaks, hasMedia, onHighlight, search, onJump, skip, video = null, segments }: PlayerStripProps): JSX.Element {
   const markers = useMemo(() => segmentMarkers(segments, player.durationMs), [segments, player.durationMs]);
   const skipping = skip.available && skip.on;
   const landedAt = player.durationMs > 0 && player.skipped !== null ? Math.min(1, player.skipped.atMs / player.durationMs) : 0;
@@ -526,6 +528,11 @@ export function PlayerStrip({ player, peaks, hasMedia, onHighlight, search, onJu
         >
           Skip silences
         </button>
+        {onJumpToPlaying === undefined ? null : (
+          <button class="chip player-jump" type="button" title="Scroll the transcript to the line playing and follow it again" onClick={onJumpToPlaying}>
+            Jump to playing
+          </button>
+        )}
         <span class="player-spacer" />
         <TranscriptSearchField search={search} onJump={onJump} />
         <button class="btn ghost" type="button" onClick={onHighlight}>

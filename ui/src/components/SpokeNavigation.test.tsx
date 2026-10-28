@@ -196,6 +196,32 @@ describe('spoke navigation', () => {
     expect(h.store.route.value).toEqual({ name: 'review', recordingId: DESIGN });
   });
 
+  it('2.7.0: every spoke has the Settings gear; Back in Settings returns to where the person was', async () => {
+    h = await mountApp({ name: 'review', recordingId: DESIGN });
+    const gear = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>('.spoke-settings');
+    await until(() => gear() !== null);
+    await click(gear());
+    await until(() => h.store.route.value.name === 'settings');
+    // Settings has no gear of its own.
+    expect(gear()).toBeNull();
+    await click(backControl());
+    await until(() => h.store.route.value.name === 'review');
+    expect(h.store.route.value).toEqual({ name: 'review', recordingId: DESIGN });
+  });
+
+  it('2.7.0: the gear asks before leaving unsaved template changes in the Builder', async () => {
+    h = await mountApp({ name: 'builder', recordingId: DESIGN, templateId: null, documentId: null }, { m4: { ai: 'ready' } });
+    await until(() => document.querySelector<HTMLInputElement>('#tpl-name')?.value !== '' && document.querySelector('#tpl-name') !== null);
+    await type(document.querySelector<HTMLInputElement>('#tpl-name'), 'Minutes, shorter');
+    await settle(30);
+    const asked = (): boolean => document.querySelector('#leave-template-title') !== null;
+    await click(document.querySelector('.spoke-settings'));
+    await until(asked);
+    expect(h.store.route.value.name).toBe('builder');
+    await click(button('Leave without saving'));
+    await until(() => h.store.route.value.name === 'settings');
+  });
+
   it('the back control says how to use it from the keyboard', async () => {
     h = await mountApp({ name: 'settings', section: 'general' });
     await until(() => document.querySelector('[data-spoke-back]') !== null);

@@ -6,10 +6,10 @@ import type { TranscriptCopyFormat, TranscriptLayout, TranscriptTextOptions } fr
 
 const PREFIX = 'memento.ui.';
 
-export type UiFlag = 'review.skipSilences';
+export type UiFlag = 'review.skipSilences' | 'review.videoMini';
 
 /** Preferences kept as JSON (after 1.2.0). */
-export type UiPref = 'export.transcriptText' | 'copy.transcriptFormat';
+export type UiPref = 'export.transcriptText' | 'copy.transcriptFormat' | 'review.paneWidths';
 
 export function readUiFlag(key: UiFlag, fallback: boolean): boolean {
   try {

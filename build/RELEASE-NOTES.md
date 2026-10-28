@@ -3,6 +3,16 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.7.0
+
+Review that stays out of your way.
+
+- **Settings from every screen.** Review, Record, the document builder, documents and the style editor now have the Settings gear at the top right. Back in Settings returns to the screen you came from; the builder still asks first when a template has unsaved changes.
+- **The transcript stops following while you work in it.** Clicking, typing, renaming a speaker, opening a menu or selecting text in the transcript or under People holds the transcript where it is. It follows the playback again after 5 seconds without any of that, and never while a text box there has the cursor. **Jump to playing**, next to Skip silences, scrolls to the line being played and follows again at once.
+- **People has room again.** The talk-time share no longer squeezes or wraps, names keep their space, and the Hear and Rename buttons appear when you point at a row or reach it with Tab.
+- **Resize the Review panes.** Drag the thin line between the outline and the transcript, or between the transcript and the details, to make a pane wider or narrower (or focus it with Tab and use the arrow keys; Shift moves further, Home and End go to the narrowest and widest, Enter resets). Double-click resets it. Memento remembers the widths.
+- **Minimize the video.** The video's **Minimize** button shrinks it to a small player in the corner of the window so the transcript gets the space back; **Restore** brings it back. Memento remembers which you chose.
+
 ## 2.6.0
 
 Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speaker assignments, and faster ways to correct the ones that remain.
