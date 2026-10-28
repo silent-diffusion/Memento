@@ -3,7 +3,9 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
-## 2.7.0
+## 2.7.1
+
+2.7.0 was tagged but never released: a test failed on the release build. 2.7.1 is the same release with that test fixed.
 
 Review that stays out of your way, chapters from the agenda, and speakers that remember when they were added.
 
