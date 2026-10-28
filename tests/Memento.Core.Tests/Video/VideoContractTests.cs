@@ -125,7 +125,7 @@ public sealed class VideoContractTests : IDisposable
     {
         var status = new VideoTrackStatus("screen", "recording", FakeVideoCapture.Display1, "Display 1", null, "NVIDIA H.264 Encoder MFT", true, 2560, 1440, 30, 12_000_000, 2_400_000, 900, 2, 9_000_000, 30_000);
         Assert.Equal(
-            """{"event":"recording.videoStatus","payload":{"sessionId":"s1","videoTracks":[{"trackId":"screen","state":"recording","sourceId":"display:\\\\.\\DISPLAY1","sourceName":"Display 1","reason":null,"encoder":"NVIDIA H.264 Encoder MFT","hardware":true,"width":2560,"height":1440,"frameRate":30,"targetBitsPerSecond":12000000,"actualBitsPerSecond":2400000,"framesWritten":900,"framesDropped":2,"bytesWritten":9000000,"durationMs":30000}],"pip":{"enabled":true,"corner":"topLeft"}}}""",
+            """{"event":"recording.videoStatus","payload":{"sessionId":"s1","videoTracks":[{"trackId":"screen","state":"recording","sourceId":"display:\\\\.\\DISPLAY1","sourceName":"Display 1","reason":null,"encoder":"NVIDIA H.264 Encoder MFT","hardware":true,"width":2560,"height":1440,"frameRate":30,"targetBitsPerSecond":12000000,"actualBitsPerSecond":2400000,"framesWritten":900,"framesDropped":2,"bytesWritten":9000000,"durationMs":30000,"role":"screen"}],"pip":{"enabled":true,"corner":"topLeft"}}}""",
             BridgeEventPublisher.Serialize(BridgeEventNames.RecordingVideoStatus, new RecordingVideoStatusPayload("s1", [status], new PipState(true, "topLeft")), VideoBridgeJsonContext.Default.BridgeEventEnvelopeRecordingVideoStatusPayload));
         Assert.Equal(
             """{"event":"recording.videoProblem","payload":{"sessionId":"s1","trackId":"camera","state":"waiting","code":"video.cameraInUse","sourceId":"camera:x","sourceName":"Cam","detail":"Zoom","message":"m","atMs":1420000}}""",
@@ -152,9 +152,9 @@ public sealed class VideoContractTests : IDisposable
         Assert.Equal(
             """{"roles":["screen","camera"],"height":1440,"removedAt":null}""",
             JsonSerializer.Serialize(new RecordingVideoSummary(["screen", "camera"], 1440, null), VideoBridgeJsonContext.Default.RecordingVideoSummary));
-        var track = new ProjectVideoTrack("camera", "camera", "Cam", 1920, 1080, 30, "e", false, 8, 0, 7, 5, 6, null, [new VideoPart(null, 5, 6)]);
+        var track = new ProjectVideoTrack("camera", "camera", "Cam", 1920, 1080, 30, "e", false, 8, 0, 7, 5, 6, null, [new VideoPart(null, 5, 6)], "camera", 11);
         Assert.Equal(
-            """{"tracks":[{"id":"camera","sourceKind":"camera","sourceName":"Cam","width":1920,"height":1080,"frameRate":30,"encoder":"e","hardware":false,"framesWritten":8,"framesDropped":0,"sizeBytes":7,"startOffsetMs":5,"durationMs":6,"endReason":null,"parts":[{"url":null,"startOffsetMs":5,"durationMs":6}]}],"pip":{"enabled":false,"corner":"bottomRight"},"sizeBytes":7,"removed":null}""",
+            """{"tracks":[{"id":"camera","sourceKind":"camera","sourceName":"Cam","width":1920,"height":1080,"frameRate":30,"encoder":"e","hardware":false,"framesWritten":8,"framesDropped":0,"sizeBytes":7,"startOffsetMs":5,"durationMs":6,"endReason":null,"parts":[{"url":null,"startOffsetMs":5,"durationMs":6}],"trackId":"camera","stoppedAtMs":11}],"pip":{"enabled":false,"corner":"bottomRight"},"sizeBytes":7,"removed":null}""",
             JsonSerializer.Serialize(new ProjectVideo([track], new PipState(false, "bottomRight"), 7, null), VideoBridgeJsonContext.Default.ProjectVideo));
         Assert.Equal("""{"on":false,"format":"mp4","layout":"oneFile"}""", JsonSerializer.Serialize(new ExportVideoChoice(), VideoBridgeJsonContext.Default.ExportVideoChoice));
     }

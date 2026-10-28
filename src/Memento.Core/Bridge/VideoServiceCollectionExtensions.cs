@@ -20,6 +20,8 @@ public static class VideoServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, VideoRemoveMethod>();
         services.AddSingleton<IBridgeHandler, RecordingSetVideoQualityMethod>();
         services.AddSingleton<IBridgeHandler, VideoRemoveEstimateMethod>();
+        services.AddSingleton<IBridgeHandler, VideoAddSourceMethod>();
+        services.AddSingleton<IBridgeHandler, VideoRemoveSourceMethod>();
         return services;
     }
 }

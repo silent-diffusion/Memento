@@ -77,6 +77,13 @@ public sealed record VideoTrack
 
     public long? EndedEarlyAtMs { get; init; }
 
+    /// <summary>
+    /// Schema v8 (2.8.0): where the track stopped on the recording timeline (pauses excluded). With
+    /// <see cref="StartOffsetMs"/> it is the time range the source was recorded; a screen added or removed while
+    /// recording covers only its own range. <c>null</c> until the track stops (then start + duration is meant).
+    /// </summary>
+    public long? StoppedAtMs { get; init; }
+
     /// <summary><c>sourceLost</c>, <c>protectedContent</c>, <c>diskFull</c>, <c>error</c> or <c>disabled</c> when the track ended early.</summary>
     public string? EndReason { get; init; }
 

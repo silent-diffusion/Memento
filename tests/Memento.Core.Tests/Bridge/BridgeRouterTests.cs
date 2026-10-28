@@ -257,7 +257,7 @@ public sealed class BridgeRouterTests
             "transcript.swapSpeakers", "transcript.sameVoice", "transcript.splitSpeaker", "transcript.splitSegment", "transcript.joinSegments",
             // 2.0 video.
             "video.listSources", "video.thumbnail", "recording.setVideoSource", "recording.setPip", "video.openPrivacySettings", "video.remove",
-            "recording.setVideoQuality", "video.removeEstimate",
+            "recording.setVideoQuality", "video.removeEstimate", "video.addSource", "video.removeSource",
             // 2.1 folders and Delete audio.
             "folders.list", "folders.create", "folders.rename", "folders.move", "folders.delete", "library.moveToFolder",
             "audio.remove", "audio.removeEstimate",

@@ -1336,3 +1336,20 @@ History's `speakers` `completed` detail gains `9 corrected lines kept, 3 voices 
 `RecordingDetails.whoSpoke.marks` holds the Speaking now marks: while recording, the Record screen's details show a **Speaking now** button beside each name under Who spoke, and a press adds `{ name, atMs }` with the recording timer's time (recorded time, excluding pauses) and saves the details through `project.updateDetails` like any other edit (`whoSpoke` replaces whole, so the UI sends count, names and marks together; a name taken off the list takes its marks with it). `project.json` keeps them in `details.whoSpoke.marks` without a schema step: a file from before reads as having none.
 
 The speakers stage uses them after it has grouped the voices: for each mark, every raw voice (`voices.json` cluster, any track) with a diarizer turn covering `atMs` votes for the mark's name on the person it was grouped into; each name goes to the person with the most votes for it (ties: the person who speaks first), one name per person and one person per name. Names are given in this order: the labels of placed lines, names carried over from the previous pass, **Speaking now marks**, then the rest of `whoSpoke.names` in order of first appearance. A mark whose moment no turn covers, or whose name is no longer listed, is ignored. The `started` History detail says `3 Speaking now marks`, and the `completed` detail `2 names from Speaking now` beside `1 name from Who spoke`.
+
+## Add and remove screens while recording (2.8.0)
+
+Contracts: `VideoBridgeJsonContext` (host) and `ui/src/bridge/types.ts`; pinned by `VideoAddRemoveSourceTests` and `VideoContractTests`.
+
+| Method | Params | Result | Notes |
+|---|---|---|---|
+| `video.addSource` | `{ sessionId, sourceId }` | `{ videoTracks: VideoTrackStatus[] }` | The Record screen's **Add screen** while recording: starts one more display or window (a `sourceId` from `video.listSources`' displays or windows) from now, in its own capture pipeline and its own file. With no running screen track it becomes the `screen` track; otherwise it is listed by its own track id (`screen-2`, `screen-3`). Up to 4 screens record at once. Audio and the other tracks are never touched; a source that cannot start changes nothing. Errors: `video.sourceAlreadyRecorded`, `video.tooManySources`, the video start codes (`video.sourceNotFound`, `video.protectedContent`, `video.captureBlocked`, `video.encoderUnavailable`), `recording.noSession`, `bridge.invalidParams` (a camera id, or no id). |
+| `video.removeSource` | `{ sessionId, trackId }` | `{ videoTracks: VideoTrackStatus[] }` | Stops one track (`screen`, `screen-2`, `camera`) from now, after the page's confirmation; its file keeps what it recorded and the track is stored with `endReason: "disabled"`. Removing the last screen is allowed: the audio keeps recording, and **Add screen** can start one again. Errors: `video.sourceNotFound` (no such track in the session), `recording.noSession`, `bridge.invalidParams` (no id). |
+
+`VideoTrackStatus` gains `role` (`screen` or `camera`); `trackId` is the role for the first screen and the camera, as before, and the track id for an added screen. `recording.videoProblem`'s `trackId` follows the same rule, so a closed window names the screen it belonged to. Pause, resume, checkpoints, low disk space, stop and Resume recording act on every running track alike.
+
+`project.json` schema v8 adds `videoTracks[].stoppedAtMs`: where the track stopped on the recording timeline (pauses excluded). With `startOffsetMs` it is the track's own time range. The v7 → v8 step (`VideoRangesMigration`) sets it to `endedEarlyAtMs`, else `startOffsetMs + durationMs`. `ProjectVideoTrack` gains `trackId` (unique in the recording) and `stoppedAtMs`; `id` stays the role. Review shows, at the playhead, the screen track whose range covers it (the most recently started when several do), and a calm placeholder in a gap where no screen was recorded.
+
+## Error codes (2.8.0)
+
+`video.sourceAlreadyRecorded` (that display or window is already being recorded; nothing changed), `video.tooManySources` (4 screens are already recording; nothing changed).

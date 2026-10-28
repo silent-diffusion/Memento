@@ -55,6 +55,9 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         Pip = new PipState(settings.DefaultSource == VideoSettings.SourceScreenAndCamera, settings.PipCorner);
     }
 
+    /// <summary>2.8.0: the most screens (displays and windows) recorded at once, the first one included.</summary>
+    public const int MaxScreens = 4;
+
     /// <summary>How often a camera another app holds is tried again (it starts by itself the moment it is free).</summary>
     public TimeSpan CameraRetryInterval { get; init; } = TimeSpan.FromSeconds(2);
 
@@ -223,6 +226,100 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         return Statuses();
     }
 
+    /// <summary>
+    /// <c>video.addSource</c> (2.8.0): starts recording one more display or window from now, beside the tracks already
+    /// running. Without a running screen track it becomes the screen track; otherwise it is a track of its own
+    /// (<c>screen-2</c>, ...), listed by that id. Audio and the other tracks are untouched.
+    /// </summary>
+    /// <exception cref="BridgeException">A camera, a source already recorded, one screen too many, or its <c>video.*</c> start code.</exception>
+    public async Task<IReadOnlyList<VideoTrackStatus>> AddSourceAsync(string sourceId, CancellationToken cancellationToken)
+    {
+        if (VideoSourceIds.RoleOf(sourceId) != VideoTrack.RoleScreen)
+        {
+            throw new BridgeException(
+                BridgeErrorCodes.InvalidParams,
+                "Add screen records a display or a window; choose one from video.listSources' displays or windows. A camera is set with recording.setVideoSource.",
+                sourceId);
+        }
+
+        IVideoTrackRecorder? primary;
+        int runningCount;
+        bool already;
+        lock (_sync)
+        {
+            var running = _active.Where(kv => IsScreenSlot(kv.Key) && IsRunning(kv.Value)).ToList();
+            already = running.Any(kv => string.Equals(kv.Value.SourceId, sourceId, StringComparison.Ordinal));
+            runningCount = running.Count;
+            _active.TryGetValue(VideoTrack.RoleScreen, out primary);
+        }
+
+        if (already)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.VideoSourceAlreadyRecorded,
+                $"{NameOf(sourceId)} is already being recorded. Nothing changed; choose another display or window.",
+                sourceId);
+        }
+
+        if (runningCount >= MaxScreens)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.VideoTooManySources,
+                $"Memento records up to {MaxScreens} screens at once and {runningCount} are recording. Nothing changed; remove one to add {NameOf(sourceId)}.",
+                sourceId);
+        }
+
+        try
+        {
+            if (primary is null || !IsRunning(primary))
+            {
+                if (primary is not null)
+                {
+                    // The screen track ended (window closed): the added source takes its place from now.
+                    await EndAsync(VideoTrack.RoleScreen, primary, null, cancellationToken);
+                }
+
+                await StartTrackAsync(VideoTrack.RoleScreen, sourceId, cancellationToken);
+            }
+            else
+            {
+                await StartTrackAsync(VideoTrack.RoleScreen, sourceId, cancellationToken, extra: true);
+            }
+        }
+        catch (VideoStartException ex)
+        {
+            throw new BridgeException(ex.Code, ex.Message, sourceId);
+        }
+
+        return Statuses();
+    }
+
+    /// <summary>
+    /// <c>video.removeSource</c> (2.8.0): stops one track (<c>screen</c>, <c>screen-2</c>, <c>camera</c>) from now; its
+    /// file keeps what it recorded. Removing the last screen is allowed: audio keeps recording.
+    /// </summary>
+    /// <exception cref="BridgeException"><c>video.sourceNotFound</c> when no track of the session has that id.</exception>
+    public async Task<IReadOnlyList<VideoTrackStatus>> RemoveSourceAsync(string trackId, CancellationToken cancellationToken)
+    {
+        IVideoTrackRecorder? recorder;
+        lock (_sync)
+        {
+            _active.TryGetValue(trackId, out recorder);
+        }
+
+        CancelRetry(trackId);
+        if (recorder is null)
+        {
+            throw new BridgeException(
+                DomainErrorCodes.VideoSourceNotFound,
+                $"There is no video track '{trackId}' in this recording any more. Nothing changed; audio and the other tracks keep recording.",
+                trackId);
+        }
+
+        await EndAsync(trackId, recorder, "disabled", cancellationToken);
+        return Statuses();
+    }
+
     /// <summary><c>recording.setVideoQuality</c>: the running tracks continue at the new quality (§18.6 "Lower quality").</summary>
     public async Task<IReadOnlyList<VideoTrackStatus>> SetQualityAsync(string quality, CancellationToken cancellationToken)
     {
@@ -234,7 +331,7 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         List<IVideoTrackRecorder> running;
         lock (_sync)
         {
-            running = _active.Values.Where(r => SafeStatus(r)?.State is not ("ended" or "stopped")).ToList();
+            running = _active.Where(kv => SafeStatus(kv.Key, kv.Value)?.State is not ("ended" or "stopped")).Select(kv => kv.Value).ToList();
         }
 
         foreach (var recorder in running)
@@ -327,7 +424,12 @@ internal sealed partial class VideoRecording : IAsyncDisposable
     {
         lock (_sync)
         {
-            return _active.OrderBy(kv => kv.Key == VideoTrack.RoleScreen ? 0 : 1).Select(kv => SafeStatus(kv.Value)).OfType<VideoTrackStatus>().ToList();
+            return _active
+                .OrderBy(kv => kv.Key == VideoTrack.RoleScreen ? 0 : kv.Key == VideoTrack.RoleCamera ? 2 : 1)
+                .ThenBy(kv => kv.Value.TrackId, StringComparer.Ordinal)
+                .Select(kv => SafeStatus(kv.Key, kv.Value))
+                .OfType<VideoTrackStatus>()
+                .ToList();
         }
     }
 
@@ -343,7 +445,7 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         foreach (var (role, recorder) in running)
         {
             var at = _session.ElapsedMs;
-            var name = SafeStatus(recorder)?.SourceName ?? role;
+            var name = SafeStatus(role, recorder)?.SourceName ?? role;
             await EndAsync(role, recorder, "diskFull", CancellationToken.None);
             lock (_sync)
             {
@@ -359,7 +461,7 @@ internal sealed partial class VideoRecording : IAsyncDisposable
                 recorder.SourceId,
                 name,
                 null,
-                $"Low disk space · {HumanFormat.Bytes(freeBytes)} free. The {role} video stopped at {HumanFormat.Clock(at)} so audio can keep recording; everything before it is saved. Free up space to record video again.",
+                $"Low disk space · {HumanFormat.Bytes(freeBytes)} free. The {recorder.Role} video stopped at {HumanFormat.Clock(at)} so audio can keep recording; everything before it is saved. Free up space to record video again.",
                 at));
         }
     }
@@ -446,11 +548,28 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         }
     }
 
-    private VideoTrackStatus? SafeStatus(IVideoTrackRecorder recorder)
+    private static bool IsScreenSlot(string slot) => slot != VideoTrack.RoleCamera;
+
+    private static bool IsRunning(IVideoTrackRecorder recorder)
     {
         try
         {
-            return recorder.Status() with { TrackId = recorder.Role };
+            return recorder.Status().State is not ("ended" or "stopped");
+        }
+#pragma warning disable CA1031 // A track whose status cannot be read is not counted as running.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The status with the id the page uses: the role for the first screen and the camera, the track id for an added screen.</summary>
+    private VideoTrackStatus? SafeStatus(string slot, IVideoTrackRecorder recorder)
+    {
+        try
+        {
+            return recorder.Status() with { TrackId = slot, Role = recorder.Role };
         }
 #pragma warning disable CA1031 // A status read must never break the recording state.
         catch (Exception ex)
@@ -476,9 +595,10 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         }
     }
 
-    private async Task StartTrackAsync(string role, string sourceId, CancellationToken cancellationToken)
+    private async Task StartTrackAsync(string role, string sourceId, CancellationToken cancellationToken, bool extra = false)
     {
         var trackId = NextTrackId(role);
+        var slot = extra ? trackId : role;
         var paused = _session.Pauses.Sum(p => p.DurationMs ?? 0);
         var origin = _originQpc + (paused * VideoClock.TicksPerMillisecond);
         IVideoTrackRecorder recorder;
@@ -497,10 +617,10 @@ internal sealed partial class VideoRecording : IAsyncDisposable
             throw;
         }
 
-        recorder.Problem += (_, e) => Report(e);
+        recorder.Problem += (_, e) => Report(e, slot);
         lock (_sync)
         {
-            _active[role] = recorder;
+            _active[slot] = recorder;
             if (_paused)
             {
                 recorder.PauseTrack();
@@ -551,6 +671,8 @@ internal sealed partial class VideoRecording : IAsyncDisposable
             track = track with { EndedEarlyAtMs = at, EndReason = reason };
         }
 
+        track = track with { StoppedAtMs = track.StoppedAtMs ?? StoppedAt(track) };
+
         lock (_sync)
         {
             if (_active.TryGetValue(role, out var still) && ReferenceEquals(still, recorder))
@@ -563,6 +685,10 @@ internal sealed partial class VideoRecording : IAsyncDisposable
 
         await recorder.DisposeAsync();
     }
+
+    /// <summary>2.8.0: where a track stopped on the session's timeline: where it ended early, else the end of its frames.</summary>
+    internal static long StoppedAt(VideoTrack track) =>
+        track.EndedEarlyAtMs ?? Math.Max(track.StartOffsetMs, track.StartOffsetMs + track.DurationMs);
 
     /// <summary>A source chosen for a role could not start: say why; a camera another app holds is tried again until it is free.</summary>
     private void ReportStartFailure(string role, string sourceId, VideoStartException ex)
@@ -672,12 +798,12 @@ internal sealed partial class VideoRecording : IAsyncDisposable
         }
     }
 
-    private void Report(VideoProblemEventArgs e)
+    private void Report(VideoProblemEventArgs e, string? slot = null)
     {
         LogProblem(_recordingId, e.TrackId, e.Code, e.State, e.AtMs);
         try
         {
-            _publisher.PublishRecordingVideoProblem(new RecordingVideoProblemPayload(_session.SessionId, e.Role, e.State, e.Code, e.SourceId, e.SourceName, e.Detail, e.Message, e.AtMs));
+            _publisher.PublishRecordingVideoProblem(new RecordingVideoProblemPayload(_session.SessionId, slot ?? e.Role, e.State, e.Code, e.SourceId, e.SourceName, e.Detail, e.Message, e.AtMs));
         }
 #pragma warning disable CA1031 // The page may be gone; the problem is logged.
         catch (Exception ex)

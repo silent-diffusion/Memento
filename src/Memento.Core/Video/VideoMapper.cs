@@ -80,7 +80,16 @@ public static class VideoMapper
             track.StartOffsetMs,
             track.DurationMs,
             EndSentence(track),
-            parts);
+            parts,
+            track.Id,
+            StoppedAt(track));
+    }
+
+    /// <summary>2.8.0: where the track stopped on the recording timeline (schema v7), or start + duration for a track not yet stopped.</summary>
+    public static long StoppedAt(VideoTrack track)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        return track.StoppedAtMs ?? track.EndedEarlyAtMs ?? Math.Max(track.StartOffsetMs, track.StartOffsetMs + track.DurationMs);
     }
 
     /// <summary>The §18.6 sentence for a track that ended before the recording did; <c>null</c> otherwise (also when turned off).</summary>

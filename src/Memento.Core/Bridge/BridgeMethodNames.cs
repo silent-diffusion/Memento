@@ -181,6 +181,10 @@ public static class BridgeMethodNames
     public const string VideoOpenPrivacySettings = "video.openPrivacySettings";
     public const string VideoRemove = "video.remove";
 
+    // 2.8.0: add or remove a screen while recording.
+    public const string VideoAddSource = "video.addSource";
+    public const string VideoRemoveSource = "video.removeSource";
+
     // 2.1: Library folders and Delete audio.
     public const string FoldersList = "folders.list";
     public const string FoldersCreate = "folders.create";

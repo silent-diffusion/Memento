@@ -493,6 +493,55 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
         }
     }
 
+    /// <summary><c>video.addSource</c> (2.8.0): one more display or window recorded from now; the audio is never touched.</summary>
+    public async Task<IReadOnlyList<VideoTrackStatus>> AddVideoSourceAsync(string sessionId, string sourceId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sourceId))
+        {
+            throw new BridgeException(BridgeErrorCodes.InvalidParams, "Add screen needs a display or window id from video.listSources.", sourceId);
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var active = Require(sessionId);
+            if (!_video.IsAvailable)
+            {
+                throw new BridgeException(DomainErrorCodes.VideoSourceNotFound, UnavailableVideoCapture.Message);
+            }
+
+            var statuses = await active.Video.AddSourceAsync(sourceId, cancellationToken);
+            await SaveVideoStateAsync(active);
+            return statuses;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary><c>video.removeSource</c> (2.8.0): one video track stops from now; its file keeps what it recorded.</summary>
+    public async Task<IReadOnlyList<VideoTrackStatus>> RemoveVideoSourceAsync(string sessionId, string trackId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(trackId))
+        {
+            throw new BridgeException(BridgeErrorCodes.InvalidParams, "Remove needs a video track id from recording.videoStatus (screen, screen-2, camera).", trackId);
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var active = Require(sessionId);
+            var statuses = await active.Video.RemoveSourceAsync(trackId, cancellationToken);
+            await SaveVideoStateAsync(active);
+            return statuses;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary><c>recording.setVideoQuality</c> (2.0): the running video tracks continue at another quality.</summary>
     public async Task<IReadOnlyList<VideoTrackStatus>> SetVideoQualityAsync(string sessionId, string quality, CancellationToken cancellationToken)
     {
@@ -1433,6 +1482,7 @@ public sealed partial class RecordingCoordinator : IAsyncDisposable, IDisposable
             {
                 StartOffsetMs = v.StartOffsetMs + SegmentOffsetMs,
                 EndedEarlyAtMs = v.EndedEarlyAtMs + SegmentOffsetMs,
+                StoppedAtMs = v.StoppedAtMs + SegmentOffsetMs,
                 Parts = v.Parts.Select(p => p with { StartOffsetMs = p.StartOffsetMs + SegmentOffsetMs }).ToList(),
                 Segment = Segment,
             })).ToList();
