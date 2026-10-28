@@ -594,3 +594,46 @@
     transform: none;
   }
 }
+
+/* --- 2.8.0: screens added or removed while recording -------------------------------------------- */
+
+.rec-live-screens {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rec-live-screen-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rec-live-screen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rec-live-screen .src-text {
+  min-width: 0;
+}
+
+.rec-live-screen-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.rec-live-screen-question {
+  color: var(--text-2);
+  font-size: 12px;
+}

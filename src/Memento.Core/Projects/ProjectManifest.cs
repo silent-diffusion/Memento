@@ -11,11 +11,12 @@ namespace Memento.Core.Projects;
 /// 1.2.0) adds <see cref="ProjectDetails.WhoSpoke"/> (<see cref="WhoSpokeMigration"/>). v4 (2.0) types
 /// <see cref="VideoTracks"/> (<see cref="VideoTracksMigration"/>) and adds <see cref="VideoRemoved"/>. v5 (2.1) adds the
 /// Library <see cref="Folder"/> (<see cref="FolderMigration"/>) and <see cref="AudioRemoved"/>. v6 (2.1) adds
-/// <see cref="Segments"/> for "Resume recording" (<see cref="SegmentsMigration"/>).
+/// <see cref="Segments"/> for "Resume recording" (<see cref="SegmentsMigration"/>). v7 (2.7.0) adds
+/// <c>details.whoSpoke.added</c> (<see cref="SpeakerAddedMigration"/>). v8 (2.8.0) adds <see cref="VideoTrack.StoppedAtMs"/>, each video track's own time range (<see cref="VideoRangesMigration"/>).
 /// </summary>
 public sealed record ProjectManifest
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 

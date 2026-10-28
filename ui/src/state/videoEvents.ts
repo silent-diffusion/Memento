@@ -3,7 +3,8 @@
 // screen track waits for a display or ends mid-recording. One toast per track (a newer problem of the
 // same track replaces it), so a flapping source never stacks a storm of toasts.
 import type { BridgeClient } from '../bridge/client';
-import type { RecordingVideoProblemPayload, VideoRole } from '../bridge/types';
+import type { RecordingVideoProblemPayload, VideoRole, VideoTrackId, VideoTracksResult } from '../bridge/types';
+import { isAddedScreen } from '../format/video';
 import { isToastProblem, videoProblemToast } from '../format/videoProblems';
 import type { AppStore } from './store';
 
@@ -11,20 +12,42 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Memento did not answer.';
 }
 
-/** Ends the session's video tracks: "Audio only from here", "Record audio only", "Stop video now". */
+function applyTracks(store: AppStore, sessionId: string, { videoTracks }: VideoTracksResult): void {
+  const status = store.videoStatus.value;
+  if (status?.sessionId === sessionId) {
+    store.videoStatus.value = { ...status, videoTracks };
+  }
+}
+
+/**
+ * Ends the session's video tracks: "Audio only from here", "Record audio only", "Stop video now". Ending the
+ * screen role also removes the screens added while recording (2.8.0).
+ */
 export async function endVideoTracks(bridge: BridgeClient, store: AppStore, sessionId: string, roles: readonly VideoRole[] = ['screen', 'camera']): Promise<void> {
-  const present = new Set(store.videoStatus.value?.sessionId === sessionId ? store.videoStatus.value.videoTracks.map((t) => t.trackId) : roles);
+  const known = store.videoStatus.value?.sessionId === sessionId ? store.videoStatus.value.videoTracks.map((t) => t.trackId) : null;
+  const present = new Set<VideoTrackId>(known ?? roles);
   for (const role of roles.filter((r) => present.has(r))) {
-    const { videoTracks } = await bridge.call('recording.setVideoSource', { sessionId, role, sourceId: null });
-    const status = store.videoStatus.value;
-    if (status?.sessionId === sessionId) {
-      store.videoStatus.value = { ...status, videoTracks };
+    applyTracks(store, sessionId, await bridge.call('recording.setVideoSource', { sessionId, role, sourceId: null }));
+  }
+  if (roles.includes('screen')) {
+    for (const trackId of (known ?? []).filter(isAddedScreen)) {
+      applyTracks(store, sessionId, await bridge.call('video.removeSource', { sessionId, trackId }));
     }
   }
 }
 
+/** 2.8.0: an added screen that waits or ended captures another source: it is removed and the new one added in its place. */
+async function captureInstead(bridge: BridgeClient, store: AppStore, sessionId: string, trackId: VideoTrackId, sourceId: string): Promise<void> {
+  if (!isAddedScreen(trackId)) {
+    applyTracks(store, sessionId, await bridge.call('recording.setVideoSource', { sessionId, role: 'screen', sourceId }));
+    return;
+  }
+  applyTracks(store, sessionId, await bridge.call('video.removeSource', { sessionId, trackId }));
+  applyTracks(store, sessionId, await bridge.call('video.addSource', { sessionId, sourceId }));
+}
+
 /** A problem is over once its track records again; the encoder fallback stays for the session (its banner). */
-export function openProblems(problems: readonly RecordingVideoProblemPayload[], recordingRoles: ReadonlySet<VideoRole>): RecordingVideoProblemPayload[] {
+export function openProblems(problems: readonly RecordingVideoProblemPayload[], recordingRoles: ReadonlySet<VideoTrackId>): RecordingVideoProblemPayload[] {
   return problems.filter((p) => p.code === 'video.encoderFallback' || !recordingRoles.has(p.trackId));
 }
 
@@ -51,15 +74,7 @@ function showProblemToast(bridge: BridgeClient, store: AppStore, problem: Record
                   if (target === null) {
                     return;
                   }
-                  bridge
-                    .call('recording.setVideoSource', { sessionId: problem.sessionId, role: 'screen', sourceId: target.id })
-                    .then(({ videoTracks }) => {
-                      const status = store.videoStatus.value;
-                      if (status?.sessionId === problem.sessionId) {
-                        store.videoStatus.value = { ...status, videoTracks };
-                      }
-                    })
-                    .catch(fail(`The screen track could not switch to ${target.name}`));
+                  captureInstead(bridge, store, problem.sessionId, problem.trackId, target.id).catch(fail(`The screen track could not switch to ${target.name}`));
                 },
               },
             ]),

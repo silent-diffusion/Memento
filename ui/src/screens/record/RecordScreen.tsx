@@ -6,7 +6,7 @@
 import { effect } from '@preact/signals';
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { AgendaItem, AudioSource, Highlight, PipState, RecordingStatePayload, RecordingType, VideoListSourcesResult, VideoRole, VideoSource } from '../../bridge/types';
+import type { AgendaItem, AudioSource, Highlight, PipState, RecordingStatePayload, RecordingType, VideoListSourcesResult, VideoRole, VideoSource, VideoTrackId, VideoTrackStatus, VideoTracksResult } from '../../bridge/types';
 import { BannerSlot } from '../../components/Banners';
 import { DetailsSheet, typeOptions } from '../../components/DetailsSheet';
 import { NotesIcon } from '../../components/icons';
@@ -24,11 +24,12 @@ import { createDetailsSaver, emptyDetails } from '../../state/detailsSaver';
 import { recordShortcut } from '../../state/recordShortcuts';
 import { endVideoTracks } from '../../state/videoEvents';
 import { recordingBytesPerSecond } from '../../format/estimate';
-import { videoSettingsOf } from '../../format/video';
+import { videoRoleOf, videoSettingsOf } from '../../format/video';
 import { previewNoticeText, rowNoteText, videoFooterLine, videoProblemCard, type VideoProblemCard } from '../../format/videoProblems';
 import { AgendaCard, HighlightsCard, LiveTranscriptCard, RecordFooter, SourcesCard, StageCard, type SourceRow } from './RecordParts';
 import { adoptCurrentSession } from '../../state/currentSession';
 import { TracksCard } from './TracksCard';
+import { LiveScreens } from './LiveScreens';
 import { CapturePicker, type PickerMode } from './CapturePicker';
 import { EncoderCard, LivePreview } from './VideoCards';
 import { VideoSources, type RowNote, type VideoCardAction, type VideoRow } from './VideoSources';
@@ -103,6 +104,9 @@ export function RecordScreen(): JSX.Element {
   const [videoError, setVideoError] = useState<string | null>(null);
   const [selection, setSelection] = useState<VideoSelection | null>(null);
   const [picker, setPicker] = useState<PickerMode | null>(null);
+  /** 2.8.0: the picker was opened by Add screen: the source chosen is added, not switched to. */
+  const [pickerAdds, setPickerAdds] = useState(false);
+  const [screenBusy, setScreenBusy] = useState<ReadonlySet<VideoTrackId | 'add'>>(new Set());
   const [videoBusy, setVideoBusy] = useState<ReadonlySet<VideoRow | 'pip'>>(new Set());
   const [cameraRetry, setCameraRetry] = useState(0);
   const videoSettings = videoSettingsOf(settings?.recording);
@@ -319,7 +323,7 @@ export function RecordScreen(): JSX.Element {
     }
   } else {
     for (const problem of videoProblems) {
-      const card = videoProblemCard(problem.code, problem.trackId, problem.sourceName, problem.detail, true);
+      const card = videoProblemCard(problem.code, videoRoleOf(problem.trackId), problem.sourceName, problem.detail, true);
       if (card !== null && !videoCards.some((c) => c.kind === card.kind)) {
         videoCards.push(card);
       }
@@ -468,8 +472,68 @@ export function RecordScreen(): JSX.Element {
     }
   };
 
+  const markScreenBusy = (key: VideoTrackId | 'add', on: boolean): void => {
+    setScreenBusy((before) => {
+      const next = new Set(before);
+      if (on) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
+
+  const applyVideoTracks = (sessionId: string, { videoTracks: next }: VideoTracksResult): void => {
+    const current = store.videoStatus.value;
+    store.videoStatus.value = current?.sessionId === sessionId ? { ...current, videoTracks: next } : { sessionId, videoTracks: next, pip: selection?.pip ?? videoStatusPip() };
+  };
+
+  /** 2.8.0 Add screen: one more display or window recorded from now. */
+  const addScreen = (source: VideoSource): void => {
+    if (own === null) {
+      return;
+    }
+    const sessionId = own.sessionId;
+    markScreenBusy('add', true);
+    bridge
+      .call('video.addSource', { sessionId, sourceId: source.id })
+      .then((result) => {
+        applyVideoTracks(sessionId, result);
+      })
+      .catch(videoFailed(`${source.name} was not added`))
+      .finally(() => {
+        markScreenBusy('add', false);
+      });
+  };
+
+  /** 2.8.0 Remove (after its confirmation): the screen stops from now; what it recorded is kept. */
+  const removeScreen = (track: VideoTrackStatus): void => {
+    if (own === null) {
+      return;
+    }
+    const sessionId = own.sessionId;
+    markScreenBusy(track.trackId, true);
+    bridge
+      .call('video.removeSource', { sessionId, trackId: track.trackId })
+      .then((result) => {
+        applyVideoTracks(sessionId, result);
+      })
+      .catch(videoFailed(`${track.sourceName} could not be removed`))
+      .finally(() => {
+        markScreenBusy(track.trackId, false);
+      });
+  };
+
   const useCaptureSource = (source: VideoSource): void => {
     setPicker(null);
+    if (pickerAdds) {
+      setPickerAdds(false);
+      if (live && own !== null) {
+        addScreen(source);
+      }
+      return;
+    }
     const isWindow = source.kind === 'window';
     setSelection((s) => (s === null ? s : isWindow ? { ...s, windowId: source.id, window: true, screen: false } : { ...s, displayId: source.id, screen: true, window: false }));
     if (live && own !== null) {
@@ -817,6 +881,7 @@ export function RecordScreen(): JSX.Element {
             onToggle={toggleSource}
             onRescan={loadSources}
             video={
+              <>
               <VideoSources
                 available={videoAvailable}
                 sources={videoSources}
@@ -834,6 +899,18 @@ export function RecordScreen(): JSX.Element {
                 onPip={changePip}
                 onCardAction={videoCardAction}
               />
+              {live && videoAvailable && own !== null ? (
+                <LiveScreens
+                  tracks={videoTracks}
+                  busy={screenBusy}
+                  onAdd={() => {
+                    setPickerAdds(true);
+                    setPicker('screen');
+                  }}
+                  onRemove={removeScreen}
+                />
+              ) : null}
+              </>
             }
           />
 
@@ -921,6 +998,7 @@ export function RecordScreen(): JSX.Element {
           onUse={useCaptureSource}
           onClose={() => {
             setPicker(null);
+            setPickerAdds(false);
           }}
         />
       ) : null}

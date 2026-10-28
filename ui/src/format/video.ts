@@ -1,7 +1,17 @@
 // Video figures in plain numbers (DESIGN.md §18: "every video figure is shown in plain numbers"):
 // resolutions, frame rates, bitrates, the sources a recording has, the inset corners, and the
 // bitrate a quality setting asks the encoder for (ENGINE-NOTES.md §M.3, the busy-content ceilings).
-import type { PipCorner, VideoFrameRate, VideoQuality, VideoRole, VideoSettings, VideoSource } from '../bridge/types';
+import type { PipCorner, VideoFrameRate, VideoQuality, VideoRole, VideoSettings, VideoSource, VideoTrackId } from '../bridge/types';
+
+/** 2.8.0: the role of a track id while recording (`screen-2`, a screen added while recording, is a screen). */
+export function videoRoleOf(trackId: VideoTrackId): VideoRole {
+  return trackId === 'camera' ? 'camera' : 'screen';
+}
+
+/** 2.8.0: an added screen (`screen-2`), as opposed to the first screen or the camera. */
+export function isAddedScreen(trackId: VideoTrackId): boolean {
+  return trackId !== 'screen' && trackId !== 'camera';
+}
 
 /** Settings › Recording › Video defaults of a new install (BRIDGE.md additions, Settings). */
 export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {

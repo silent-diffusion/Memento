@@ -129,11 +129,62 @@ export function syncAction(localMs: number, mix: MixState, video: VideoElementSt
   return { seekToMs, play, rate };
 }
 
-/** The tracks the well draws: the screen fills it with the camera as the inset, or the camera alone fills it. */
-export function videoLayers(video: Pick<ProjectVideo, 'tracks'>): { main: ProjectVideoTrack | null; inset: ProjectVideoTrack | null } {
-  const screen = video.tracks.find((t) => t.id === 'screen') ?? null;
+/** 2.8.0: where a track stopped on the recording timeline (start + duration for a project from before). */
+function stoppedAt(track: Pick<ProjectVideoTrack, 'startOffsetMs' | 'durationMs'> & { stoppedAtMs?: number }): number {
+  return track.stoppedAtMs ?? track.startOffsetMs + track.durationMs;
+}
+
+/** Whether the track's own time range covers `timeMs`. */
+export function covers(track: Pick<ProjectVideoTrack, 'startOffsetMs' | 'durationMs'> & { stoppedAtMs?: number }, timeMs: number): boolean {
+  return timeMs >= track.startOffsetMs && timeMs < stoppedAt(track);
+}
+
+/**
+ * 2.8.0: the screen track to show at `timeMs` among several (a screen added or removed while recording, a resumed
+ * recording): the most recently started one whose range covers the moment; in a gap the next one to start, else the
+ * last one that stopped, so the well says when the screen comes back or that it ended.
+ */
+export function screenAt<T extends Pick<ProjectVideoTrack, 'id' | 'startOffsetMs' | 'durationMs'> & { stoppedAtMs?: number }>(tracks: readonly T[], timeMs: number): T | null {
+  const screens = tracks.filter((t) => t.id === 'screen');
+  if (screens.length <= 1) {
+    return screens[0] ?? null;
+  }
+  const t = Number.isFinite(timeMs) ? timeMs : 0;
+  const covering = screens.filter((s) => covers(s, t)).sort((a, b) => b.startOffsetMs - a.startOffsetMs);
+  if (covering[0] !== undefined) {
+    return covering[0];
+  }
+  const next = screens.filter((s) => s.startOffsetMs > t).sort((a, b) => a.startOffsetMs - b.startOffsetMs);
+  if (next[0] !== undefined) {
+    return next[0];
+  }
+  return [...screens].sort((a, b) => stoppedAt(b) - stoppedAt(a))[0] ?? null;
+}
+
+/**
+ * The tracks the well draws: the screen fills it with the camera as the inset, or the camera alone fills it. With
+ * `timeMs`, the screen is the one recorded at that moment (2.8.0, {@link screenAt}).
+ */
+export function videoLayers(video: Pick<ProjectVideo, 'tracks'>, timeMs = 0): { main: ProjectVideoTrack | null; inset: ProjectVideoTrack | null } {
+  const screen = screenAt(video.tracks, timeMs);
   const camera = video.tracks.find((t) => t.id === 'camera') ?? null;
   return screen === null ? { main: camera, inset: null } : { main: screen, inset: camera };
+}
+
+/**
+ * 2.8.0: the calm placeholder for a moment no screen was recorded while other screens were (one added later, or all
+ * removed for a while); null when a screen covers the moment or the recording has one screen track at most.
+ */
+export function screenGapMessage(video: Pick<ProjectVideo, 'tracks'>, timeMs: number): { lead: string; detail: string } | null {
+  const screens = video.tracks.filter((t) => t.id === 'screen');
+  if (screens.length <= 1 || screens.some((s) => covers(s, timeMs))) {
+    return null;
+  }
+  const next = screens.map((s) => s.startOffsetMs).filter((at) => at > timeMs);
+  if (next.length === 0) {
+    return { lead: 'No screen was recorded from here.', detail: 'Audio and the transcript continue.' };
+  }
+  return { lead: 'No screen was recorded here.', detail: `Screen recording resumes at ${formatTimecode(Math.min(...next))}. Audio and the transcript continue.` };
 }
 
 function roleName(role: VideoRole): string {

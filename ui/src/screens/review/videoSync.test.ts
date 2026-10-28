@@ -30,6 +30,8 @@ function track(overrides: Partial<ProjectVideoTrack> = {}): ProjectVideoTrack {
     durationMs: 60_000,
     endReason: null,
     parts: [{ url: 'blob:screen-0', startOffsetMs: 0, durationMs: 60_000 }],
+    trackId: overrides.id ?? 'screen',
+    stoppedAtMs: (overrides.startOffsetMs ?? 0) + (overrides.durationMs ?? 60_000),
     ...overrides,
   };
 }

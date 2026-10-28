@@ -18,6 +18,8 @@ namespace Memento.Core.Bridge;
 [JsonSerializable(typeof(VideoThumbnailResult))]
 [JsonSerializable(typeof(RecordingSetVideoSourceParams))]
 [JsonSerializable(typeof(VideoTracksResult))]
+[JsonSerializable(typeof(VideoAddSourceParams))]
+[JsonSerializable(typeof(VideoRemoveSourceParams))]
 [JsonSerializable(typeof(RecordingSetPipParams))]
 [JsonSerializable(typeof(VideoOpenPrivacySettingsParams))]
 [JsonSerializable(typeof(VideoRemoveResult))]

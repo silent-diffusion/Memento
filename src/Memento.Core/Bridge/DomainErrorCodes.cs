@@ -264,6 +264,14 @@ public static class DomainErrorCodes
     /// <summary>The disk is (nearly) full: video stopped first; audio continues.</summary>
     public const string VideoDiskFull = "video.diskFull";
 
+    // 2.8.0: add or remove a screen while recording (BRIDGE.md "Add and remove screens while recording (2.8.0)").
+
+    /// <summary><c>video.addSource</c>: that display or window is already being recorded; <c>detail</c> is the source id.</summary>
+    public const string VideoSourceAlreadyRecorded = "video.sourceAlreadyRecorded";
+
+    /// <summary><c>video.addSource</c>: as many screens as Memento records at once are recording; <c>detail</c> is the source id.</summary>
+    public const string VideoTooManySources = "video.tooManySources";
+
     // 2.1: Library folders (BRIDGE.md "2.1 — Folders, dates and Delete audio").
 
     /// <summary>The folder named is not in the Library (any more); <c>detail</c> is the path.</summary>
