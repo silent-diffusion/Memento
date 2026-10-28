@@ -7,6 +7,7 @@ namespace Memento.Core.Tests.Storage;
 
 public sealed class AtomicReplaceTests : IDisposable
 {
+    private const int ErrorAccessDenied = 5;
     private const int ErrorInvalidParameter = 87;
     private const int ErrorNotSupported = 50;
     private const int ErrorSharingViolation = 32;
@@ -161,6 +162,108 @@ public sealed class AtomicReplaceTests : IDisposable
         Assert.True(stopwatch.Elapsed >= budget);
         Assert.Equal("old", await File.ReadAllTextAsync(target));
         Assert.Equal("new", await File.ReadAllTextAsync(source));
+    }
+
+    [Fact]
+    public async Task ATargetThatRefusesRenamesIsSwappedWithReplaceFile()
+    {
+        // Seen under full-suite load: renames over project.json refused with access denied for minutes while nothing
+        // had it open; every write in that time was dropped after the whole budget. ReplaceFile still swaps the files.
+        var (source, target) = await PairAsync("new", "old");
+        var swaps = 0;
+
+        await AtomicReplace.ReplaceAsync(
+            source,
+            target,
+            (_, _) => ErrorAccessDenied,
+            AtomicReplace.DefaultBudget,
+            CancellationToken.None,
+            (_, _) => throw new InvalidOperationException("The swap should not need a wait."),
+            (from, to) => { swaps++; return AtomicReplace.SwapWithReplaceFile(from, to); });
+
+        Assert.Equal(1, swaps);
+        Assert.Equal("new", await File.ReadAllTextAsync(target));
+        Assert.False(File.Exists(source));
+    }
+
+    [Fact]
+    public async Task TheFallbackMoveSwapsATargetThatRefusesRenames()
+    {
+        var (source, target) = await PairAsync("new", "old");
+        var swaps = 0;
+
+        // File.Move is refused (the target is read-only here); the swap stands for ReplaceFile succeeding.
+        File.SetAttributes(target, FileAttributes.ReadOnly);
+        await AtomicReplace.ReplaceAsync(
+            source,
+            target,
+            null,
+            AtomicReplace.DefaultBudget,
+            CancellationToken.None,
+            swap: (from, to) =>
+            {
+                swaps++;
+                File.SetAttributes(to, FileAttributes.Normal);
+                File.Move(from, to, overwrite: true);
+                return 0;
+            });
+
+        Assert.Equal(1, swaps);
+        Assert.Equal("new", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task ASharingViolationIsWaitedOutWithoutASwap()
+    {
+        var (source, target) = await PairAsync("new", "old");
+        var calls = 0;
+
+        await AtomicReplace.ReplaceAsync(
+            source,
+            target,
+            (from, to) => ++calls < 3 ? ErrorSharingViolation : PosixRename.Replace(from, to),
+            AtomicReplace.DefaultBudget,
+            CancellationToken.None,
+            swap: (_, _) => throw new InvalidOperationException("A sharing violation must not swap."));
+
+        Assert.Equal("new", await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task AReadOnlyTargetIsStillRefusedWithinTheBudget()
+    {
+        var (source, target) = await PairAsync("new", "old");
+        File.SetAttributes(target, FileAttributes.ReadOnly);
+        var swaps = 0;
+
+        await Assert.ThrowsAsync<IOException>(() => AtomicReplace.ReplaceAsync(
+            source,
+            target,
+            PosixRename.Replace,
+            TimeSpan.FromMilliseconds(50),
+            CancellationToken.None,
+            (_, _) => Task.CompletedTask,
+            (from, to) => { swaps++; return AtomicReplace.SwapWithReplaceFile(from, to); }));
+
+        Assert.True(swaps > 0);
+        File.SetAttributes(target, FileAttributes.Normal);
+        Assert.Equal("old", await File.ReadAllTextAsync(target));
+        Assert.Equal("new", await File.ReadAllTextAsync(source));
+    }
+
+    [Fact]
+    public async Task ReplaceFileKeepsAShareDeleteReaderOnTheOldDocument()
+    {
+        var (source, target) = await PairAsync("new", "old");
+
+        using (var held = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        {
+            Assert.Equal(0, AtomicReplace.SwapWithReplaceFile(source, target));
+            using var reader = new StreamReader(held);
+            Assert.Equal("old", await reader.ReadToEndAsync());
+        }
+
+        Assert.Equal("new", await File.ReadAllTextAsync(target));
     }
 
     [Fact]
