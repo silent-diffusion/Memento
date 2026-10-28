@@ -3,6 +3,18 @@
 Each release has a `## <version>` section. `build/pack.ps1` puts the section for the version being
 packed into the installer package, and the release workflow uses it as the GitHub release text.
 
+## 2.7.0
+
+### Suggested chapters from the agenda
+
+- **The agenda names the chapters.** When a recording has an agenda, **Suggested chapters** now looks for each agenda item in the transcript, in the agenda's order, and starts a chapter where it is talked about, titled with the item. These suggestions are marked **Agenda**. Items that are never talked about are skipped, and where the agenda finds nothing the suggestions are as before.
+
+### Speakers added during a recording
+
+- **When a name was added is kept.** A name added under **Who spoke** while recording now keeps when it was added (on the recording timer and the clock). When the recording is processed, that time breaks a tie between two voices in favour of the one heard after the name was added, and History lists any name Memento is not confident about: a **Speaking now** mark that heard a different voice, or a name that went to someone heard only before it was added.
+- **Speaking now as you add a name.** While recording, switch on **Speaking now** below the names before adding one: the new name gets its Speaking now mark at the same moment.
+- Project files move to schema 7; older recordings open as before.
+
 ## 2.6.0
 
 Speakers you can trust and fix fast (`docs/ROADMAP.md` 2.6.0): fewer wrong speaker assignments, and faster ways to correct the ones that remain.
