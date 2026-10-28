@@ -194,4 +194,11 @@ public static class BridgeMethodNames
     public const string LibraryMoveToFolder = "library.moveToFolder";
     public const string AudioRemove = "audio.remove";
     public const string AudioRemoveEstimate = "audio.removeEstimate";
+
+    // 2.9.0: Ask, a conversation about one recording (BRIDGE.md "2.9.0 — Ask").
+    public const string AskGet = "ask.get";
+    public const string AskSend = "ask.send";
+    public const string AskConfirm = "ask.confirm";
+    public const string AskCancel = "ask.cancel";
+    public const string AskClear = "ask.clear";
 }

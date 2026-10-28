@@ -6,6 +6,7 @@ using Memento.Core.Documents;
 using Memento.Core.Secrets;
 using Memento.Documents.Export;
 using Memento.Generation.Ai;
+using Memento.Generation.Ask;
 using Memento.Generation.Bridge.Methods;
 using Memento.Generation.Documents;
 using Memento.Generation.Generation;
@@ -47,6 +48,8 @@ public static class M4ServiceCollectionExtensions
         services.TryAddSingleton<GenerationPipeline>();
         services.TryAddSingleton<GenerationService>();
         services.TryAddSingleton<PreviewClipboard>();
+        services.TryAddSingleton<AskConversationStore>();
+        services.TryAddSingleton<AskService>();
         services.TryAddSingleton<IDocumentExportSource, DocumentExportSource>();
         services.TryAddSingleton<IDocumentHistorySource, DocumentHistorySource>();
 
@@ -72,6 +75,11 @@ public static class M4ServiceCollectionExtensions
         services.AddSingleton<IBridgeHandler, GenerationStartMethod>();
         services.AddSingleton<IBridgeHandler, GenerationConfirmMethod>();
         services.AddSingleton<IBridgeHandler, GenerationCancelMethod>();
+        services.AddSingleton<IBridgeHandler, AskGetMethod>();
+        services.AddSingleton<IBridgeHandler, AskSendMethod>();
+        services.AddSingleton<IBridgeHandler, AskConfirmMethod>();
+        services.AddSingleton<IBridgeHandler, AskCancelMethod>();
+        services.AddSingleton<IBridgeHandler, AskClearMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsListMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsGetMethod>();
         services.AddSingleton<IBridgeHandler, DocumentsRenderHtmlMethod>();

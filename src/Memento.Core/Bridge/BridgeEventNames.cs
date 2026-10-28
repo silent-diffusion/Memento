@@ -39,4 +39,7 @@ public static class BridgeEventNames
     public const string RecordingVideoStatus = "recording.videoStatus";
     public const string RecordingVideoProblem = "recording.videoProblem";
     public const string VideoSourcesChanged = "video.sourcesChanged";
+
+    // 2.9.0: an Ask answer as it arrives.
+    public const string AskProgress = "ask.progress";
 }

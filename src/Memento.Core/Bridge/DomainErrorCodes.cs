@@ -282,4 +282,18 @@ public static class DomainErrorCodes
 
     /// <summary>The name is empty, too long or has <c>/</c> or <c>\</c>, or the move would put a folder in itself or nest deeper than 8.</summary>
     public const string FolderInvalid = "folder.invalid";
+
+    // 2.9.0: Ask (BRIDGE.md "2.9.0 — Ask").
+
+    /// <summary><c>ask.send</c>: another question is being answered; nothing was sent.</summary>
+    public const string AskBusy = "ask.busy";
+
+    /// <summary><c>ask.confirm</c> / <c>ask.cancel</c>: that question is no longer being answered; <c>detail</c> is the job id.</summary>
+    public const string AskNotFound = "ask.notFound";
+
+    /// <summary><c>ask.send</c>: the recording has no transcript yet, or the transcript may not be sent to that provider.</summary>
+    public const string AskNoTranscript = "ask.noTranscript";
+
+    /// <summary>The conversation file was written by a newer Memento; it is left as it is and nothing is added to it.</summary>
+    public const string AskNewerVersion = "ask.newerVersion";
 }
